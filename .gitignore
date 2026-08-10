@@ -1,0 +1,14 @@
+# Private project collaboration notes. Never publish.
+.internal/
+
+# Superseded incident-response concept kept only as local discovery history.
+OPSPILOT_PROJECT_BRIEF.md
+
+# Local environment and secrets.
+.env
+.env.*
+!.env.example
+*.local
+
+# Operating-system metadata.
+.DS_Store
