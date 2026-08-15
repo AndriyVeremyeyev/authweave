@@ -1,8 +1,9 @@
 # Private project collaboration notes. Never publish.
 .internal/
 
-# Superseded incident-response concept kept only as local discovery history.
-OPSPILOT_PROJECT_BRIEF.md
+# Local documentation drafts. Publish only after a separate owner decision.
+/PROJECT_BRIEF.md
+/docs/
 
 # Local environment and secrets.
 .env

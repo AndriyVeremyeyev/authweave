@@ -15,5 +15,6 @@ The project follows three core principles:
 - structured, source-backed provider facts before semantic retrieval;
 - human ownership of every final architecture decision.
 
-Development is local-first and incremental. Product scope, architecture decisions and
-implementation details will be published as the project evolves.
+Development is local-first and incremental. This README describes the project at a
+high level; additional documentation remains private while the product is being
+shaped. Running code, tests and measurements will be added in later phases.
