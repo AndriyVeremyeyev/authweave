@@ -1,7 +1,7 @@
-# Private project collaboration notes. Never publish.
+# Private project notes.
 .internal/
 
-# Local documentation drafts. Publish only after a separate owner decision.
+# Local documentation drafts.
 /PROJECT_BRIEF.md
 /docs/
 
