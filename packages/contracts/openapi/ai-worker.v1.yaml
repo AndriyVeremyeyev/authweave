@@ -1,0 +1,74 @@
+openapi: 3.1.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: AuthWeave AI Worker API
+  version: 1.0.0
+  description: >-
+    Internal typed-operation boundary between the AuthWeave core API and AI worker.
+    Worker output is an untrusted proposal that the core must validate before use. The
+    initial server describes local development; service-to-service authentication must
+    be defined before this boundary is deployed outside the local environment.
+servers:
+  - url: http://127.0.0.1:8000
+    description: Local AI worker
+security: []
+tags:
+  - name: Requirements extraction
+    description: Converts supplied text into a structured requirements proposal.
+paths:
+  /v1/operations/requirements-extraction:
+    post:
+      tags:
+        - Requirements extraction
+      summary: Extract a requirements proposal
+      description: >-
+        Processes one core-created operation scope. This endpoint does not authorize a
+        user action, persist domain state, or accept a generic chat command.
+      operationId: extractRequirementsV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/requirements-extraction-request.v1.schema.json
+      responses:
+        "200":
+          description: A structured, untrusted requirements proposal.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/requirements-extraction-result.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidContract"
+        "403":
+          $ref: "#/components/responses/ForbiddenTool"
+        "409":
+          $ref: "#/components/responses/OperationConflict"
+        "422":
+          $ref: "#/components/responses/UnsupportedOperation"
+components:
+  responses:
+    InvalidContract:
+      description: The request does not satisfy the operation contract.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/operation-problem.v1.schema.json
+    ForbiddenTool:
+      description: The operation attempted to use a tool outside its allowlist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/operation-problem.v1.schema.json
+    OperationConflict:
+      description: The result is stale or the idempotency key has already been used.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/operation-problem.v1.schema.json
+    UnsupportedOperation:
+      description: The operation type or contract version is unsupported.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/operation-problem.v1.schema.json

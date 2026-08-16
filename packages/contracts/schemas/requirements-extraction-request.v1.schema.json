@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/requirements-extraction-request.v1.schema.json",
+  "title": "Requirements extraction request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context",
+    "input"
+  ],
+  "properties": {
+    "context": {
+      "allOf": [
+        {
+          "$ref": "operation-context.v1.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operationType": {
+              "const": "requirements-extraction"
+            },
+            "contractVersion": {
+              "const": "1.0"
+            }
+          }
+        }
+      ]
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceText"
+      ],
+      "properties": {
+        "sourceText": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "sourceLocale": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 35
+        }
+      }
+    }
+  }
+}

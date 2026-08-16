@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/operation-problem.v1.schema.json",
+  "title": "Operation problem v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "title",
+    "status",
+    "code",
+    "correlationId"
+  ],
+  "properties": {
+    "type": {
+      "type": "string",
+      "format": "uri"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "status": {
+      "type": "integer",
+      "minimum": 400,
+      "maximum": 599
+    },
+    "detail": {
+      "type": "string",
+      "maxLength": 2000
+    },
+    "instance": {
+      "type": "string",
+      "format": "uri-reference"
+    },
+    "code": {
+      "type": "string",
+      "enum": [
+        "CONTRACT_SCHEMA_MISMATCH",
+        "CROSS_WORKSPACE_ACCESS",
+        "DUPLICATE_IDEMPOTENCY_KEY",
+        "FORBIDDEN_TOOL",
+        "RESULT_CONTEXT_MISMATCH",
+        "STALE_ASSESSMENT_VERSION",
+        "UNSUPPORTED_OPERATION_TYPE",
+        "UNSUPPORTED_OPERATION_VERSION"
+      ]
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "operationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "expectedVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "actualVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "violations": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "message"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "STALE_ASSESSMENT_VERSION"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "then": {
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "actualVersion": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "actualVersion"
+        ]
+      }
+    }
+  ]
+}

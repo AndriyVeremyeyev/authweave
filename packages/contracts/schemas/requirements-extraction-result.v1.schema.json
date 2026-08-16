@@ -1,0 +1,265 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/requirements-extraction-result.v1.schema.json",
+  "title": "Requirements extraction result v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "context",
+    "proposal",
+    "confidence",
+    "evidenceReferences",
+    "toolInvocations"
+  ],
+  "properties": {
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operationId",
+        "operationType",
+        "contractVersion",
+        "workspaceId",
+        "assessment"
+      ],
+      "properties": {
+        "operationId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "operationType": {
+          "const": "requirements-extraction"
+        },
+        "contractVersion": {
+          "const": "1.0"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "assessment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "assessmentId",
+            "basedOnVersion"
+          ],
+          "properties": {
+            "assessmentId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "basedOnVersion": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        }
+      }
+    },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requirements",
+        "clarifyingQuestions",
+        "warnings",
+        "requiresHumanAcceptance"
+      ],
+      "properties": {
+        "requirements": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "clientReference",
+              "category",
+              "statement",
+              "sourceExcerpt"
+            ],
+            "properties": {
+              "clientReference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9._:-]+$"
+              },
+              "category": {
+                "type": "string",
+                "enum": [
+                  "authentication",
+                  "authorization",
+                  "compliance",
+                  "cost",
+                  "federation",
+                  "operations",
+                  "provisioning",
+                  "user-experience"
+                ]
+              },
+              "statement": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "sourceExcerpt": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "criticalityProposal": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "value",
+                  "rationale"
+                ],
+                "properties": {
+                  "value": {
+                    "type": "string",
+                    "enum": [
+                      "hard-requirement",
+                      "important",
+                      "preference"
+                    ]
+                  },
+                  "rationale": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "clarifyingQuestions": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "questionId",
+              "prompt",
+              "reason"
+            ],
+            "properties": {
+              "questionId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "pattern": "^[A-Za-z0-9._:-]+$"
+              },
+              "prompt": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1000
+              }
+            }
+          }
+        },
+        "requiresHumanAcceptance": {
+          "const": true
+        }
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ]
+    },
+    "evidenceReferences": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "referenceId",
+          "kind",
+          "locator"
+        ],
+        "properties": {
+          "referenceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "pattern": "^[A-Za-z0-9._:-]+$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "input-span",
+              "catalog-fact",
+              "retrieved-document"
+            ]
+          },
+          "locator": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "toolInvocations": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "toolName",
+          "outcome"
+        ],
+        "properties": {
+          "toolName": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z][a-z0-9]*)+$"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "failed"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

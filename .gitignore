@@ -13,3 +13,7 @@
 
 # Operating-system metadata.
 .DS_Store
+
+# Dependency directories and generated test output.
+node_modules/
+coverage/

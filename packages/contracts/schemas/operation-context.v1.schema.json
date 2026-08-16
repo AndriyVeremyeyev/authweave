@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/operation-context.v1.schema.json",
+  "title": "Operation context v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "operationId",
+    "operationType",
+    "contractVersion",
+    "actor",
+    "workspaceId",
+    "assessment",
+    "allowedTools",
+    "correlationId",
+    "idempotencyKey"
+  ],
+  "properties": {
+    "operationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "operationType": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+    },
+    "contractVersion": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]*\\.[0-9]+$"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actorId",
+        "actorType"
+      ],
+      "properties": {
+        "actorId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "actorType": {
+          "type": "string",
+          "enum": [
+            "user",
+            "system"
+          ]
+        }
+      }
+    },
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assessmentId",
+        "expectedVersion"
+      ],
+      "properties": {
+        "assessmentId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "expectedVersion": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "allowedTools": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9]*(?:[.-][a-z][a-z0-9]*)+$"
+      }
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 16,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    }
+  }
+}
