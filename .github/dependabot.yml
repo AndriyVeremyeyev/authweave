@@ -1,0 +1,62 @@
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: maven
+    directory: /services/core-api
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      java-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: npm
+    directory: /apps/web
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      web-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: pip
+    directory: /services/ai-worker
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: npm
+    directory: /packages/contracts
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      contract-dependencies:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: deps
