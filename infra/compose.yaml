@@ -1,0 +1,26 @@
+name: authweave
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg18-bookworm
+    environment:
+      POSTGRES_DB: "${AUTHWEAVE_POSTGRES_DB:-authweave}"
+      POSTGRES_USER: "${AUTHWEAVE_POSTGRES_ADMIN_USER:-authweave_admin}"
+      POSTGRES_PASSWORD: "${AUTHWEAVE_POSTGRES_ADMIN_PASSWORD:?Set AUTHWEAVE_POSTGRES_ADMIN_PASSWORD in infra/.env}"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+    ports:
+      - "127.0.0.1:${AUTHWEAVE_POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready --username="$${POSTGRES_USER}" --dbname="$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    stop_grace_period: 30s
+    volumes:
+      - postgres-data:/var/lib/postgresql
+
+volumes:
+  postgres-data:
