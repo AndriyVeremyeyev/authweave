@@ -2,7 +2,7 @@
 
 **AI-assisted identity architecture and change assurance platform for evidence-backed authentication decisions.**
 
-> Status: product discovery and architecture foundation. No production release is available yet.
+> Status: local application foundation. No production release is available yet.
 
 AuthWeave is an engineering workspace for designing identity and authentication
 architecture. It will help engineers collect application requirements, compare identity
@@ -17,4 +17,26 @@ The project follows three core principles:
 
 Development is local-first and incremental. This README describes the project at a
 high level; additional documentation remains private while the product is being
-shaped. Running code, tests and measurements will be added in later phases.
+shaped.
+
+## Local development
+
+Required tools are Java 21, Node.js 24 with npm 11, Python 3.13, Docker Desktop and
+GNU Make. From the repository root, install project-local dependencies and create the
+ignored local environment file:
+
+```shell
+make setup
+```
+
+The setup command generates local database passwords only when `infra/.env` does not
+already exist. It never overwrites an existing environment file.
+
+Start PostgreSQL and run all local checks:
+
+```shell
+make infra-up
+make check
+```
+
+Run `make help` to see component-specific checks and development-server commands.

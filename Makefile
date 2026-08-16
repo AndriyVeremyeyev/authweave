@@ -1,13 +1,16 @@
 SHELL := /bin/sh
 
 AI_WORKER_PYTHON ?= .venv/bin/python
+PYTHON ?= python3.13
 
-.PHONY: help check check-policy check-core check-web check-ai check-contracts \
+.PHONY: help setup setup-env setup-web setup-ai setup-contracts \
+	check check-policy check-core check-web check-ai check-contracts \
 	infra-up infra-status infra-down dev-core dev-web dev-ai
 
 help:
 	@printf '%s\n' \
 		'AuthWeave development commands:' \
+		'  make setup           Install local project dependencies' \
 		'  make check           Run every local validation command' \
 		'  make check-policy    Check public files for Cyrillic text' \
 		'  make check-core      Run Core API tests with Testcontainers' \
@@ -20,6 +23,21 @@ help:
 		'  make dev-core        Start the Core API using infra/.env' \
 		'  make dev-web         Start the Next.js development server' \
 		'  make dev-ai          Start the AI worker development server'
+
+setup: setup-env setup-web setup-ai setup-contracts
+
+setup-env:
+	python3 scripts/create_local_env.py
+
+setup-web:
+	cd apps/web && npm ci
+
+setup-ai:
+	$(PYTHON) -m venv services/ai-worker/.venv
+	services/ai-worker/.venv/bin/python -m pip install --disable-pip-version-check -e "services/ai-worker[dev]"
+
+setup-contracts:
+	cd packages/contracts && npm ci
 
 check: check-policy check-core check-web check-ai check-contracts
 
