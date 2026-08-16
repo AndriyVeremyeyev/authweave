@@ -6,6 +6,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
+import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfileValidator;
+import io.authweave.core.assessment.domain.profile.InvalidApplicationIdentityProfileException;
+import io.authweave.core.assessment.domain.profile.ProfileValidationResult;
+
 public final class Assessment {
 
     private static final Map<AssessmentStatus, Set<AssessmentStatus>> ALLOWED_TRANSITIONS =
@@ -14,15 +19,25 @@ public final class Assessment {
     private final AssessmentId id;
     private final WorkspaceId workspaceId;
     private AssessmentStatus status;
+    private ApplicationIdentityProfile profile;
 
-    private Assessment(AssessmentId id, WorkspaceId workspaceId, AssessmentStatus status) {
+    private Assessment(
+            AssessmentId id,
+            WorkspaceId workspaceId,
+            AssessmentStatus status,
+            ApplicationIdentityProfile profile) {
         this.id = Objects.requireNonNull(id, "id must not be null");
         this.workspaceId = Objects.requireNonNull(workspaceId, "workspaceId must not be null");
         this.status = Objects.requireNonNull(status, "status must not be null");
+        this.profile = Objects.requireNonNull(profile, "profile must not be null");
     }
 
     public static Assessment createDraft(AssessmentId id, WorkspaceId workspaceId) {
-        return new Assessment(id, workspaceId, AssessmentStatus.DRAFT);
+        return new Assessment(
+                id,
+                workspaceId,
+                AssessmentStatus.DRAFT,
+                ApplicationIdentityProfile.unknown());
     }
 
     public AssessmentId id() {
@@ -37,7 +52,27 @@ public final class Assessment {
         return status;
     }
 
+    public ApplicationIdentityProfile profile() {
+        return profile;
+    }
+
+    public void updateProfile(ApplicationIdentityProfile profile) {
+        Objects.requireNonNull(profile, "profile must not be null");
+        ProfileValidationResult validation = ApplicationIdentityProfileValidator.validate(profile);
+        if (!validation.canSave()) {
+            throw new InvalidApplicationIdentityProfileException(validation.contradictions());
+        }
+        if (status != AssessmentStatus.DRAFT) {
+            transitionTo(AssessmentStatus.DRAFT);
+        }
+        this.profile = profile;
+    }
+
     public void markReadyForEvaluation() {
+        ProfileValidationResult validation = ApplicationIdentityProfileValidator.validate(profile);
+        if (!validation.canEvaluate()) {
+            throw new InvalidApplicationIdentityProfileException(validation.issues());
+        }
         transitionTo(AssessmentStatus.READY_FOR_EVALUATION);
     }
 
