@@ -13,7 +13,7 @@
     "check": "npm run lint && npm test"
   },
   "devDependencies": {
-    "@redocly/cli": "2.43.1",
+    "@redocly/cli": "2.46.1",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1"
   },
