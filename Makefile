@@ -1,0 +1,57 @@
+SHELL := /bin/sh
+
+AI_WORKER_PYTHON ?= .venv/bin/python
+
+.PHONY: help check check-policy check-core check-web check-ai check-contracts \
+	infra-up infra-status infra-down dev-core dev-web dev-ai
+
+help:
+	@printf '%s\n' \
+		'AuthWeave development commands:' \
+		'  make check           Run every local validation command' \
+		'  make check-policy    Check public files for Cyrillic text' \
+		'  make check-core      Run Core API tests with Testcontainers' \
+		'  make check-web       Lint and build the web application' \
+		'  make check-ai        Lint and test the AI worker' \
+		'  make check-contracts Validate OpenAPI and JSON Schemas' \
+		'  make infra-up        Start local PostgreSQL' \
+		'  make infra-status    Show local infrastructure status' \
+		'  make infra-down      Stop local infrastructure' \
+		'  make dev-core        Start the Core API using infra/.env' \
+		'  make dev-web         Start the Next.js development server' \
+		'  make dev-ai          Start the AI worker development server'
+
+check: check-policy check-core check-web check-ai check-contracts
+
+check-policy:
+	python3 scripts/check_public_language.py
+
+check-core:
+	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress test
+
+check-web:
+	cd apps/web && npm run lint && npm run build
+
+check-ai:
+	cd services/ai-worker && $(AI_WORKER_PYTHON) -m ruff check . && $(AI_WORKER_PYTHON) -m pytest
+
+check-contracts:
+	cd packages/contracts && npm run check
+
+infra-up:
+	cd infra && docker compose up --detach
+
+infra-status:
+	cd infra && docker compose ps
+
+infra-down:
+	cd infra && docker compose down
+
+dev-core:
+	@set -a; . ./infra/.env; set +a; cd services/core-api; exec ./mvnw spring-boot:run
+
+dev-web:
+	cd apps/web && npm run dev
+
+dev-ai:
+	cd services/ai-worker && $(AI_WORKER_PYTHON) -m uvicorn authweave_ai_worker.main:app --reload
