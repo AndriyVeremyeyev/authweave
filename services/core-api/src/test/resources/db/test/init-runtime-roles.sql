@@ -1,0 +1,15 @@
+CREATE ROLE authweave_core_runtime
+  LOGIN
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  NOINHERIT
+  PASSWORD 'core-test-password';
+
+CREATE ROLE authweave_web_runtime
+  LOGIN
+  NOSUPERUSER
+  NOCREATEDB
+  NOCREATEROLE
+  NOINHERIT
+  PASSWORD 'web-test-password';

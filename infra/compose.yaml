@@ -8,6 +8,8 @@ services:
       POSTGRES_USER: "${AUTHWEAVE_POSTGRES_ADMIN_USER:-authweave_admin}"
       POSTGRES_PASSWORD: "${AUTHWEAVE_POSTGRES_ADMIN_PASSWORD:?Set AUTHWEAVE_POSTGRES_ADMIN_PASSWORD in infra/.env}"
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+      AUTHWEAVE_CORE_DB_PASSWORD: "${AUTHWEAVE_CORE_DB_PASSWORD:?Set AUTHWEAVE_CORE_DB_PASSWORD in infra/.env}"
+      AUTHWEAVE_WEB_DB_PASSWORD: "${AUTHWEAVE_WEB_DB_PASSWORD:?Set AUTHWEAVE_WEB_DB_PASSWORD in infra/.env}"
     ports:
       - "127.0.0.1:${AUTHWEAVE_POSTGRES_PORT:-5432}:5432"
     healthcheck:
@@ -21,6 +23,7 @@ services:
     stop_grace_period: 30s
     volumes:
       - postgres-data:/var/lib/postgresql
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
 
 volumes:
   postgres-data:
