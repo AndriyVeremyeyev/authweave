@@ -32,8 +32,8 @@ class JooqAssessmentRepositoryIntegrationTests extends PostgresIntegrationTest {
     void persistsAndLoadsAnAssessmentInsideItsWorkspaceBoundary() {
         WorkspaceId workspaceId = new WorkspaceId(UUID.randomUUID());
         WorkspaceId otherWorkspaceId = new WorkspaceId(UUID.randomUUID());
-        workspaceRepository.insert(workspaceId);
-        workspaceRepository.insert(otherWorkspaceId);
+        workspaceRepository.insertIfAbsent(workspaceId);
+        workspaceRepository.insertIfAbsent(otherWorkspaceId);
         Assessment assessment = Assessment.createDraft(
                 new AssessmentId(UUID.randomUUID()),
                 workspaceId);
@@ -62,7 +62,7 @@ class JooqAssessmentRepositoryIntegrationTests extends PostgresIntegrationTest {
     @Test
     void rejectsAStaleUpdateAndReportsTheCurrentVersion() {
         WorkspaceId workspaceId = new WorkspaceId(UUID.randomUUID());
-        workspaceRepository.insert(workspaceId);
+        workspaceRepository.insertIfAbsent(workspaceId);
         Assessment assessment = Assessment.createDraft(
                 new AssessmentId(UUID.randomUUID()),
                 workspaceId);
@@ -103,8 +103,8 @@ class JooqAssessmentRepositoryIntegrationTests extends PostgresIntegrationTest {
     void treatsAnUpdateThroughAnotherWorkspaceAsNotFound() {
         WorkspaceId workspaceId = new WorkspaceId(UUID.randomUUID());
         WorkspaceId otherWorkspaceId = new WorkspaceId(UUID.randomUUID());
-        workspaceRepository.insert(workspaceId);
-        workspaceRepository.insert(otherWorkspaceId);
+        workspaceRepository.insertIfAbsent(workspaceId);
+        workspaceRepository.insertIfAbsent(otherWorkspaceId);
         Assessment assessment = Assessment.createDraft(
                 new AssessmentId(UUID.randomUUID()),
                 workspaceId);

@@ -35,10 +35,19 @@ const resultSchemaId =
   "https://authweave.dev/contracts/requirements-extraction-result.v1.schema.json";
 const problemSchemaId =
   "https://authweave.dev/contracts/operation-problem.v1.schema.json";
+const assessmentResponseSchemaId =
+  "https://authweave.dev/contracts/assessment-response.v1.schema.json";
+const updateAssessmentProfileSchemaId =
+  "https://authweave.dev/contracts/update-assessment-profile-request.v1.schema.json";
+const coreProblemSchemaId =
+  "https://authweave.dev/contracts/core-problem.v1.schema.json";
 
 const validateRequest = ajv.getSchema(requestSchemaId);
 const validateResult = ajv.getSchema(resultSchemaId);
 const validateProblem = ajv.getSchema(problemSchemaId);
+const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
+const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
+const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
 const validRequest = await readJson(
   path.join(fixturesRoot, "requirements-extraction-request.valid.json"),
@@ -49,6 +58,12 @@ const validResult = await readJson(
 const validProblem = await readJson(
   path.join(fixturesRoot, "operation-problem.valid.json"),
 );
+const validAssessmentResponse = await readJson(
+  path.join(fixturesRoot, "assessment-response.valid.json"),
+);
+const validCoreProblem = await readJson(
+  path.join(fixturesRoot, "core-problem.valid.json"),
+);
 
 function validationMessage(validate) {
   return ajv.errorsText(validate.errors, { separator: "\n" });
@@ -58,6 +73,43 @@ test("valid fixtures satisfy their JSON Schemas", () => {
   assert.equal(validateRequest(validRequest), true, validationMessage(validateRequest));
   assert.equal(validateResult(validResult), true, validationMessage(validateResult));
   assert.equal(validateProblem(validProblem), true, validationMessage(validateProblem));
+});
+
+test("Core API fixtures satisfy their JSON Schemas", () => {
+  const updateRequest = {
+    expectedVersion: validAssessmentResponse.version,
+    profile: validAssessmentResponse.profile,
+  };
+
+  assert.equal(
+    validateAssessmentResponse(validAssessmentResponse),
+    true,
+    validationMessage(validateAssessmentResponse),
+  );
+  assert.equal(
+    validateUpdateAssessmentProfile(updateRequest),
+    true,
+    validationMessage(validateUpdateAssessmentProfile),
+  );
+  assert.equal(
+    validateCoreProblem(validCoreProblem),
+    true,
+    validationMessage(validateCoreProblem),
+  );
+});
+
+test("Core API contracts reject stale-shape and unknown-field inputs", () => {
+  const staleUpdate = {
+    expectedVersion: -1,
+    profile: validAssessmentResponse.profile,
+  };
+  const responseWithUnknownField = {
+    ...validAssessmentResponse,
+    internalNote: "must not cross the API boundary",
+  };
+
+  assert.equal(validateUpdateAssessmentProfile(staleUpdate), false);
+  assert.equal(validateAssessmentResponse(responseWithUnknownField), false);
 });
 
 test("request rejects unknown fields", () => {

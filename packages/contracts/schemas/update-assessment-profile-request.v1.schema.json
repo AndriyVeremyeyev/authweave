@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/update-assessment-profile-request.v1.schema.json",
+  "title": "Update assessment profile request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["expectedVersion", "profile"],
+  "properties": {
+    "expectedVersion": { "type": "integer", "minimum": 0 },
+    "profile": {
+      "$ref": "./application-identity-profile.v1.schema.json"
+    }
+  }
+}

@@ -1,6 +1,8 @@
 apis:
   ai-worker@v1:
     root: ./openapi/ai-worker.v1.yaml
+  core-api@v1:
+    root: ./openapi/core-api.v1.yaml
 
 extends:
   - recommended

@@ -19,10 +19,11 @@ public class JooqWorkspaceRepository implements WorkspaceRepository {
 
     @Override
     @Transactional
-    public void insert(WorkspaceId workspaceId) {
-        dsl.insertInto(WORKSPACES)
+    public boolean insertIfAbsent(WorkspaceId workspaceId) {
+        return dsl.insertInto(WORKSPACES)
                 .set(WORKSPACES.ID, workspaceId.value())
-                .execute();
+                .onConflictDoNothing()
+                .execute() == 1;
     }
 
     @Override

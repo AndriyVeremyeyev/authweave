@@ -4,7 +4,7 @@ import io.authweave.core.assessment.domain.WorkspaceId;
 
 public interface WorkspaceRepository {
 
-    void insert(WorkspaceId workspaceId);
+    boolean insertIfAbsent(WorkspaceId workspaceId);
 
     boolean exists(WorkspaceId workspaceId);
 }

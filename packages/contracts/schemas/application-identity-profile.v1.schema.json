@@ -1,0 +1,175 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/application-identity-profile.v1.schema.json",
+  "title": "Application identity profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application",
+    "audience",
+    "protocols",
+    "provisioning",
+    "security",
+    "operations"
+  ],
+  "properties": {
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "clients"],
+      "properties": {
+        "type": {
+          "enum": [
+            "B2B_SAAS",
+            "PARTNER_PORTAL",
+            "PUBLIC_SECTOR_PORTAL",
+            "INTERNAL_WORKFORCE",
+            "OTHER",
+            "UNKNOWN"
+          ]
+        },
+        "clients": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["BROWSER", "NATIVE_MOBILE", "MACHINE_TO_MACHINE"]
+          }
+        }
+      }
+    },
+    "audience": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["populations", "tenancy", "membership"],
+      "properties": {
+        "populations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "EXTERNAL_CUSTOMERS",
+              "PARTNERS",
+              "CITIZENS",
+              "EMPLOYEES",
+              "CONTRACTORS",
+              "INTERNAL_OPERATORS"
+            ]
+          }
+        },
+        "tenancy": {
+          "enum": [
+            "MULTI_TENANT_ORGANIZATIONS",
+            "SINGLE_ORGANIZATION",
+            "NO_ORGANIZATION_BOUNDARY",
+            "UNKNOWN"
+          ]
+        },
+        "membership": {
+          "enum": [
+            "SINGLE_ORGANIZATION_PER_USER",
+            "MULTIPLE_ORGANIZATIONS_PER_USER",
+            "NOT_APPLICABLE",
+            "UNKNOWN"
+          ]
+        }
+      }
+    },
+    "protocols": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "federation",
+        "oauth2ProtectedApis",
+        "socialLogin",
+        "enterpriseSingleSignOn"
+      ],
+      "properties": {
+        "federation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "OIDC": { "$ref": "#/$defs/criticality" },
+            "SAML": { "$ref": "#/$defs/criticality" }
+          }
+        },
+        "oauth2ProtectedApis": { "$ref": "#/$defs/criticality" },
+        "socialLogin": { "$ref": "#/$defs/criticality" },
+        "enterpriseSingleSignOn": { "$ref": "#/$defs/criticality" }
+      }
+    },
+    "provisioning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scim", "justInTimeProvisioning", "groupSynchronization"],
+      "properties": {
+        "scim": { "$ref": "#/$defs/criticality" },
+        "justInTimeProvisioning": { "$ref": "#/$defs/criticality" },
+        "groupSynchronization": { "$ref": "#/$defs/criticality" }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "multiFactorAuthentication",
+        "browserTokenExposureMinimization",
+        "auditability",
+        "dataResidency",
+        "assurance",
+        "complianceTargets"
+      ],
+      "properties": {
+        "multiFactorAuthentication": { "$ref": "#/$defs/criticality" },
+        "browserTokenExposureMinimization": { "$ref": "#/$defs/criticality" },
+        "auditability": { "$ref": "#/$defs/criticality" },
+        "dataResidency": { "$ref": "#/$defs/criticality" },
+        "assurance": {
+          "enum": ["BASELINE", "ELEVATED", "HIGH", "UNKNOWN"]
+        },
+        "complianceTargets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["SOC_2", "ISO_27001", "HIPAA", "FEDRAMP", "GDPR", "OTHER"]
+          }
+        }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hosting",
+        "deploymentTarget",
+        "identityExpertise",
+        "budgetSensitivity"
+      ],
+      "properties": {
+        "hosting": {
+          "enum": ["MANAGED", "SELF_HOSTED", "NO_PREFERENCE", "UNKNOWN"]
+        },
+        "deploymentTarget": {
+          "enum": [
+            "AZURE",
+            "AWS",
+            "GOOGLE_CLOUD",
+            "ON_PREMISES",
+            "MULTI_CLOUD",
+            "UNDECIDED"
+          ]
+        },
+        "identityExpertise": {
+          "enum": ["LIMITED", "MODERATE", "ADVANCED", "UNKNOWN"]
+        },
+        "budgetSensitivity": {
+          "enum": ["HIGH", "MODERATE", "LOW", "UNKNOWN"]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "criticality": {
+      "enum": ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "UNKNOWN"]
+    }
+  }
+}

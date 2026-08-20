@@ -1,0 +1,170 @@
+openapi: 3.1.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+info:
+  title: AuthWeave Core API
+  version: 1.0.0
+  description: >-
+    Workspace-scoped assessment boundary owned by the deterministic AuthWeave core.
+    The local Phase 2 API is intentionally unauthenticated; workspace provisioning and
+    every assessment operation must be protected by the BFF/session boundary before a
+    non-local deployment.
+servers:
+  - url: http://127.0.0.1:8080
+    description: Local Core API
+security: []
+tags:
+  - name: Workspaces
+    description: Provisions the workspace boundary used by local development.
+  - name: Assessments
+    description: Creates, reads and updates identity-architecture assessments.
+paths:
+  /api/v1/workspaces/{workspaceId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    put:
+      tags:
+        - Workspaces
+      summary: Provision a workspace
+      description: >-
+        Idempotently provisions a workspace for the local Phase 2 flow. Authentication
+        provisioning will own this action in a later phase.
+      operationId: provisionWorkspaceV1
+      responses:
+        "201":
+          description: Workspace created.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+        "204":
+          description: Workspace already exists.
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+  /api/v1/workspaces/{workspaceId}/assessments:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      tags:
+        - Assessments
+      summary: Create a draft assessment
+      operationId: createAssessmentV1
+      responses:
+        "201":
+          description: Draft assessment created.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/WorkspaceNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags:
+        - Assessments
+      summary: Read an assessment
+      operationId: getAssessmentV1
+      responses:
+        "200":
+          description: Current assessment representation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    put:
+      tags:
+        - Assessments
+      summary: Replace an assessment profile
+      description: >-
+        Replaces the complete structured profile only when expectedVersion matches the
+        persisted assessment version.
+      operationId: updateAssessmentProfileV1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/update-assessment-profile-request.v1.schema.json
+      responses:
+        "200":
+          description: Profile updated and assessment version incremented.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
+        "422":
+          $ref: "#/components/responses/InvalidProfile"
+components:
+  parameters:
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      description: Workspace boundary for every assessment query.
+      schema:
+        type: string
+        format: uuid
+    AssessmentId:
+      name: assessmentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  headers:
+    Location:
+      description: Relative URI of the created resource.
+      schema:
+        type: string
+        format: uri-reference
+  responses:
+    InvalidRequest:
+      description: The request body or path parameters are malformed.
+      content:
+        application/problem+json:
+          schema:
+            type: object
+    WorkspaceNotFound:
+      description: The workspace has not been provisioned.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/core-problem.v1.schema.json
+    AssessmentNotFound:
+      description: The assessment does not exist inside the supplied workspace.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/core-problem.v1.schema.json
+    VersionConflict:
+      description: The supplied expected version is stale.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/core-problem.v1.schema.json
+    InvalidProfile:
+      description: The profile contains one or more domain contradictions.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/core-problem.v1.schema.json
