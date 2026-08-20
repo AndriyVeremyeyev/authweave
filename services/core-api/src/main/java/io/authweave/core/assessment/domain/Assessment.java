@@ -30,6 +30,10 @@ public final class Assessment {
         this.workspaceId = Objects.requireNonNull(workspaceId, "workspaceId must not be null");
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.profile = Objects.requireNonNull(profile, "profile must not be null");
+        ProfileValidationResult validation = ApplicationIdentityProfileValidator.validate(profile);
+        if (!validation.canSave()) {
+            throw new InvalidApplicationIdentityProfileException(validation.contradictions());
+        }
     }
 
     public static Assessment createDraft(AssessmentId id, WorkspaceId workspaceId) {
@@ -38,6 +42,14 @@ public final class Assessment {
                 workspaceId,
                 AssessmentStatus.DRAFT,
                 ApplicationIdentityProfile.unknown());
+    }
+
+    public static Assessment rehydrate(
+            AssessmentId id,
+            WorkspaceId workspaceId,
+            AssessmentStatus status,
+            ApplicationIdentityProfile profile) {
+        return new Assessment(id, workspaceId, status, profile);
     }
 
     public AssessmentId id() {

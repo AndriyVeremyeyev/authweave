@@ -40,6 +40,10 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-jooq</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 		<dependency>
@@ -76,16 +80,6 @@
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-testcontainers</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.testcontainers</groupId>
-			<artifactId>testcontainers-junit-jupiter</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
 			<groupId>org.testcontainers</groupId>
 			<artifactId>testcontainers-postgresql</artifactId>
 			<scope>test</scope>
@@ -95,10 +89,123 @@
 	<build>
 		<plugins>
 			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>build-helper-maven-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>add-jooq-generated-sources</id>
+						<phase>generate-sources</phase>
+						<goals>
+							<goal>add-source</goal>
+						</goals>
+						<configuration>
+							<sources>
+								<source>${project.basedir}/src/generated/java</source>
+							</sources>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<profile>
+			<id>jooq-codegen</id>
+			<properties>
+				<authweave.codegen.url>jdbc:postgresql://localhost:5432/authweave</authweave.codegen.url>
+				<authweave.codegen.user>authweave_admin</authweave.codegen.user>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.flywaydb</groupId>
+						<artifactId>flyway-maven-plugin</artifactId>
+						<dependencies>
+							<dependency>
+								<groupId>org.flywaydb</groupId>
+								<artifactId>flyway-database-postgresql</artifactId>
+								<version>${flyway.version}</version>
+							</dependency>
+							<dependency>
+								<groupId>org.postgresql</groupId>
+								<artifactId>postgresql</artifactId>
+								<version>${postgresql.version}</version>
+							</dependency>
+						</dependencies>
+						<executions>
+							<execution>
+								<id>migrate-codegen-database</id>
+								<phase>initialize</phase>
+								<goals>
+									<goal>migrate</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<url>${authweave.codegen.url}</url>
+							<user>${authweave.codegen.user}</user>
+							<password>${env.AUTHWEAVE_POSTGRES_ADMIN_PASSWORD}</password>
+							<locations>
+								<location>filesystem:${project.basedir}/src/main/resources/db/migration</location>
+							</locations>
+							<defaultSchema>authweave_migrations</defaultSchema>
+							<createSchemas>true</createSchemas>
+						</configuration>
+					</plugin>
+					<plugin>
+						<groupId>org.jooq</groupId>
+						<artifactId>jooq-codegen-maven</artifactId>
+						<dependencies>
+							<dependency>
+								<groupId>org.postgresql</groupId>
+								<artifactId>postgresql</artifactId>
+								<version>${postgresql.version}</version>
+							</dependency>
+						</dependencies>
+						<executions>
+							<execution>
+								<id>generate-jooq-sources</id>
+								<phase>generate-sources</phase>
+								<goals>
+									<goal>generate</goal>
+								</goals>
+							</execution>
+						</executions>
+						<configuration>
+							<jdbc>
+								<driver>org.postgresql.Driver</driver>
+								<url>${authweave.codegen.url}</url>
+								<user>${authweave.codegen.user}</user>
+								<password>${env.AUTHWEAVE_POSTGRES_ADMIN_PASSWORD}</password>
+							</jdbc>
+							<generator>
+								<database>
+									<name>org.jooq.meta.postgres.PostgresDatabase</name>
+									<inputSchema>core</inputSchema>
+									<includes>workspaces|assessments</includes>
+								</database>
+								<generate>
+									<deprecated>false</deprecated>
+									<records>true</records>
+									<generatedAnnotation>true</generatedAnnotation>
+									<generatedAnnotationDate>false</generatedAnnotationDate>
+								</generate>
+								<target>
+									<packageName>io.authweave.core.generated.jooq</packageName>
+									<directory>${project.basedir}/src/generated/java</directory>
+									<clean>true</clean>
+								</target>
+							</generator>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>

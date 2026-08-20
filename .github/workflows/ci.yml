@@ -59,6 +59,12 @@ jobs:
     name: Core API
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      AUTHWEAVE_POSTGRES_DB: authweave
+      AUTHWEAVE_POSTGRES_ADMIN_USER: authweave_admin
+      AUTHWEAVE_POSTGRES_ADMIN_PASSWORD: ci-admin-password
+      AUTHWEAVE_CORE_DB_PASSWORD: ci-core-password
+      AUTHWEAVE_WEB_DB_PASSWORD: ci-web-password
     defaults:
       run:
         working-directory: services/core-api
@@ -72,8 +78,25 @@ jobs:
           java-version: "21"
           cache: maven
           cache-dependency-path: services/core-api/pom.xml
+      - name: Start jOOQ code generation database
+        working-directory: ${{ github.workspace }}
+        run: docker compose --file infra/compose.yaml up --detach --wait
+      - name: Regenerate jOOQ sources
+        run: ./mvnw --batch-mode --no-transfer-progress -Pjooq-codegen generate-sources
+      - name: Verify generated jOOQ sources are current
+        run: |
+          generated_changes="$(git status --short -- src/generated/java)"
+          if [ -n "$generated_changes" ]; then
+            printf '%s\n' "$generated_changes"
+            printf '%s\n' 'Generated jOOQ sources are stale. Run make generate-jooq and commit the result.'
+            exit 1
+          fi
       - name: Run Core API tests
         run: ./mvnw --batch-mode --no-transfer-progress test
+      - name: Stop jOOQ code generation database
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker compose --file infra/compose.yaml down --volumes
 
   web:
     name: Web

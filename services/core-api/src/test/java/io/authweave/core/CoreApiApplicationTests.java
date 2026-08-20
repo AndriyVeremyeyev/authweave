@@ -11,13 +11,9 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -27,19 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-@Testcontainers
-class CoreApiApplicationTests {
-
-	private static final String CORE_RUNTIME_PASSWORD = "core-test-password";
-
-	@Container
-	@ServiceConnection
-	static final PostgreSQLContainer postgres = new PostgreSQLContainer(
-			"pgvector/pgvector:0.8.6-pg18-bookworm")
-			.withDatabaseName("authweave")
-			.withUsername("authweave_admin")
-			.withPassword("admin-test-password")
-			.withInitScript("db/test/init-runtime-roles.sql");
+class CoreApiApplicationTests extends PostgresIntegrationTest {
 
 	@Autowired
 	private MockMvc mockMvc;

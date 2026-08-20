@@ -5,7 +5,7 @@ PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
 	check check-policy check-core check-web check-ai check-contracts \
-	infra-up infra-status infra-down dev-core dev-web dev-ai
+	generate-jooq infra-up infra-status infra-down dev-core dev-web dev-ai
 
 help:
 	@printf '%s\n' \
@@ -17,6 +17,7 @@ help:
 		'  make check-web       Lint and build the web application' \
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
+		'  make generate-jooq   Migrate local PostgreSQL and regenerate jOOQ types' \
 		'  make infra-up        Start local PostgreSQL' \
 		'  make infra-status    Show local infrastructure status' \
 		'  make infra-down      Stop local infrastructure' \
@@ -55,6 +56,10 @@ check-ai:
 
 check-contracts:
 	cd packages/contracts && npm run check
+
+generate-jooq:
+	@set -a; . ./infra/.env; set +a; cd services/core-api; \
+		exec ./mvnw --batch-mode --no-transfer-progress -Pjooq-codegen generate-sources
 
 infra-up:
 	cd infra && docker compose up --detach
