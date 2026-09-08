@@ -47,6 +47,7 @@ check-policy:
 
 check-core:
 	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress test
+	node packages/contracts/scripts/validate-core-http.mjs services/core-api/target/core-http-contract-samples.json
 
 check-web:
 	cd apps/web && npm run lint && npm run build

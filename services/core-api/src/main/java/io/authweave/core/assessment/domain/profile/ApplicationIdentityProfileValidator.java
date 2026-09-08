@@ -1,23 +1,15 @@
 package io.authweave.core.assessment.domain.profile;
 
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.List;
-import java.util.Set;
 
 import io.authweave.core.assessment.domain.profile.ApplicationTopology.ApplicationType;
 import io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType;
 import io.authweave.core.assessment.domain.profile.AudienceRequirements.MembershipModel;
 import io.authweave.core.assessment.domain.profile.AudienceRequirements.TenancyModel;
-import io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation;
 import io.authweave.core.assessment.domain.profile.ProtocolRequirements.FederationProtocol;
 
 public final class ApplicationIdentityProfileValidator {
-
-    private static final Set<UserPopulation> WORKFORCE_POPULATIONS = EnumSet.of(
-            UserPopulation.EMPLOYEES,
-            UserPopulation.CONTRACTORS,
-            UserPopulation.INTERNAL_OPERATORS);
 
     private ApplicationIdentityProfileValidator() {
     }
@@ -26,7 +18,6 @@ public final class ApplicationIdentityProfileValidator {
         List<ProfileIssue> issues = new ArrayList<>();
         validateMinimumContext(profile, issues);
         validateTenancy(profile.audience(), issues);
-        validateSocialLogin(profile, issues);
         validateEnterpriseSingleSignOn(profile.protocols(), issues);
         return new ProfileValidationResult(issues);
     }
@@ -98,28 +89,14 @@ public final class ApplicationIdentityProfileValidator {
         }
     }
 
-    private static void validateSocialLogin(
-            ApplicationIdentityProfile profile,
-            List<ProfileIssue> issues) {
-        Set<UserPopulation> populations = profile.audience().populations();
-        if (profile.protocols().socialLogin() == RequirementCriticality.REQUIRED
-                && !populations.isEmpty()
-                && WORKFORCE_POPULATIONS.containsAll(populations)) {
-            issues.add(contradiction(
-                    "social_login_conflicts_with_workforce_only_population",
-                    "protocols.socialLogin",
-                    "Required social login conflicts with a workforce-only population."));
-        }
-    }
-
     private static void validateEnterpriseSingleSignOn(
             ProtocolRequirements protocols,
             List<ProfileIssue> issues) {
         if (protocols.enterpriseSingleSignOn() == RequirementCriticality.REQUIRED
                 && protocols.criticalityOf(FederationProtocol.OIDC)
-                        == RequirementCriticality.NOT_REQUIRED
+                        == RequirementCriticality.FORBIDDEN
                 && protocols.criticalityOf(FederationProtocol.SAML)
-                        == RequirementCriticality.NOT_REQUIRED) {
+                        == RequirementCriticality.FORBIDDEN) {
             issues.add(contradiction(
                     "enterprise_sso_requires_federation_protocol",
                     "protocols.federation",

@@ -34,6 +34,10 @@ public final class Assessment {
         if (!validation.canSave()) {
             throw new InvalidApplicationIdentityProfileException(validation.contradictions());
         }
+        if (status != AssessmentStatus.DRAFT && status != AssessmentStatus.ARCHIVED
+                && !validation.canEvaluate()) {
+            throw new InvalidApplicationIdentityProfileException(validation.issues());
+        }
     }
 
     public static Assessment createDraft(AssessmentId id, WorkspaceId workspaceId) {
@@ -73,6 +77,12 @@ public final class Assessment {
         ProfileValidationResult validation = ApplicationIdentityProfileValidator.validate(profile);
         if (!validation.canSave()) {
             throw new InvalidApplicationIdentityProfileException(validation.contradictions());
+        }
+        if (status == AssessmentStatus.ARCHIVED) {
+            throw new InvalidAssessmentTransitionException(status, AssessmentStatus.DRAFT);
+        }
+        if (this.profile.equals(profile)) {
+            return;
         }
         if (status != AssessmentStatus.DRAFT) {
             transitionTo(AssessmentStatus.DRAFT);

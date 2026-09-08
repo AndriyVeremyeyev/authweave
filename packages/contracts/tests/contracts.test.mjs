@@ -98,6 +98,26 @@ test("Core API fixtures satisfy their JSON Schemas", () => {
   );
 });
 
+test("AI proposals and profiles share the canonical criticality vocabulary", () => {
+  for (const criticality of ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN"]) {
+    const result = structuredClone(validResult);
+    result.proposal.requirements[0].criticalityProposal.value = criticality;
+    assert.equal(validateResult(result), true, validationMessage(validateResult));
+
+    const request = { expectedVersion: 0, profile: structuredClone(validAssessmentResponse.profile) };
+    request.profile.protocols.socialLogin = criticality;
+    assert.equal(validateUpdateAssessmentProfile(request), true, validationMessage(validateUpdateAssessmentProfile));
+  }
+});
+
+test("legacy AI criticality labels cannot silently enter a canonical profile", () => {
+  for (const value of ["hard-requirement", "important", "preference"]) {
+    const result = structuredClone(validResult);
+    result.proposal.requirements[0].criticalityProposal.value = value;
+    assert.equal(validateResult(result), false);
+  }
+});
+
 test("Core API contracts reject stale-shape and unknown-field inputs", () => {
   const staleUpdate = {
     expectedVersion: -1,

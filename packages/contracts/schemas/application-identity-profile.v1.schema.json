@@ -169,7 +169,8 @@
   },
   "$defs": {
     "criticality": {
-      "enum": ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "UNKNOWN"]
+      "description": "REQUIRED is mandatory; PREFERRED is desirable; NOT_REQUIRED imposes no constraint; FORBIDDEN explicitly excludes a capability; UNKNOWN needs clarification.",
+      "enum": ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "UNKNOWN", "FORBIDDEN"]
     }
   }
 }

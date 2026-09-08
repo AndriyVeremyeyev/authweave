@@ -4,6 +4,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import io.authweave.core.assessment.domain.profile.ApplicationTopology.ApplicationType;
 import io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType;
@@ -57,7 +59,7 @@ class ApplicationIdentityProfileValidatorTests {
     }
 
     @Test
-    void socialLoginConflictsWithWorkforceOnlyPopulation() {
+    void workforcePopulationDoesNotImplicitlyForbidSocialLogin() {
         ApplicationIdentityProfile base = new ApplicationIdentityProfile(
                 new ApplicationTopology(
                         ApplicationType.INTERNAL_WORKFORCE,
@@ -77,10 +79,8 @@ class ApplicationIdentityProfileValidatorTests {
 
         ProfileValidationResult result = ApplicationIdentityProfileValidator.validate(base);
 
-        assertFalse(result.canSave());
-        assertEquals(
-                Set.of("social_login_conflicts_with_workforce_only_population"),
-                issueCodes(result));
+        assertTrue(result.canSave());
+        assertTrue(result.issues().isEmpty());
     }
 
     @Test
@@ -92,9 +92,9 @@ class ApplicationIdentityProfileValidatorTests {
                 new ProtocolRequirements(
                         Map.of(
                                 FederationProtocol.OIDC,
-                                RequirementCriticality.NOT_REQUIRED,
+                                RequirementCriticality.FORBIDDEN,
                                 FederationProtocol.SAML,
-                                RequirementCriticality.NOT_REQUIRED),
+                                RequirementCriticality.FORBIDDEN),
                         RequirementCriticality.REQUIRED,
                         RequirementCriticality.NOT_REQUIRED,
                         RequirementCriticality.REQUIRED),
@@ -123,6 +123,20 @@ class ApplicationIdentityProfileValidatorTests {
                 ProvisioningRequirements.unknown(),
                 SecurityRequirements.unknown(),
                 OperationalConstraints.unknown());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = RequirementCriticality.class, names = {"FORBIDDEN"}, mode = EnumSource.Mode.EXCLUDE)
+    void onlyAnExplicitProhibitionEliminatesAFederationProtocol(RequirementCriticality oidc) {
+        ApplicationIdentityProfile base = validProfile();
+        ApplicationIdentityProfile profile = new ApplicationIdentityProfile(
+                base.application(), base.audience(),
+                new ProtocolRequirements(Map.of(FederationProtocol.OIDC, oidc,
+                        FederationProtocol.SAML, RequirementCriticality.FORBIDDEN),
+                        RequirementCriticality.UNKNOWN, RequirementCriticality.UNKNOWN,
+                        RequirementCriticality.REQUIRED),
+                base.provisioning(), base.security(), base.operations());
+        assertTrue(ApplicationIdentityProfileValidator.validate(profile).canSave());
     }
 
     private static ApplicationIdentityProfile withAudience(AudienceRequirements audience) {

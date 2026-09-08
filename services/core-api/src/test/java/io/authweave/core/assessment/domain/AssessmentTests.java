@@ -5,6 +5,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
 import io.authweave.core.assessment.domain.profile.ApplicationTopology;
@@ -136,6 +138,33 @@ class AssessmentTests {
                 "multi_organization_membership_requires_multi_tenancy",
                 exception.issues().getFirst().code());
         assertEquals(originalProfile, assessment.profile());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AssessmentStatus.class,
+            names = {"READY_FOR_EVALUATION", "EVALUATED", "DECIDED"})
+    void rehydrationRejectsAnIncompleteActiveProfile(AssessmentStatus status) {
+        assertThrows(InvalidApplicationIdentityProfileException.class,
+                () -> Assessment.rehydrate(AssessmentId.generate(), WORKSPACE_ID, status,
+                        ApplicationIdentityProfile.unknown()));
+    }
+
+    @Test
+    void rehydrationAllowsAnArchivedIncompleteDraft() {
+        Assessment archived = Assessment.rehydrate(AssessmentId.generate(), WORKSPACE_ID,
+                AssessmentStatus.ARCHIVED, ApplicationIdentityProfile.unknown());
+        assertEquals(AssessmentStatus.ARCHIVED, archived.status());
+        assertThrows(InvalidAssessmentTransitionException.class,
+                () -> archived.updateProfile(archived.profile()));
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = AssessmentStatus.class, names = {"ARCHIVED"}, mode = EnumSource.Mode.EXCLUDE)
+    void identicalProfilePreservesEveryActiveLifecycleState(AssessmentStatus status) {
+        ApplicationIdentityProfile profile = readyProfile(ApplicationType.B2B_SAAS);
+        Assessment assessment = Assessment.rehydrate(AssessmentId.generate(), WORKSPACE_ID, status, profile);
+        assessment.updateProfile(readyProfile(ApplicationType.B2B_SAAS));
+        assertEquals(status, assessment.status());
     }
 
     private static Assessment newDraft() {

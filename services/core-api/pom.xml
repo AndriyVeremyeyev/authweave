@@ -28,6 +28,10 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<authweave.postgres.port>5432</authweave.postgres.port>
+		<authweave.postgres.database>authweave</authweave.postgres.database>
+		<authweave.codegen.url>jdbc:postgresql://localhost:${authweave.postgres.port}/${authweave.postgres.database}</authweave.codegen.url>
+		<authweave.codegen.user>authweave_admin</authweave.codegen.user>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -116,10 +120,6 @@
 	<profiles>
 		<profile>
 			<id>jooq-codegen</id>
-			<properties>
-				<authweave.codegen.url>jdbc:postgresql://localhost:5432/authweave</authweave.codegen.url>
-				<authweave.codegen.user>authweave_admin</authweave.codegen.user>
-			</properties>
 			<build>
 				<plugins>
 					<plugin>
@@ -205,6 +205,32 @@
 					</plugin>
 				</plugins>
 			</build>
+		</profile>
+		<profile>
+			<id>postgres-port-from-environment</id>
+			<activation><property><name>env.AUTHWEAVE_POSTGRES_PORT</name></property></activation>
+			<properties><authweave.postgres.port>${env.AUTHWEAVE_POSTGRES_PORT}</authweave.postgres.port></properties>
+		</profile>
+		<profile>
+			<id>postgres-database-from-environment</id>
+			<activation><property><name>env.AUTHWEAVE_POSTGRES_DB</name></property></activation>
+			<properties><authweave.postgres.database>${env.AUTHWEAVE_POSTGRES_DB}</authweave.postgres.database></properties>
+		</profile>
+		<profile>
+			<id>postgres-admin-from-environment</id>
+			<activation><property><name>env.AUTHWEAVE_POSTGRES_ADMIN_USER</name></property></activation>
+			<properties><authweave.codegen.user>${env.AUTHWEAVE_POSTGRES_ADMIN_USER}</authweave.codegen.user></properties>
+		</profile>
+		<profile>
+			<id>core-url-from-environment</id>
+			<activation><property><name>env.AUTHWEAVE_CORE_DB_URL</name></property></activation>
+			<properties><authweave.codegen.url>${env.AUTHWEAVE_CORE_DB_URL}</authweave.codegen.url></properties>
+		</profile>
+		<!-- Declared last so the migration connection wins over the runtime connection. -->
+		<profile>
+			<id>migration-url-from-environment</id>
+			<activation><property><name>env.AUTHWEAVE_MIGRATION_DB_URL</name></property></activation>
+			<properties><authweave.codegen.url>${env.AUTHWEAVE_MIGRATION_DB_URL}</authweave.codegen.url></properties>
 		</profile>
 	</profiles>
 

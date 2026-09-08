@@ -5,9 +5,10 @@ info:
   version: 1.0.0
   description: >-
     Workspace-scoped assessment boundary owned by the deterministic AuthWeave core.
-    The local Phase 2 API is intentionally unauthenticated; workspace provisioning and
-    every assessment operation must be protected by the BFF/session boundary before a
-    non-local deployment.
+    The local Phase 2 API is intentionally unauthenticated and refuses to start with a
+    non-loopback server address. Workspace provisioning and every assessment operation
+    require authenticated authorization before a non-local deployment. Do not expose
+    this local service through a proxy or tunnel.
 servers:
   - url: http://127.0.0.1:8080
     description: Local Core API
@@ -91,7 +92,8 @@ paths:
       summary: Replace an assessment profile
       description: >-
         Replaces the complete structured profile only when expectedVersion matches the
-        persisted assessment version.
+        persisted assessment version. An unchanged profile preserves status and version;
+        a stale expectedVersion still conflicts. Archived assessments cannot be changed.
       operationId: updateAssessmentProfileV1
       requestBody:
         required: true
@@ -101,7 +103,7 @@ paths:
               $ref: ../schemas/update-assessment-profile-request.v1.schema.json
       responses:
         "200":
-          description: Profile updated and assessment version incremented.
+          description: Current profile; version increments only when the profile changes.
           content:
             application/json:
               schema:
@@ -143,7 +145,7 @@ components:
       content:
         application/problem+json:
           schema:
-            type: object
+            $ref: ../schemas/core-problem.v1.schema.json
     WorkspaceNotFound:
       description: The workspace has not been provisioned.
       content:
@@ -157,7 +159,7 @@ components:
           schema:
             $ref: ../schemas/core-problem.v1.schema.json
     VersionConflict:
-      description: The supplied expected version is stale.
+      description: The supplied expected version is stale or the assessment is archived.
       content:
         application/problem+json:
           schema:

@@ -69,7 +69,7 @@ class AssessmentControllerIntegrationTests extends PostgresIntegrationTest {
 
         String updateBody = objectMapper.writeValueAsString(Map.of(
                 "expectedVersion", 0,
-                "profile", ApplicationIdentityProfile.unknown()));
+                "profile", changedProfile()));
         mockMvc.perform(put(assessmentPath + "/profile")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateBody))
@@ -83,7 +83,7 @@ class AssessmentControllerIntegrationTests extends PostgresIntegrationTest {
         PersistedApiAssessment assessment = createAssessment();
         String updateBody = objectMapper.writeValueAsString(Map.of(
                 "expectedVersion", 0,
-                "profile", ApplicationIdentityProfile.unknown()));
+                "profile", changedProfile()));
         mockMvc.perform(put(assessment.path() + "/profile")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateBody))
@@ -146,6 +146,15 @@ class AssessmentControllerIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value("assessment-not-found"))
                 .andExpect(jsonPath("$.workspaceId").value(otherWorkspaceId.toString()));
+    }
+
+    private static ApplicationIdentityProfile changedProfile() {
+        ApplicationIdentityProfile unknown = ApplicationIdentityProfile.unknown();
+        return new ApplicationIdentityProfile(
+                unknown.application(),
+                new AudienceRequirements(Set.of(), TenancyModel.SINGLE_ORGANIZATION,
+                        MembershipModel.SINGLE_ORGANIZATION_PER_USER),
+                unknown.protocols(), unknown.provisioning(), unknown.security(), unknown.operations());
     }
 
     private PersistedApiAssessment createAssessment() throws Exception {

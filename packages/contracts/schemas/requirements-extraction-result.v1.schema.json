@@ -118,12 +118,7 @@
                 ],
                 "properties": {
                   "value": {
-                    "type": "string",
-                    "enum": [
-                      "hard-requirement",
-                      "important",
-                      "preference"
-                    ]
+                    "$ref": "./application-identity-profile.v1.schema.json#/$defs/criticality"
                   },
                   "rationale": {
                     "type": "string",

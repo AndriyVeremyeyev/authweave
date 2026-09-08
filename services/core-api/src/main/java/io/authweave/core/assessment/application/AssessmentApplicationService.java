@@ -9,6 +9,7 @@ import io.authweave.core.assessment.domain.WorkspaceId;
 import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
 import io.authweave.core.assessment.persistence.AssessmentNotFoundException;
 import io.authweave.core.assessment.persistence.AssessmentRepository;
+import io.authweave.core.assessment.persistence.AssessmentVersionConflictException;
 import io.authweave.core.assessment.persistence.PersistedAssessment;
 import io.authweave.core.assessment.persistence.WorkspaceRepository;
 
@@ -53,7 +54,15 @@ public class AssessmentApplicationService {
             long expectedVersion,
             ApplicationIdentityProfile profile) {
         PersistedAssessment persisted = getAssessment(workspaceId, assessmentId);
+        if (persisted.version() != expectedVersion) {
+            throw new AssessmentVersionConflictException(
+                    workspaceId, assessmentId, expectedVersion, persisted.version());
+        }
+        ApplicationIdentityProfile previousProfile = persisted.assessment().profile();
         persisted.assessment().updateProfile(profile);
+        if (previousProfile.equals(profile)) {
+            return persisted;
+        }
         return assessmentRepository.update(persisted.assessment(), expectedVersion);
     }
 

@@ -4,5 +4,6 @@ public enum RequirementCriticality {
     REQUIRED,
     PREFERRED,
     NOT_REQUIRED,
-    UNKNOWN
+    UNKNOWN,
+    FORBIDDEN
 }

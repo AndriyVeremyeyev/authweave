@@ -67,7 +67,7 @@ public class AssessmentController {
                 new WorkspaceId(workspaceId),
                 new AssessmentId(assessmentId),
                 request.expectedVersion(),
-                request.profile()));
+                request.profile().toDomain()));
     }
 
     private static URI workspaceLocation(UUID workspaceId) {

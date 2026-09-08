@@ -155,7 +155,7 @@ class ApplicationIdentityProfileTests {
                 new ProtocolRequirements(
                         Map.of(FederationProtocol.OIDC, RequirementCriticality.REQUIRED),
                         RequirementCriticality.REQUIRED,
-                        RequirementCriticality.NOT_REQUIRED,
+                        RequirementCriticality.FORBIDDEN,
                         RequirementCriticality.REQUIRED),
                 new ProvisioningRequirements(
                         RequirementCriticality.NOT_REQUIRED,
@@ -187,7 +187,7 @@ class ApplicationIdentityProfileTests {
                 new ProtocolRequirements(
                         Map.of(FederationProtocol.OIDC, RequirementCriticality.REQUIRED),
                         RequirementCriticality.REQUIRED,
-                        RequirementCriticality.NOT_REQUIRED,
+                        RequirementCriticality.FORBIDDEN,
                         RequirementCriticality.REQUIRED),
                 new ProvisioningRequirements(
                         RequirementCriticality.PREFERRED,

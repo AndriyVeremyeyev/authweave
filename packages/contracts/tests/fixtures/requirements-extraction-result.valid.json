@@ -17,7 +17,7 @@
         "statement": "The selected architecture must support SCIM provisioning.",
         "sourceExcerpt": "SCIM provisioning is mandatory",
         "criticalityProposal": {
-          "value": "hard-requirement",
+          "value": "REQUIRED",
           "rationale": "The source explicitly marks SCIM as mandatory."
         }
       }

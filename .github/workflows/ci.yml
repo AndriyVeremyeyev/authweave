@@ -81,6 +81,15 @@ jobs:
       - name: Start jOOQ code generation database
         working-directory: ${{ github.workspace }}
         run: docker compose --file infra/compose.yaml up --detach --wait
+      - name: Set up Node.js for HTTP contract checks
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: packages/contracts/package-lock.json
+      - name: Install contract dependencies
+        working-directory: packages/contracts
+        run: npm ci
       - name: Regenerate jOOQ sources
         run: ./mvnw --batch-mode --no-transfer-progress -Pjooq-codegen generate-sources
       - name: Verify generated jOOQ sources are current
@@ -93,6 +102,9 @@ jobs:
           fi
       - name: Run Core API tests
         run: ./mvnw --batch-mode --no-transfer-progress test
+      - name: Validate actual HTTP payloads against JSON Schema
+        working-directory: ${{ github.workspace }}
+        run: node packages/contracts/scripts/validate-core-http.mjs services/core-api/target/core-http-contract-samples.json
       - name: Stop jOOQ code generation database
         if: always()
         working-directory: ${{ github.workspace }}

@@ -13,6 +13,8 @@
     "instance": { "type": "string", "format": "uri-reference" },
     "code": {
       "enum": [
+        "invalid-request",
+        "invalid-assessment-transition",
         "workspace-not-found",
         "assessment-not-found",
         "assessment-version-conflict",
@@ -23,6 +25,20 @@
     "assessmentId": { "type": "string", "format": "uuid" },
     "expectedVersion": { "type": "integer", "minimum": 0 },
     "actualVersion": { "type": "integer", "minimum": 0 },
+    "violations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "message"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "message": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        }
+      }
+    },
     "issues": {
       "type": "array",
       "minItems": 1,

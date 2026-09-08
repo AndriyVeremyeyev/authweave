@@ -1,21 +1,91 @@
 package io.authweave.core.assessment.api;
 
 import java.net.URI;
+import java.util.Comparator;
+import java.util.List;
 
 import jakarta.servlet.http.HttpServletRequest;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import io.authweave.core.assessment.application.WorkspaceNotFoundException;
+import io.authweave.core.assessment.domain.InvalidAssessmentTransitionException;
 import io.authweave.core.assessment.domain.profile.InvalidApplicationIdentityProfileException;
 import io.authweave.core.assessment.persistence.AssessmentNotFoundException;
 import io.authweave.core.assessment.persistence.AssessmentVersionConflictException;
+import tools.jackson.core.JacksonException;
 
 @RestControllerAdvice
+@Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ProblemDetail unreadableBody(HttpMessageNotReadableException exception, HttpServletRequest request) {
+        String path = "$";
+        for (Throwable cause = exception.getCause(); cause != null; cause = cause.getCause()) {
+            if (cause instanceof JacksonException jackson && !jackson.getPath().isEmpty()) {
+                StringBuilder location = new StringBuilder("$");
+                for (JacksonException.Reference reference : jackson.getPath()) {
+                    if (reference.getPropertyName() != null) {
+                        location.append('.').append(reference.getPropertyName());
+                    } else if (reference.getIndex() >= 0) {
+                        location.append('[').append(reference.getIndex()).append(']');
+                    }
+                }
+                path = location.substring(0, Math.min(location.length(), 500));
+                break;
+            }
+        }
+        return invalidRequest(List.of(new RequestViolation(path,
+                "Use the documented JSON structure, types and enum values.")), request);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ProblemDetail invalidFields(MethodArgumentNotValidException exception, HttpServletRequest request) {
+        List<RequestViolation> violations = exception.getBindingResult().getFieldErrors().stream()
+                .map(error -> new RequestViolation(error.getField(), switch (error.getCode()) {
+                    case "NotNull" -> "This field is required and must not be null.";
+                    case "UniqueElements" -> "Array items must be unique.";
+                    case "PositiveOrZero" -> "Use a non-negative integer.";
+                    default -> "Invalid value.";
+                }))
+                .distinct()
+                .sorted(Comparator.comparing(RequestViolation::path))
+                .limit(100)
+                .toList();
+        return invalidRequest(violations, request);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ProblemDetail invalidPath(MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
+        return invalidRequest(List.of(new RequestViolation(exception.getName(),
+                "Use a valid UUID.")), request);
+    }
+
+    @ExceptionHandler(InvalidAssessmentTransitionException.class)
+    ProblemDetail invalidTransition(
+            InvalidAssessmentTransitionException exception, HttpServletRequest request) {
+        return problem(HttpStatus.CONFLICT, "invalid-assessment-transition",
+                "Assessment state conflict", "The current assessment state does not allow this change.", request);
+    }
+
+    private static ProblemDetail invalidRequest(List<RequestViolation> violations, HttpServletRequest request) {
+        ProblemDetail problem = problem(HttpStatus.BAD_REQUEST, "invalid-request", "Invalid request",
+                "The request does not match the API contract.", request);
+        problem.setProperty("violations", violations);
+        return problem;
+    }
+
+    private record RequestViolation(String path, String message) {
+    }
 
     @ExceptionHandler(WorkspaceNotFoundException.class)
     ProblemDetail workspaceNotFound(
