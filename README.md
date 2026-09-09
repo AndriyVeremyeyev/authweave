@@ -4,6 +4,8 @@
 
 > Status: early requirements preview, actively in development. Provider recommendations and architecture decisions are not available yet.
 
+[Try the requirements preview](https://authweave.vercel.app/preview).
+
 AuthWeave is an engineering workspace for designing identity and authentication
 architecture. It will help engineers collect application requirements, compare identity
 provider capabilities, evaluate authentication patterns and produce reviewable
