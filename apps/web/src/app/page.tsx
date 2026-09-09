@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -13,7 +15,7 @@ export default function Home() {
             <span className="text-lg font-semibold tracking-tight">AuthWeave</span>
           </a>
           <span className="rounded-full border border-emerald-300/20 bg-emerald-300/10 px-3 py-1 text-xs font-medium text-emerald-200">
-            Foundation in progress
+            Early preview · In development
           </span>
         </div>
       </header>
@@ -28,13 +30,13 @@ export default function Home() {
               Make authentication decisions with evidence, not guesswork.
             </h1>
             <p className="mt-7 max-w-2xl text-lg leading-8 text-[var(--muted)]">
-              AuthWeave will turn application requirements into reviewable identity architecture
-              options, deterministic trade-offs, and source-backed recommendations.
+              Collect application requirements in a guided preview. AuthWeave is being built
+              to turn them into reviewable identity architecture options and source-backed recommendations.
             </p>
             <div className="mt-10 flex flex-wrap items-center gap-4">
-              <span className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950">
-                Decision workspace coming next
-              </span>
+              <Link href="/preview" className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">
+                Try the preview
+              </Link>
               <a
                 className="text-sm font-semibold text-slate-300 transition hover:text-white"
                 href="#principles"
@@ -50,21 +52,21 @@ export default function Home() {
               <div className="flex items-center justify-between border-b border-white/10 pb-5">
                 <div>
                   <p className="text-xs uppercase tracking-[0.18em] text-[var(--muted)]">
-                    Local foundation
+                    Project foundation
                   </p>
                   <h2 className="mt-2 text-xl font-semibold">System status</h2>
                 </div>
                 <span className="size-2.5 rounded-full bg-emerald-300 shadow-[0_0_16px_#6ee7b7]" />
               </div>
               <dl className="mt-6 space-y-4 text-sm">
-                <StatusRow label="Web and BFF shell" value="Implemented" />
-                <StatusRow label="Deterministic core API" value="Implemented" />
-                <StatusRow label="AI operation worker" value="Planned" muted />
-                <StatusRow label="Provider catalog" value="Planned" muted />
+                <StatusRow label="Requirements preview" value="Available" />
+                <StatusRow label="Assessment validation API" value="Local only" muted />
+                <StatusRow label="AI-assisted requirements" value="Planned" muted />
+                <StatusRow label="Provider comparisons" value="Planned" muted />
               </dl>
               <p className="mt-7 rounded-2xl border border-amber-200/10 bg-amber-100/[0.04] p-4 text-sm leading-6 text-amber-50/75">
-                Current status is explicit: this is a development foundation, not a production
-                release or a completed recommendation engine.
+                Start with a fictional example, edit requirements and download a draft brief.
+                Provider recommendations and architecture decisions are still in development.
               </p>
             </div>
           </aside>
@@ -102,8 +104,8 @@ export default function Home() {
       </main>
 
       <footer className="mx-auto flex max-w-6xl flex-col gap-2 px-6 py-8 text-sm text-[var(--muted)] sm:flex-row sm:items-center sm:justify-between lg:px-8">
-        <span>AuthWeave · Local-first development</span>
-        <span>No production release available</span>
+        <span>AuthWeave · By Andriy Veremyeyev · In development</span>
+        <a className="hover:text-white" href="https://github.com/AndriyVeremyeyev/authweave">Follow development on GitHub ↗</a>
       </footer>
     </div>
   );
@@ -121,7 +123,7 @@ function StatusRow({
   return (
     <div className="flex items-center justify-between gap-6">
       <dt className="text-slate-300">{label}</dt>
-      <dd className={muted ? "text-slate-500" : "font-medium text-emerald-200"}>{value}</dd>
+      <dd className={muted ? "text-slate-400" : "font-medium text-emerald-200"}>{value}</dd>
     </div>
   );
 }

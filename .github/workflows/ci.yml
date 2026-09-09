@@ -130,6 +130,8 @@ jobs:
         run: npm ci
       - name: Lint web application
         run: npm run lint
+      - name: Test requirements preview
+        run: npm test
       - name: Build web application
         run: npm run build
 
@@ -176,3 +178,5 @@ jobs:
         run: npm ci
       - name: Validate contracts
         run: npm run check
+      - name: Verify generated web profile contract
+        run: node scripts/generate-web-profile.mjs --check

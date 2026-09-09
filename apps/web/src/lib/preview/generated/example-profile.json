@@ -1,0 +1,44 @@
+{
+  "application": {
+    "type": "B2B_SAAS",
+    "clients": [
+      "BROWSER"
+    ]
+  },
+  "audience": {
+    "populations": [
+      "EXTERNAL_CUSTOMERS",
+      "PARTNERS"
+    ],
+    "tenancy": "MULTI_TENANT_ORGANIZATIONS",
+    "membership": "MULTIPLE_ORGANIZATIONS_PER_USER"
+  },
+  "protocols": {
+    "federation": {
+      "OIDC": "REQUIRED",
+      "SAML": "REQUIRED"
+    },
+    "oauth2ProtectedApis": "REQUIRED",
+    "socialLogin": "PREFERRED",
+    "enterpriseSingleSignOn": "REQUIRED"
+  },
+  "provisioning": {
+    "scim": "REQUIRED",
+    "justInTimeProvisioning": "PREFERRED",
+    "groupSynchronization": "REQUIRED"
+  },
+  "security": {
+    "multiFactorAuthentication": "REQUIRED",
+    "browserTokenExposureMinimization": "PREFERRED",
+    "auditability": "REQUIRED",
+    "dataResidency": "UNKNOWN",
+    "assurance": "BASELINE",
+    "complianceTargets": []
+  },
+  "operations": {
+    "hosting": "MANAGED",
+    "deploymentTarget": "AZURE",
+    "identityExpertise": "LIMITED",
+    "budgetSensitivity": "HIGH"
+  }
+}

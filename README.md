@@ -2,7 +2,7 @@
 
 **AI-assisted identity architecture and change assurance platform for evidence-backed authentication decisions.**
 
-> Status: local application foundation. No production release is available yet.
+> Status: early requirements preview, actively in development. Provider recommendations and architecture decisions are not available yet.
 
 AuthWeave is an engineering workspace for designing identity and authentication
 architecture. It will help engineers collect application requirements, compare identity
@@ -53,9 +53,29 @@ to start with a non-loopback `server.address`. Keep it local; do not expose it t
 a reverse proxy or tunnel. Workspace IDs scope data queries but do not authenticate
 callers. Shared deployment requires authentication and workspace authorization.
 
-The web application is a landing page and the AI worker exposes health endpoints.
-Provider evaluation, assessment history, ADR export and authenticated workflows are
-still planned.
+The web application includes a browser-only requirements preview at `/preview`.
+Start with a fictional B2B SaaS profile or a blank draft, edit six sections, review
+open questions and download a JSON profile or Markdown requirements brief. Answers
+stay in memory in the current workspace; they are not sent to the API or saved for
+later. Download before leaving or refreshing the page.
+
+The preview checks the shared JSON Schema only. It does not check cross-field domain
+contradictions, verify compliance or compute provider recommendations. Empty
+selections mean no choice was recorded, not that a topic is unnecessary.
+
+The AI worker exposes health endpoints. Provider evaluation, assessment history,
+ADR export and authenticated workflows are still planned.
+
+To run just the preview, only Node.js and npm are required:
+
+```shell
+cd apps/web
+npm ci
+npm run dev
+```
+
+Run `npm test`, `npm run lint` and `npm run build` in `apps/web` to verify it. The
+browser preview does not require PostgreSQL, the Java API, API keys or accounts.
 
 ## Profiles and contracts
 
@@ -78,6 +98,17 @@ profiles return domain `issues` with status 422. State and version conflicts ret
 captured MVC request/response payloads against the shared JSON Schemas using AJV. It
 requires `make setup-contracts` and Node.js as well as Java and Docker. The same check
 runs in CI; `make check-contracts` separately validates OpenAPI and synthetic fixtures.
+
+The web profile schema, synthetic example and dependency-free browser validator are
+generated from `packages/contracts` and committed so the web application can build
+independently. After changing the profile contract or its example fixture, run:
+
+```shell
+node packages/contracts/scripts/generate-web-profile.mjs
+```
+
+CI verifies that these generated artifacts are current. This is structural validation;
+the Java domain rules remain the source of cross-field validation.
 
 ## Database configuration
 

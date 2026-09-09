@@ -14,7 +14,7 @@ help:
 		'  make check           Run every local validation command' \
 		'  make check-policy    Check public files for Cyrillic text' \
 		'  make check-core      Run Core API tests with Testcontainers' \
-		'  make check-web       Lint and build the web application' \
+		'  make check-web       Lint, test and build the web application' \
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make generate-jooq   Migrate local PostgreSQL and regenerate jOOQ types' \
@@ -50,13 +50,14 @@ check-core:
 	node packages/contracts/scripts/validate-core-http.mjs services/core-api/target/core-http-contract-samples.json
 
 check-web:
-	cd apps/web && npm run lint && npm run build
+	cd apps/web && npm run lint && npm test && npm run build
 
 check-ai:
 	cd services/ai-worker && $(AI_WORKER_PYTHON) -m ruff check . && $(AI_WORKER_PYTHON) -m pytest
 
 check-contracts:
 	cd packages/contracts && npm run check
+	node packages/contracts/scripts/generate-web-profile.mjs --check
 
 generate-jooq:
 	@set -a; . ./infra/.env; set +a; cd services/core-api; \

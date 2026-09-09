@@ -16,7 +16,10 @@
     "application": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["type", "clients"],
+      "required": [
+        "type",
+        "clients"
+      ],
       "properties": {
         "type": {
           "type": "string",
@@ -34,7 +37,11 @@
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "enum": ["BROWSER", "NATIVE_MOBILE", "MACHINE_TO_MACHINE"]
+            "enum": [
+              "BROWSER",
+              "NATIVE_MOBILE",
+              "MACHINE_TO_MACHINE"
+            ]
           }
         }
       }
@@ -42,7 +49,11 @@
     "audience": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["populations", "tenancy", "membership"],
+      "required": [
+        "populations",
+        "tenancy",
+        "membership"
+      ],
       "properties": {
         "populations": {
           "type": "array",
@@ -93,23 +104,43 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "OIDC": { "$ref": "#/$defs/criticality" },
-            "SAML": { "$ref": "#/$defs/criticality" }
+            "OIDC": {
+              "$ref": "#/$defs/criticality"
+            },
+            "SAML": {
+              "$ref": "#/$defs/criticality"
+            }
           }
         },
-        "oauth2ProtectedApis": { "$ref": "#/$defs/criticality" },
-        "socialLogin": { "$ref": "#/$defs/criticality" },
-        "enterpriseSingleSignOn": { "$ref": "#/$defs/criticality" }
+        "oauth2ProtectedApis": {
+          "$ref": "#/$defs/criticality"
+        },
+        "socialLogin": {
+          "$ref": "#/$defs/criticality"
+        },
+        "enterpriseSingleSignOn": {
+          "$ref": "#/$defs/criticality"
+        }
       }
     },
     "provisioning": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["scim", "justInTimeProvisioning", "groupSynchronization"],
+      "required": [
+        "scim",
+        "justInTimeProvisioning",
+        "groupSynchronization"
+      ],
       "properties": {
-        "scim": { "$ref": "#/$defs/criticality" },
-        "justInTimeProvisioning": { "$ref": "#/$defs/criticality" },
-        "groupSynchronization": { "$ref": "#/$defs/criticality" }
+        "scim": {
+          "$ref": "#/$defs/criticality"
+        },
+        "justInTimeProvisioning": {
+          "$ref": "#/$defs/criticality"
+        },
+        "groupSynchronization": {
+          "$ref": "#/$defs/criticality"
+        }
       }
     },
     "security": {
@@ -124,20 +155,40 @@
         "complianceTargets"
       ],
       "properties": {
-        "multiFactorAuthentication": { "$ref": "#/$defs/criticality" },
-        "browserTokenExposureMinimization": { "$ref": "#/$defs/criticality" },
-        "auditability": { "$ref": "#/$defs/criticality" },
-        "dataResidency": { "$ref": "#/$defs/criticality" },
+        "multiFactorAuthentication": {
+          "$ref": "#/$defs/criticality"
+        },
+        "browserTokenExposureMinimization": {
+          "$ref": "#/$defs/criticality"
+        },
+        "auditability": {
+          "$ref": "#/$defs/criticality"
+        },
+        "dataResidency": {
+          "$ref": "#/$defs/criticality"
+        },
         "assurance": {
           "type": "string",
-          "enum": ["BASELINE", "ELEVATED", "HIGH", "UNKNOWN"]
+          "enum": [
+            "BASELINE",
+            "ELEVATED",
+            "HIGH",
+            "UNKNOWN"
+          ]
         },
         "complianceTargets": {
           "type": "array",
           "uniqueItems": true,
           "items": {
             "type": "string",
-            "enum": ["SOC_2", "ISO_27001", "HIPAA", "FEDRAMP", "GDPR", "OTHER"]
+            "enum": [
+              "SOC_2",
+              "ISO_27001",
+              "HIPAA",
+              "FEDRAMP",
+              "GDPR",
+              "OTHER"
+            ]
           }
         }
       }
@@ -154,7 +205,12 @@
       "properties": {
         "hosting": {
           "type": "string",
-          "enum": ["MANAGED", "SELF_HOSTED", "NO_PREFERENCE", "UNKNOWN"]
+          "enum": [
+            "MANAGED",
+            "SELF_HOSTED",
+            "NO_PREFERENCE",
+            "UNKNOWN"
+          ]
         },
         "deploymentTarget": {
           "type": "string",
@@ -169,11 +225,21 @@
         },
         "identityExpertise": {
           "type": "string",
-          "enum": ["LIMITED", "MODERATE", "ADVANCED", "UNKNOWN"]
+          "enum": [
+            "LIMITED",
+            "MODERATE",
+            "ADVANCED",
+            "UNKNOWN"
+          ]
         },
         "budgetSensitivity": {
           "type": "string",
-          "enum": ["HIGH", "MODERATE", "LOW", "UNKNOWN"]
+          "enum": [
+            "HIGH",
+            "MODERATE",
+            "LOW",
+            "UNKNOWN"
+          ]
         }
       }
     }
@@ -182,7 +248,13 @@
     "criticality": {
       "description": "REQUIRED is mandatory; PREFERRED is desirable; NOT_REQUIRED imposes no constraint; FORBIDDEN explicitly excludes a capability; UNKNOWN needs clarification.",
       "type": "string",
-      "enum": ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "UNKNOWN", "FORBIDDEN"]
+      "enum": [
+        "REQUIRED",
+        "PREFERRED",
+        "NOT_REQUIRED",
+        "UNKNOWN",
+        "FORBIDDEN"
+      ]
     }
   }
 }
