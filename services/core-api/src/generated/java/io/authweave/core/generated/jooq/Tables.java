@@ -4,6 +4,7 @@
 package io.authweave.core.generated.jooq;
 
 
+import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 
@@ -22,6 +23,12 @@ import javax.annotation.processing.Generated;
 )
 @SuppressWarnings({ "all", "unchecked", "rawtypes", "this-escape" })
 public class Tables {
+
+    /**
+     * Immutable assessment snapshots. BASELINE captures an existing state, not
+     * its earlier history.
+     */
+    public static final AssessmentRevisions ASSESSMENT_REVISIONS = AssessmentRevisions.ASSESSMENT_REVISIONS;
 
     /**
      * Identity-architecture assessment aggregate with an optimistic lock

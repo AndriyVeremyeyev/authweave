@@ -4,6 +4,7 @@
 package io.authweave.core.generated.jooq;
 
 
+import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 
@@ -39,6 +40,12 @@ public class Core extends SchemaImpl {
     public static final Core CORE = new Core();
 
     /**
+     * Immutable assessment snapshots. BASELINE captures an existing state, not
+     * its earlier history.
+     */
+    public final AssessmentRevisions ASSESSMENT_REVISIONS = AssessmentRevisions.ASSESSMENT_REVISIONS;
+
+    /**
      * Identity-architecture assessment aggregate with an optimistic lock
      * version.
      */
@@ -66,6 +73,7 @@ public class Core extends SchemaImpl {
     @Override
     public final List<Table<?>> getTables() {
         return Arrays.asList(
+            AssessmentRevisions.ASSESSMENT_REVISIONS,
             Assessments.ASSESSMENTS,
             Workspaces.WORKSPACES
         );

@@ -132,6 +132,37 @@ test("Core API contracts reject stale-shape and unknown-field inputs", () => {
   assert.equal(validateAssessmentResponse(responseWithUnknownField), false);
 });
 
+test("history contracts accept snapshots and minimal events but reject profile values in events", () => {
+  const revisions = ajv.getSchema("https://authweave.dev/contracts/assessment-revision-page.v1.schema.json");
+  const events = ajv.getSchema("https://authweave.dev/contracts/assessment-event-page.v1.schema.json");
+  const base = { workspaceId: validAssessmentResponse.workspaceId, assessmentId: validAssessmentResponse.id, version: 0 };
+  const revision = {
+    ...base, status: "DRAFT", profileSchemaVersion: 1, profile: validAssessmentResponse.profile,
+    origin: "CREATED", recordedAt: validAssessmentResponse.createdAt,
+  };
+  const event = {
+    ...base, id: "22222222-2222-4222-8222-222222222222", previousVersion: null,
+    action: "assessment.created", actorType: "SERVICE", actorId: "core-api",
+    correlationId: "33333333-3333-4333-8333-333333333333", outcome: "SUCCEEDED",
+    changedSections: ["application"], occurredAt: validAssessmentResponse.createdAt,
+  };
+  assert.equal(revisions({ items: [revision], nextAfterVersion: 0 }), true, validationMessage(revisions));
+  assert.equal(events({ items: [event], nextAfterVersion: null }), true, validationMessage(events));
+  assert.equal(revisions({ items: [{ ...revision, origin: "BASELINE", version: 7 }], nextAfterVersion: null }), true);
+  for (const validate of [revisions, events]) {
+    assert.equal(validate({ items: [], nextAfterVersion: null }), true);
+    assert.equal(validate({ items: [], nextAfterVersion: -1 }), false);
+    assert.equal(validate({ items: [], nextAfterVersion: 9007199254740992 }), false);
+    assert.equal(validate({ items: [] }), false);
+  }
+  assert.equal(events({ items: [{ ...event, profile: revision.profile }], nextAfterVersion: null }), false);
+  assert.equal(events({ items: [{ ...event, changedSections: ["application", "application"] }], nextAfterVersion: null }), false);
+  assert.equal(events({ items: [{ ...event, changedSections: ["sensitive-raw-value"] }], nextAfterVersion: null }), false);
+  assert.equal(events({ items: [{ ...event, outcome: "FAILED" }], nextAfterVersion: null }), false);
+  assert.equal(revisions({ items: [{ ...revision, profileSchemaVersion: 2 }], nextAfterVersion: null }), false);
+  assert.equal(revisions({ items: [{ ...revision, origin: "INVENTED" }], nextAfterVersion: null }), false);
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

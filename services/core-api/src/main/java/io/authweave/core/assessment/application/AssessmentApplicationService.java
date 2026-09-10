@@ -8,6 +8,10 @@ import io.authweave.core.assessment.domain.AssessmentId;
 import io.authweave.core.assessment.domain.WorkspaceId;
 import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
 import io.authweave.core.assessment.persistence.AssessmentNotFoundException;
+import io.authweave.core.assessment.persistence.AssessmentEvent;
+import io.authweave.core.assessment.persistence.AssessmentHistoryRepository;
+import io.authweave.core.assessment.persistence.AssessmentRevision;
+import io.authweave.core.assessment.persistence.HistoryPage;
 import io.authweave.core.assessment.persistence.AssessmentRepository;
 import io.authweave.core.assessment.persistence.AssessmentVersionConflictException;
 import io.authweave.core.assessment.persistence.PersistedAssessment;
@@ -18,12 +22,15 @@ public class AssessmentApplicationService {
 
     private final AssessmentRepository assessmentRepository;
     private final WorkspaceRepository workspaceRepository;
+    private final AssessmentHistoryRepository historyRepository;
 
     public AssessmentApplicationService(
             AssessmentRepository assessmentRepository,
-            WorkspaceRepository workspaceRepository) {
+            WorkspaceRepository workspaceRepository,
+            AssessmentHistoryRepository historyRepository) {
         this.assessmentRepository = assessmentRepository;
         this.workspaceRepository = workspaceRepository;
+        this.historyRepository = historyRepository;
     }
 
     @Transactional
@@ -64,6 +71,27 @@ public class AssessmentApplicationService {
             return persisted;
         }
         return assessmentRepository.update(persisted.assessment(), expectedVersion);
+    }
+
+    @Transactional(readOnly = true)
+    public HistoryPage<AssessmentRevision> getRevisions(
+            WorkspaceId workspaceId, AssessmentId assessmentId, Long afterVersion, int limit) {
+        requireAssessment(workspaceId, assessmentId);
+        return historyRepository.findRevisions(workspaceId, assessmentId, afterVersion, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public HistoryPage<AssessmentEvent> getEvents(
+            WorkspaceId workspaceId, AssessmentId assessmentId, Long afterVersion, int limit) {
+        requireAssessment(workspaceId, assessmentId);
+        return historyRepository.findEvents(workspaceId, assessmentId, afterVersion, limit);
+    }
+
+    private void requireAssessment(WorkspaceId workspaceId, AssessmentId assessmentId) {
+        // Reading recorded history must not revalidate the current aggregate against newer domain rules.
+        if (!assessmentRepository.exists(workspaceId, assessmentId)) {
+            throw new AssessmentNotFoundException(workspaceId, assessmentId);
+        }
     }
 
     private void requireWorkspace(WorkspaceId workspaceId) {

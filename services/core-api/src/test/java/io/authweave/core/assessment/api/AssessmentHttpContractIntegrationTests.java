@@ -121,6 +121,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         JsonNode unchanged = response(scenario + "-unchanged", mvc.perform(get(assessment.path()))
                 .andExpect(status().isOk()).andReturn());
         assertEquals(assessment.created(), unchanged);
+        assertHistorySize(assessment, 1);
     }
 
     @Test
@@ -158,6 +159,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("assessment-version-conflict")).andReturn());
+        assertHistorySize(assessment, 3);
     }
 
     @Test
@@ -171,6 +173,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         response("contradiction", mvc.perform(put(assessment.path() + "/profile")
                         .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(request)))
                 .andExpect(status().isUnprocessableEntity()).andReturn());
+        assertHistorySize(assessment, 1);
 
         String otherPath = "/api/v1/workspaces/" + UUID.randomUUID();
         response("missing-workspace", mvc.perform(post(otherPath + "/assessments"))
@@ -192,6 +195,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(archivedRequest)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("invalid-assessment-transition")).andReturn());
+        assertHistorySize(assessment, 2);
     }
 
     @ParameterizedTest
@@ -210,6 +214,79 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("invalid-request")).andReturn());
         assertEquals(assessment.created(), response(scenario + "-unchanged",
                 mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 1);
+    }
+
+    @Test
+    void returnsWorkspaceScopedHistoryWithExclusiveVersionCursors() throws Exception {
+        var assessment = create();
+        var update = request();
+        ((ObjectNode) update.at("/profile/application")).put("type", "B2B_SAAS");
+        response("history-update", mvc.perform(put(assessment.path() + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        assertHistorySize(assessment, 2);
+
+        for (String resource : List.of("revisions", "events")) {
+            String path = assessment.path() + "/" + resource;
+            historyResponse("first-page", resource, mvc.perform(get(path).param("limit", "1"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                    .andExpect(jsonPath("$.items[0].version").value(0))
+                    .andExpect(jsonPath("$.nextAfterVersion").value(0)).andReturn());
+            var last = historyResponse("last-page", resource,
+                    mvc.perform(get(path).param("limit", "1").param("afterVersion", "0"))
+                            .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                            .andExpect(jsonPath("$.items[0].version").value(1))
+                            .andExpect(jsonPath("$.nextAfterVersion").value(org.hamcrest.Matchers.nullValue())).andReturn());
+            if (resource.equals("revisions")) {
+                assertEquals("UPDATED", last.at("/items/0/origin").asText());
+                assertEquals("B2B_SAAS", last.at("/items/0/profile/application/type").asText());
+            } else {
+                assertEquals("assessment.updated", last.at("/items/0/action").asText());
+                assertEquals("core-api", last.at("/items/0/actorId").asText());
+                assertEquals(1, last.at("/items/0/changedSections").size());
+                assertEquals("application", last.at("/items/0/changedSections/0").asText());
+                assertFalse(last.at("/items/0").has("profile"));
+            }
+            historyResponse("empty-page", resource, mvc.perform(get(path).param("afterVersion", "1"))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0))
+                    .andExpect(jsonPath("$.nextAfterVersion").value(org.hamcrest.Matchers.nullValue())).andReturn());
+            String other = "/api/v1/workspaces/" + UUID.randomUUID();
+            mvc.perform(put(other)).andExpect(status().isCreated());
+            response("cross-workspace-" + resource,
+                    mvc.perform(get(other + "/assessments/" + assessment.id().value() + "/" + resource))
+                            .andExpect(status().isNotFound()).andReturn());
+        }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"limit=0", "limit=101", "limit=-1", "limit=1.5", "limit=sensitive-test-value",
+            "afterVersion=-1", "afterVersion=9007199254740992", "afterVersion=9223372036854775808",
+            "afterVersion=0.5", "afterVersion=sensitive-test-value"})
+    void rejectsInvalidHistoryParametersWithContractProblems(String parameter) throws Exception {
+        var assessment = create();
+        String[] parts = parameter.split("=", 2);
+        for (String resource : List.of("revisions", "events")) {
+            var result = mvc.perform(get(assessment.path() + "/" + resource).param(parts[0], parts[1]))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("invalid-request"))
+                    .andExpect(jsonPath("$.violations[0].path").value(parts[0])).andReturn();
+            assertFalse(result.getResponse().getContentAsString().contains("sensitive-test-value"));
+            response("invalid-history-" + resource + "-" + parts[0], result);
+        }
+        assertHistorySize(assessment, 1);
+    }
+
+    private void assertHistorySize(ApiAssessment assessment, int size) throws Exception {
+        for (String resource : List.of("revisions", "events")) {
+            historyResponse("history-size-" + size, resource, mvc.perform(get(assessment.path() + "/" + resource))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(size)).andReturn());
+        }
+    }
+
+    private JsonNode historyResponse(String name, String resource, MvcResult result) throws Exception {
+        JsonNode payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample(name, resource.equals("revisions") ? "assessment-revision-page" : "assessment-event-page", true, payload);
+        return payload;
     }
 
     private ObjectNode request() {

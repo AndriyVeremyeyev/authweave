@@ -24,12 +24,15 @@ public class JooqAssessmentRepository implements AssessmentRepository {
 
     private final DSLContext dsl;
     private final AssessmentProfileJsonCodec profileJsonCodec;
+    private final JooqAssessmentHistoryRepository history;
 
     public JooqAssessmentRepository(
             DSLContext dsl,
-            AssessmentProfileJsonCodec profileJsonCodec) {
+            AssessmentProfileJsonCodec profileJsonCodec,
+            JooqAssessmentHistoryRepository history) {
         this.dsl = dsl;
         this.profileJsonCodec = profileJsonCodec;
+        this.history = history;
     }
 
     @Override
@@ -45,6 +48,7 @@ public class JooqAssessmentRepository implements AssessmentRepository {
                         .returning()
                         .fetchOne(),
                 "insert did not return an assessment record");
+        history.append(null, record);
         return toPersistedAssessment(record);
     }
 
@@ -60,10 +64,27 @@ public class JooqAssessmentRepository implements AssessmentRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public boolean exists(WorkspaceId workspaceId, AssessmentId assessmentId) {
+        return dsl.fetchExists(dsl.selectOne().from(ASSESSMENTS)
+                .where(ASSESSMENTS.WORKSPACE_ID.eq(workspaceId.value()))
+                .and(ASSESSMENTS.ID.eq(assessmentId.value())));
+    }
+
+    @Override
     @Transactional
     public PersistedAssessment update(Assessment assessment, long expectedVersion) {
         if (expectedVersion < 0) {
             throw new IllegalArgumentException("expectedVersion must not be negative");
+        }
+
+        AssessmentsRecord previous = dsl.selectFrom(ASSESSMENTS)
+                .where(ASSESSMENTS.WORKSPACE_ID.eq(assessment.workspaceId().value()))
+                .and(ASSESSMENTS.ID.eq(assessment.id().value()))
+                .and(ASSESSMENTS.LOCK_VERSION.eq(expectedVersion))
+                .fetchOne();
+        if (previous == null) {
+            throw conflictOrNotFound(assessment, expectedVersion);
         }
 
         AssessmentsRecord record = dsl.update(ASSESSMENTS)
@@ -79,9 +100,14 @@ public class JooqAssessmentRepository implements AssessmentRepository {
                 .fetchOne();
 
         if (record != null) {
+            history.append(previous, record);
             return toPersistedAssessment(record);
         }
 
+        throw conflictOrNotFound(assessment, expectedVersion);
+    }
+
+    private AssessmentVersionConflictException conflictOrNotFound(Assessment assessment, long expectedVersion) {
         Long actualVersion = dsl.select(ASSESSMENTS.LOCK_VERSION)
                 .from(ASSESSMENTS)
                 .where(ASSESSMENTS.WORKSPACE_ID.eq(assessment.workspaceId().value()))
@@ -90,7 +116,7 @@ public class JooqAssessmentRepository implements AssessmentRepository {
         if (actualVersion == null) {
             throw new AssessmentNotFoundException(assessment.workspaceId(), assessment.id());
         }
-        throw new AssessmentVersionConflictException(
+        return new AssessmentVersionConflictException(
                 assessment.workspaceId(),
                 assessment.id(),
                 expectedVersion,

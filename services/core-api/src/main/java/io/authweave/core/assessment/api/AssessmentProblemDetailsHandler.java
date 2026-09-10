@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import io.authweave.core.assessment.application.WorkspaceNotFoundException;
 import io.authweave.core.assessment.domain.InvalidAssessmentTransitionException;
@@ -67,7 +68,22 @@ public class AssessmentProblemDetailsHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     ProblemDetail invalidPath(MethodArgumentTypeMismatchException exception, HttpServletRequest request) {
         return invalidRequest(List.of(new RequestViolation(exception.getName(),
-                "Use a valid UUID.")), request);
+                exception.getRequiredType() == java.util.UUID.class
+                        ? "Use a valid UUID." : "Use the documented parameter type.")), request);
+    }
+
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    ProblemDetail invalidParameters(HandlerMethodValidationException exception, HttpServletRequest request) {
+        if (exception.isForReturnValue()) {
+            throw exception;
+        }
+        List<RequestViolation> violations = exception.getParameterValidationResults().stream()
+                .map(result -> new RequestViolation(
+                        result.getMethodParameter().getParameterName(), "Use a value within the documented bounds."))
+                .distinct()
+                .sorted(Comparator.comparing(RequestViolation::path))
+                .toList();
+        return invalidRequest(violations, request);
     }
 
     @ExceptionHandler(InvalidAssessmentTransitionException.class)

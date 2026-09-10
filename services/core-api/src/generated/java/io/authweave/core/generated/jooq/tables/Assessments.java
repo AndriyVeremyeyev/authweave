@@ -7,6 +7,7 @@ package io.authweave.core.generated.jooq.tables;
 import io.authweave.core.generated.jooq.Core;
 import io.authweave.core.generated.jooq.Indexes;
 import io.authweave.core.generated.jooq.Keys;
+import io.authweave.core.generated.jooq.tables.AssessmentRevisions.AssessmentRevisionsPath;
 import io.authweave.core.generated.jooq.tables.Workspaces.WorkspacesPath;
 import io.authweave.core.generated.jooq.tables.records.AssessmentsRecord;
 
@@ -212,6 +213,19 @@ public class Assessments extends TableImpl<AssessmentsRecord> {
             _workspaces = new WorkspacesPath(this, Keys.ASSESSMENTS__ASSESSMENTS_WORKSPACE_FK, null);
 
         return _workspaces;
+    }
+
+    private transient AssessmentRevisionsPath _assessmentRevisions;
+
+    /**
+     * Get the implicit to-many join path to the
+     * <code>core.assessment_revisions</code> table
+     */
+    public AssessmentRevisionsPath assessmentRevisions() {
+        if (_assessmentRevisions == null)
+            _assessmentRevisions = new AssessmentRevisionsPath(this, null, Keys.ASSESSMENT_REVISIONS__ASSESSMENT_REVISIONS_ASSESSMENT_FK.getInverseKey());
+
+        return _assessmentRevisions;
     }
 
     @Override

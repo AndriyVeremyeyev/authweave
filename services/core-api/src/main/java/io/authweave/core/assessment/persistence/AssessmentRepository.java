@@ -12,5 +12,7 @@ public interface AssessmentRepository {
 
     Optional<PersistedAssessment> findById(WorkspaceId workspaceId, AssessmentId assessmentId);
 
+    boolean exists(WorkspaceId workspaceId, AssessmentId assessmentId);
+
     PersistedAssessment update(Assessment assessment, long expectedVersion);
 }

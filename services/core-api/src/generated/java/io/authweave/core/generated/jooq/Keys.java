@@ -4,8 +4,10 @@
 package io.authweave.core.generated.jooq;
 
 
+import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.Workspaces;
+import io.authweave.core.generated.jooq.tables.records.AssessmentRevisionsRecord;
 import io.authweave.core.generated.jooq.tables.records.AssessmentsRecord;
 import io.authweave.core.generated.jooq.tables.records.WorkspacesRecord;
 
@@ -37,6 +39,7 @@ public class Keys {
     // UNIQUE and PRIMARY KEY definitions
     // -------------------------------------------------------------------------
 
+    public static final UniqueKey<AssessmentRevisionsRecord> ASSESSMENT_REVISIONS_PK = Internal.createUniqueKey(AssessmentRevisions.ASSESSMENT_REVISIONS, DSL.name("assessment_revisions_pk"), new TableField[] { AssessmentRevisions.ASSESSMENT_REVISIONS.WORKSPACE_ID, AssessmentRevisions.ASSESSMENT_REVISIONS.ASSESSMENT_ID, AssessmentRevisions.ASSESSMENT_REVISIONS.VERSION }, true);
     public static final UniqueKey<AssessmentsRecord> ASSESSMENTS_PK = Internal.createUniqueKey(Assessments.ASSESSMENTS, DSL.name("assessments_pk"), new TableField[] { Assessments.ASSESSMENTS.WORKSPACE_ID, Assessments.ASSESSMENTS.ID }, true);
     public static final UniqueKey<WorkspacesRecord> WORKSPACES_PKEY = Internal.createUniqueKey(Workspaces.WORKSPACES, DSL.name("workspaces_pkey"), new TableField[] { Workspaces.WORKSPACES.ID }, true);
 
@@ -44,5 +47,6 @@ public class Keys {
     // FOREIGN KEY definitions
     // -------------------------------------------------------------------------
 
+    public static final ForeignKey<AssessmentRevisionsRecord, AssessmentsRecord> ASSESSMENT_REVISIONS__ASSESSMENT_REVISIONS_ASSESSMENT_FK = Internal.createForeignKey(AssessmentRevisions.ASSESSMENT_REVISIONS, DSL.name("assessment_revisions_assessment_fk"), new TableField[] { AssessmentRevisions.ASSESSMENT_REVISIONS.WORKSPACE_ID, AssessmentRevisions.ASSESSMENT_REVISIONS.ASSESSMENT_ID }, Keys.ASSESSMENTS_PK, new TableField[] { Assessments.ASSESSMENTS.WORKSPACE_ID, Assessments.ASSESSMENTS.ID }, true, ForeignKeyRule.RESTRICT, ForeignKeyRule.NO_ACTION);
     public static final ForeignKey<AssessmentsRecord, WorkspacesRecord> ASSESSMENTS__ASSESSMENTS_WORKSPACE_FK = Internal.createForeignKey(Assessments.ASSESSMENTS, DSL.name("assessments_workspace_fk"), new TableField[] { Assessments.ASSESSMENTS.WORKSPACE_ID }, Keys.WORKSPACES_PKEY, new TableField[] { Workspaces.WORKSPACES.ID }, true, ForeignKeyRule.RESTRICT, ForeignKeyRule.NO_ACTION);
 }

@@ -175,6 +175,22 @@
 									<goal>generate</goal>
 								</goals>
 							</execution>
+							<execution>
+								<id>generate-audit-jooq-sources</id>
+								<phase>generate-sources</phase>
+								<goals><goal>generate</goal></goals>
+								<configuration>
+									<generator>
+										<database>
+											<inputSchema>audit</inputSchema>
+											<includes>assessment_events</includes>
+										</database>
+										<target>
+											<packageName>io.authweave.core.generated.audit</packageName>
+										</target>
+									</generator>
+								</configuration>
+							</execution>
 						</executions>
 						<configuration>
 							<jdbc>
@@ -187,7 +203,7 @@
 								<database>
 									<name>org.jooq.meta.postgres.PostgresDatabase</name>
 									<inputSchema>core</inputSchema>
-									<includes>workspaces|assessments</includes>
+									<includes>workspaces|assessments|assessment_revisions</includes>
 								</database>
 								<generate>
 									<deprecated>false</deprecated>

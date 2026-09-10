@@ -65,8 +65,11 @@ The preview checks the shared JSON Schema only. It does not check cross-field do
 contradictions, verify compliance or compute provider recommendations. Empty
 selections mean no choice was recorded, not that a topic is unnecessary.
 
-The AI worker exposes health endpoints. Provider evaluation, assessment history,
-ADR export and authenticated workflows are still planned.
+The Core API stores immutable assessment revisions and atomic state-change events,
+with workspace-scoped paginated history reads. Runtime database roles cannot update
+or delete history. The API remains local-only, without authenticated workspace access.
+The AI worker exposes health endpoints. Provider evaluation, ADR export and
+authenticated workflows are still planned.
 
 To run just the preview, only Node.js and npm are required:
 

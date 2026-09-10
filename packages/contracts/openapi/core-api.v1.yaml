@@ -94,6 +94,8 @@ paths:
         Replaces the complete structured profile only when expectedVersion matches the
         persisted assessment version. An unchanged profile preserves status and version;
         a stale expectedVersion still conflicts. Archived assessments cannot be changed.
+        A successful change atomically appends a revision and a state-change event.
+        Unchanged or rejected requests append neither.
       operationId: updateAssessmentProfileV1
       requestBody:
         required: true
@@ -116,6 +118,59 @@ paths:
           $ref: "#/components/responses/VersionConflict"
         "422":
           $ref: "#/components/responses/InvalidProfile"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+      - $ref: "#/components/parameters/AfterVersion"
+      - $ref: "#/components/parameters/HistoryLimit"
+    get:
+      tags: [Assessments]
+      summary: Read immutable assessment revisions
+      description: >-
+        Returns snapshots in ascending version order. Existing assessments begin with
+        a BASELINE at their pre-migration version; earlier states are not reconstructed.
+        Pagination is forward-only, not a frozen snapshot across requests. This endpoint
+        shares the local-only restriction of the rest of this API.
+      operationId: getAssessmentRevisionsV1
+      responses:
+        "200":
+          description: Revision page; nextAfterVersion is null when no more rows were found.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-revision-page.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/events:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+      - $ref: "#/components/parameters/AfterVersion"
+      - $ref: "#/components/parameters/HistoryLimit"
+    get:
+      tags: [Assessments]
+      summary: Read committed assessment state-change events
+      description: >-
+        Returns events in ascending version order, with section names but no profile
+        values. This is not a request log: no-op, failed and rejected requests do not
+        produce events. Writes are attributed to SERVICE/core-api until authentication
+        is implemented; migration baselines use MIGRATION/flyway-v3. Pagination is
+        forward-only, not a frozen snapshot across requests.
+      operationId: getAssessmentEventsV1
+      responses:
+        "200":
+          description: Event page; nextAfterVersion is null when no more rows were found.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-event-page.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   parameters:
     WorkspaceId:
@@ -133,6 +188,23 @@ components:
       schema:
         type: string
         format: uuid
+    AfterVersion:
+      name: afterVersion
+      in: query
+      description: Exclusive version cursor. Omit to start with the earliest stored version.
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 9007199254740991
+    HistoryLimit:
+      name: limit
+      in: query
+      description: Maximum number of history rows returned per page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
   headers:
     Location:
       description: Relative URI of the created resource.
@@ -141,7 +213,7 @@ components:
         format: uri-reference
   responses:
     InvalidRequest:
-      description: The request body or path parameters are malformed.
+      description: The request body, path or query parameters are malformed or outside the documented bounds.
       content:
         application/problem+json:
           schema:
