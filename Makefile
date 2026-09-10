@@ -5,7 +5,7 @@ PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
 	check check-policy check-core check-web check-ai check-contracts \
-	generate-jooq infra-up infra-status infra-down dev-core dev-web dev-ai
+	generate-jooq infra-up infra-status infra-down seed-core dev-core dev-web dev-ai
 
 help:
 	@printf '%s\n' \
@@ -18,6 +18,7 @@ help:
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make generate-jooq   Migrate local PostgreSQL and regenerate jOOQ types' \
+		'  make seed-core       Add synthetic assessments without replacing existing data' \
 		'  make infra-up        Start local PostgreSQL' \
 		'  make infra-status    Show local infrastructure status' \
 		'  make infra-down      Stop local infrastructure' \
@@ -71,6 +72,11 @@ infra-status:
 
 infra-down:
 	cd infra && docker compose down
+
+seed-core:
+	@set -a; . ./infra/.env; set +a; cd services/core-api; \
+		exec ./mvnw --batch-mode --no-transfer-progress spring-boot:run \
+		-Dspring-boot.run.arguments="--seed-assessments --spring.main.web-application-type=none"
 
 dev-core:
 	@set -a; . ./infra/.env; set +a; cd services/core-api; exec ./mvnw spring-boot:run

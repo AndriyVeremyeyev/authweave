@@ -14,9 +14,13 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.context.ApplicationContext;
+
+import io.authweave.core.assessment.seed.SyntheticAssessmentSeeder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -31,8 +35,13 @@ class CoreApiApplicationTests extends PostgresIntegrationTest {
 	@Autowired
 	private JdbcTemplate jdbcTemplate;
 
+	@Autowired
+	private ApplicationContext context;
+
 	@Test
 	void contextLoads() {
+		assertTrue(context.getBeansOfType(SyntheticAssessmentSeeder.class).isEmpty(),
+				"Normal application startup must not activate development seeding");
 	}
 
 	@Test

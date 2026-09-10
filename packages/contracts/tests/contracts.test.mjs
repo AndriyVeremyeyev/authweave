@@ -163,6 +163,19 @@ test("history contracts accept snapshots and minimal events but reject profile v
   assert.equal(revisions({ items: [{ ...revision, origin: "INVENTED" }], nextAfterVersion: null }), false);
 });
 
+test("runnable synthetic seeds match the canonical profile contract", async () => {
+  const seeds = await readJson(path.join(contractsRoot,
+    "../../services/core-api/src/main/resources/seed/assessments.v1.json"));
+  assert.equal(seeds.length, 3);
+  assert.equal(new Set(seeds.map(seed => seed.id)).size, 3);
+  assert.deepEqual(new Set(seeds.map(seed => seed.key)),
+    new Set(["b2b-saas", "public-sector-portal", "internal-workforce"]));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/application-identity-profile.v1.schema.json");
+  for (const seed of seeds) {
+    assert.equal(validate(seed.profile), true, `${seed.key}: ${validationMessage(validate)}`);
+  }
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

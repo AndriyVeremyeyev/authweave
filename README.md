@@ -84,6 +84,22 @@ browser preview does not require PostgreSQL, the Java API, API keys or accounts.
 
 ## Profiles and contracts
 
+### Synthetic assessments
+
+With the local database configured and running, use `make seed-core` to add three
+fictional assessments: B2B SaaS, public-sector portal and internal workforce. The
+command uses `infra/.env`, prints their API paths and exits without starting an HTTP
+server. It does not contact identity providers or AI services.
+
+All three belong to the dedicated synthetic workspace
+`60000000-0000-4000-8000-000000000001`. Each starts as a draft at version 0 with its
+complete profile, revision and event. Re-running the command skips existing IDs,
+including assessments you have edited or archived. It never resets your changes.
+Normal API startup does not seed data. The scenarios preserve unknown inputs; they
+are not provider evidence, compliance claims or computed recommendations.
+
+### Contract validation
+
 Requirement criticality has five explicit values: `REQUIRED`, `PREFERRED`,
 `NOT_REQUIRED`, `FORBIDDEN` and `UNKNOWN`. `NOT_REQUIRED` imposes no constraint;
 `FORBIDDEN` excludes a capability. User population alone never implies a prohibition.
