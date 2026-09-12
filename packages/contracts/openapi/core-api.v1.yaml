@@ -171,6 +171,37 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/capability-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Preview capability constraints against fictional provider plans
+      description: >-
+        Read-only local preflight of OIDC, SAML, OAuth2 APIs, social login, enterprise
+        SSO, SCIM, JIT, group sync and MFA. It does not change the assessment status,
+        version or history. MATCHES_CHECKED_REQUIREMENTS is not full provider eligibility
+        or a recommendation: deferredPaths explicitly lists unassessed dimensions.
+        No scoring, catalog publication, persisted evaluation or real vendor claims.
+        OPTIONAL capabilities can be disabled to satisfy FORBIDDEN; MANDATORY ones cannot.
+        Unreviewed, missing, future or more-than-90-day-old facts cannot establish a
+        match or exclusion. UNKNOWN requirements need clarification; preferences do not
+        eliminate options. Catalog version, policy version and evaluation instant are
+        returned for reproducibility. Evidence URLs use reserved .invalid hosts and
+        are never fetched. All data and evidence are synthetic.
+      operationId: getCapabilityPreflightV1
+      responses:
+        "200":
+          description: Partial synthetic result with checks, reason codes and explicit scope limits.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/capability-preflight.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   parameters:
     WorkspaceId:

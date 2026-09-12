@@ -29,6 +29,7 @@ for (const { name, schema, valid, payload } of samples) {
   covered.add(`${schema}:${valid}`);
 }
 for (const required of ["assessment-response:true", "core-problem:true",
+  "capability-preflight:true",
   "assessment-revision-page:true", "assessment-event-page:true",
   "update-assessment-profile-request:true", "update-assessment-profile-request:false"]) {
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);

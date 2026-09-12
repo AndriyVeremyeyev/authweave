@@ -176,6 +176,35 @@ test("runnable synthetic seeds match the canonical profile contract", async () =
   }
 });
 
+test("synthetic catalog requires dated, scoped provenance without claiming real vendor evidence", async () => {
+  const catalog = await readJson(path.join(contractsRoot,
+    "../../services/core-api/src/main/resources/catalog/synthetic.v1.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/synthetic-provider-catalog.v1.schema.json");
+  assert.equal(validate(catalog), true, validationMessage(validate));
+  assert.equal(new Set(catalog.options.map(option => option.id)).size, catalog.options.length);
+  for (const field of ["sourceUrl", "observedAt", "evidenceStatus"]) {
+    const invalid = structuredClone(catalog);
+    delete invalid.options[0].facts.SCIM[field];
+    assert.equal(validate(invalid), false, "Missing " + field + " must be rejected");
+  }
+  for (const field of ["plan", "region"]) {
+    const invalid = structuredClone(catalog);
+    invalid.options[0][field] = " ";
+    assert.equal(validate(invalid), false);
+  }
+  for (const url of ["https://vendor.example.com/facts", "https://user:password@example.invalid/scim", "file:///etc/passwd"]) {
+    const invalid = structuredClone(catalog);
+    invalid.options[0].facts.SCIM.sourceUrl = url;
+    assert.equal(validate(invalid), false);
+  }
+  const unknown = structuredClone(catalog);
+  unknown.options[0].facts.SCIM.availability = "MAYBE";
+  assert.equal(validate(unknown), false);
+  const missing = structuredClone(catalog);
+  delete missing.options[0].facts.SCIM;
+  assert.equal(validate(missing), true, "A missing fact is allowed; the evaluator must not infer support.");
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

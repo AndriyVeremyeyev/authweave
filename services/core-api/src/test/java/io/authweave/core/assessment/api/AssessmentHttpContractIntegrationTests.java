@@ -2,6 +2,9 @@ package io.authweave.core.assessment.api;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -14,6 +17,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,6 +48,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@Import(AssessmentHttpContractIntegrationTests.PreflightClock.class)
 class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
 
     private static final Path SAMPLES = Path.of("target", "core-http-contract-samples.json");
@@ -48,6 +57,14 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper mapper;
     @Autowired private AssessmentRepository repository;
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class PreflightClock {
+        @Bean @Primary
+        Clock fixtureClock() {
+            return Clock.fixed(Instant.parse("2026-09-12T12:00:00Z"), ZoneOffset.UTC);
+        }
+    }
 
     @BeforeAll
     void removePreviousSamples() throws Exception {
@@ -287,6 +304,58 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         JsonNode payload = mapper.readTree(result.getResponse().getContentAsString());
         sample(name, resource.equals("revisions") ? "assessment-revision-page" : "assessment-event-page", true, payload);
         return payload;
+    }
+
+    @Test
+    void preflightIsScopedReadOnlyReproducibleAndExplicitlyPartial() throws Exception {
+        var assessment = create();
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        var before = response("preflight-profile", mvc.perform(put(assessment.path() + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var result = mvc.perform(get(assessment.path() + "/capability-preflight"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.assessmentVersion").value(1))
+                .andExpect(jsonPath("$.catalogKind").value("SYNTHETIC"))
+                .andExpect(jsonPath("$.recommendationReady").value(false))
+                .andExpect(jsonPath("$.scope").value("CAPABILITY_PREFLIGHT"))
+                .andExpect(jsonPath("$.deferredPaths.length()").value(8))
+                .andExpect(jsonPath("$.candidates[0].status").value("MATCHES_CHECKED_REQUIREMENTS"))
+                .andExpect(jsonPath("$.candidates[1].status").value("DOES_NOT_MATCH"))
+                .andExpect(jsonPath("$.candidates[1].checks[5].reasonCode").value("REQUIRED_CAPABILITY_UNAVAILABLE"))
+                .andExpect(jsonPath("$.candidates[2].status").value("NEEDS_INFORMATION"))
+                .andExpect(jsonPath("$.candidates[2].checks[5].reasonCode").value("EVIDENCE_UNREVIEWED")).andReturn();
+        var payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample("capability-preflight", "capability-preflight", true, payload);
+        var repeated = mvc.perform(get(assessment.path() + "/capability-preflight")).andExpect(status().isOk()).andReturn();
+        assertEquals(payload, mapper.readTree(repeated.getResponse().getContentAsString()));
+        assertEquals(before, response("preflight-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+
+        String otherWorkspace = "/api/v1/workspaces/" + UUID.randomUUID();
+        mvc.perform(put(otherWorkspace)).andExpect(status().isCreated());
+        response("preflight-cross-workspace", mvc.perform(get(otherWorkspace + "/assessments/"
+                        + assessment.id().value() + "/capability-preflight")).andExpect(status().isNotFound()).andReturn());
+        response("preflight-missing", mvc.perform(get("/api/v1/workspaces/" + assessment.workspaceId().value()
+                        + "/assessments/" + UUID.randomUUID() + "/capability-preflight"))
+                .andExpect(status().isNotFound()).andReturn());
+        response("preflight-invalid-id", mvc.perform(get("/api/v1/workspaces/not-a-uuid/assessments/"
+                        + assessment.id().value() + "/capability-preflight")).andExpect(status().isBadRequest()).andReturn());
+    }
+
+    @Test
+    void blankProfileNeverProducesAnAffirmativeMatch() throws Exception {
+        var assessment = create();
+        var result = mvc.perform(get(assessment.path() + "/capability-preflight"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.candidates[0].status").value("NEEDS_INFORMATION"))
+                .andExpect(jsonPath("$.candidates[1].status").value("NEEDS_INFORMATION"))
+                .andExpect(jsonPath("$.candidates[2].status").value("NEEDS_INFORMATION")).andReturn();
+        sample("blank-capability-preflight", "capability-preflight", true,
+                mapper.readTree(result.getResponse().getContentAsString()));
+        assertHistorySize(assessment, 1);
     }
 
     private ObjectNode request() {

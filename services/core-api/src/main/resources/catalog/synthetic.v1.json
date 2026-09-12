@@ -1,0 +1,193 @@
+{
+  "schemaVersion": 1,
+  "catalogVersion": "synthetic-2026-09-12.1",
+  "kind": "SYNTHETIC",
+  "options": [
+    {
+      "id": "fictional-complete",
+      "displayName": "Fictional Complete",
+      "plan": "Synthetic demo plan",
+      "region": "Synthetic region",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#oidc",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SAML": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#saml",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "OAUTH2_APIS": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#oauth2_apis",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SOCIAL_LOGIN": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#social_login",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "ENTERPRISE_SSO": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#enterprise_sso",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SCIM": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#scim",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "JIT": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#jit",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "GROUP_SYNC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#group_sync",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "MFA": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#mfa",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      }
+    },
+    {
+      "id": "fictional-no-scim",
+      "displayName": "Fictional No SCIM",
+      "plan": "Synthetic demo plan",
+      "region": "Synthetic region",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#oidc",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SAML": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#saml",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "OAUTH2_APIS": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#oauth2_apis",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SOCIAL_LOGIN": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#social_login",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "ENTERPRISE_SSO": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#enterprise_sso",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SCIM": {
+          "availability": "UNAVAILABLE",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#scim",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "JIT": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#jit",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "GROUP_SYNC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#group_sync",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "MFA": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#mfa",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      }
+    },
+    {
+      "id": "fictional-unreviewed",
+      "displayName": "Fictional Unreviewed",
+      "plan": "Synthetic demo plan",
+      "region": "Synthetic region",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#oidc",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SAML": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#saml",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "OAUTH2_APIS": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#oauth2_apis",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SOCIAL_LOGIN": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#social_login",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "ENTERPRISE_SSO": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#enterprise_sso",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SCIM": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#scim",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "JIT": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#jit",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "GROUP_SYNC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#group_sync",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "MFA": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#mfa",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      }
+    }
+  ]
+}

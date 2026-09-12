@@ -68,8 +68,9 @@ selections mean no choice was recorded, not that a topic is unnecessary.
 The Core API stores immutable assessment revisions and atomic state-change events,
 with workspace-scoped paginated history reads. Runtime database roles cannot update
 or delete history. The API remains local-only, without authenticated workspace access.
-The AI worker exposes health endpoints. Provider evaluation, ADR export and
-authenticated workflows are still planned.
+The Core API also offers a read-only capability preflight against explicitly fictional
+plans. Full provider evaluation, ADR export and authenticated workflows are still
+planned. The AI worker exposes health endpoints.
 
 To run just the preview, only Node.js and npm are required:
 
@@ -97,6 +98,29 @@ complete profile, revision and event. Re-running the command skips existing IDs,
 including assessments you have edited or archived. It never resets your changes.
 Normal API startup does not seed data. The scenarios preserve unknown inputs; they
 are not provider evidence, compliance claims or computed recommendations.
+
+### Synthetic capability preflight
+
+After seeding and starting the local Core API, inspect the B2B example:
+
+```shell
+curl --fail --silent --show-error \
+  http://127.0.0.1:8080/api/v1/workspaces/60000000-0000-4000-8000-000000000001/assessments/60000000-0000-4000-8000-000000000101/capability-preflight
+```
+
+This GET does not change assessment state or history. It checks nine protocol,
+provisioning and MFA capabilities against three fictional plan/region options.
+Checks include stable reason codes and dated synthetic evidence. Missing, unreviewed,
+future and more-than-90-day-old facts cannot prove a match or exclusion. A forbidden
+capability is acceptable only when absent or optional and kept disabled.
+
+`MATCHES_CHECKED_REQUIREMENTS` is deliberately narrower than full eligibility:
+`deferredPaths` lists unassessed dimensions and `recommendationReady` is always false.
+No scores, winners, real provider claims or persisted evaluations are produced.
+All evidence URLs use reserved `.invalid` hosts and are never fetched. The fixture's
+observation dates are fixed, not refreshed automatically; tests use an explicit clock.
+The catalog and policy versions plus evaluation instant identify the inputs to this
+partial check. PostgreSQL catalog publication and durable result pinning remain planned.
 
 ### Contract validation
 

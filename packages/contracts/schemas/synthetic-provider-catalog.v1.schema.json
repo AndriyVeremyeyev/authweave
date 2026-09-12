@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/synthetic-provider-catalog.v1.schema.json",
+  "title": "Synthetic provider catalog v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "catalogVersion",
+    "kind",
+    "options"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "catalogVersion": {
+      "$ref": "#/$defs/identifier"
+    },
+    "kind": {
+      "const": "SYNTHETIC"
+    },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "\\S"
+    },
+    "capability": {
+      "type": "string",
+      "enum": [
+        "OIDC",
+        "SAML",
+        "OAUTH2_APIS",
+        "SOCIAL_LOGIN",
+        "ENTERPRISE_SSO",
+        "SCIM",
+        "JIT",
+        "GROUP_SYNC",
+        "MFA"
+      ]
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability",
+        "evidenceStatus",
+        "sourceUrl",
+        "observedAt"
+      ],
+      "properties": {
+        "availability": {
+          "enum": [
+            "OPTIONAL",
+            "MANDATORY",
+            "UNAVAILABLE",
+            "UNKNOWN"
+          ]
+        },
+        "evidenceStatus": {
+          "enum": [
+            "REVIEWED",
+            "UNREVIEWED"
+          ]
+        },
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https://[A-Za-z0-9.-]+\\.invalid(?::[0-9]+)?(?:[/?#][^\\s]*)?$"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "displayName",
+        "plan",
+        "region",
+        "facts"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "displayName": {
+          "$ref": "#/$defs/label"
+        },
+        "plan": {
+          "$ref": "#/$defs/label"
+        },
+        "region": {
+          "$ref": "#/$defs/label"
+        },
+        "facts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "OIDC": {
+              "$ref": "#/$defs/fact"
+            },
+            "SAML": {
+              "$ref": "#/$defs/fact"
+            },
+            "OAUTH2_APIS": {
+              "$ref": "#/$defs/fact"
+            },
+            "SOCIAL_LOGIN": {
+              "$ref": "#/$defs/fact"
+            },
+            "ENTERPRISE_SSO": {
+              "$ref": "#/$defs/fact"
+            },
+            "SCIM": {
+              "$ref": "#/$defs/fact"
+            },
+            "JIT": {
+              "$ref": "#/$defs/fact"
+            },
+            "GROUP_SYNC": {
+              "$ref": "#/$defs/fact"
+            },
+            "MFA": {
+              "$ref": "#/$defs/fact"
+            }
+          }
+        }
+      }
+    }
+  }
+}
