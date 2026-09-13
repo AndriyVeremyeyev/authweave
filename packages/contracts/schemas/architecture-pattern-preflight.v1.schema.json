@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/architecture-pattern-preflight.v1.schema.json",
+  "title": "Architecture pattern preflight v1",
+  "description": "Non-exhaustive per-client comparison. Checks only selected clients and browser token minimization. Listed prerequisites are not verified. No scores, provider compatibility or complete architecture recommendation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "policyVersion",
+    "evaluatedAt",
+    "scope",
+    "recommendationReady",
+    "selectedClients",
+    "browserTokenExposureRequirement",
+    "checkedPaths",
+    "deferredPaths",
+    "patterns"
+  ],
+  "properties": {
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "policyVersion": {
+      "const": "architecture-pattern-preflight-1"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "const": "ARCHITECTURE_PATTERN_PREFLIGHT"
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "selectedClients": {
+      "type": "array",
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "BROWSER",
+          "NATIVE_MOBILE",
+          "MACHINE_TO_MACHINE"
+        ]
+      }
+    },
+    "browserTokenExposureRequirement": {
+      "$ref": "./application-identity-profile.v1.schema.json#/$defs/criticality"
+    },
+    "checkedPaths": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "application.clients",
+          "security.browserTokenExposureMinimization"
+        ]
+      }
+    },
+    "deferredPaths": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "application.type",
+          "audience",
+          "protocols",
+          "provisioning",
+          "security.multiFactorAuthentication",
+          "security.auditability",
+          "security.dataResidency",
+          "security.assurance",
+          "security.complianceTargets",
+          "operations"
+        ]
+      }
+    },
+    "patterns": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/pattern"
+      }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profilePath",
+        "outcome",
+        "reasonCode",
+        "explanation"
+      ],
+      "properties": {
+        "profilePath": {
+          "enum": [
+            "application.clients",
+            "security.browserTokenExposureMinimization"
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "PASS",
+            "UNKNOWN",
+            "NOT_APPLIED"
+          ]
+        },
+        "reasonCode": {
+          "enum": [
+            "CLIENT_SELECTED",
+            "CLIENT_NOT_SELECTED",
+            "CLIENT_CONTEXT_UNKNOWN",
+            "PATTERN_NOT_APPLICABLE",
+            "BROWSER_CRITERION_NOT_APPLICABLE",
+            "TOKENS_HELD_SERVER_SIDE",
+            "ACCEPTABLE_EXPOSURE_UNDEFINED",
+            "MINIMIZATION_PROHIBITION_UNDEFINED",
+            "REQUIREMENT_UNKNOWN",
+            "PREFERENCE_NOT_SCORED",
+            "NO_REQUIREMENT"
+          ]
+        },
+        "explanation": {
+          "$ref": "#/$defs/text"
+        }
+      }
+    },
+    "pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patternId",
+        "displayName",
+        "clientType",
+        "tokenHandling",
+        "status",
+        "checks",
+        "advantages",
+        "tradeoffs",
+        "prerequisites",
+        "references"
+      ],
+      "properties": {
+        "patternId": {
+          "enum": [
+            "BFF_SESSION",
+            "SERVER_SIDE_SESSION",
+            "SPA_CODE_PKCE",
+            "NATIVE_CODE_PKCE",
+            "M2M_CLIENT_CREDENTIALS"
+          ]
+        },
+        "displayName": {
+          "$ref": "#/$defs/text"
+        },
+        "clientType": {
+          "enum": [
+            "BROWSER",
+            "NATIVE_MOBILE",
+            "MACHINE_TO_MACHINE"
+          ]
+        },
+        "tokenHandling": {
+          "enum": [
+            "SERVER_SIDE",
+            "BROWSER",
+            "NATIVE_APP",
+            "WORKLOAD"
+          ]
+        },
+        "status": {
+          "enum": [
+            "MATCHES_CHECKED_REQUIREMENTS",
+            "NEEDS_INFORMATION",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        },
+        "advantages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "tradeoffs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "prerequisites": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "references": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^https://",
+            "maxLength": 2048
+          }
+        }
+      }
+    }
+  }
+}

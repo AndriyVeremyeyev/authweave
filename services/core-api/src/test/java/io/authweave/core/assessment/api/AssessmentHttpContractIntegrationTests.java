@@ -466,6 +466,118 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         }
     }
 
+    @Test
+    void patternPreflightIsScopedReadOnlyAndExplicitlyPartial() throws Exception {
+        var assessment = create();
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        var before = response("pattern-profile", mvc.perform(put(assessment.path() + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        String path = assessment.path() + "/architecture-pattern-preflight";
+        var result = mvc.perform(get(path)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.workspaceId").value(assessment.workspaceId().value().toString()))
+                .andExpect(jsonPath("$.assessmentId").value(assessment.id().value().toString()))
+                .andExpect(jsonPath("$.assessmentVersion").value(1))
+                .andExpect(jsonPath("$.policyVersion").value("architecture-pattern-preflight-1"))
+                .andExpect(jsonPath("$.scope").value("ARCHITECTURE_PATTERN_PREFLIGHT"))
+                .andExpect(jsonPath("$.recommendationReady").value(false))
+                .andExpect(jsonPath("$.selectedClients[0]").value("BROWSER"))
+                .andExpect(jsonPath("$.browserTokenExposureRequirement").value("PREFERRED"))
+                .andExpect(jsonPath("$.patterns.length()").value(5))
+                .andExpect(jsonPath("$.patterns[0].patternId").value("BFF_SESSION"))
+                .andExpect(jsonPath("$.patterns[1].patternId").value("SERVER_SIDE_SESSION"))
+                .andExpect(jsonPath("$.patterns[2].patternId").value("SPA_CODE_PKCE"))
+                .andExpect(jsonPath("$.patterns[0].status").value("MATCHES_CHECKED_REQUIREMENTS"))
+                .andExpect(jsonPath("$.patterns[2].status").value("MATCHES_CHECKED_REQUIREMENTS"))
+                .andExpect(jsonPath("$.patterns[3].status").value("NOT_APPLICABLE"))
+                .andExpect(jsonPath("$.patterns[4].status").value("NOT_APPLICABLE"))
+                .andExpect(jsonPath("$.checkedPaths.length()").value(2))
+                .andExpect(jsonPath("$.deferredPaths.length()").value(10)).andReturn();
+        var payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample("architecture-pattern-preflight", "architecture-pattern-preflight", true, payload);
+        var repeated = mvc.perform(get(path)).andExpect(status().isOk()).andReturn();
+        assertEquals(payload, mapper.readTree(repeated.getResponse().getContentAsString()));
+        assertEquals(before, response("pattern-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+
+        ObjectNode falseRecommendation = (ObjectNode) payload.deepCopy();
+        falseRecommendation.put("recommendationReady", true);
+        sample("pattern-cannot-claim-recommendation", "architecture-pattern-preflight", false, falseRecommendation);
+        ObjectNode falseWinner = (ObjectNode) payload.deepCopy();
+        falseWinner.put("winner", "BFF_SESSION");
+        sample("pattern-cannot-claim-winner", "architecture-pattern-preflight", false, falseWinner);
+
+        String otherWorkspace = "/api/v1/workspaces/" + UUID.randomUUID();
+        mvc.perform(put(otherWorkspace)).andExpect(status().isCreated());
+        response("pattern-cross-workspace", mvc.perform(get(otherWorkspace + "/assessments/"
+                        + assessment.id().value() + "/architecture-pattern-preflight"))
+                .andExpect(status().isNotFound()).andReturn());
+        response("pattern-missing", mvc.perform(get("/api/v1/workspaces/" + assessment.workspaceId().value()
+                        + "/assessments/" + UUID.randomUUID() + "/architecture-pattern-preflight"))
+                .andExpect(status().isNotFound()).andReturn());
+        response("pattern-invalid-id", mvc.perform(get("/api/v1/workspaces/" + assessment.workspaceId().value()
+                        + "/assessments/not-a-uuid/architecture-pattern-preflight"))
+                .andExpect(status().isBadRequest()).andReturn());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "REQUIRED", "FORBIDDEN", "NO_CLIENTS", "NATIVE_ONLY", "MIXED" })
+    void patternPreflightHandlesUncertaintyAndClientBoundaries(String scenario) throws Exception {
+        var assessment = create();
+        var update = request();
+        var profile = (ObjectNode) update.get("profile");
+        ((ObjectNode) profile.get("application")).put("type", "B2B_SAAS");
+        var clients = ((ObjectNode) profile.get("application")).putArray("clients");
+        if (scenario.equals("NATIVE_ONLY")) clients.add("NATIVE_MOBILE");
+        else if (!scenario.equals("NO_CLIENTS")) clients.add("BROWSER");
+        if (scenario.equals("MIXED")) clients.add("MACHINE_TO_MACHINE").add("NATIVE_MOBILE");
+        var criticality = scenario.equals("REQUIRED") || scenario.equals("FORBIDDEN") ? scenario : "UNKNOWN";
+        ((ObjectNode) profile.get("security")).put("browserTokenExposureMinimization", criticality);
+        var before = response("pattern-boundary-profile", mvc.perform(put(assessment.path() + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var result = mvc.perform(get(assessment.path() + "/architecture-pattern-preflight")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.assessmentVersion").value(1)).andReturn();
+        var payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample("pattern-boundary-" + scenario, "architecture-pattern-preflight", true, payload);
+        var patterns = payload.get("patterns");
+        switch (scenario) {
+            case "REQUIRED" -> {
+                assertEquals("MATCHES_CHECKED_REQUIREMENTS", patterns.get(0).get("status").asText());
+                assertEquals("NEEDS_INFORMATION", patterns.get(2).get("status").asText());
+                assertEquals("ACCEPTABLE_EXPOSURE_UNDEFINED", patterns.get(2).get("checks").get(1).get("reasonCode").asText());
+            }
+            case "FORBIDDEN" -> {
+                for (int i = 0; i < 3; i++) {
+                    assertEquals("NEEDS_INFORMATION", patterns.get(i).get("status").asText());
+                    assertEquals("MINIMIZATION_PROHIBITION_UNDEFINED",
+                            patterns.get(i).get("checks").get(1).get("reasonCode").asText());
+                }
+            }
+            case "NO_CLIENTS" -> {
+                for (var pattern : patterns) assertEquals("NEEDS_INFORMATION", pattern.get("status").asText());
+            }
+            case "NATIVE_ONLY" -> {
+                assertEquals("NOT_APPLICABLE", patterns.get(0).get("status").asText());
+                assertEquals("MATCHES_CHECKED_REQUIREMENTS", patterns.get(3).get("status").asText());
+                assertEquals("BROWSER_CRITERION_NOT_APPLICABLE", patterns.get(3).get("checks").get(1).get("reasonCode").asText());
+            }
+            case "MIXED" -> {
+                assertEquals(List.of("BROWSER", "MACHINE_TO_MACHINE", "NATIVE_MOBILE"),
+                        mapper.convertValue(payload.get("selectedClients"), List.class));
+                assertEquals("NEEDS_INFORMATION", patterns.get(0).get("status").asText());
+                assertEquals("MATCHES_CHECKED_REQUIREMENTS", patterns.get(3).get("status").asText());
+                assertEquals("MATCHES_CHECKED_REQUIREMENTS", patterns.get(4).get("status").asText());
+            }
+            default -> throw new AssertionError(scenario);
+        }
+        assertEquals(before, response("pattern-boundary-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+    }
+
     private ObjectNode request() {
         ObjectNode request = mapper.createObjectNode().put("expectedVersion", 0);
         request.set("profile", mapper.valueToTree(ApplicationIdentityProfile.unknown()));

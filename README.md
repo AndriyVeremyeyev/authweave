@@ -147,6 +147,28 @@ and operational constraints remain deferred. The existing `/capability-preflight
 response shape and scope are unchanged. Both endpoints use catalog v2; the v1 fixture
 and schema remain as a compatibility baseline. Neither endpoint writes to the database.
 
+### Architecture pattern preflight
+
+Use `/architecture-pattern-preflight` on the same assessment URL to compare BFF/session,
+server-side session, SPA Code+PKCE, native Code+PKCE and M2M client credentials. The
+response includes advantages, tradeoffs, prerequisites and references for each pattern.
+Patterns address individual client types; mixed applications may need several patterns.
+
+Only client selection and browser token minimization are checked. `PREFERRED` preserves
+the browser alternatives without scoring. For `REQUIRED`, server-side patterns satisfy
+the token-handling check under their stated prerequisites; SPA needs clarification of
+acceptable exposure. Minimization is not a blanket token ban. `FORBIDDEN` minimization
+needs clarification too. Unselected client patterns are `NOT_APPLICABLE`; an empty
+client selection needs information. Browser criteria do not assess native/workload storage.
+
+This is a partial comparison: prerequisites, provider/protocol compatibility and the
+remaining security/operations requirements are not verified. `recommendationReady`
+remains false, and the GET preserves assessment state/history. Definitions and references
+are versioned with the policy; references are never fetched during evaluation. Sources:
+[browser patterns](https://www.ietf.org/ietf-ftp/rfc/rfc10017.html),
+[native apps](https://www.rfc-editor.org/rfc/rfc8252.html) and
+[client credentials](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.4).
+
 ### Contract validation
 
 Requirement criticality has five explicit values: `REQUIRED`, `PREFERRED`,

@@ -237,6 +237,42 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-pattern-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Compare baseline client patterns and browser token handling
+      description: >-
+        Read-only, non-exhaustive comparison of BFF/session, server-side session,
+        browser SPA Code+PKCE, native Code+PKCE and workload client credentials.
+        Each pattern addresses one client type; multiple selected clients may need
+        multiple patterns, not one global winner. Only client selection and browser
+        token exposure minimization are checked. Listed prerequisites are not verified.
+        PREFERRED preserves alternatives without scoring. REQUIRED minimization is
+        not a blanket ban on browser tokens: SPA needs clarification of acceptable
+        exposure, while server-side patterns keep OAuth tokens away from browser code
+        if their prerequisites are met. FORBIDDEN minimization needs clarification,
+        not an instruction to expose tokens. Unselected client patterns are NOT_APPLICABLE.
+        Empty clients yield NEEDS_INFORMATION. Browser criteria do not assess native
+        or workload token storage. Includes advantages, tradeoffs, prerequisites and
+        static standards references; references are not fetched during evaluation.
+        Protocol feasibility, provider compatibility, assurance, audit, residency,
+        compliance and operations remain deferred. No recommendation, scoring or
+        change to assessment state/history. Local-only access restrictions still apply.
+      operationId: getArchitecturePatternPreflightV1
+      responses:
+        "200":
+          description: Partial per-client pattern comparison with unverified prerequisites and explicit scope.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/architecture-pattern-preflight.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   parameters:
     WorkspaceId:
