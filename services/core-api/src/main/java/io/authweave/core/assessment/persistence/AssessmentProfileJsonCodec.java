@@ -25,9 +25,13 @@ final class AssessmentProfileJsonCodec {
                 ((ObjectNode) tree.get("security")).set("dataResidencyDetails",
                         objectMapper.valueToTree(profile.security().dataResidencyDetails()));
             }
-            if (schemaVersion(profile) == 4) {
+            if (schemaVersion(profile) >= 4) {
                 ((ObjectNode) tree.get("security")).set("authenticationControls",
                         objectMapper.valueToTree(profile.security().authenticationControls()));
+            }
+            if (schemaVersion(profile) == 5) {
+                ((ObjectNode) tree.get("security")).set("complianceScopeStatus",
+                        objectMapper.valueToTree(profile.security().complianceScopeStatus()));
             }
             return JSONB.valueOf(objectMapper.writeValueAsString(tree));
         } catch (JacksonException exception) {
@@ -38,20 +42,22 @@ final class AssessmentProfileJsonCodec {
     }
 
     short schemaVersion(ApplicationIdentityProfile profile) {
-        return profile.security().minimumSchemaVersion();
+        return profile.minimumSchemaVersion();
     }
 
     JsonNode snapshot(JSONB profile, short version) {
-        if (version < 1 || version > 4) throw new UnsupportedAssessmentProfileVersionException(version);
+        if (version < 1 || version > 5) throw new UnsupportedAssessmentProfileVersionException(version);
         var node = objectMapper.readTree(profile.data());
         var details = node.path("security").get("dataResidencyDetails");
         var controls = node.path("security").get("authenticationControls");
         var complianceScope = node.path("security").get("complianceScopeStatus");
+        var usagePlanning = node.path("operations").get("usagePlanning");
         if ((version == 1 && details != null) || (version >= 2 && (details == null || details.isNull()))
                 || (version < 3 && controls != null) || (version >= 3 && (controls == null || controls.isNull()))
-                || (version < 4 && complianceScope != null) || (version == 4 && (complianceScope == null || complianceScope.isNull()))) {
+                || (version < 4 && complianceScope != null) || (version >= 4 && (complianceScope == null || complianceScope.isNull()))
+                || (version < 5 && usagePlanning != null) || (version == 5 && (usagePlanning == null || usagePlanning.isNull()))) {
             throw new AssessmentProfileSerializationException("Profile does not match its stored schema version",
-                    new IllegalArgumentException("Security details presence does not match schema version"));
+                    new IllegalArgumentException("Profile details presence does not match schema version"));
         }
         return node;
     }

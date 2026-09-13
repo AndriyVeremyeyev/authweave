@@ -110,7 +110,7 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 3, 4})
+    @ValueSource(ints = {1, 2, 3, 4, 5})
     void concurrentWritersCommitExactlyOneNewRevisionAndEvent(int format) throws Exception {
         var created = create();
         var workspace = created.assessment().workspaceId();
@@ -136,13 +136,13 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
         var revisions = service.getRevisions(workspace, id, null, 100).items();
         assertEquals(2, revisions.size());
         assertEquals(mapper.valueToTree(current.assessment().profile()), revisions.getLast().profile());
-        assertEquals(current.assessment().profile().security().minimumSchemaVersion(),
+        assertEquals(current.assessment().profile().minimumSchemaVersion(),
                 revisions.getLast().profileSchemaVersion());
         assertEquals(2, service.getEvents(workspace, id, null, 100).items().size());
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 3, 4})
+    @ValueSource(ints = {1, 2, 3, 4, 5})
     void auditInsertFailureRollsBackBothCreationAndUpdate(int format) throws Exception {
         var created = create();
         var workspace = created.assessment().workspaceId();
@@ -171,7 +171,7 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {2, 3, 4})
+    @ValueSource(ints = {2, 3, 4, 5})
     void callerRollbackCannotLeaveASuccessEventOrRevisionBehind(int format) {
         var created = create();
         var workspace = created.assessment().workspaceId();
@@ -230,6 +230,14 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
     }
 
     private static ApplicationIdentityProfile versionedProfile(int format) {
+        if (format == 5) {
+            var base = versionedProfile(4);
+            var o = base.operations();
+            return new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(), base.provisioning(),
+                    base.security(), new io.authweave.core.assessment.domain.profile.OperationalConstraints(
+                    o.hosting(), o.deploymentTarget(), o.identityExpertise(), o.budgetSensitivity(),
+                    new io.authweave.core.assessment.domain.profile.UsagePlanning("Synthetic pilot", List.of(), java.util.Map.of())));
+        }
         if (format == 1) return profile(ApplicationType.B2B_SAAS);
         var base = residencyProfile();
         if (format == 2) return base;

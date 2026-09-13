@@ -87,6 +87,9 @@ class AssessmentHistoryMigrationTests extends PostgresIntegrationTest {
                 migrate(url, "6");
                 assertEquals(beforeUpgrade, snapshots(url),
                         "V6 must not infer compliance scope or rewrite any existing records");
+                migrate(url, "7");
+                migrate(url, "7");
+                assertEquals(beforeUpgrade, snapshots(url), "V7 must not infer usage counts or rewrite existing records");
             } finally {
                 adminSql.execute("DROP DATABASE " + database);
             }

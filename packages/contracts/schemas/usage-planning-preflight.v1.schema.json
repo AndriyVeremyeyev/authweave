@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/usage-planning-preflight.v1.schema.json",
+  "title": "Usage planning input preflight v1",
+  "description": "Read-only inventory of scoped, owner-supplied counts and assumptions. Not a cost estimate, price lookup, free-tier promise or provider eligibility rule.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "policyVersion",
+    "evaluatedAt",
+    "scope",
+    "pricingEvaluated",
+    "recommendationReady",
+    "status",
+    "scopeDescription",
+    "assumptions",
+    "missingPaths",
+    "quantityChecks",
+    "explanation"
+  ],
+  "properties": {
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "policyVersion": {
+      "const": "usage-planning-preflight-1"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "const": "USAGE_PLANNING_PREFLIGHT"
+    },
+    "pricingEvaluated": {
+      "const": false
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "status": {
+      "enum": [
+        "NEEDS_INFORMATION",
+        "INPUTS_RECORDED"
+      ]
+    },
+    "scopeDescription": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Describe the environment, planning month or horizon, and aggregation boundaries. Empty or blank is unrecorded."
+    },
+    "assumptions": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500,
+        "pattern": "\\S"
+      },
+      "description": "Explicit rationale and limitations for assumed values. Empty means no assumptions recorded, not verified completeness."
+    },
+    "missingPaths": {
+      "type": "array",
+      "uniqueItems": true,
+      "maxItems": 6,
+      "items": {
+        "enum": [
+          "operations.usagePlanning.scopeDescription",
+          "operations.usagePlanning.volumes.MONTHLY_ACTIVE_USERS",
+          "operations.usagePlanning.volumes.ENTERPRISE_SSO_CONNECTIONS",
+          "operations.usagePlanning.volumes.MONTHLY_M2M_TOKEN_ISSUANCES",
+          "operations.usagePlanning.volumes.PEAK_HUMAN_LOGINS_PER_SECOND",
+          "operations.usagePlanning.assumptions"
+        ]
+      }
+    },
+    "quantityChecks": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/quantityCheck"
+      }
+    },
+    "explanation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 350
+    }
+  },
+  "$defs": {
+    "quantityCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "unit",
+        "definition",
+        "status",
+        "input"
+      ],
+      "properties": {
+        "metric": {
+          "enum": [
+            "MONTHLY_ACTIVE_USERS",
+            "ENTERPRISE_SSO_CONNECTIONS",
+            "MONTHLY_M2M_TOKEN_ISSUANCES",
+            "PEAK_HUMAN_LOGINS_PER_SECOND"
+          ]
+        },
+        "unit": {
+          "enum": [
+            "USERS_PER_MONTH",
+            "CONFIGURED_CONNECTIONS",
+            "TOKEN_ISSUANCES_PER_MONTH",
+            "LOGINS_PER_SECOND"
+          ]
+        },
+        "definition": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "status": {
+          "enum": [
+            "UNKNOWN",
+            "ASSUMED",
+            "OBSERVED"
+          ]
+        },
+        "input": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "./application-identity-profile.v5.schema.json#/$defs/usageQuantity"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

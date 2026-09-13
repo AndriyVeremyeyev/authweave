@@ -6,7 +6,7 @@ public final class ProfileUpgradeRequiredException extends RuntimeException {
     }
 
     public ProfileUpgradeRequiredException(int version) {
-        super("This profile contains newer security requirements. Use API v" + version
+        super("This profile contains newer requirements. Use API v" + version
                 + " assessment/profile or revisions endpoints to preserve them.");
     }
 }

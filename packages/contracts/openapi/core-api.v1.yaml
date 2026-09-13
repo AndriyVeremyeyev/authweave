@@ -589,7 +589,7 @@ paths:
       tags: [Assessments]
       summary: Read a current assessment as profile v4
       description: >-
-        Projects legacy profiles with UNKNOWN complianceScopeStatus without changing targets, timestamps, versions or history. Empty legacy target lists do not imply NONE_IDENTIFIED. Existing target labels do not confirm scope or provider compliance. The response profileSchemaVersion describes the representation.
+        Projects legacy profiles with UNKNOWN complianceScopeStatus without changing targets, timestamps, versions or history. Empty legacy target lists do not imply NONE_IDENTIFIED. Existing target labels do not confirm scope or provider compliance. The response profileSchemaVersion describes the representation. Recorded v5 usage inputs require the v5 endpoint.
       operationId: getAssessmentV4
       responses:
         "200":
@@ -602,6 +602,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
   /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
@@ -610,7 +612,7 @@ paths:
       tags: [Assessments]
       summary: Replace a profile including an explicit compliance requirements scope
       description: >-
-        Replace the complete profile with expectedVersion. UNKNOWN preserves an unrecorded or incomplete requirements scope, including existing target lists. NONE_IDENTIFIED requires an empty target list; TARGETS_IDENTIFIED requires at least one label. Contradictions return 422, malformed fields return 400. These are owner-recorded inputs, not legal applicability or compliance findings. No-op saves do not rewrite storage. Real changes append an atomic security-section event and snapshot. V1/v2/v3 writes cannot silently clear recorded scope; an intentional v4 clear to UNKNOWN can restore older current-profile compatibility without altering history.
+        Replace the complete profile with expectedVersion. UNKNOWN preserves an unrecorded or incomplete requirements scope, including existing target lists. NONE_IDENTIFIED requires an empty target list; TARGETS_IDENTIFIED requires at least one label. Contradictions return 422, malformed fields return 400. These are owner-recorded inputs, not legal applicability or compliance findings. No-op saves do not rewrite storage. Real changes append an atomic security-section event and snapshot. V4 writes reject recorded v5 usage inputs. V1/v2/v3 writes cannot silently clear recorded scope; an intentional v4 clear to UNKNOWN can restore older current-profile compatibility without altering history.
       operationId: updateAssessmentProfileV4
       requestBody:
         required: true
@@ -656,6 +658,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
   /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
@@ -673,6 +677,134 @@ paths:
             application/json:
               schema:
                 $ref: ../schemas/eligibility-preflight.v4.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v5/workspaces/{workspaceId}/assessments:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      tags: [Assessments]
+      summary: Create a draft with a profile v5 representation
+      description: >-
+        Provision the workspace through the existing v1 endpoint. A new draft has empty usagePlanning inputs; no traffic values or costs are inferred. This response projects profile v5 while storage uses the smallest lossless format. This API is local-only.
+      operationId: createAssessmentV5
+      responses:
+        "201":
+          description: Created assessment with unrecorded usage planning.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v5.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/WorkspaceNotFound"
+  /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Read a current assessment as profile v5
+      description: >-
+        Projects older profiles with an empty usagePlanning object without changing records, timestamps, lock versions or history. Empty metric maps mean unknown, not zero. The response profileSchemaVersion describes this representation, not a storage migration.
+      operationId: getAssessmentV5
+      responses:
+        "200":
+          description: Current assessment with an explicit v5 profile.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v5.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    put:
+      tags: [Assessments]
+      summary: Replace a profile including usage volumes and planning assumptions
+      description: >-
+        Replace the complete profile with expectedVersion. Usage counts require an explicit ASSUMED or OBSERVED basis and a non-negative JavaScript-safe integer. Missing metric keys remain unknown; zero must be supplied explicitly. Scope and assumptions are bounded owner-supplied text, never executable instructions. Incomplete planning inputs are allowed in drafts. No-op saves preserve data; changes append an atomic operations-section event and versioned snapshot. Older API writes cannot silently erase recorded planning inputs. Explicit v5 clearing restores the smallest lossless stored format without changing older history. No cost estimate or provider ranking is produced.
+      operationId: updateAssessmentProfileV5
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/update-assessment-profile-request.v5.schema.json
+      responses:
+        "200":
+          description: Updated or unchanged assessment.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v5.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
+        "422":
+          $ref: "#/components/responses/InvalidProfile"
+  /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+      - $ref: "#/components/parameters/AfterVersion"
+      - $ref: "#/components/parameters/HistoryLimit"
+    get:
+      tags: [Assessments]
+      summary: Read original v1 through v5 profile snapshots
+      description: >-
+        Return exact mixed v1/v2/v3/v4/v5 snapshots with their original schema versions. No history projection, rewriting or current-domain validation. Older history APIs reject pages containing unsupported formats; events keep the v1 endpoint.
+      operationId: getAssessmentRevisionsV5
+      responses:
+        "200":
+          description: A page containing original versioned snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-revision-page.v5.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/usage-planning-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Inspect usage inputs and assumptions without estimating costs
+      description: >-
+        Read-only local-only input inventory, independent of the provider catalog.
+        Lists four defined metrics with their units, recorded basis and value or UNKNOWN.
+        Missing quantities never become zero and a client type never supplies implicit usage.
+        INPUTS_RECORDED requires a nonblank scope and all four quantities; when any value is
+        ASSUMED, at least one assumption must be recorded. Otherwise missingPaths explains
+        NEEDS_INFORMATION. OBSERVED is an owner's assertion, not verified measurement.
+        Even complete inputs do not establish pricing, free-tier eligibility, budget fit or
+        operational cost. pricingEvaluated and recommendationReady remain false. This check
+        does not change candidate eligibility or any assessment data. Earlier eligibility
+        endpoints retain their scope and defer operational cost evaluation.
+      operationId: getAssessmentUsagePlanningPreflight
+      responses:
+        "200":
+          description: Versioned usage input inventory, not a cost quote.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/usage-planning-preflight.v1.schema.json
         "400":
           $ref: "#/components/responses/InvalidRequest"
         "404":
@@ -719,7 +851,7 @@ components:
         format: uri-reference
   responses:
     ProfileUpgradeRequired:
-      description: This representation cannot preserve newer security requirements; use the compatible v2, v3 or v4 endpoint.
+      description: This representation cannot preserve newer requirements; use the compatible v2, v3, v4 or v5 endpoint.
       content:
         application/problem+json:
           schema:

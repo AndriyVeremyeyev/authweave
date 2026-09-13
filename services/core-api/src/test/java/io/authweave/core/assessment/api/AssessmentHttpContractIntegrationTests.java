@@ -1288,6 +1288,277 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         response("v4-invalid-history-page", mvc.perform(get(path + "/revisions?limit=0")).andExpect(status().isBadRequest()).andReturn());
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3, 4})
+    void v5PreservesOriginalSnapshotsAndGuardsOlderClients(int originalFormat) throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v5/");
+        var projected = versionedSample("v5-legacy-projection", "assessment-response.v5", mvc.perform(get(path)).andReturn());
+        assertEquals(5, projected.get("profileSchemaVersion").asInt());
+        assertEquals(0, projected.at("/profile/operations/usagePlanning/volumes").size());
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", projected.get("profile").deepCopy());
+        var security = (ObjectNode) update.at("/profile/security");
+        ((ObjectNode) update.at("/profile/application")).put("type", "B2B_SAAS");
+        if (originalFormat == 2) ((ObjectNode) security.get("dataResidencyDetails")).putArray("allowedCountries").add("DE");
+        if (originalFormat == 3) ((ObjectNode) security.get("authenticationControls")).put("phishingResistance", "REQUIRED");
+        if (originalFormat == 4) security.put("complianceScopeStatus", "NONE_IDENTIFIED");
+        var baseline = saveV5("v5-unrecorded-usage", path, update);
+        var historyBefore = v5History("v5-history-before-usage", path);
+        assertEquals(originalFormat, historyBefore.at("/items/1/profileSchemaVersion").asInt());
+        assertFalse(historyBefore.at("/items/1/profile/operations").has("usagePlanning"));
+        update.put("expectedVersion", 1);
+        assertEquals(baseline, saveV5("v5-legacy-noop", path, update));
+        assertEquals(historyBefore, v5History("v5-noop-preserves-format", path));
+        var usage = (ObjectNode) update.at("/profile/operations/usagePlanning");
+        usage.put("scopeDescription", "Synthetic pilot, one production environment");
+        usage.putArray("assumptions").add("No machine clients in this scenario");
+        ((ObjectNode) usage.get("volumes")).putObject("MONTHLY_M2M_TOKEN_ISSUANCES").put("basis", "ASSUMED").put("value", 0);
+        var saved = saveV5("v5-recorded-usage", path, update);
+        assertEquals(2, saved.get("version").asInt());
+        var history = v5History("v5-recorded-history", path);
+        assertEquals(5, history.at("/items/2/profileSchemaVersion").asInt());
+        assertEquals(saved.get("profile"), history.at("/items/2/profile"));
+        assertEquals(historyBefore.at("/items/0"), history.at("/items/0"));
+        assertEquals(historyBefore.at("/items/1"), history.at("/items/1"));
+        update.put("expectedVersion", 2);
+        assertEquals(saved, saveV5("v5-recorded-noop", path, update));
+        var events = historyResponse("v5-usage-events", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        assertEquals(3, events.get("items").size());
+        assertEquals("operations", events.at("/items/2/changedSections/0").asText());
+        assertEquals(1, events.at("/items/2/changedSections").size());
+        for (int api : List.of(1, 2, 3, 4)) {
+            String oldPath = path.replace("/api/v5/", "/api/v" + api + "/");
+            response("v5-older-read-blocked", mvc.perform(get(oldPath)).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+            response("v5-older-history-blocked", mvc.perform(get(oldPath + "/revisions")).andExpect(status().isConflict()).andReturn());
+            var oldRequest = update.deepCopy();
+            ((ObjectNode) oldRequest.at("/profile/operations")).remove("usagePlanning");
+            var oldSecurity = (ObjectNode) oldRequest.at("/profile/security");
+            if (api < 4) oldSecurity.remove("complianceScopeStatus");
+            if (api < 3) oldSecurity.remove("authenticationControls");
+            if (api < 2) oldSecurity.remove("dataResidencyDetails");
+            response("v5-older-write-blocked", mvc.perform(put(oldPath + "/profile").contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(oldRequest))).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+            oldRequest.put("expectedVersion", 0);
+            response("v5-older-stale-version-first", mvc.perform(put(oldPath + "/profile").contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(oldRequest))).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("assessment-version-conflict")).andReturn());
+            versionedSample("v5-compatible-history-page", api == 1 ? "assessment-revision-page" : "assessment-revision-page.v" + api,
+                    mvc.perform(get(oldPath + "/revisions?limit=1")).andExpect(status().isOk()).andReturn());
+        }
+        assertEquals(saved, versionedSample("v5-guards-preserve-state", "assessment-response.v5", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v5History("v5-guards-preserve-history", path));
+        var page = versionedSample("v5-history-cursor", "assessment-revision-page.v5",
+                mvc.perform(get(path + "/revisions?afterVersion=1&limit=1")).andExpect(status().isOk()).andReturn());
+        assertEquals(history.at("/items/2"), page.at("/items/0"));
+        usage.put("scopeDescription", ""); usage.putArray("assumptions"); usage.putObject("volumes");
+        saveV5("v5-explicit-clear", path, update);
+        var after = v5History("v5-history-after-clear", path);
+        for (int i = 0; i < 3; i++) assertEquals(history.get("items").get(i), after.get("items").get(i));
+        assertEquals(originalFormat, after.at("/items/3/profileSchemaVersion").asInt());
+        versionedSample("v5-compatible-current-after-clear", originalFormat == 1 ? "assessment-response" : "assessment-response.v" + originalFormat,
+                mvc.perform(get(path.replace("/api/v5/", "/api/v" + originalFormat + "/"))).andExpect(status().isOk()).andReturn());
+        response("v5-clear-does-not-erase-history", mvc.perform(get(path.replace("/api/v5/", "/api/v4/") + "/revisions"))
+                .andExpect(status().isConflict()).andReturn());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing-usage", "null-usage", "unknown-field", "missing-context", "null-context", "long-context", "numeric-context", "float-context", "boolean-context",
+            "missing-assumptions", "null-assumptions", "blank-assumption", "duplicate-assumptions", "long-assumption", "too-many-assumptions",
+            "null-assumption", "numeric-assumption", "boolean-assumption", "missing-volumes", "null-volumes", "unknown-metric", "padded-metric", "null-quantity", "unknown-quantity-field",
+            "missing-basis", "null-basis", "unknown-basis", "numeric-basis", "missing-value", "null-value", "negative-value", "fractional-value",
+            "string-value", "boolean-value", "unsafe-value", "overflow-value"})
+    void v5RejectsMalformedUsageWithoutWriting(String scenario) throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v5/");
+        var before = versionedSample("v5-invalid-before", "assessment-response.v5", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", before.get("profile").deepCopy());
+        var operations = (ObjectNode) update.at("/profile/operations");
+        var usage = (ObjectNode) operations.get("usagePlanning");
+        var volumes = (ObjectNode) usage.get("volumes");
+        var quantity = volumes.putObject("MONTHLY_ACTIVE_USERS").put("basis", "ASSUMED").put("value", 100);
+        switch (scenario) {
+            case "missing-usage" -> operations.remove("usagePlanning");
+            case "null-usage" -> operations.putNull("usagePlanning");
+            case "unknown-field" -> usage.put("monthlyPrice", 0);
+            case "missing-context" -> usage.remove("scopeDescription");
+            case "null-context" -> usage.putNull("scopeDescription");
+            case "long-context" -> usage.put("scopeDescription", "x".repeat(501));
+            case "numeric-context" -> usage.put("scopeDescription", 1);
+            case "float-context" -> usage.put("scopeDescription", 1.5);
+            case "boolean-context" -> usage.put("scopeDescription", true);
+            case "missing-assumptions" -> usage.remove("assumptions");
+            case "null-assumptions" -> usage.putNull("assumptions");
+            case "blank-assumption" -> usage.putArray("assumptions").add(" \t ");
+            case "duplicate-assumptions" -> usage.putArray("assumptions").add("same").add("same");
+            case "long-assumption" -> usage.putArray("assumptions").add("x".repeat(501));
+            case "too-many-assumptions" -> { var notes = usage.putArray("assumptions"); for (int i = 0; i < 11; i++) notes.add("Note " + i); }
+            case "null-assumption" -> usage.putArray("assumptions").addNull();
+            case "numeric-assumption" -> usage.putArray("assumptions").add(10);
+            case "boolean-assumption" -> usage.putArray("assumptions").add(true);
+            case "missing-volumes" -> usage.remove("volumes");
+            case "null-volumes" -> usage.putNull("volumes");
+            case "unknown-metric" -> volumes.set("REGISTERED_USERS", quantity.deepCopy());
+            case "padded-metric" -> volumes.set(" MONTHLY_ACTIVE_USERS ", quantity.deepCopy());
+            case "null-quantity" -> volumes.putNull("MONTHLY_ACTIVE_USERS");
+            case "unknown-quantity-field" -> quantity.put("price", 0);
+            case "missing-basis" -> quantity.remove("basis");
+            case "null-basis" -> quantity.putNull("basis");
+            case "unknown-basis" -> quantity.put("basis", "UNKNOWN");
+            case "numeric-basis" -> quantity.put("basis", 0);
+            case "missing-value" -> quantity.remove("value");
+            case "null-value" -> quantity.putNull("value");
+            case "negative-value" -> quantity.put("value", -1);
+            case "fractional-value" -> quantity.put("value", 0.5);
+            case "string-value" -> quantity.put("value", "100");
+            case "boolean-value" -> quantity.put("value", false);
+            case "unsafe-value" -> quantity.put("value", 9007199254740992L);
+            case "overflow-value" -> quantity.put("value", new java.math.BigInteger("100000000000000000000"));
+            default -> throw new AssertionError(scenario);
+        }
+        sample("v5-invalid-" + scenario, "update-assessment-profile-request.v5", false, update);
+        response("v5-invalid-" + scenario, mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(update))).andExpect(status().isBadRequest()).andReturn());
+        assertEquals(before, versionedSample("v5-invalid-unchanged", "assessment-response.v5", mvc.perform(get(path)).andReturn()));
+        assertHistorySize(assessment, 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UNKNOWN", "PARTIAL", "ASSUMED", "ASSUMED_WITHOUT_NOTES", "OBSERVED", "MIXED", "MAXIMUM", "WHITESPACE_CONTEXT"})
+    void v5PlanningPreflightKeepsUnknownSeparateFromZeroAndDoesNotEvaluatePrices(String scenario) throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v5/");
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", versionedSample("v5-scenario-before", "assessment-response.v5", mvc.perform(get(path)).andReturn()).get("profile"));
+        var usage = (ObjectNode) update.at("/profile/operations/usagePlanning");
+        if (!scenario.equals("UNKNOWN")) {
+            usage.put("scopeDescription", scenario.equals("WHITESPACE_CONTEXT") ? "  " : "x".repeat(500));
+            var volumes = (ObjectNode) usage.get("volumes");
+            int index = 0;
+            for (var metric : io.authweave.core.assessment.domain.profile.UsagePlanning.Metric.values()) {
+                if (scenario.equals("PARTIAL") && index > 0) break;
+                String basis = scenario.equals("OBSERVED") || (scenario.equals("MIXED") && index == 0) ? "OBSERVED" : "ASSUMED";
+                volumes.putObject(metric.name()).put("basis", basis).put("value", scenario.equals("MAXIMUM") ? 9007199254740991L : 0);
+                index++;
+            }
+            if (!List.of("OBSERVED", "ASSUMED_WITHOUT_NOTES").contains(scenario)) {
+                var notes = usage.putArray("assumptions");
+                for (int i = 0; i < 10; i++) notes.add("x".repeat(499) + i);
+            }
+        }
+        var before = saveV5("v5-usage-" + scenario, path, update);
+        var history = v5History("v5-preflight-history-before", path);
+        var events = historyResponse("v5-preflight-events-before", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        var report = usagePreflight("usage-" + scenario, path);
+        assertEquals(before.get("version"), report.get("assessmentVersion"));
+        assertEquals("usage-planning-preflight-1", report.get("policyVersion").asText());
+        assertEquals(usage.get("scopeDescription"), report.get("scopeDescription"));
+        assertEquals(usage.get("assumptions"), report.get("assumptions"));
+        boolean complete = List.of("ASSUMED", "OBSERVED", "MIXED", "MAXIMUM").contains(scenario);
+        assertEquals(complete ? "INPUTS_RECORDED" : "NEEDS_INFORMATION", report.get("status").asText());
+        assertEquals(scenario.equals("UNKNOWN") ? 5 : scenario.equals("PARTIAL") ? 3 : complete ? 0 : 1, report.get("missingPaths").size());
+        int index = 0;
+        for (var metric : io.authweave.core.assessment.domain.profile.UsagePlanning.Metric.values()) {
+            var check = report.get("quantityChecks").get(index++);
+            assertEquals(metric.name(), check.get("metric").asText());
+            assertEquals(metric.unit().name(), check.get("unit").asText());
+            assertEquals(metric.definition(), check.get("definition").asText());
+            var input = usage.at("/volumes/" + metric.name());
+            assertEquals(input.isMissingNode() ? "UNKNOWN" : input.get("basis").asText(), check.get("status").asText());
+            if (input.isMissingNode()) assertEquals(mapper.nullNode(), check.get("input"));
+            else {
+                assertEquals(input.get("basis"), check.at("/input/basis"));
+                assertEquals(input.get("value").asLong(), check.at("/input/value").asLong());
+            }
+        }
+        assertFalse(report.has("candidates")); assertFalse(report.has("catalogVersion"));
+        assertEquals(report, usagePreflight("usage-repeat", path));
+        assertEquals(before, versionedSample("v5-preflight-state-after", "assessment-response.v5", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v5History("v5-preflight-history-after", path));
+        assertEquals(events, historyResponse("v5-preflight-events-after", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+        for (String field : List.of("pricingEvaluated", "recommendationReady", "monthlyCost", "winner")) {
+            var invalid = (ObjectNode) report.deepCopy(); invalid.put(field, true);
+            sample("usage-no-claim-" + field, "usage-planning-preflight", false, invalid);
+        }
+    }
+
+    @Test
+    void v5UsageAndBudgetSensitivityDoNotChangeEarlierEligibilityChecks() throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v5/");
+        var before = new java.util.HashMap<Integer, JsonNode>();
+        for (int api : List.of(1, 2, 3, 4)) before.put(api, versionedSample("usage-eligibility-before",
+                api == 1 ? "eligibility-preflight" : "eligibility-preflight.v" + api,
+                mvc.perform(get(path.replace("/api/v5/", "/api/v" + api + "/") + "/eligibility-preflight")).andReturn()));
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", versionedSample("v5-eligibility-profile", "assessment-response.v5", mvc.perform(get(path)).andReturn()).get("profile"));
+        var operations = (ObjectNode) update.at("/profile/operations");
+        ((ObjectNode) operations.at("/usagePlanning/volumes")).putObject("MONTHLY_ACTIVE_USERS").put("basis", "ASSUMED").put("value", 9007199254740991L);
+        for (String sensitivity : List.of("HIGH", "LOW")) {
+            operations.put("budgetSensitivity", sensitivity);
+            var saved = saveV5("v5-budget-is-not-a-limit", path, update);
+            update.set("expectedVersion", saved.get("version"));
+            for (int api : List.of(1, 2, 3, 4)) {
+                var report = versionedSample("usage-eligibility-after", api == 1 ? "eligibility-preflight" : "eligibility-preflight.v" + api,
+                        mvc.perform(get(path.replace("/api/v5/", "/api/v" + api + "/") + "/eligibility-preflight")).andReturn());
+                var expected = (ObjectNode) before.get(api).deepCopy(); expected.set("assessmentVersion", saved.get("version"));
+                assertEquals(expected, report);
+            }
+        }
+    }
+
+    @Test
+    void v5CreateArchiveAndWorkspaceBoundariesArePreserved() throws Exception {
+        var workspace = UUID.randomUUID();
+        mvc.perform(put("/api/v1/workspaces/" + workspace)).andExpect(status().isCreated());
+        var result = mvc.perform(post("/api/v5/workspaces/" + workspace + "/assessments")).andExpect(status().isCreated()).andReturn();
+        var created = versionedSample("v5-create", "assessment-response.v5", result);
+        var path = result.getResponse().getHeader("Location");
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", created.get("profile").deepCopy());
+        ((ObjectNode) update.at("/profile/operations/usagePlanning")).put("scopeDescription", "Synthetic pilot");
+        saveV5("v5-scope-only", path, update);
+        var persisted = repository.findById(new WorkspaceId(workspace), new AssessmentId(UUID.fromString(created.get("id").asText()))).orElseThrow();
+        persisted.assessment().archive(); repository.update(persisted.assessment(), persisted.version());
+        var before = versionedSample("v5-archived-read", "assessment-response.v5", mvc.perform(get(path)).andReturn());
+        assertEquals("ARCHIVED", before.get("status").asText());
+        var history = v5History("v5-archived-history", path);
+        usagePreflight("usage-archived", path);
+        update.put("expectedVersion", 2);
+        response("v5-archived-write-blocked", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(update))).andExpect(status().isConflict()).andReturn());
+        assertEquals(before, versionedSample("v5-archive-state-unchanged", "assessment-response.v5", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v5History("v5-archive-history-unchanged", path));
+        for (String suffix : List.of("", "/revisions", "/usage-planning-preflight")) {
+            response("v5-cross-workspace", mvc.perform(get(path.replace(workspace.toString(), UUID.randomUUID().toString()) + suffix))
+                    .andExpect(status().isNotFound()).andReturn());
+            response("v5-invalid-id", mvc.perform(get(path.replace(workspace.toString(), "invalid") + suffix))
+                    .andExpect(status().isBadRequest()).andReturn());
+        }
+        response("v5-cross-workspace-write", mvc.perform(put(path.replace(workspace.toString(), UUID.randomUUID().toString()) + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isNotFound()).andReturn());
+        response("v5-invalid-history-page", mvc.perform(get(path + "/revisions?limit=0")).andExpect(status().isBadRequest()).andReturn());
+    }
+
+    private JsonNode saveV5(String name, String path, ObjectNode request) throws Exception {
+        sample(name + "-request", "update-assessment-profile-request.v5", true, request.deepCopy());
+        return versionedSample(name, "assessment-response.v5", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(request))).andExpect(status().isOk()).andReturn());
+    }
+
+    private JsonNode v5History(String name, String path) throws Exception {
+        return versionedSample(name, "assessment-revision-page.v5", mvc.perform(get(path + "/revisions")).andExpect(status().isOk()).andReturn());
+    }
+
+    private JsonNode usagePreflight(String name, String path) throws Exception {
+        return versionedSample(name, "usage-planning-preflight", mvc.perform(get(path + "/usage-planning-preflight"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.pricingEvaluated").value(false))
+                .andExpect(jsonPath("$.recommendationReady").value(false)).andReturn());
+    }
+
     private JsonNode saveV4(String name, String path, ObjectNode request) throws Exception {
         sample(name + "-request", "update-assessment-profile-request.v4", true, request.deepCopy());
         return versionedSample(name, "assessment-response.v4", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)

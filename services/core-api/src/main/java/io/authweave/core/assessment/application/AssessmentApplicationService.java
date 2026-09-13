@@ -60,7 +60,7 @@ public class AssessmentApplicationService {
             AssessmentId assessmentId,
             long expectedVersion,
             ApplicationIdentityProfile profile) {
-        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 4);
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 5);
     }
 
     @Transactional
@@ -81,6 +81,12 @@ public class AssessmentApplicationService {
         return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 3);
     }
 
+    @Transactional
+    public PersistedAssessment updateProfileV4(WorkspaceId workspaceId, AssessmentId assessmentId,
+            long expectedVersion, ApplicationIdentityProfile profile) {
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 4);
+    }
+
     private PersistedAssessment updateProfile(WorkspaceId workspaceId, AssessmentId assessmentId,
             long expectedVersion, ApplicationIdentityProfile profile, int maximumSchemaVersion) {
         PersistedAssessment persisted = getAssessment(workspaceId, assessmentId);
@@ -89,8 +95,8 @@ public class AssessmentApplicationService {
                     workspaceId, assessmentId, expectedVersion, persisted.version());
         }
         ApplicationIdentityProfile previousProfile = persisted.assessment().profile();
-        if (previousProfile.security().minimumSchemaVersion() > maximumSchemaVersion) {
-            throw new ProfileUpgradeRequiredException(previousProfile.security().minimumSchemaVersion());
+        if (previousProfile.minimumSchemaVersion() > maximumSchemaVersion) {
+            throw new ProfileUpgradeRequiredException(previousProfile.minimumSchemaVersion());
         }
         persisted.assessment().updateProfile(profile);
         if (previousProfile.equals(profile)) {

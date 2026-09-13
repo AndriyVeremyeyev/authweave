@@ -200,7 +200,7 @@ The v2 eligibility preflight below checks this scope; v1 preflights continue to 
 
 V2 reads project old profiles with empty details and `profileSchemaVersion: 2` without
 changing stored data. This field identifies the response format, not a database update.
-Without recorded authentication controls or compliance scope, the database retains v1 when both arrays
+Without recorded authentication controls, compliance scope or usage inputs, the database retains v1 when both arrays
 are empty and uses v2 when either is populated.
 No-op saves change neither assessment version nor history. An explicit v2 clear may
 return the current stored format to v1; previous v2 revisions remain unchanged.
@@ -279,8 +279,8 @@ and [assurance levels](https://pages.nist.gov/800-63-4/sp800-63b/aal/).
 
 Under `/api/v3/workspaces/{workspaceId}/assessments`, POST, GET `/{assessmentId}` and
 PUT `/{assessmentId}/profile` use a complete v3 profile with the existing optimistic
-lock. Reads project older profiles without modifying them. Without a recorded compliance
-scope, storage uses v3 only when
+lock. Reads project older profiles without modifying them. Without recorded compliance
+scope or usage inputs, storage uses v3 only when
 at least one control is not `UNKNOWN`, otherwise the existing lossless v1/v2 rules
 apply. V3 snapshots include both residency details and controls. GET `/{assessmentId}/revisions`
 returns original mixed v1/v2/v3 snapshots; old history is never rewritten.
@@ -331,7 +331,7 @@ Use POST/GET/PUT and revision history under
 `/api/v4/workspaces/{workspaceId}/assessments`, with the same complete-profile and
 `expectedVersion` rules. V4 reads project every older format with `UNKNOWN` scope,
 preserving even non-empty target lists. They do not infer that an empty list means
-no requirements. No-op saves do not change data or history. Recorded scope requires
+no requirements. No-op saves do not change data or history. Without usage inputs, recorded scope requires
 stored format v4, including residency and authentication fields; otherwise the existing
 minimal v1/v2/v3 rules apply. Flyway V6 widens constraints without rewriting old records.
 
@@ -353,6 +353,64 @@ The synthetic catalog remains v4 with unchanged facts and dates. V1/v2/v3 eligib
 keeps its earlier scope and shapes. This is a local backend step; the browser preview
 remains v1 and does not yet expose these controls or compliance-scope choices.
 
+### Usage inputs and planning assumptions
+
+Profile API v5 adds `operations.usagePlanning` for the application being assessed,
+not AuthWeave's own running costs. It records a `scopeDescription` (up to 500 characters),
+up to 10 distinct, nonblank `assumptions` (up to 500 characters each), and a `volumes`
+map. Describe the planning month or observation period, environments and expected
+growth in the scope and assumptions; free text is stored as data, not executed.
+
+| Metric | Meaning |
+| --- | --- |
+| `MONTHLY_ACTIVE_USERS` | Distinct human users authenticating in one planning month, not registered accounts or login count. |
+| `ENTERPRISE_SSO_CONNECTIONS` | Configured upstream enterprise IdP connections, not organization count. |
+| `MONTHLY_M2M_TOKEN_ISSUANCES` | M2M access-token issuances per planning month, not downstream API requests. |
+| `PEAK_HUMAN_LOGINS_PER_SECOND` | Successful human logins during the busiest one-second interval, not monthly active users. |
+
+Each recorded quantity has `basis: ASSUMED | OBSERVED` and an integer `value` from
+0 through 9007199254740991. `OBSERVED` is an owner's assertion, not verified evidence.
+An omitted metric is unknown; an explicit zero is a recorded value. No client type,
+requirement or budget-sensitivity label automatically supplies zeros or a spending cap.
+These definitions are planning units, not a vendor's billable-unit definitions.
+Partial inputs can be saved, for example:
+
+```json
+{
+  "scopeDescription": "Pilot month; one production environment",
+  "assumptions": ["No machine clients in the pilot"],
+  "volumes": {
+    "MONTHLY_ACTIVE_USERS": { "basis": "ASSUMED", "value": 500 },
+    "MONTHLY_M2M_TOKEN_ISSUANCES": { "basis": "ASSUMED", "value": 0 }
+  }
+}
+```
+
+Use POST/GET/PUT and revision history under `/api/v5/workspaces/{workspaceId}/assessments`
+with a complete profile and `expectedVersion`. V5 reads project older profiles with
+empty planning inputs without changing storage. Any recorded context, assumption or
+quantity requires stored format v5, including all prior security fields. Clearing all
+three restores the smallest lossless v1/v2/v3/v4 format; history is never erased.
+V1 through v4 current-profile reads/writes return 409 `profile-upgrade-required` when
+planning inputs are recorded. V5 history returns exact mixed v1 through v5 snapshots;
+older history endpoints reject pages containing unsupported formats. Flyway V7 only
+widens constraints. No-op saves, optimistic locking and atomic history remain unchanged.
+
+GET `/{assessmentId}/usage-planning-preflight` is a separate, read-only input check.
+It lists all four metrics with their units, definitions, values and basis, using
+`UNKNOWN` with `input: null` for missing quantities. `INPUTS_RECORDED` requires a
+nonblank scope and all four quantities; if any is `ASSUMED`, at least one assumption
+is required. Otherwise `NEEDS_INFORMATION` includes exact `missingPaths`. All-observed
+inputs need no invented assumptions. Recorded inputs are not necessarily correct or
+sufficient for a vendor-specific estimate.
+
+`pricingEvaluated` and `recommendationReady` are always false. No tariff lookup,
+cost quote, free-tier promise, affordability check, score or provider elimination is
+performed. Dated prices, paid feature gates, billable-unit mapping and infrastructure,
+additional environments and operational costs still need a separate cost model.
+V1/v2/v3/v4 eligibility endpoints, policies and synthetic catalog v4 remain unchanged;
+there is no v5 eligibility endpoint. The browser preview remains v1 with no usage-input UI.
+
 ### Contract validation
 
 Requirement criticality has five explicit values: `REQUIRED`, `PREFERRED`,
@@ -366,7 +424,7 @@ that previously used that value to express an actual prohibition.
 
 Profile replacement requires every documented section and field. Unknown properties,
 duplicate array items or JSON keys, numeric enum values, implicit string-to-number
-conversions and fractional versions are rejected. Invalid requests return
+or number/boolean-to-text conversions and fractional versions are rejected. Invalid requests return
 `application/problem+json` with a stable `code` and field `violations`; contradictory
 profiles return domain `issues` with status 422. State and version conflicts return 409.
 

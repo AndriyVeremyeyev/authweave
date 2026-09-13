@@ -1,6 +1,7 @@
 package io.authweave.core.assessment.domain.profile;
 
 import java.util.Objects;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public record ApplicationIdentityProfile(
         ApplicationTopology application,
@@ -17,6 +18,11 @@ public record ApplicationIdentityProfile(
         Objects.requireNonNull(provisioning, "provisioning must not be null");
         Objects.requireNonNull(security, "security must not be null");
         Objects.requireNonNull(operations, "operations must not be null");
+    }
+
+    @JsonIgnore
+    public short minimumSchemaVersion() {
+        return operations.usagePlanning().isUnrecorded() ? security.minimumSchemaVersion() : 5;
     }
 
     public static ApplicationIdentityProfile unknown() {

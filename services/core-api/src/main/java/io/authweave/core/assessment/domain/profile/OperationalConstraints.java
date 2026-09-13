@@ -1,18 +1,28 @@
 package io.authweave.core.assessment.domain.profile;
 
 import java.util.Objects;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 public record OperationalConstraints(
         HostingPreference hosting,
         DeploymentTarget deploymentTarget,
         IdentityExpertise identityExpertise,
-        BudgetSensitivity budgetSensitivity) {
+        BudgetSensitivity budgetSensitivity,
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = UsagePlanning.UnrecordedFilter.class)
+        UsagePlanning usagePlanning) {
 
     public OperationalConstraints {
+        // Legacy profiles have no planning inputs. API v5 and the codec require the field.
+        if (usagePlanning == null) usagePlanning = UsagePlanning.unknown();
         Objects.requireNonNull(hosting, "hosting must not be null");
         Objects.requireNonNull(deploymentTarget, "deploymentTarget must not be null");
         Objects.requireNonNull(identityExpertise, "identityExpertise must not be null");
         Objects.requireNonNull(budgetSensitivity, "budgetSensitivity must not be null");
+    }
+
+    public OperationalConstraints(HostingPreference hosting, DeploymentTarget deploymentTarget,
+            IdentityExpertise identityExpertise, BudgetSensitivity budgetSensitivity) {
+        this(hosting, deploymentTarget, identityExpertise, budgetSensitivity, UsagePlanning.unknown());
     }
 
     public static OperationalConstraints unknown() {

@@ -449,6 +449,78 @@ test("profile v4 requires explicit compliance scope and preserves mixed historic
   }
 });
 
+test("profile v5 records bounded usage inputs without turning unknowns into zero", () => {
+  const schema = name => ajv.getSchema(`https://authweave.dev/contracts/${name}.schema.json`);
+  const profile = structuredClone(validAssessmentResponse.profile);
+  profile.security.dataResidencyDetails = { allowedCountries: [], dataCategories: [] };
+  profile.security.authenticationControls = { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN" };
+  profile.security.complianceScopeStatus = "UNKNOWN";
+  const validate = schema("update-assessment-profile-request.v5");
+  const request = { expectedVersion: 0, profile };
+  assert.equal(validate(request), false);
+  const usage = { scopeDescription: "", assumptions: [], volumes: {} };
+  profile.operations.usagePlanning = usage;
+  assert.equal(validate(request), true, validationMessage(validate));
+  assert.deepEqual(usage.volumes, {});
+  for (const api of [1, 2, 3, 4]) assert.equal(schema(`update-assessment-profile-request.v${api}`)(request), false);
+  const metrics = ["MONTHLY_ACTIVE_USERS", "ENTERPRISE_SSO_CONNECTIONS", "MONTHLY_M2M_TOKEN_ISSUANCES", "PEAK_HUMAN_LOGINS_PER_SECOND"];
+  for (const metric of metrics) {
+    for (const basis of ["ASSUMED", "OBSERVED"]) {
+      for (const value of [0, 9007199254740991]) {
+        usage.volumes[metric] = { basis, value };
+        assert.equal(validate(request), true, validationMessage(validate));
+      }
+    }
+    for (const value of [null, {}, { basis: "ASSUMED" }, { value: 0 },
+      { basis: "UNKNOWN", value: 0 }, { basis: 1, value: 0 }, { basis: "OBSERVED", value: -1 },
+      { basis: "ASSUMED", value: 0.5 }, { basis: "ASSUMED", value: "0" },
+      { basis: "ASSUMED", value: false }, { basis: "ASSUMED", value: 9007199254740992 },
+      { basis: "OBSERVED", value: 0, price: 0 }]) {
+      usage.volumes[metric] = value;
+      assert.equal(validate(request), false, JSON.stringify(value));
+    }
+    usage.volumes[metric] = { basis: "ASSUMED", value: 0 };
+  }
+  for (const field of ["scopeDescription", "assumptions", "volumes"]) {
+    const old = usage[field]; delete usage[field];
+    assert.equal(validate(request), false);
+    usage[field] = null; assert.equal(validate(request), false);
+    usage[field] = old;
+  }
+  for (const assumptions of [[""], [" \t"], ["same", "same"], ["x".repeat(501)], [null], [1],
+    Array.from({ length: 11 }, (_, i) => `Assumption ${i}`)]) {
+    usage.assumptions = assumptions; assert.equal(validate(request), false);
+  }
+  usage.assumptions = Array.from({ length: 10 }, (_, i) => "x".repeat(499) + i);
+  usage.scopeDescription = "x".repeat(500);
+  assert.equal(validate(request), true);
+  usage.scopeDescription += "x"; assert.equal(validate(request), false);
+  usage.scopeDescription = "Synthetic pilot";
+  usage.volumes.REGISTERED_USERS = { basis: "ASSUMED", value: 0 };
+  assert.equal(validate(request), false); delete usage.volumes.REGISTERED_USERS;
+  assert.equal(validate(request), true);
+  const response = { ...validAssessmentResponse, profileSchemaVersion: 5, profile };
+  assert.equal(schema("assessment-response.v5")(response), true);
+  assert.equal(schema("assessment-response.v5")({ ...response, profileSchemaVersion: 4 }), false);
+  const items = [1, 2, 3, 4, 5].map(format => {
+    const revisionProfile = structuredClone(profile);
+    if (format < 5) delete revisionProfile.operations.usagePlanning;
+    if (format < 4) delete revisionProfile.security.complianceScopeStatus;
+    if (format < 3) delete revisionProfile.security.authenticationControls;
+    if (format < 2) delete revisionProfile.security.dataResidencyDetails;
+    return { workspaceId: response.workspaceId, assessmentId: response.id, version: format - 1,
+      status: "DRAFT", profileSchemaVersion: format, profile: revisionProfile, origin: "UPDATED", recordedAt: response.createdAt };
+  });
+  const page = { items, nextAfterVersion: null };
+  assert.equal(schema("assessment-revision-page.v5")(page), true, validationMessage(schema("assessment-revision-page.v5")));
+  for (const api of [1, 2, 3, 4]) assert.equal(schema(`assessment-revision-page.v${api}`)(page), false);
+  for (const revision of items) {
+    for (const format of [1, 2, 3, 4, 5, 6].filter(v => v !== revision.profileSchemaVersion)) {
+      assert.equal(schema("assessment-revision-page.v5")({ items: [{ ...revision, profileSchemaVersion: format }], nextAfterVersion: null }), false);
+    }
+  }
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;
