@@ -16,10 +16,10 @@ final class CatalogDraftCanonicalizer {
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
     private CatalogDraftCanonicalizer() { }
 
-    static String sha256(ProviderCatalogDraft draft) {
+    static String sha256(Object value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(json(draft).getBytes(StandardCharsets.UTF_8)));
+                    .digest(json(value).getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException impossible) { throw new IllegalStateException(impossible); }
     }
 

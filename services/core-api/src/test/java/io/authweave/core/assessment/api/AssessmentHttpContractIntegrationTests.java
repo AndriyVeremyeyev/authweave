@@ -1705,10 +1705,165 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertEquals(68, paths.size());
         assertEquals("VALID_DRAFT", report.get("status").asText());
         assertFalse(report.get("evaluationReady").asBoolean());
+        var proposal = proposalRequest();
+        proposal.set("base", input.deepCopy()); proposal.set("candidate", input.deepCopy());
+        proposal.put("expectedBaseSha256", report.get("contentSha256").asText());
+        ((ObjectNode) proposal.get("candidate")).put("catalogVersion", "all-slots-proposal-2");
+        proposal.put("rationale", "\uD83D\uDD12".repeat(1000));
+        for (String path : paths) {
+            ((ObjectNode) proposal.at("/candidate/options/0/" + path.replace('.', '/') + "/evidence"))
+                    .put("summary", "Updated fictional source paraphrase for " + path);
+        }
+        sample("proposal-all-fact-slots-request", "catalog-change-preview-request", true, proposal);
+        var preview = previewProposal("proposal-all-fact-slots", proposal);
+        assertEquals("REVIEW_REQUIRED", preview.get("status").asText());
+        assertEquals(68, preview.get("factChanges").size());
+        var changedPaths = new java.util.HashSet<String>();
+        for (var change : preview.get("factChanges")) {
+            changedPaths.add(change.get("path").asText());
+            assertEquals("MODIFIED", change.get("changeType").asText());
+            assertEquals(mapper.createArrayNode().add("EVIDENCE_SUMMARY"), change.get("aspects"));
+            assertFalse(change.get("before").isNull()); assertFalse(change.get("after").isNull());
+        }
+        assertEquals(paths, changedPaths);
     }
 
     private void fillDraftMap(ObjectNode map, Class<? extends Enum<?>> type, JsonNode value, java.util.Set<String> excluded) {
         for (var key : type.getEnumConstants()) if (!excluded.contains(key.name())) map.set(key.name(), value.deepCopy());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CLAIM", "CONDITIONS", "SOURCE", "DATE", "SUMMARY", "SCOPE", "COMPATIBILITY", "RESIDENCY", "CONTROL",
+            "ADD", "REMOVE", "RENAME", "NO_CHANGE", "EXACT_SAME", "BASE_MISMATCH", "INVALID_BASE", "INVALID_CANDIDATE", "VERSION_REUSE"})
+    void proposalPreviewExplainsTypedChangesWithoutApprovingOrWriting(String scenario) throws Exception {
+        var assessment = create();
+        var eligibilityPath = assessment.path().replace("/api/v1/", "/api/v4/") + "/eligibility-preflight";
+        var eligibility = versionedSample("proposal-eligibility-before", "eligibility-preflight.v4", mvc.perform(get(eligibilityPath)).andReturn());
+        var input = proposalRequest();
+        input.set("candidate", input.get("base").deepCopy());
+        ((ObjectNode) input.get("candidate")).put("catalogVersion", "example-proposal-2");
+        var option = (ObjectNode) input.at("/candidate/options/0");
+        var fact = (ObjectNode) option.at("/facts/SCIM"); var evidence = (ObjectNode) fact.get("evidence");
+        switch (scenario) {
+            case "CLAIM" -> fact.put("availability", "UNAVAILABLE");
+            case "CONDITIONS" -> fact.putArray("conditions").add("Additional setup required");
+            case "SOURCE" -> evidence.put("sourceUrl", "https://docs.example.invalid/another-source");
+            case "DATE" -> evidence.put("observedAt", "2026-01-01T00:00:00Z");
+            case "SUMMARY" -> evidence.put("summary", "Changed source interpretation");
+            case "SCOPE" -> option.put("region", "US");
+            case "COMPATIBILITY" -> ((ObjectNode) option.at("/compatibility/clients/BROWSER")).put("support", "UNKNOWN");
+            case "RESIDENCY" -> ((ObjectNode) option.at("/residency/USER_PROFILES")).putArray("storageCountries").add("DE");
+            case "CONTROL" -> ((ObjectNode) option.at("/authenticationControls/BROWSER/PARTNERS/PHISHING_RESISTANCE")).put("enforcement", "UNSUPPORTED");
+            case "ADD" -> ((ObjectNode) input.at("/base/options/0/facts")).remove("SCIM");
+            case "REMOVE" -> ((ObjectNode) option.get("facts")).remove("SCIM");
+            case "RENAME" -> option.put("id", "renamed-option");
+            case "EXACT_SAME" -> ((ObjectNode) input.get("candidate")).put("catalogVersion", input.at("/base/catalogVersion").asText());
+            case "INVALID_BASE" -> ((ObjectNode) input.at("/base/options/0/residency/USER_PROFILES")).put("coverage", "UNKNOWN");
+            case "INVALID_CANDIDATE" -> ((tools.jackson.databind.node.ArrayNode) input.at("/candidate/options")).add(option.deepCopy());
+            case "VERSION_REUSE" -> {
+                ((ObjectNode) input.get("candidate")).put("catalogVersion", input.at("/base/catalogVersion").asText());
+                fact.put("availability", "UNAVAILABLE");
+            }
+            default -> { }
+        }
+        var baseValidation = versionedSample("proposal-base-validation", "catalog-draft-validation", mvc.perform(post("/api/v1/catalog-drafts/validate")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(input.get("base")))).andExpect(status().isOk()).andReturn());
+        input.set("expectedBaseSha256", baseValidation.get("contentSha256"));
+        if (scenario.equals("BASE_MISMATCH")) input.put("expectedBaseSha256", "0".repeat(64));
+        var inputSnapshot = input.deepCopy();
+        sample("proposal-request-" + scenario, "catalog-change-preview-request", true, inputSnapshot);
+        var report = previewProposal("proposal-" + scenario, input);
+        assertEquals(inputSnapshot, input);
+        assertEquals("PROPOSED", report.get("proposalState").asText());
+        assertEquals(input.get("proposalId"), report.get("proposalId")); assertEquals(input.get("rationale"), report.get("rationale"));
+        assertEquals(baseValidation.get("contentSha256"), report.at("/baseReview/contentSha256"));
+        boolean blocked = List.of("BASE_MISMATCH", "INVALID_BASE", "INVALID_CANDIDATE", "VERSION_REUSE").contains(scenario);
+        boolean unchanged = List.of("NO_CHANGE", "EXACT_SAME").contains(scenario);
+        assertEquals(blocked ? "BLOCKED" : unchanged ? "NO_CONTENT_CHANGES" : "REVIEW_REQUIRED", report.get("status").asText());
+        assertEquals(!blocked, report.get("diffComputed").asBoolean());
+        if (blocked || unchanged) {
+            assertEquals(0, report.get("optionChanges").size()); assertEquals(0, report.get("factChanges").size());
+            assertEquals(0, report.get("affectedOptionIds").size());
+        } else if (scenario.equals("SCOPE")) {
+            assertEquals(1, report.get("optionChanges").size()); assertEquals(0, report.get("factChanges").size());
+            assertEquals(true, report.at("/optionChanges/0/requiresAllFactsReview").asBoolean());
+            assertEquals("EU", report.at("/optionChanges/0/before/region").asText()); assertEquals("US", report.at("/optionChanges/0/after/region").asText());
+        } else if (scenario.equals("RENAME")) {
+            assertEquals(2, report.get("optionChanges").size()); assertEquals(18, report.get("factChanges").size());
+        } else {
+            assertEquals(1, report.get("factChanges").size()); assertEquals(0, report.get("optionChanges").size());
+            var change = report.get("factChanges").get(0);
+            assertEquals(scenario.equals("ADD") ? "ADDED" : scenario.equals("REMOVE") ? "REMOVED" : "MODIFIED", change.get("changeType").asText());
+            if (scenario.equals("ADD")) assertEquals(mapper.nullNode(), change.get("before"));
+            if (scenario.equals("REMOVE")) assertEquals(mapper.nullNode(), change.get("after"));
+            if (scenario.equals("CLAIM")) {
+                assertEquals("OPTIONAL", change.at("/before/availability").asText()); assertEquals("UNAVAILABLE", change.at("/after/availability").asText());
+                var malformed = (ObjectNode) report.deepCopy(); ((ObjectNode) malformed.at("/factChanges/0")).put("factKind", "RESIDENCY");
+                sample("proposal-mislabeled-fact", "catalog-change-preview", false, malformed);
+                malformed = (ObjectNode) report.deepCopy(); ((ObjectNode) malformed.at("/factChanges/0")).putNull("before");
+                sample("proposal-modified-needs-before", "catalog-change-preview", false, malformed);
+            }
+        }
+        for (String field : List.of("baselineVerified", "sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady", "impactAnalysisPerformed")) {
+            assertFalse(report.get(field).asBoolean()); var invalid = (ObjectNode) report.deepCopy(); invalid.put(field, true);
+            sample("proposal-no-claim-" + field, "catalog-change-preview", false, invalid);
+        }
+        for (var change : report.get("factChanges")) assertEquals("UNREVIEWED", change.get("evidenceStatus").asText());
+        var invalid = (ObjectNode) report.deepCopy(); invalid.put("proposalState", "APPROVED");
+        sample("proposal-no-approval-state", "catalog-change-preview", false, invalid);
+        invalid = (ObjectNode) report.deepCopy(); invalid.put("diffComputed", blocked);
+        sample("proposal-diff-status-must-agree", "catalog-change-preview", false, invalid);
+        assertEquals(report, previewProposal("proposal-repeat", input));
+        assertEquals(assessment.created(), response("proposal-assessment-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertEquals(eligibility, versionedSample("proposal-eligibility-after", "eligibility-preflight.v4", mvc.perform(get(eligibilityPath)).andReturn()));
+        assertHistorySize(assessment, 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing-version", "future-version", "fractional-version", "string-version", "missing-id", "invalid-id", "missing-rationale", "null-rationale",
+            "blank-rationale", "long-rationale", "numeric-rationale", "missing-base", "null-base", "missing-candidate", "null-candidate",
+            "missing-digest", "invalid-digest", "uppercase-digest", "forged-state", "forged-actor", "forged-approval", "forged-fact-review", "missing-source"})
+    void proposalRequestCannotForgeWorkflowAuthorityOrOmitItsInputs(String scenario) throws Exception {
+        var input = proposalRequest();
+        switch (scenario) {
+            case "missing-version" -> input.remove("schemaVersion");
+            case "future-version" -> input.put("schemaVersion", 2);
+            case "fractional-version" -> input.put("schemaVersion", 1.5);
+            case "string-version" -> input.put("schemaVersion", "1");
+            case "missing-id" -> input.remove("proposalId");
+            case "invalid-id" -> input.put("proposalId", "not-a-uuid");
+            case "missing-rationale" -> input.remove("rationale");
+            case "null-rationale" -> input.putNull("rationale");
+            case "blank-rationale" -> input.put("rationale", "\u00a0\u2003");
+            case "long-rationale" -> input.put("rationale", "x".repeat(1001));
+            case "numeric-rationale" -> input.put("rationale", 10);
+            case "missing-base" -> input.remove("base");
+            case "null-base" -> input.putNull("base");
+            case "missing-candidate" -> input.remove("candidate");
+            case "null-candidate" -> input.putNull("candidate");
+            case "missing-digest" -> input.remove("expectedBaseSha256");
+            case "invalid-digest" -> input.put("expectedBaseSha256", "not-a-hash");
+            case "uppercase-digest" -> input.put("expectedBaseSha256", "A".repeat(64));
+            case "forged-state" -> input.put("proposalState", "APPROVED");
+            case "forged-actor" -> input.put("curatorId", "forged-curator");
+            case "forged-approval" -> input.put("approvalGranted", true);
+            case "forged-fact-review" -> ((ObjectNode) input.at("/candidate/options/0/facts/SCIM")).put("evidenceStatus", "REVIEWED");
+            case "missing-source" -> ((ObjectNode) input.at("/candidate/options/0/facts/SCIM/evidence")).remove("sourceUrl");
+            default -> throw new AssertionError(scenario);
+        }
+        sample("proposal-invalid-" + scenario, "catalog-change-preview-request", false, input);
+        response("proposal-invalid-" + scenario, mvc.perform(post("/api/v1/catalog-change-proposals/preview").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(input))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("invalid-request")).andReturn());
+    }
+
+    private JsonNode previewProposal(String name, ObjectNode input) throws Exception {
+        return versionedSample(name, "catalog-change-preview", mvc.perform(post("/api/v1/catalog-change-proposals/preview")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(input))).andExpect(status().isOk()).andReturn());
+    }
+
+    private ObjectNode proposalRequest() throws Exception {
+        return (ObjectNode) mapper.readTree(Path.of(System.getProperty("basedir", "."),
+                "../../packages/contracts/tests/fixtures/catalog-change-preview-request.valid.json").toFile());
     }
 
     private ObjectNode catalogDraft() throws Exception {

@@ -1,0 +1,290 @@
+{
+  "schemaVersion": 1,
+  "proposalId": "33333333-3333-4333-8333-333333333333",
+  "rationale": "Review a fictional correction to the SCIM capability; this is not a real provider claim.",
+  "expectedBaseSha256": "2183c32ee6a03515916d12647344b27f79ed0da45efb8b6259e8d08238ddcf88",
+  "base": {
+    "schemaVersion": 1,
+    "kind": "PROVIDER_CATALOG_DRAFT",
+    "catalogVersion": "example-proposal-1",
+    "options": [
+      {
+        "id": "example-managed-eu",
+        "providerId": "example",
+        "product": "Example Identity",
+        "plan": "Example Enterprise",
+        "deployment": "MANAGED",
+        "region": "EU",
+        "configuration": "Primary pilot configuration",
+        "facts": {
+          "SCIM": {
+            "availability": "OPTIONAL",
+            "conditions": [
+              "Configured pilot environment"
+            ],
+            "evidence": {
+              "sourceUrl": "https://docs.example.invalid/identity/plan",
+              "observedAt": "2026-09-12T12:00:00Z",
+              "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+            }
+          },
+          "OIDC": {
+            "availability": "OPTIONAL",
+            "conditions": [
+              "Configured pilot environment"
+            ],
+            "evidence": {
+              "sourceUrl": "https://docs.example.invalid/identity/plan",
+              "observedAt": "2026-09-12T12:00:00Z",
+              "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+            }
+          }
+        },
+        "compatibility": {
+          "applications": {
+            "B2B_SAAS": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          },
+          "clients": {
+            "BROWSER": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          },
+          "populations": {
+            "PARTNERS": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          },
+          "tenancy": {
+            "MULTI_TENANT_ORGANIZATIONS": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          },
+          "membership": {
+            "SINGLE_ORGANIZATION_PER_USER": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          }
+        },
+        "residency": {
+          "USER_PROFILES": {
+            "coverage": "COMPLETE",
+            "storageCountries": [
+              "DE",
+              "FR"
+            ],
+            "conditions": [
+              "Configured pilot environment"
+            ],
+            "evidence": {
+              "sourceUrl": "https://docs.example.invalid/identity/plan",
+              "observedAt": "2026-09-12T12:00:00Z",
+              "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+            }
+          }
+        },
+        "authenticationControls": {
+          "BROWSER": {
+            "PARTNERS": {
+              "PHISHING_RESISTANCE": {
+                "availability": "SUPPORTED",
+                "enforcement": "SUPPORTED",
+                "conditions": [
+                  "Configured pilot environment"
+                ],
+                "evidence": {
+                  "sourceUrl": "https://docs.example.invalid/identity/plan",
+                  "observedAt": "2026-09-12T12:00:00Z",
+                  "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "candidate": {
+    "schemaVersion": 1,
+    "kind": "PROVIDER_CATALOG_DRAFT",
+    "catalogVersion": "example-proposal-2",
+    "options": [
+      {
+        "id": "example-managed-eu",
+        "providerId": "example",
+        "product": "Example Identity",
+        "plan": "Example Enterprise",
+        "deployment": "MANAGED",
+        "region": "EU",
+        "configuration": "Primary pilot configuration",
+        "facts": {
+          "SCIM": {
+            "availability": "UNAVAILABLE",
+            "conditions": [
+              "Configured pilot environment"
+            ],
+            "evidence": {
+              "sourceUrl": "https://docs.example.invalid/identity/plan",
+              "observedAt": "2026-09-12T12:00:00Z",
+              "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+            }
+          },
+          "OIDC": {
+            "availability": "OPTIONAL",
+            "conditions": [
+              "Configured pilot environment"
+            ],
+            "evidence": {
+              "sourceUrl": "https://docs.example.invalid/identity/plan",
+              "observedAt": "2026-09-12T12:00:00Z",
+              "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+            }
+          }
+        },
+        "compatibility": {
+          "applications": {
+            "B2B_SAAS": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          },
+          "clients": {
+            "BROWSER": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          },
+          "populations": {
+            "PARTNERS": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          },
+          "tenancy": {
+            "MULTI_TENANT_ORGANIZATIONS": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          },
+          "membership": {
+            "SINGLE_ORGANIZATION_PER_USER": {
+              "support": "SUPPORTED",
+              "conditions": [
+                "Configured pilot environment"
+              ],
+              "evidence": {
+                "sourceUrl": "https://docs.example.invalid/identity/plan",
+                "observedAt": "2026-09-12T12:00:00Z",
+                "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+              }
+            }
+          }
+        },
+        "residency": {
+          "USER_PROFILES": {
+            "coverage": "COMPLETE",
+            "storageCountries": [
+              "DE",
+              "FR"
+            ],
+            "conditions": [
+              "Configured pilot environment"
+            ],
+            "evidence": {
+              "sourceUrl": "https://docs.example.invalid/identity/plan",
+              "observedAt": "2026-09-12T12:00:00Z",
+              "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+            }
+          }
+        },
+        "authenticationControls": {
+          "BROWSER": {
+            "PARTNERS": {
+              "PHISHING_RESISTANCE": {
+                "availability": "SUPPORTED",
+                "enforcement": "SUPPORTED",
+                "conditions": [
+                  "Configured pilot environment"
+                ],
+                "evidence": {
+                  "sourceUrl": "https://docs.example.invalid/identity/plan",
+                  "observedAt": "2026-09-12T12:00:00Z",
+                  "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

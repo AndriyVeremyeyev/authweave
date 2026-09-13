@@ -582,6 +582,67 @@ test("catalog draft shape and semantic review are deliberately separate", async 
   delete unknown.options[0].facts.SCIM; assert.equal(validate(unknown), true);
 });
 
+test("catalog change previews require bound inputs and cannot accept forged workflow authority", async () => {
+  const input = await readJson(path.join(fixturesRoot, "catalog-change-preview-request.valid.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-change-preview-request.v1.schema.json");
+  assert.equal(validate(input), true, validationMessage(validate));
+  for (const field of ["schemaVersion", "proposalId", "rationale", "expectedBaseSha256", "base", "candidate"]) {
+    const invalid = structuredClone(input); delete invalid[field]; assert.equal(validate(invalid), false, field);
+    invalid[field] = null; assert.equal(validate(invalid), false, field);
+  }
+  for (const extra of [{ proposalState: "APPROVED" }, { curatorId: "forged" }, { approvalGranted: true }]) {
+    assert.equal(validate({ ...input, ...extra }), false);
+  }
+  for (const expectedBaseSha256 of ["", "A".repeat(64), "a".repeat(63), "a".repeat(65), 1]) {
+    assert.equal(validate({ ...input, expectedBaseSha256 }), false);
+  }
+  assert.equal(validate({ ...input, expectedBaseSha256: "0".repeat(64) }), true, "Digest mismatch is a preview blocker, not a malformed hash.");
+  for (const rationale of ["", " \t", "\u00a0\u2003", "x".repeat(1001), 1]) assert.equal(validate({ ...input, rationale }), false);
+  assert.equal(validate({ ...input, rationale: "\uD83D\uDD12".repeat(1000) }), true);
+  assert.equal(validate({ ...input, schemaVersion: 2 }), false);
+  const invalid = structuredClone(input); invalid.candidate.options[0].facts.SCIM.evidenceStatus = "REVIEWED";
+  assert.equal(validate(invalid), false);
+});
+
+test("catalog change reports preserve typed before/after values and fail closed", async () => {
+  const input = await readJson(path.join(fixturesRoot, "catalog-change-preview-request.valid.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-change-preview.v1.schema.json");
+  const review = catalogVersion => ({ catalogVersion, contentSha256: "0".repeat(64), status: "VALID_DRAFT", optionCount: 1,
+    factCount: 9, freshness: { current: 9, stale: 0, future: 0 }, issues: [] });
+  const report = { scope: "CATALOG_CHANGE_PREVIEW", policyVersion: "catalog-change-preview-1",
+    canonicalizationVersion: "catalog-draft-canonical-json-1", proposalId: input.proposalId, proposalSha256: "1".repeat(64),
+    rationale: input.rationale, proposalState: "PROPOSED", evaluatedAt: "2026-09-12T12:00:00Z", status: "REVIEW_REQUIRED",
+    diffComputed: true, catalogVersionChanged: true, baselineVerified: false, sourceVerificationPerformed: false,
+    approvalGranted: false, writesPerformed: false, evaluationReady: false, impactAnalysisPerformed: false,
+    baseReview: review(input.base.catalogVersion), candidateReview: review(input.candidate.catalogVersion), blockers: [],
+    affectedOptionIds: [input.base.options[0].id], optionChanges: [], factChanges: [{ optionId: input.base.options[0].id,
+      path: "facts.SCIM", factKind: "CAPABILITY", changeType: "MODIFIED", aspects: ["CLAIM"], evidenceStatus: "UNREVIEWED",
+      before: input.base.options[0].facts.SCIM, after: input.candidate.options[0].facts.SCIM }] };
+  assert.equal(validate(report), true, validationMessage(validate));
+  for (const field of ["baselineVerified", "sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady", "impactAnalysisPerformed"]) {
+    assert.equal(validate({ ...report, [field]: true }), false, field);
+  }
+  for (const change of [{ factKind: "RESIDENCY" }, { evidenceStatus: "REVIEWED" }, { before: null }, { after: null }, { aspects: [] }, { aspects: ["PRESENCE"] }]) {
+    const invalid = structuredClone(report); Object.assign(invalid.factChanges[0], change); assert.equal(validate(invalid), false, JSON.stringify(change));
+  }
+  for (const changeType of ["ADDED", "REMOVED"]) {
+    const valid = structuredClone(report); valid.factChanges[0].changeType = changeType; valid.factChanges[0].aspects = ["PRESENCE"];
+    valid.factChanges[0][changeType === "ADDED" ? "before" : "after"] = null;
+    assert.equal(validate(valid), true, validationMessage(validate));
+    valid.factChanges[0].aspects = ["CLAIM"]; assert.equal(validate(valid), false);
+  }
+  assert.equal(validate({ ...report, status: "NO_CONTENT_CHANGES" }), false);
+  assert.equal(validate({ ...report, status: "BLOCKED", blockers: ["BASE_DIGEST_MISMATCH"] }), false);
+  const blocked = { ...report, status: "BLOCKED", blockers: ["BASE_DIGEST_MISMATCH"], diffComputed: false,
+    affectedOptionIds: [], optionChanges: [], factChanges: [] };
+  assert.equal(validate(blocked), true, validationMessage(validate));
+  assert.equal(validate({ ...blocked, blockers: [] }), false);
+  assert.equal(validate({ ...blocked, diffComputed: true }), false);
+  assert.equal(validate({ ...blocked, proposalState: "APPROVED" }), false);
+  const unchanged = { ...blocked, status: "NO_CONTENT_CHANGES", diffComputed: true, blockers: [] };
+  assert.equal(validate(unchanged), true);
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

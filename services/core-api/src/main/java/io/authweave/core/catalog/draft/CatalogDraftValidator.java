@@ -1,6 +1,7 @@
 package io.authweave.core.catalog.draft;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -22,7 +23,10 @@ public final class CatalogDraftValidator {
     public CatalogDraftValidator(Clock clock) { this.clock = clock; }
 
     public CatalogDraftValidation validate(ProviderCatalogDraft draft) {
-        var at = clock.instant();
+        return validateAt(draft, clock.instant());
+    }
+
+    CatalogDraftValidation validateAt(ProviderCatalogDraft draft, Instant at) {
         var issues = new ArrayList<Issue>();
         var facts = new ArrayList<FactReview>();
         var ids = new HashSet<String>();
@@ -34,17 +38,7 @@ public final class CatalogDraftValidator {
             if (!scopes.add(List.of(option.providerId(), option.product(), option.plan(), option.deployment().name(), option.region(), option.configuration()))) {
                 issues.add(new Issue(option.id(), "scope", IssueCode.DUPLICATE_OPTION_SCOPE, "This product, plan, deployment, region and configuration scope occurs more than once."));
             }
-            var entries = new java.util.TreeMap<String, ProviderCatalogDraft.ProposedFact>();
-            option.facts().forEach((key, value) -> entries.put("facts." + key, value));
-            var context = option.compatibility();
-            context.applications().forEach((key, value) -> entries.put("compatibility.applications." + key, value));
-            context.clients().forEach((key, value) -> entries.put("compatibility.clients." + key, value));
-            context.populations().forEach((key, value) -> entries.put("compatibility.populations." + key, value));
-            context.tenancy().forEach((key, value) -> entries.put("compatibility.tenancy." + key, value));
-            context.membership().forEach((key, value) -> entries.put("compatibility.membership." + key, value));
-            option.residency().forEach((key, value) -> entries.put("residency." + key, value));
-            option.authenticationControls().forEach((client, populations) -> populations.forEach((population, controls) ->
-                    controls.forEach((control, value) -> entries.put("authenticationControls." + client + "." + population + "." + control, value))));
+            var entries = CatalogDraftFacts.entries(option);
             if (entries.isEmpty()) issues.add(new Issue(option.id(), "facts", IssueCode.NO_FACTS_RECORDED, "Record at least one proposed fact for this option; omitted facts remain unknown."));
             entries.forEach((path, fact) -> {
                 if (fact instanceof ProviderCatalogDraft.ResidencyFact residency) {

@@ -1,0 +1,866 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scope",
+    "policyVersion",
+    "canonicalizationVersion",
+    "proposalId",
+    "proposalSha256",
+    "rationale",
+    "proposalState",
+    "evaluatedAt",
+    "status",
+    "diffComputed",
+    "catalogVersionChanged",
+    "baseReview",
+    "candidateReview",
+    "blockers",
+    "affectedOptionIds",
+    "optionChanges",
+    "factChanges",
+    "baselineVerified",
+    "sourceVerificationPerformed",
+    "approvalGranted",
+    "writesPerformed",
+    "evaluationReady",
+    "impactAnalysisPerformed"
+  ],
+  "properties": {
+    "scope": {
+      "const": "CATALOG_CHANGE_PREVIEW"
+    },
+    "policyVersion": {
+      "const": "catalog-change-preview-1"
+    },
+    "canonicalizationVersion": {
+      "const": "catalog-draft-canonical-json-1"
+    },
+    "proposalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "proposalSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "[^\\u0000-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+    },
+    "proposalState": {
+      "const": "PROPOSED"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "BLOCKED",
+        "NO_CONTENT_CHANGES",
+        "REVIEW_REQUIRED"
+      ]
+    },
+    "diffComputed": {
+      "type": "boolean"
+    },
+    "catalogVersionChanged": {
+      "type": "boolean"
+    },
+    "baseReview": {
+      "$ref": "#/$defs/draftReview"
+    },
+    "candidateReview": {
+      "$ref": "#/$defs/draftReview"
+    },
+    "blockers": {
+      "type": "array",
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "BASE_DRAFT_INVALID",
+          "CANDIDATE_DRAFT_INVALID",
+          "BASE_DIGEST_MISMATCH",
+          "CATALOG_VERSION_REUSED"
+        ]
+      }
+    },
+    "affectedOptionIds": {
+      "type": "array",
+      "maxItems": 200,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+      }
+    },
+    "optionChanges": {
+      "type": "array",
+      "maxItems": 200,
+      "items": {
+        "$ref": "#/$defs/optionChange"
+      }
+    },
+    "factChanges": {
+      "type": "array",
+      "maxItems": 13600,
+      "items": {
+        "$ref": "#/$defs/factChange"
+      }
+    },
+    "baselineVerified": {
+      "const": false
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "approvalGranted": {
+      "const": false
+    },
+    "writesPerformed": {
+      "const": false
+    },
+    "evaluationReady": {
+      "const": false
+    },
+    "impactAnalysisPerformed": {
+      "const": false
+    }
+  },
+  "$defs": {
+    "optionScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "providerId",
+        "product",
+        "plan",
+        "deployment",
+        "region",
+        "configuration"
+      ],
+      "properties": {
+        "providerId": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "product": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/label"
+        },
+        "plan": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/label"
+        },
+        "deployment": {
+          "enum": [
+            "MANAGED",
+            "SELF_HOSTED"
+          ]
+        },
+        "region": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/label"
+        },
+        "configuration": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/label"
+        }
+      }
+    },
+    "optionChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionId",
+        "changeType",
+        "before",
+        "after",
+        "requiresAllFactsReview"
+      ],
+      "properties": {
+        "optionId": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "changeType": {
+          "enum": [
+            "ADDED",
+            "REMOVED",
+            "MODIFIED"
+          ]
+        },
+        "before": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/optionScope"
+            }
+          ]
+        },
+        "after": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/optionScope"
+            }
+          ]
+        },
+        "requiresAllFactsReview": {
+          "const": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "changeType": {
+                "const": "ADDED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "type": "null"
+              },
+              "after": {
+                "$ref": "#/$defs/optionScope"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "changeType": {
+                "const": "REMOVED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "$ref": "#/$defs/optionScope"
+              },
+              "after": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "changeType": {
+                "const": "MODIFIED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "$ref": "#/$defs/optionScope"
+              },
+              "after": {
+                "$ref": "#/$defs/optionScope"
+              }
+            },
+            "type": "object"
+          }
+        }
+      ]
+    },
+    "factChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionId",
+        "path",
+        "factKind",
+        "changeType",
+        "aspects",
+        "evidenceStatus",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "optionId": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "factKind": {
+          "enum": [
+            "CAPABILITY",
+            "COMPATIBILITY",
+            "RESIDENCY",
+            "AUTHENTICATION_CONTROL"
+          ]
+        },
+        "changeType": {
+          "enum": [
+            "ADDED",
+            "REMOVED",
+            "MODIFIED"
+          ]
+        },
+        "aspects": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "PRESENCE",
+              "CLAIM",
+              "CONDITIONS",
+              "SOURCE_URL",
+              "OBSERVED_AT",
+              "EVIDENCE_SUMMARY"
+            ]
+          }
+        },
+        "evidenceStatus": {
+          "const": "UNREVIEWED"
+        },
+        "before": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "oneOf": [
+                {
+                  "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact"
+                },
+                {
+                  "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact"
+                },
+                {
+                  "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact"
+                },
+                {
+                  "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact"
+                }
+              ]
+            }
+          ]
+        },
+        "after": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "oneOf": [
+                {
+                  "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact"
+                },
+                {
+                  "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact"
+                },
+                {
+                  "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact"
+                },
+                {
+                  "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "changeType": {
+                "const": "ADDED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "type": "null"
+              },
+              "after": {
+                "oneOf": [
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "changeType": {
+                "const": "REMOVED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "oneOf": [
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact"
+                  }
+                ]
+              },
+              "after": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "changeType": {
+                "const": "MODIFIED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "oneOf": [
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact"
+                  }
+                ]
+              },
+              "after": {
+                "oneOf": [
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "factKind": {
+                "const": "CAPABILITY"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact"
+                  }
+                ]
+              },
+              "after": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "factKind": {
+                "const": "COMPATIBILITY"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact"
+                  }
+                ]
+              },
+              "after": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "factKind": {
+                "const": "RESIDENCY"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact"
+                  }
+                ]
+              },
+              "after": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "factKind": {
+                "const": "AUTHENTICATION_CONTROL"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "before": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact"
+                  }
+                ]
+              },
+              "after": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact"
+                  }
+                ]
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "changeType": {
+                "enum": [
+                  "ADDED",
+                  "REMOVED"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "aspects": {
+                "const": [
+                  "PRESENCE"
+                ]
+              }
+            },
+            "type": "object"
+          },
+          "else": {
+            "properties": {
+              "aspects": {
+                "items": {
+                  "enum": [
+                    "CLAIM",
+                    "CONDITIONS",
+                    "SOURCE_URL",
+                    "OBSERVED_AT",
+                    "EVIDENCE_SUMMARY"
+                  ]
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        }
+      ]
+    },
+    "draftReview": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "catalogVersion",
+        "contentSha256",
+        "status",
+        "optionCount",
+        "factCount",
+        "freshness",
+        "issues"
+      ],
+      "properties": {
+        "catalogVersion": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "contentSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "enum": [
+            "VALID_DRAFT",
+            "INVALID_DRAFT"
+          ]
+        },
+        "optionCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "factCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6800
+        },
+        "freshness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "current",
+            "stale",
+            "future"
+          ],
+          "properties": {
+            "current": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6800
+            },
+            "stale": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6800
+            },
+            "future": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6800
+            }
+          }
+        },
+        "issues": {
+          "$ref": "./catalog-draft-validation.v1.schema.json#/properties/issues"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "BLOCKED"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "diffComputed": {
+            "const": false
+          },
+          "blockers": {
+            "minItems": 1,
+            "type": "array"
+          },
+          "affectedOptionIds": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "optionChanges": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "factChanges": {
+            "maxItems": 0,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "else": {
+        "properties": {
+          "diffComputed": {
+            "const": true
+          },
+          "blockers": {
+            "maxItems": 0,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "NO_CONTENT_CHANGES"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "affectedOptionIds": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "optionChanges": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "factChanges": {
+            "maxItems": 0,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "REVIEW_REQUIRED"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "affectedOptionIds": {
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "anyOf": [
+          {
+            "properties": {
+              "optionChanges": {
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          {
+            "properties": {
+              "factChanges": {
+                "minItems": 1,
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        ],
+        "type": "object"
+      }
+    }
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-change-preview.v1.schema.json",
+  "title": "Catalog change proposal preview v1"
+}

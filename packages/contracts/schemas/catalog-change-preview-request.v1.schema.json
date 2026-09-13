@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "proposalId",
+    "rationale",
+    "expectedBaseSha256",
+    "base",
+    "candidate"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "proposalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "[^\\u0000-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+    },
+    "expectedBaseSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "base": {
+      "$ref": "./provider-catalog-draft.v1.schema.json"
+    },
+    "candidate": {
+      "$ref": "./provider-catalog-draft.v1.schema.json"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-change-preview-request.v1.schema.json",
+  "title": "Catalog change proposal preview request v1"
+}

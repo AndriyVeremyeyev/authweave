@@ -120,7 +120,7 @@ public record ProviderCatalogDraft(int schemaVersion, Kind kind, String catalogV
         if (value == null || !value.matches("[a-z0-9][a-z0-9.-]{0,99}")) throw new IllegalArgumentException("Invalid identifier");
     }
 
-    private static void text(String value, int maximum) {
+    static void text(String value, int maximum) {
         // Match JSON Schema code-point lengths and its explicit whitespace-only policy.
         if (value == null || value.codePointCount(0, value.length()) > maximum
                 || !value.matches("(?s).*[^\\x00-\\x20\\x{85}\\p{Z}\\x{FEFF}].*")) {

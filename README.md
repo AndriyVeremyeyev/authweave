@@ -446,8 +446,8 @@ sorts object keys and all v1 unordered collections (options, conditions, countri
 normalizes timestamps to instants and preserves text. It hashes the supplied data,
 not the remote page, and is not a signature or publication ID. The observation clock
 can change freshness without changing this digest. Version names are not reserved;
-immutable storage, authorized approval, semantic diff, catalog activation and durable
-assessment/result pinning remain subsequent steps.
+immutable storage, authorized approval, catalog activation and durable assessment/result
+pinning remain subsequent steps. A stateless semantic diff is available below.
 
 With the local Core API already running, from the repository root:
 
@@ -462,6 +462,62 @@ The fixture yields nine unreviewed facts and `VALID_DRAFT`; freshness depends on
 current time. This is a validation-only backend slice, not a real-provider baseline,
 curator UI, published catalog or final recommendation. It requires no new accounts,
 dependencies, migrations or paid services.
+
+### Catalog change proposal previews
+
+`POST /api/v1/catalog-change-proposals/preview` compares two supplied draft v1 documents
+without saving them. For example, it shows a proposed SCIM assertion changing from
+`OPTIONAL` to `UNAVAILABLE`, with the original and proposed evidence side by side.
+The endpoint remains local-only and unauthenticated; it cannot approve or publish data.
+
+The request includes `schemaVersion: 1`, a caller-generated UUID `proposalId`, a bounded
+`rationale`, `base`, `candidate` and `expectedBaseSha256` from the base validation report.
+Both documents are caller supplied: the digest checks that the supplied base matches
+the intended payload, not that it is a trusted published version or current database
+state. The proposal ID is a correlation value, not a reserved or authenticated identity.
+`proposalSha256` binds the entire request, including both drafts, the ID and rationale,
+using `catalog-draft-canonical-json-1`; it is neither a signature nor a remote-page hash.
+
+The preview matches options by ID and facts by typed path. It preserves typed `before`
+and `after` values, conditions and provenance. Changes distinguish the claim, conditions,
+source URL, observation date and source paraphrase; one fact can have several changed
+aspects. An added or removed fact has `null` on the absent side: omission means unknown,
+not unsupported. Changing the provider, product, plan, deployment, region or configuration
+sets `requiresAllFactsReview`, even if the fact values did not change. Renaming an option
+is removal plus addition, not automatic identity matching. Collection ordering and
+equivalent timestamps do not produce changes.
+
+With policy `catalog-change-preview-1`, well-formed requests return:
+
+- `BLOCKED`: an invalid draft, base-digest mismatch or changed content reusing the same
+  catalog version. `diffComputed` is false; empty change lists do not mean no changes.
+- `NO_CONTENT_CHANGES`: comparison succeeded with no option or fact changes. A version
+  label change alone is reported separately as `catalogVersionChanged`.
+- `REVIEW_REQUIRED`: `affectedOptionIds`, `optionChanges` and `factChanges` describe the
+  changes for later human review. This is not approval or a verified recommendation.
+
+Malformed inputs and forged authority fields return 400. Both draft reviews use the
+same reference instant and include validation issues and freshness counts. All facts
+remain `UNREVIEWED`. `proposalState: PROPOSED` is a preview label, not a stored workflow
+state. `baselineVerified`, `sourceVerificationPerformed`, `approvalGranted`,
+`writesPerformed`, `evaluationReady` and `impactAnalysisPerformed` are always false.
+Rationale and evidence text remain inert data; sources are never fetched. There is no
+approval/rejection action, initial publication, curator UI or affected-assessment/golden-case
+impact run. The active synthetic catalog and existing assessments remain unchanged.
+
+With the local Core API already running, from the repository root:
+
+```shell
+curl --fail-with-body --silent --show-error \
+  -H 'Content-Type: application/json' \
+  --data-binary @packages/contracts/tests/fixtures/catalog-change-preview-request.valid.json \
+  http://127.0.0.1:8080/api/v1/catalog-change-proposals/preview
+```
+
+This fictional fixture yields `REVIEW_REQUIRED`, one `facts.SCIM` claim change from
+`OPTIONAL` to `UNAVAILABLE`, and all six flags false. No new accounts, dependencies,
+migrations or paid services are required. Durable proposal history, authorized curator
+decisions, impact analysis, activation and catalog-version pinning remain subsequent work.
 
 ### Contract validation
 

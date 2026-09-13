@@ -32,6 +32,8 @@ for (const { name, schema, valid, payload } of samples) {
 for (const required of ["assessment-response:true", "core-problem:true",
   "provider-catalog-draft:true", "provider-catalog-draft:false",
   "catalog-draft-validation:true", "catalog-draft-validation:false",
+  "catalog-change-preview-request:true", "catalog-change-preview-request:false",
+  "catalog-change-preview:true", "catalog-change-preview:false",
   "capability-preflight:true", "eligibility-preflight:true", "architecture-pattern-preflight:true",
   "eligibility-preflight.v2:true", "eligibility-preflight.v2:false",
   "assessment-revision-page:true", "assessment-event-page:true",

@@ -21,6 +21,42 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-change-proposals/preview:
+    post:
+      tags: [Catalog drafts]
+      summary: Preview an unreviewed catalog change proposal and its semantic diff
+      operationId: previewCatalogChangeProposal
+      description: >-
+        Local-only stateless comparison of two caller-supplied draft v1 documents. Neither
+        is a trusted published baseline. The expected base digest checks the supplied payload,
+        not database concurrency or authority. Proposal ID and rationale are untrusted inputs;
+        PROPOSED is a preview label, not a persisted workflow state. Source verification,
+        baseline verification, approval, writes, evaluation readiness and impact analysis
+        remain false. Invalid drafts, a base-digest mismatch or changed content reusing a
+        catalogVersion block comparison; empty change lists then mean diffComputed=false.
+        Otherwise compare options by ID and facts by typed relative path. Additions/removals
+        show null on the absent side, not an inferred unsupported claim. Modified facts
+        distinguish claims, conditions and each provenance field. Changed option scope
+        requires reviewing all its facts even when their values are unchanged. Collection
+        order and equivalent timestamps create no diff. A version-label-only change yields
+        NO_CONTENT_CHANGES. Both validations share one reference instant; all facts stay
+        UNREVIEWED. No source fetching, publication, approval/rejection endpoint, persistence,
+        initial publication, affected-assessment analysis or golden-case impact run is implemented.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-change-preview-request.v1.schema.json
+      responses:
+        "200":
+          description: A blocked, unchanged or review-required proposal preview; never approval.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-change-preview.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
   /api/v1/catalog-drafts/validate:
     post:
       tags: [Catalog drafts]
