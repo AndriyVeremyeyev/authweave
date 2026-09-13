@@ -34,6 +34,9 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "eligibility-preflight.v2:true", "eligibility-preflight.v2:false",
   "assessment-revision-page:true", "assessment-event-page:true",
   "assessment-response.v2:true", "assessment-revision-page.v2:true",
+  "assessment-response.v3:true", "assessment-revision-page.v3:true",
+  "update-assessment-profile-request.v3:true", "update-assessment-profile-request.v3:false",
+  "eligibility-preflight.v3:true", "eligibility-preflight.v3:false",
   "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",
   "update-assessment-profile-request:true", "update-assessment-profile-request:false"]) {
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);

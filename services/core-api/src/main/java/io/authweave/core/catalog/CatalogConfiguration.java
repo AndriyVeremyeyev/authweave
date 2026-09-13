@@ -13,7 +13,7 @@ class CatalogConfiguration {
 
     @Bean
     ProviderCatalog syntheticProviderCatalog(ObjectMapper mapper) throws IOException {
-        try (var input = new ClassPathResource("catalog/synthetic.v3.json").getInputStream()) {
+        try (var input = new ClassPathResource("catalog/synthetic.v4.json").getInputStream()) {
             return mapper.readValue(input, ProviderCatalog.class);
         }
     }

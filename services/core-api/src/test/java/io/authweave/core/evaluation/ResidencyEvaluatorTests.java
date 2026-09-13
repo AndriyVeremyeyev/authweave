@@ -124,7 +124,7 @@ class ResidencyEvaluatorTests {
                 base.compatibility(), Map.of(USER_PROFILES, fact(COMPLETE, "DE")));
         var profile = profile(REQUIRED, Set.of("DE"), Set.of(BACKUPS, USER_PROFILES));
         var checks = EligibilityEvaluator.evaluateWithResidency(profile,
-                new ProviderCatalog(3, "test", Kind.SYNTHETIC, List.of(base, isolated)), NOW).getLast().residencyChecks();
+                new ProviderCatalog(4, "test", Kind.SYNTHETIC, List.of(base, isolated)), NOW).getLast().residencyChecks();
         assertEquals(List.of(BACKUPS, USER_PROFILES), checks.stream().map(ResidencyCheck::dataCategory).toList());
         assertEquals(EVIDENCE_MISSING, checks.getFirst().reasonCode());
         assertNull(checks.getFirst().evidence());
@@ -176,7 +176,7 @@ class ResidencyEvaluatorTests {
         var profile = profile(REQUIRED, Set.of("FR", "DE"), Set.of(USER_PROFILES, BACKUPS, CREDENTIALS, AUDIT_LOGS));
         var checks = EligibilityEvaluator.evaluateWithResidency(profile, catalog, NOW);
         assertEquals(checks, EligibilityEvaluator.evaluateWithResidency(profile,
-                new ProviderCatalog(3, catalog.catalogVersion(), catalog.kind(), catalog.options().reversed()), NOW));
+                new ProviderCatalog(4, catalog.catalogVersion(), catalog.kind(), catalog.options().reversed()), NOW));
         assertEquals(List.of(AUDIT_LOGS, BACKUPS, CREDENTIALS, USER_PROFILES),
                 checks.getFirst().residencyChecks().stream().map(ResidencyCheck::dataCategory).toList());
         assertEquals(fact(COMPLETE, "DE", "FR"), fact(COMPLETE, "FR", "DE"));
@@ -235,7 +235,7 @@ class ResidencyEvaluatorTests {
     }
 
     private static ProviderCatalog fixture() throws Exception {
-        try (var input = new ClassPathResource("catalog/synthetic.v3.json").getInputStream()) {
+        try (var input = new ClassPathResource("catalog/synthetic.v4.json").getInputStream()) {
             return JsonMapper.builder().build().readValue(input, ProviderCatalog.class);
         }
     }

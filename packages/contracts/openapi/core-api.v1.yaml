@@ -314,6 +314,7 @@ paths:
         data, timestamps, version or history. profileSchemaVersion describes the response
         representation. The original criticality is preserved. Existing v1 reads return
         409 profile-upgrade-required when residency details cannot be represented.
+        V2 reads return the same code when recorded v3 authentication controls require v3.
       operationId: getAssessmentV2
       responses:
         "200":
@@ -326,6 +327,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
@@ -344,6 +347,7 @@ paths:
         Reads/no-op saves do not rewrite old snapshots. Changes atomically append a
         versioned snapshot and security-section event. V1 writes return 409 when the
         current profile contains residency details, preventing accidental data loss.
+        V2 writes likewise reject recorded authentication controls; use v3 to preserve them.
       operationId: updateAssessmentProfileV2
       requestBody:
         required: true
@@ -379,7 +383,8 @@ paths:
         Preserves each stored profile and its profileSchemaVersion without applying
         current domain validation or projecting old snapshots into a newer shape.
         Uses the same exclusive version cursor as v1. A v1 history request returns 409
-        if its page contains a v2 snapshot. State-change events keep their existing v1 endpoint.
+        if its page contains a v2/v3 snapshot; v2 history returns 409 for pages containing v3.
+        State-change events keep their existing v1 endpoint.
       operationId: getAssessmentRevisionsV2
       responses:
         "200":
@@ -392,6 +397,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
@@ -400,8 +407,9 @@ paths:
       tags: [Assessments]
       summary: Check capabilities, context and scoped at-rest residency against synthetic evidence
       description: >-
-        Read-only, local-only partial eligibility check. Works with both stored profile
-        formats; legacy profiles have unrecorded residency details. Extends v1 capability
+        Read-only, local-only partial eligibility check. Works with all supported stored profile
+        formats, but does not evaluate v3 authentication controls. Legacy profiles have
+        unrecorded residency details. Extends v1 capability
         and context checks with one residency check per selected data category.
         A missing scope produces an explicit unknown check for a required constraint.
         REQUIRED passes only with complete reviewed evidence inside the allowlist;
@@ -423,6 +431,125 @@ paths:
             application/json:
               schema:
                 $ref: ../schemas/eligibility-preflight.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v3/workspaces/{workspaceId}/assessments:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      tags: [Assessments]
+      summary: Create a draft with a profile v3 representation
+      description: >-
+        Provision the workspace through the existing v1 endpoint first. Projects empty residency details and UNKNOWN authentication controls. The stored profile uses the smallest lossless format; this local-only response always projects v3.
+      operationId: createAssessmentV3
+      responses:
+        "201":
+          description: Created assessment with unrecorded residency and authentication controls.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v3.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/WorkspaceNotFound"
+  /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Read a current assessment as profile v3
+      description: >-
+        Projects v1/v2 profiles without rewriting data, timestamps, versions or history. UNKNOWN controls do not follow from assurance labels. profileSchemaVersion identifies the response representation. Older current-profile endpoints return 409 if they cannot preserve recorded requirements.
+      operationId: getAssessmentV3
+      responses:
+        "200":
+          description: Current assessment with an explicit v3 profile.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v3.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    put:
+      tags: [Assessments]
+      summary: Replace a profile including independent authentication controls
+      description: >-
+        Replace the complete profile with expectedVersion. Authentication controls apply independently to all selected human clients and populations; no automatic assurance-level or NIST AAL mapping. REQUIRED needs enforceability, not mere availability. Step-up means stronger authentication, not repeating the same method. PREFERRED is not yet scored; FORBIDDEN needs intent clarification. Residency rules remain unchanged. No-op saves preserve storage; real changes append an atomic snapshot and security-section event. Older v1/v2 writes cannot silently erase recorded controls.
+      operationId: updateAssessmentProfileV3
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/update-assessment-profile-request.v3.schema.json
+      responses:
+        "200":
+          description: Updated or unchanged assessment.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v3.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
+        "422":
+          $ref: "#/components/responses/InvalidProfile"
+  /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+      - $ref: "#/components/parameters/AfterVersion"
+      - $ref: "#/components/parameters/HistoryLimit"
+    get:
+      tags: [Assessments]
+      summary: Read original v1, v2 and v3 profile snapshots
+      description: >-
+        Return exact mixed v1/v2/v3 snapshots and original schema versions, with the existing exclusive version cursor. No history upcasting or rewriting. Older history endpoints reject a page containing a newer unsupported format. Events keep their v1 endpoint.
+      operationId: getAssessmentRevisionsV3
+      responses:
+        "200":
+          description: A page containing original versioned snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-revision-page.v3.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Check scoped authentication controls and existing eligibility requirements
+      description: >-
+        Read-only local-only synthetic eligibility: v2 capability, context and residency checks plus independent human-authentication controls for each selected client and population. Never reuse evidence across scopes; machine-only profiles mark human controls NOT_APPLIED. REQUIRED passes only with reviewed fresh evidence of both availability and enforceability. Unavailable or unenforceable controls fail; missing, unreviewed, future or stale evidence remains unknown. Broad assurance labels are context only. Sensitive-action wiring, deployed configuration, weaker recovery paths, enrollment and complete assurance are not verified. No certification, score, winner or recommendation; recommendationReady remains false. Catalog and all rule policies are identified. No profile, history, timestamp, lifecycle or version changes.
+      operationId: getAssessmentEligibilityPreflightV3
+      responses:
+        "200":
+          description: Versioned partial eligibility with scoped control reasons and evidence.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/eligibility-preflight.v3.schema.json
         "400":
           $ref: "#/components/responses/InvalidRequest"
         "404":
@@ -469,7 +596,7 @@ components:
         format: uri-reference
   responses:
     ProfileUpgradeRequired:
-      description: This representation cannot preserve residency details; use the corresponding v2 endpoint.
+      description: This representation cannot preserve newer security requirements; use the compatible v2 or v3 endpoint.
       content:
         application/problem+json:
           schema:
@@ -493,7 +620,7 @@ components:
           schema:
             $ref: ../schemas/core-problem.v1.schema.json
     VersionConflict:
-      description: The expected version is stale, the assessment is archived, or a legacy client must use profile API v2.
+      description: The expected version is stale, the assessment is archived, or an older client must use a newer profile API.
       content:
         application/problem+json:
           schema:

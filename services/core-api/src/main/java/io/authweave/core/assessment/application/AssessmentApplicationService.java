@@ -60,25 +60,31 @@ public class AssessmentApplicationService {
             AssessmentId assessmentId,
             long expectedVersion,
             ApplicationIdentityProfile profile) {
-        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, false);
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 3);
     }
 
     @Transactional
     public PersistedAssessment updateLegacyProfile(WorkspaceId workspaceId, AssessmentId assessmentId,
             long expectedVersion, ApplicationIdentityProfile profile) {
-        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, true);
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 1);
+    }
+
+    @Transactional
+    public PersistedAssessment updateProfileV2(WorkspaceId workspaceId, AssessmentId assessmentId,
+            long expectedVersion, ApplicationIdentityProfile profile) {
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 2);
     }
 
     private PersistedAssessment updateProfile(WorkspaceId workspaceId, AssessmentId assessmentId,
-            long expectedVersion, ApplicationIdentityProfile profile, boolean legacy) {
+            long expectedVersion, ApplicationIdentityProfile profile, int maximumSchemaVersion) {
         PersistedAssessment persisted = getAssessment(workspaceId, assessmentId);
         if (persisted.version() != expectedVersion) {
             throw new AssessmentVersionConflictException(
                     workspaceId, assessmentId, expectedVersion, persisted.version());
         }
         ApplicationIdentityProfile previousProfile = persisted.assessment().profile();
-        if (legacy && !previousProfile.security().dataResidencyDetails().isUnrecorded()) {
-            throw new ProfileUpgradeRequiredException();
+        if (previousProfile.security().minimumSchemaVersion() > maximumSchemaVersion) {
+            throw new ProfileUpgradeRequiredException(previousProfile.security().minimumSchemaVersion());
         }
         persisted.assessment().updateProfile(profile);
         if (previousProfile.equals(profile)) {

@@ -79,6 +79,10 @@ class AssessmentHistoryMigrationTests extends PostgresIntegrationTest {
                 migrate(url, "4");
                 assertEquals(beforeUpgrade, snapshots(url),
                         "V4 must not rewrite old profiles, timestamps, versions, revisions or events");
+                migrate(url, "5");
+                migrate(url, "5");
+                assertEquals(beforeUpgrade, snapshots(url),
+                        "V5 must not rewrite existing profiles, timestamps, versions, revisions or events");
             } finally {
                 adminSql.execute("DROP DATABASE " + database);
             }

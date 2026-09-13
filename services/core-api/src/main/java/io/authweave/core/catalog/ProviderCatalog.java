@@ -20,7 +20,7 @@ import io.authweave.core.assessment.domain.profile.DataResidencyDetails.DataCate
 public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kind, List<Option> options) {
 
     public ProviderCatalog {
-        if (schemaVersion != 3) throw new IllegalArgumentException("Unsupported catalog schema version");
+        if (schemaVersion != 4) throw new IllegalArgumentException("Unsupported catalog schema version");
         identifier(catalogVersion);
         Objects.requireNonNull(kind);
         options = List.copyOf(options);
@@ -38,6 +38,7 @@ public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kin
     public enum EvidenceStatus { REVIEWED, UNREVIEWED }
     public enum Support { SUPPORTED, UNSUPPORTED, UNKNOWN }
     public enum ResidencyCoverage { COMPLETE, PARTIAL, UNKNOWN }
+    public enum AuthenticationControl { PHISHING_RESISTANCE, NON_EXPORTABLE_KEYS, STEP_UP_AUTHENTICATION }
 
     public interface Evidence {
         EvidenceStatus evidenceStatus();
@@ -46,7 +47,8 @@ public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kin
     }
 
     public record Option(String id, String displayName, String plan, String region,
-            Map<Capability, Fact> facts, Compatibility compatibility, Map<DataCategory, ResidencyFact> residency) {
+            Map<Capability, Fact> facts, Compatibility compatibility, Map<DataCategory, ResidencyFact> residency,
+            Map<ClientType, Map<UserPopulation, Map<AuthenticationControl, AuthenticationControlFact>>> authenticationControls) {
         public Option {
             identifier(id);
             label(displayName);
@@ -55,11 +57,40 @@ public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kin
             facts = Map.copyOf(facts);
             Objects.requireNonNull(compatibility);
             residency = Map.copyOf(residency);
+            var clients = new java.util.EnumMap<ClientType, Map<UserPopulation, Map<AuthenticationControl, AuthenticationControlFact>>>(ClientType.class);
+            authenticationControls.forEach((client, populations) -> {
+                if (client == ClientType.MACHINE_TO_MACHINE) {
+                    throw new IllegalArgumentException("Human authentication controls cannot describe machine clients");
+                }
+                var scopes = new java.util.EnumMap<UserPopulation, Map<AuthenticationControl, AuthenticationControlFact>>(UserPopulation.class);
+                populations.forEach((population, controls) -> scopes.put(population, Map.copyOf(controls)));
+                clients.put(client, Map.copyOf(scopes));
+            });
+            authenticationControls = Map.copyOf(clients);
+        }
+
+        public Option(String id, String displayName, String plan, String region,
+                Map<Capability, Fact> facts, Compatibility compatibility, Map<DataCategory, ResidencyFact> residency) {
+            this(id, displayName, plan, region, facts, compatibility, residency, Map.of());
         }
 
         public Option(String id, String displayName, String plan, String region,
                 Map<Capability, Fact> facts, Compatibility compatibility) {
             this(id, displayName, plan, region, facts, compatibility, Map.of());
+        }
+    }
+
+    /** Enforcement means the scoped human flow can require the control, not merely offer it.
+     * This is not proof of deployed configuration, enrollment/recovery security or an AAL. */
+    public record AuthenticationControlFact(Support availability, Support enforcement,
+            EvidenceStatus evidenceStatus, URI sourceUrl, Instant observedAt) implements Evidence {
+        public AuthenticationControlFact {
+            Objects.requireNonNull(availability);
+            Objects.requireNonNull(enforcement);
+            if (enforcement == Support.SUPPORTED && availability != Support.SUPPORTED) {
+                throw new IllegalArgumentException("Enforcement support requires availability support");
+            }
+            validateEvidence(evidenceStatus, sourceUrl, observedAt);
         }
     }
 

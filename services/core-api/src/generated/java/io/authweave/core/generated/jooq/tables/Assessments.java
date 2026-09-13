@@ -233,7 +233,7 @@ public class Assessments extends TableImpl<AssessmentsRecord> {
         return Arrays.asList(
             Internal.createCheck(this, DSL.name("assessments_lock_version_ck"), "((lock_version >= 0))", true),
             Internal.createCheck(this, DSL.name("assessments_profile_object_ck"), "((jsonb_typeof(profile) = 'object'::text))", true),
-            Internal.createCheck(this, DSL.name("assessments_profile_schema_version_ck"), "((profile_schema_version = ANY (ARRAY[1, 2])))", true),
+            Internal.createCheck(this, DSL.name("assessments_profile_schema_version_ck"), "((profile_schema_version = ANY (ARRAY[1, 2, 3])))", true),
             Internal.createCheck(this, DSL.name("assessments_status_ck"), "(((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'READY_FOR_EVALUATION'::character varying, 'EVALUATED'::character varying, 'DECIDED'::character varying, 'ARCHIVED'::character varying])::text[])))", true),
             Internal.createCheck(this, DSL.name("assessments_timestamps_ck"), "((updated_at >= created_at))", true)
         );

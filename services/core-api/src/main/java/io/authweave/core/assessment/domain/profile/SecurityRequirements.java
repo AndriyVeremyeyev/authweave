@@ -3,6 +3,7 @@ package io.authweave.core.assessment.domain.profile;
 import java.util.Objects;
 import java.util.Set;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 public record SecurityRequirements(
         RequirementCriticality multiFactorAuthentication,
@@ -12,11 +13,15 @@ public record SecurityRequirements(
         AssuranceLevel assurance,
         Set<ComplianceTarget> complianceTargets,
         @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = DataResidencyDetails.UnrecordedFilter.class)
-        DataResidencyDetails dataResidencyDetails) {
+        DataResidencyDetails dataResidencyDetails,
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = AuthenticationControls.UnrecordedFilter.class)
+        AuthenticationControls authenticationControls) {
 
     public SecurityRequirements {
         // Legacy v1 JSON has no details. The v2 wire input and versioned codec require this field.
         if (dataResidencyDetails == null) dataResidencyDetails = DataResidencyDetails.unknown();
+        // Legacy v1/v2 JSON has no controls; v3 input and the codec enforce their presence.
+        if (authenticationControls == null) authenticationControls = AuthenticationControls.unknown();
         Objects.requireNonNull(
                 multiFactorAuthentication,
                 "multiFactorAuthentication must not be null");
@@ -30,6 +35,19 @@ public record SecurityRequirements(
                 Objects.requireNonNull(
                         complianceTargets,
                         "complianceTargets must not be null"));
+    }
+
+    public SecurityRequirements(RequirementCriticality multiFactorAuthentication,
+            RequirementCriticality browserTokenExposureMinimization, RequirementCriticality auditability,
+            RequirementCriticality dataResidency, AssuranceLevel assurance, Set<ComplianceTarget> complianceTargets,
+            DataResidencyDetails dataResidencyDetails) {
+        this(multiFactorAuthentication, browserTokenExposureMinimization, auditability, dataResidency,
+                assurance, complianceTargets, dataResidencyDetails, AuthenticationControls.unknown());
+    }
+
+    @JsonIgnore
+    public short minimumSchemaVersion() {
+        return (short) (!authenticationControls.isUnrecorded() ? 3 : dataResidencyDetails.isUnrecorded() ? 1 : 2);
     }
 
     public SecurityRequirements(RequirementCriticality multiFactorAuthentication,

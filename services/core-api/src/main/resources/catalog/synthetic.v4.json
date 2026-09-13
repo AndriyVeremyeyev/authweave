@@ -1,0 +1,825 @@
+{
+  "schemaVersion": 4,
+  "catalogVersion": "synthetic-2026-09-12.4",
+  "kind": "SYNTHETIC",
+  "options": [
+    {
+      "id": "fictional-complete",
+      "displayName": "Fictional Complete",
+      "plan": "Synthetic demo plan",
+      "region": "Synthetic region",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#oidc",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SAML": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#saml",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "OAUTH2_APIS": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#oauth2_apis",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SOCIAL_LOGIN": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#social_login",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "ENTERPRISE_SSO": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#enterprise_sso",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SCIM": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#scim",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "JIT": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#jit",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "GROUP_SYNC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#group_sync",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "MFA": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-complete#mfa",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      },
+      "compatibility": {
+        "applications": {
+          "B2B_SAAS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#applications-b2b_saas",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PARTNER_PORTAL": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#applications-partner_portal",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PUBLIC_SECTOR_PORTAL": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#applications-public_sector_portal",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "INTERNAL_WORKFORCE": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#applications-internal_workforce",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "clients": {
+          "BROWSER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#clients-browser",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NATIVE_MOBILE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#clients-native_mobile",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "MACHINE_TO_MACHINE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#clients-machine_to_machine",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "populations": {
+          "EXTERNAL_CUSTOMERS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#populations-external_customers",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PARTNERS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#populations-partners",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "CITIZENS": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#populations-citizens",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "EMPLOYEES": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#populations-employees",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "CONTRACTORS": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#populations-contractors",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "INTERNAL_OPERATORS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#populations-internal_operators",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "tenancy": {
+          "MULTI_TENANT_ORGANIZATIONS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#tenancy-multi_tenant_organizations",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "SINGLE_ORGANIZATION": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#tenancy-single_organization",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NO_ORGANIZATION_BOUNDARY": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#tenancy-no_organization_boundary",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "membership": {
+          "SINGLE_ORGANIZATION_PER_USER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#membership-single_organization_per_user",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "MULTIPLE_ORGANIZATIONS_PER_USER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#membership-multiple_organizations_per_user",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NOT_APPLICABLE": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-complete#membership-not_applicable",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        }
+      },
+      "residency": {
+        "USER_PROFILES": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "DE"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-complete/residency#user_profiles",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "CREDENTIALS": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "DE"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-complete/residency#credentials",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "AUDIT_LOGS": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "DE"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-complete/residency#audit_logs",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "BACKUPS": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "DE",
+            "FR"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-complete/residency#backups",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      },
+      "authenticationControls": {
+        "BROWSER": {
+          "EXTERNAL_CUSTOMERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-complete/browser/external_customers/phishing_resistance",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-complete/browser/external_customers/non_exportable_keys",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-complete/browser/external_customers/step_up_authentication",
+              "observedAt": "2026-09-12T00:00:00Z"
+            }
+          },
+          "PARTNERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-complete/browser/partners/phishing_resistance",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-complete/browser/partners/non_exportable_keys",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-complete/browser/partners/step_up_authentication",
+              "observedAt": "2026-09-12T00:00:00Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "fictional-no-scim",
+      "displayName": "Fictional No SCIM",
+      "plan": "Synthetic demo plan",
+      "region": "Synthetic region",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#oidc",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SAML": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#saml",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "OAUTH2_APIS": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#oauth2_apis",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SOCIAL_LOGIN": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#social_login",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "ENTERPRISE_SSO": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#enterprise_sso",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SCIM": {
+          "availability": "UNAVAILABLE",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#scim",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "JIT": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#jit",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "GROUP_SYNC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#group_sync",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "MFA": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#mfa",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      },
+      "compatibility": {
+        "applications": {
+          "B2B_SAAS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#applications-b2b_saas",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PARTNER_PORTAL": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#applications-partner_portal",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PUBLIC_SECTOR_PORTAL": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#applications-public_sector_portal",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "INTERNAL_WORKFORCE": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#applications-internal_workforce",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "clients": {
+          "BROWSER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#clients-browser",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NATIVE_MOBILE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#clients-native_mobile",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "MACHINE_TO_MACHINE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#clients-machine_to_machine",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "populations": {
+          "EXTERNAL_CUSTOMERS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#populations-external_customers",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PARTNERS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#populations-partners",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "CITIZENS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#populations-citizens",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "EMPLOYEES": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#populations-employees",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "CONTRACTORS": {
+            "support": "UNSUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#populations-contractors",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "INTERNAL_OPERATORS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#populations-internal_operators",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "tenancy": {
+          "MULTI_TENANT_ORGANIZATIONS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#tenancy-multi_tenant_organizations",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "SINGLE_ORGANIZATION": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#tenancy-single_organization",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NO_ORGANIZATION_BOUNDARY": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#tenancy-no_organization_boundary",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "membership": {
+          "SINGLE_ORGANIZATION_PER_USER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#membership-single_organization_per_user",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "MULTIPLE_ORGANIZATIONS_PER_USER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#membership-multiple_organizations_per_user",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NOT_APPLICABLE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-no-scim#membership-not_applicable",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        }
+      },
+      "residency": {
+        "USER_PROFILES": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "US"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-no-scim/residency#user_profiles",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "CREDENTIALS": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "US"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-no-scim/residency#credentials",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "AUDIT_LOGS": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "US"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-no-scim/residency#audit_logs",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "BACKUPS": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "US"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-no-scim/residency#backups",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      },
+      "authenticationControls": {
+        "BROWSER": {
+          "EXTERNAL_CUSTOMERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNSUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-no-scim/browser/external_customers/phishing_resistance",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "UNSUPPORTED",
+              "enforcement": "UNSUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-no-scim/browser/external_customers/non_exportable_keys",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNKNOWN",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-no-scim/browser/external_customers/step_up_authentication",
+              "observedAt": "2026-09-12T00:00:00Z"
+            }
+          },
+          "PARTNERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNSUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-no-scim/browser/partners/phishing_resistance",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "UNSUPPORTED",
+              "enforcement": "UNSUPPORTED",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-no-scim/browser/partners/non_exportable_keys",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNKNOWN",
+              "evidenceStatus": "REVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-no-scim/browser/partners/step_up_authentication",
+              "observedAt": "2026-09-12T00:00:00Z"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "fictional-unreviewed",
+      "displayName": "Fictional Unreviewed",
+      "plan": "Synthetic demo plan",
+      "region": "Synthetic region",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#oidc",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SAML": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#saml",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "OAUTH2_APIS": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#oauth2_apis",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SOCIAL_LOGIN": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#social_login",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "ENTERPRISE_SSO": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#enterprise_sso",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "SCIM": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#scim",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "JIT": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#jit",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "GROUP_SYNC": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#group_sync",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "MFA": {
+          "availability": "OPTIONAL",
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#mfa",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      },
+      "compatibility": {
+        "applications": {
+          "B2B_SAAS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#applications-b2b_saas",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PARTNER_PORTAL": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#applications-partner_portal",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PUBLIC_SECTOR_PORTAL": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#applications-public_sector_portal",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "INTERNAL_WORKFORCE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#applications-internal_workforce",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "clients": {
+          "BROWSER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#clients-browser",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NATIVE_MOBILE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#clients-native_mobile",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "MACHINE_TO_MACHINE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#clients-machine_to_machine",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "populations": {
+          "EXTERNAL_CUSTOMERS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#populations-external_customers",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "PARTNERS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#populations-partners",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "CITIZENS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#populations-citizens",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "EMPLOYEES": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#populations-employees",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "CONTRACTORS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#populations-contractors",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "INTERNAL_OPERATORS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#populations-internal_operators",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "tenancy": {
+          "MULTI_TENANT_ORGANIZATIONS": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#tenancy-multi_tenant_organizations",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "SINGLE_ORGANIZATION": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#tenancy-single_organization",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NO_ORGANIZATION_BOUNDARY": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#tenancy-no_organization_boundary",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        },
+        "membership": {
+          "SINGLE_ORGANIZATION_PER_USER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#membership-single_organization_per_user",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "MULTIPLE_ORGANIZATIONS_PER_USER": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#membership-multiple_organizations_per_user",
+            "observedAt": "2026-09-12T00:00:00Z"
+          },
+          "NOT_APPLICABLE": {
+            "support": "SUPPORTED",
+            "evidenceStatus": "REVIEWED",
+            "sourceUrl": "https://example.invalid/authweave/fictional-unreviewed#membership-not_applicable",
+            "observedAt": "2026-09-12T00:00:00Z"
+          }
+        }
+      },
+      "residency": {
+        "USER_PROFILES": {
+          "coverage": "PARTIAL",
+          "storageCountries": [
+            "DE"
+          ],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-unreviewed/residency#user_profiles",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "CREDENTIALS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-unreviewed/residency#credentials",
+          "observedAt": "2026-09-12T00:00:00Z"
+        },
+        "AUDIT_LOGS": {
+          "coverage": "COMPLETE",
+          "storageCountries": [
+            "DE"
+          ],
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://catalog.example.invalid/fictional-unreviewed/residency#audit_logs",
+          "observedAt": "2026-09-12T00:00:00Z"
+        }
+      },
+      "authenticationControls": {
+        "BROWSER": {
+          "EXTERNAL_CUSTOMERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "UNREVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-unreviewed/browser/external_customers/phishing_resistance",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "UNREVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-unreviewed/browser/external_customers/non_exportable_keys",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "UNREVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-unreviewed/browser/external_customers/step_up_authentication",
+              "observedAt": "2026-09-12T00:00:00Z"
+            }
+          },
+          "PARTNERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "UNREVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-unreviewed/browser/partners/phishing_resistance",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "UNREVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-unreviewed/browser/partners/non_exportable_keys",
+              "observedAt": "2026-09-12T00:00:00Z"
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "evidenceStatus": "UNREVIEWED",
+              "sourceUrl": "https://evidence.authweave.invalid/fictional-unreviewed/browser/partners/step_up_authentication",
+              "observedAt": "2026-09-12T00:00:00Z"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

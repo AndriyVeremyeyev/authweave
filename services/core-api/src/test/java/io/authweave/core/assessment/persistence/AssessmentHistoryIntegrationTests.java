@@ -110,15 +110,15 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void concurrentWritersCommitExactlyOneNewRevisionAndEvent(boolean mixedFormats) throws Exception {
+    @ValueSource(ints = {1, 2, 3})
+    void concurrentWritersCommitExactlyOneNewRevisionAndEvent(int format) throws Exception {
         var created = create();
         var workspace = created.assessment().workspaceId();
         var id = created.assessment().id();
         // Both writers hold version 0 before either is allowed to attempt its CAS.
         var first = assessments.findById(workspace, id).orElseThrow();
         var second = assessments.findById(workspace, id).orElseThrow();
-        first.assessment().updateProfile(mixedFormats ? residencyProfile() : profile(ApplicationType.B2B_SAAS));
+        first.assessment().updateProfile(versionedProfile(format));
         second.assessment().updateProfile(profile(ApplicationType.PARTNER_PORTAL));
         var start = new CyclicBarrier(2);
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -136,21 +136,21 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
         var revisions = service.getRevisions(workspace, id, null, 100).items();
         assertEquals(2, revisions.size());
         assertEquals(mapper.valueToTree(current.assessment().profile()), revisions.getLast().profile());
-        assertEquals(current.assessment().profile().security().dataResidencyDetails().isUnrecorded() ? 1 : 2,
+        assertEquals(current.assessment().profile().security().minimumSchemaVersion(),
                 revisions.getLast().profileSchemaVersion());
         assertEquals(2, service.getEvents(workspace, id, null, 100).items().size());
     }
 
     @ParameterizedTest
-    @ValueSource(booleans = {false, true})
-    void auditInsertFailureRollsBackBothCreationAndUpdate(boolean expandedProfile) throws Exception {
+    @ValueSource(ints = {1, 2, 3})
+    void auditInsertFailureRollsBackBothCreationAndUpdate(int format) throws Exception {
         var created = create();
         var workspace = created.assessment().workspaceId();
         var id = created.assessment().id();
         try (var failure = new AuditInsertFailure(id)) {
             RuntimeException exception = assertThrows(RuntimeException.class,
                     () -> service.updateProfile(workspace, id, 0,
-                            expandedProfile ? residencyProfile() : profile(ApplicationType.B2B_SAAS)));
+                            versionedProfile(format)));
             assertInjectedFailure(exception);
         }
         var unchanged = service.getAssessment(workspace, id);
@@ -170,13 +170,14 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
         assertTrue(history.findEvents(workspace, newId, null, 100).items().isEmpty());
     }
 
-    @Test
-    void callerRollbackCannotLeaveASuccessEventOrRevisionBehind() {
+    @ParameterizedTest
+    @ValueSource(ints = {2, 3})
+    void callerRollbackCannotLeaveASuccessEventOrRevisionBehind(int format) {
         var created = create();
         var workspace = created.assessment().workspaceId();
         var id = created.assessment().id();
         assertThrows(DeliberateRollback.class, () -> new TransactionTemplate(transactions).execute(status -> {
-            service.updateProfile(workspace, id, 0, residencyProfile());
+            service.updateProfile(workspace, id, 0, versionedProfile(format));
             assertEquals(2, history.findEvents(workspace, id, null, 100).items().size());
             throw new DeliberateRollback();
         }));
@@ -226,6 +227,18 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
         var unknown = ApplicationIdentityProfile.unknown();
         return new ApplicationIdentityProfile(new ApplicationTopology(type, Set.of(ClientType.BROWSER)),
                 unknown.audience(), unknown.protocols(), unknown.provisioning(), unknown.security(), unknown.operations());
+    }
+
+    private static ApplicationIdentityProfile versionedProfile(int format) {
+        if (format == 1) return profile(ApplicationType.B2B_SAAS);
+        var base = residencyProfile();
+        if (format == 2) return base;
+        var s = base.security();
+        return new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(), base.provisioning(),
+                new SecurityRequirements(s.multiFactorAuthentication(), s.browserTokenExposureMinimization(), s.auditability(),
+                s.dataResidency(), s.assurance(), s.complianceTargets(), s.dataResidencyDetails(),
+                new io.authweave.core.assessment.domain.profile.AuthenticationControls(RequirementCriticality.REQUIRED,
+                        RequirementCriticality.UNKNOWN, RequirementCriticality.UNKNOWN)), base.operations());
     }
 
     private static ApplicationIdentityProfile residencyProfile() {

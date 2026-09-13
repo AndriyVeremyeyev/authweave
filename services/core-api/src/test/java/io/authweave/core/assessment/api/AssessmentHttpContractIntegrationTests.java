@@ -372,7 +372,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.assessmentVersion").value(1))
                 .andExpect(jsonPath("$.workspaceId").value(assessment.workspaceId().value().toString()))
                 .andExpect(jsonPath("$.assessmentId").value(assessment.id().value().toString()))
-                .andExpect(jsonPath("$.catalogVersion").value("synthetic-2026-09-12.3"))
+                .andExpect(jsonPath("$.catalogVersion").value("synthetic-2026-09-12.4"))
                 .andExpect(jsonPath("$.catalogKind").value("SYNTHETIC"))
                 .andExpect(jsonPath("$.policyVersion").value("eligibility-preflight-1"))
                 .andExpect(jsonPath("$.capabilityPolicyVersion").value("capability-preflight-1"))
@@ -764,7 +764,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertEquals("residency-preflight-1", payload.get("residencyPolicyVersion").asText());
         assertEquals("eligibility-preflight-1", payload.get("contextPolicyVersion").asText());
         assertEquals("capability-preflight-1", payload.get("capabilityPolicyVersion").asText());
-        assertEquals("synthetic-2026-09-12.3", payload.get("catalogVersion").asText());
+        assertEquals("synthetic-2026-09-12.4", payload.get("catalogVersion").asText());
         assertEquals(before.get("version"), payload.get("assessmentVersion"));
         assertEquals(before.get("workspaceId"), payload.get("workspaceId"));
         assertEquals(before.get("id"), payload.get("assessmentId"));
@@ -878,6 +878,218 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         }
         assertEquals(before, v2Response("residency-boundary-read-only", mvc.perform(get(path)).andReturn()));
         assertEquals(history, v2History("residency-boundary-history-after", path));
+    }
+
+    @Test
+    void v3ProfilesPreserveLegacyStorageAndProtectControlsFromOlderWriters() throws Exception {
+        var assessment = create();
+        String path = assessment.path().replace("/api/v1/", "/api/v3/");
+        var projected = versionedSample("v3-projection", "assessment-response.v3", mvc.perform(get(path)).andExpect(status().isOk()).andReturn());
+        assertEquals(3, projected.get("profileSchemaVersion").asInt());
+        assertEquals("UNKNOWN", projected.at("/profile/security/authenticationControls/phishingResistance").asText());
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", projected.get("profile").deepCopy());
+        sample("v3-noop-request", "update-assessment-profile-request.v3", true, update.deepCopy());
+        assertEquals(projected, versionedSample("v3-noop", "assessment-response.v3", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn()));
+        assertEquals(assessment.created(), response("v1-after-v3-noop", mvc.perform(get(assessment.path())).andReturn()));
+        var initialHistory = v3History("v3-original-history", path);
+        assertEquals(1, initialHistory.at("/items/0/profileSchemaVersion").asInt());
+        assertEquals(assessment.created().get("profile"), initialHistory.at("/items/0/profile"));
+
+        // Create a v2 revision, then an explicit v3 revision. Reads never migrate either snapshot.
+        var details = (ObjectNode) update.at("/profile/security/dataResidencyDetails");
+        details.putArray("allowedCountries").add("DE");
+        var v2Saved = versionedSample("v3-stores-v2-when-lossless", "assessment-response.v3", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        var v2Read = v2Response("v2-before-controls", mvc.perform(get(path.replace("/api/v3/", "/api/v2/"))).andExpect(status().isOk()).andReturn());
+        update.put("expectedVersion", 1);
+        ((ObjectNode) update.at("/profile/security/authenticationControls")).put("phishingResistance", "REQUIRED");
+        sample("v3-required-request", "update-assessment-profile-request.v3", true, update.deepCopy());
+        var saved = versionedSample("v3-controls-saved", "assessment-response.v3", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        assertEquals(2, saved.get("version").asInt());
+        var history = v3History("v3-mixed-history", path);
+        assertEquals(3, history.get("items").size());
+        assertEquals(1, history.at("/items/0/profileSchemaVersion").asInt());
+        assertEquals(2, history.at("/items/1/profileSchemaVersion").asInt());
+        assertEquals(3, history.at("/items/2/profileSchemaVersion").asInt());
+        assertEquals(v2Read.get("profile"), history.at("/items/1/profile"));
+        assertEquals(saved.get("profile"), history.at("/items/2/profile"));
+        var events = historyResponse("v3-security-event", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        assertEquals(3, events.get("items").size());
+        assertEquals("security", events.at("/items/2/changedSections/0").asText());
+        assertEquals(1, events.at("/items/2/changedSections").size());
+        update.put("expectedVersion", 2);
+        assertEquals(saved, versionedSample("v3-recorded-noop", "assessment-response.v3", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn()));
+        for (int api : List.of(1, 2)) {
+            String oldPath = path.replace("/api/v3/", "/api/v" + api + "/");
+            response("older-read-blocked", mvc.perform(get(oldPath)).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+            response("older-history-blocked", mvc.perform(get(oldPath + "/revisions")).andExpect(status().isConflict()).andReturn());
+            var oldRequest = mapper.createObjectNode().put("expectedVersion", 2);
+            oldRequest.set("profile", api == 1 ? assessment.created().get("profile") : v2Read.get("profile"));
+            response("older-write-blocked", mvc.perform(put(oldPath + "/profile").contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(oldRequest))).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+            oldRequest.put("expectedVersion", 0);
+            response("older-stale-version-first", mvc.perform(put(oldPath + "/profile").contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(oldRequest))).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("assessment-version-conflict")).andReturn());
+            versionedSample("older-compatible-history-page", api == 1 ? "assessment-revision-page" : "assessment-revision-page.v2",
+                    mvc.perform(get(oldPath + "/revisions?limit=1")).andExpect(status().isOk()).andReturn());
+        }
+        assertEquals(history, v3History("v3-blocked-writes-preserve-history", path));
+        assertEquals(saved, versionedSample("v3-blocked-writes-preserve-state", "assessment-response.v3", mvc.perform(get(path)).andReturn()));
+        // Explicitly clearing controls restores v2 readability without changing old snapshots.
+        ((ObjectNode) update.at("/profile/security/authenticationControls")).put("phishingResistance", "UNKNOWN");
+        var cleared = versionedSample("v3-clear-controls", "assessment-response.v3", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        assertEquals(3, cleared.get("version").asInt());
+        v2Response("v2-readable-after-control-clear", mvc.perform(get(path.replace("/api/v3/", "/api/v2/"))).andExpect(status().isOk()).andReturn());
+        update.put("expectedVersion", 3);
+        details.putArray("allowedCountries");
+        versionedSample("v3-clear-all-details", "assessment-response.v3", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        response("v1-readable-after-full-clear", mvc.perform(get(assessment.path())).andExpect(status().isOk()).andReturn());
+        var after = v3History("v3-history-after-explicit-clears", path);
+        for (int i = 0; i < 3; i++) assertEquals(history.get("items").get(i), after.get("items").get(i));
+        assertEquals(2, after.at("/items/3/profileSchemaVersion").asInt());
+        assertEquals(1, after.at("/items/4/profileSchemaVersion").asInt());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing-controls", "null-controls", "missing-field", "null-field", "unknown-enum", "wrong-type",
+            "extra-field", "missing-residency", "unsafe-version", "missing-security", "missing-version"})
+    void v3RejectsMalformedControlsAtomically(String scenario) throws Exception {
+        var assessment = create();
+        String path = assessment.path().replace("/api/v1/", "/api/v3/");
+        var before = versionedSample("v3-invalid-before", "assessment-response.v3", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", before.get("profile").deepCopy());
+        var security = (ObjectNode) update.at("/profile/security");
+        var controls = (ObjectNode) security.get("authenticationControls");
+        switch (scenario) {
+            case "missing-controls" -> security.remove("authenticationControls");
+            case "null-controls" -> security.putNull("authenticationControls");
+            case "missing-field" -> controls.remove("phishingResistance");
+            case "null-field" -> controls.putNull("nonExportableKeys");
+            case "unknown-enum" -> controls.put("stepUpAuthentication", "AAL3");
+            case "wrong-type" -> controls.put("phishingResistance", true);
+            case "extra-field" -> controls.put("certified", true);
+            case "missing-residency" -> security.remove("dataResidencyDetails");
+            case "unsafe-version" -> update.put("expectedVersion", 9007199254740992L);
+            case "missing-security" -> ((ObjectNode) update.get("profile")).remove("security");
+            case "missing-version" -> update.remove("expectedVersion");
+            default -> throw new AssertionError(scenario);
+        }
+        sample("v3-invalid-" + scenario, "update-assessment-profile-request.v3", false, update);
+        response("v3-invalid-" + scenario, mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(update))).andExpect(status().isBadRequest()).andReturn());
+        assertEquals(before, versionedSample("v3-invalid-unchanged", "assessment-response.v3", mvc.perform(get(path)).andReturn()));
+        assertHistorySize(assessment, 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN", "MACHINE", "NATIVE", "NO_POPULATION"})
+    void v3EligibilityExplainsScopedControlsAndRemainsReadOnly(String scenario) throws Exception {
+        var assessment = create();
+        String path = assessment.path().replace("/api/v1/", "/api/v3/");
+        var update = residencyRequest("NOT_REQUIRED");
+        var controls = ((ObjectNode) update.at("/profile/security")).putObject("authenticationControls");
+        boolean special = List.of("MACHINE", "NATIVE", "NO_POPULATION").contains(scenario);
+        for (String field : List.of("phishingResistance", "nonExportableKeys", "stepUpAuthentication")) controls.put(field, special ? "REQUIRED" : scenario);
+        if (scenario.equals("MACHINE") || scenario.equals("NATIVE")) ((ObjectNode) update.at("/profile/application"))
+                .putArray("clients").add(scenario.equals("MACHINE") ? "MACHINE_TO_MACHINE" : "NATIVE_MOBILE");
+        if (scenario.equals("NO_POPULATION")) ((ObjectNode) update.at("/profile/audience")).putArray("populations");
+        sample("v3-eligibility-request", "update-assessment-profile-request.v3", true, update);
+        var before = versionedSample("v3-evaluation-profile", "assessment-response.v3", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        var history = v3History("v3-evaluation-history", path);
+        var events = historyResponse("v3-evaluation-events", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        var report = versionedSample("v3-eligibility-" + scenario, "eligibility-preflight.v3", mvc.perform(get(path + "/eligibility-preflight"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.recommendationReady").value(false)).andReturn());
+        assertEquals("eligibility-preflight-3", report.get("policyVersion").asText());
+        assertEquals("authentication-controls-preflight-1", report.get("authenticationControlPolicyVersion").asText());
+        assertEquals(before.at("/profile/security/assurance"), report.get("assuranceExpectation"));
+        String reason = switch (scenario) {
+            case "REQUIRED" -> "CONTROL_ENFORCEABLE";
+            case "PREFERRED" -> "PREFERENCE_NOT_SCORED";
+            case "NOT_REQUIRED" -> "NO_REQUIREMENT";
+            case "FORBIDDEN" -> "CONTROL_INTENT_UNCLEAR";
+            case "UNKNOWN" -> "REQUIREMENT_UNKNOWN";
+            case "MACHINE" -> "HUMAN_AUTH_NOT_APPLICABLE";
+            case "NATIVE" -> "EVIDENCE_MISSING";
+            case "NO_POPULATION" -> "POPULATION_SCOPE_UNKNOWN";
+            default -> throw new AssertionError(scenario);
+        };
+        assertEquals(reason, report.at("/candidates/0/authenticationControlChecks/0/reasonCode").asText());
+        if (scenario.equals("REQUIRED")) {
+            assertEquals("MATCHES_CHECKED_REQUIREMENTS", report.at("/candidates/0/status").asText());
+            assertEquals("DOES_NOT_MATCH", report.at("/candidates/1/status").asText());
+            assertEquals("ENFORCEMENT_UNSUPPORTED", report.at("/candidates/1/authenticationControlChecks/0/reasonCode").asText());
+            assertEquals("EVIDENCE_UNREVIEWED", report.at("/candidates/2/authenticationControlChecks/0/reasonCode").asText());
+        }
+        for (int oldApi : List.of(1, 2)) {
+            var old = versionedSample("v3-older-preflight", oldApi == 1 ? "eligibility-preflight" : "eligibility-preflight.v2",
+                    mvc.perform(get(path.replace("/api/v3/", "/api/v" + oldApi + "/") + "/eligibility-preflight")).andExpect(status().isOk()).andReturn());
+            assertFalse(old.at("/candidates/0").has("authenticationControlChecks"));
+            for (String field : List.of("capabilityChecks", "contextChecks")) assertEquals(old.at("/candidates/0/" + field), report.at("/candidates/0/" + field));
+        }
+        assertEquals(report, versionedSample("v3-repeat", "eligibility-preflight.v3", mvc.perform(get(path + "/eligibility-preflight")).andReturn()));
+        assertEquals(before, versionedSample("v3-read-only", "assessment-response.v3", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v3History("v3-history-read-only", path));
+        assertEquals(events, historyResponse("v3-events-read-only", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+        var invalid = (ObjectNode) report.deepCopy();
+        invalid.put("recommendationReady", true);
+        sample("v3-no-certification-or-recommendation", "eligibility-preflight.v3", false, invalid);
+    }
+
+    @Test
+    void v3CreationArchiveAndWorkspaceBoundariesArePreserved() throws Exception {
+        var workspace = UUID.randomUUID();
+        mvc.perform(put("/api/v1/workspaces/" + workspace)).andExpect(status().isCreated());
+        var result = mvc.perform(post("/api/v3/workspaces/" + workspace + "/assessments")).andExpect(status().isCreated()).andReturn();
+        var created = versionedSample("v3-create", "assessment-response.v3", result);
+        String path = result.getResponse().getHeader("Location");
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", created.get("profile").deepCopy());
+        ((ObjectNode) update.at("/profile/security/authenticationControls")).put("nonExportableKeys", "REQUIRED");
+        versionedSample("v3-only-controls-no-residency", "assessment-response.v3", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        var persisted = repository.findById(new WorkspaceId(workspace), new AssessmentId(UUID.fromString(created.get("id").asText()))).orElseThrow();
+        persisted.assessment().archive();
+        repository.update(persisted.assessment(), persisted.version());
+        var before = versionedSample("v3-archived", "assessment-response.v3", mvc.perform(get(path)).andReturn());
+        assertEquals("ARCHIVED", before.get("status").asText());
+        var history = v3History("v3-archived-history", path);
+        versionedSample("v3-archived-preflight", "eligibility-preflight.v3", mvc.perform(get(path + "/eligibility-preflight")).andExpect(status().isOk()).andReturn());
+        update.put("expectedVersion", 2);
+        response("v3-archive-edit-blocked", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(update))).andExpect(status().isConflict()).andReturn());
+        assertEquals(before, versionedSample("v3-archived-unchanged", "assessment-response.v3", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v3History("v3-archived-history-unchanged", path));
+        for (String suffix : List.of("", "/revisions", "/eligibility-preflight")) {
+            response("v3-cross-workspace", mvc.perform(get(path.replace(workspace.toString(), UUID.randomUUID().toString()) + suffix))
+                    .andExpect(status().isNotFound()).andReturn());
+            response("v3-invalid-id", mvc.perform(get(path.replace(workspace.toString(), "invalid") + suffix))
+                    .andExpect(status().isBadRequest()).andReturn());
+        }
+        response("v3-cross-workspace-write", mvc.perform(put(path.replace(workspace.toString(), UUID.randomUUID().toString()) + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isNotFound()).andReturn());
+        response("v3-invalid-history-page", mvc.perform(get(path + "/revisions?limit=0")).andExpect(status().isBadRequest()).andReturn());
+    }
+
+    private JsonNode versionedSample(String name, String schema, MvcResult result) throws Exception {
+        assertEquals(true, result.getResponse().getStatus() < 400);
+        var payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample(name, schema, true, payload);
+        return payload;
+    }
+
+    private JsonNode v3History(String name, String path) throws Exception {
+        return versionedSample(name, "assessment-revision-page.v3", mvc.perform(get(path + "/revisions")).andExpect(status().isOk()).andReturn());
     }
 
     private ObjectNode residencyRequest(String criticality) throws Exception {

@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-response.v3.schema.json",
+  "title": "Assessment response v3",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "workspaceId",
+    "status",
+    "version",
+    "createdAt",
+    "updatedAt",
+    "profile",
+    "profileSchemaVersion"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "status": {
+      "enum": [
+        "DRAFT",
+        "READY_FOR_EVALUATION",
+        "EVALUATED",
+        "DECIDED",
+        "ARCHIVED"
+      ]
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "profile": {
+      "$ref": "./application-identity-profile.v3.schema.json"
+    },
+    "profileSchemaVersion": {
+      "const": 3,
+      "description": "Version of this response profile representation, not necessarily its stored format."
+    }
+  }
+}

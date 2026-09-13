@@ -321,6 +321,91 @@ test("catalog v3 preserves old facts and requires category-scoped residency evid
   assert.equal(validate(missing), false, "The v3 category map must be explicit, even when empty.");
 });
 
+test("profile v3 requires independent controls and preserves exact mixed history", () => {
+  const schema = name => ajv.getSchema(`https://authweave.dev/contracts/${name}.schema.json`);
+  const validate = schema("update-assessment-profile-request.v3");
+  const profile = structuredClone(validAssessmentResponse.profile);
+  profile.security.dataResidencyDetails = { allowedCountries: [], dataCategories: [] };
+  const request = { expectedVersion: 0, profile };
+  assert.equal(validate(request), false);
+  const fields = ["phishingResistance", "nonExportableKeys", "stepUpAuthentication"];
+  profile.security.authenticationControls = Object.fromEntries(fields.map(f => [f, "UNKNOWN"]));
+  assert.equal(validate(request), true, validationMessage(validate));
+  assert.equal(schema("update-assessment-profile-request.v2")(request), false);
+  for (const field of fields) {
+    for (const criticality of ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN"]) {
+      profile.security.authenticationControls[field] = criticality;
+      assert.equal(validate(request), true, validationMessage(validate));
+    }
+    for (const invalid of [null, true, 3, "AAL3", "MAYBE"]) {
+      profile.security.authenticationControls[field] = invalid;
+      assert.equal(validate(request), false);
+    }
+    delete profile.security.authenticationControls[field];
+    assert.equal(validate(request), false);
+    profile.security.authenticationControls[field] = "UNKNOWN";
+  }
+  const response = { ...validAssessmentResponse, profile, profileSchemaVersion: 3 };
+  assert.equal(schema("assessment-response.v3")(response), true);
+  const old = { workspaceId: response.workspaceId, assessmentId: response.id, version: 0,
+    status: "DRAFT", profileSchemaVersion: 1, profile: validAssessmentResponse.profile,
+    origin: "CREATED", recordedAt: response.createdAt };
+  const middle = structuredClone(old);
+  middle.version = 1; middle.profileSchemaVersion = 2;
+  middle.profile.security.dataResidencyDetails = { allowedCountries: ["DE"], dataCategories: ["BACKUPS"] };
+  const latest = { ...old, version: 2, profileSchemaVersion: 3, profile };
+  const page = { items: [old, middle, latest], nextAfterVersion: null };
+  assert.equal(schema("assessment-revision-page.v3")(page), true);
+  assert.equal(schema("assessment-revision-page.v2")(page), false);
+  for (const revision of [old, middle, latest]) {
+    for (const version of [1, 2, 3, 4].filter(v => v !== revision.profileSchemaVersion)) {
+      assert.equal(schema("assessment-revision-page.v3")({ items: [{ ...revision, profileSchemaVersion: version }], nextAfterVersion: null }), false);
+    }
+  }
+});
+
+test("catalog v4 freezes older facts and scopes enforceable human authentication", async () => {
+  const catalog = await readJson(path.join(contractsRoot,
+    "../../services/core-api/src/main/resources/catalog/synthetic.v4.json"));
+  const old = await readJson(path.join(contractsRoot,
+    "../../services/core-api/src/main/resources/catalog/synthetic.v3.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/synthetic-provider-catalog.v4.schema.json");
+  assert.equal(validate(catalog), true, validationMessage(validate));
+  assert.deepEqual(catalog.options.map(({ authenticationControls, ...option }) => option), old.options);
+  assert.equal(validate(old), false);
+  const select = c => c.options[0].authenticationControls.BROWSER.PARTNERS;
+  const original = select(catalog).PHISHING_RESISTANCE;
+  for (const field of ["availability", "enforcement", "evidenceStatus", "sourceUrl", "observedAt"]) {
+    const invalid = structuredClone(catalog);
+    delete select(invalid).PHISHING_RESISTANCE[field];
+    assert.equal(validate(invalid), false, field);
+  }
+  for (const changes of [{ availability: "UNSUPPORTED", enforcement: "SUPPORTED" },
+    { availability: "UNKNOWN", enforcement: "SUPPORTED" }, { availability: "OPTIONAL" },
+    { enforcement: null }, { certified: true }, { sourceUrl: "https://vendor.example.com" },
+    { sourceUrl: "https://user:secret@example.invalid" }, { observedAt: "yesterday" }]) {
+    const invalid = structuredClone(catalog);
+    select(invalid).PHISHING_RESISTANCE = { ...original, ...changes };
+    assert.equal(validate(invalid), false, JSON.stringify(changes));
+  }
+  for (const client of ["MACHINE_TO_MACHINE", "WEB", "UNKNOWN"]) {
+    const invalid = structuredClone(catalog);
+    invalid.options[0].authenticationControls[client] = {};
+    assert.equal(validate(invalid), false);
+  }
+  const missing = structuredClone(catalog);
+  missing.options[0].authenticationControls = {};
+  assert.equal(validate(missing), true);
+  delete missing.options[0].authenticationControls;
+  assert.equal(validate(missing), false);
+  const otherPopulation = structuredClone(catalog);
+  otherPopulation.options[0].authenticationControls.BROWSER.EVERYONE = select(catalog);
+  assert.equal(validate(otherPopulation), false);
+  const otherControl = structuredClone(catalog);
+  select(otherControl).AAL3 = original;
+  assert.equal(validate(otherControl), false);
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

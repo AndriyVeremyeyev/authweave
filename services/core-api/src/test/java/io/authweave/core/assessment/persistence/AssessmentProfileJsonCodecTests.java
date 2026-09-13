@@ -35,7 +35,7 @@ class AssessmentProfileJsonCodecTests {
         assertEquals(expanded, codec.decode(expandedJson, (short) 2));
         assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(expandedJson, (short) 1));
         assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(oldJson, (short) 2));
-        assertThrows(UnsupportedAssessmentProfileVersionException.class, () -> codec.decode(oldJson, (short) 3));
+        assertThrows(UnsupportedAssessmentProfileVersionException.class, () -> codec.decode(oldJson, (short) 4));
         ObjectNode malformed = (ObjectNode) mapper.readTree(expandedJson.data()).deepCopy();
         ((ObjectNode) malformed.get("security")).putNull("dataResidencyDetails");
         assertThrows(AssessmentProfileSerializationException.class,
@@ -49,5 +49,33 @@ class AssessmentProfileJsonCodecTests {
         var json = JSONB.valueOf(mapper.writeValueAsString(profile));
         assertEquals(profile, codec.snapshot(json, (short) 1));
         assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(json, (short) 1));
+    }
+
+    @Test
+    void controlsUseV3EvenWithoutResidencyAndCannotBeMisreadAsAnOlderFormat() {
+        var base = ApplicationIdentityProfile.unknown();
+        var s = base.security();
+        var profile = new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(),
+                base.provisioning(), new SecurityRequirements(s.multiFactorAuthentication(),
+                s.browserTokenExposureMinimization(), s.auditability(), s.dataResidency(), s.assurance(),
+                s.complianceTargets(), s.dataResidencyDetails(), new AuthenticationControls(
+                        RequirementCriticality.REQUIRED, RequirementCriticality.UNKNOWN, RequirementCriticality.PREFERRED)),
+                base.operations());
+        var json = codec.encode(profile);
+        assertEquals(3, codec.schemaVersion(profile));
+        assertEquals(profile, codec.decode(json, (short) 3));
+        assertTrue(mapper.readTree(json.data()).at("/security/dataResidencyDetails/allowedCountries").isArray());
+        assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(json, (short) 1));
+        assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(json, (short) 2));
+        assertEquals(AuthenticationControls.unknown(), codec.decode(codec.encode(base), (short) 1).security().authenticationControls());
+        for (String field : new String[] {"authenticationControls", "dataResidencyDetails"}) {
+            ObjectNode malformed = (ObjectNode) mapper.readTree(json.data());
+            ((ObjectNode) malformed.get("security")).remove(field);
+            assertThrows(AssessmentProfileSerializationException.class,
+                    () -> codec.decode(JSONB.valueOf(mapper.writeValueAsString(malformed)), (short) 3));
+            ((ObjectNode) malformed.get("security")).putNull(field);
+            assertThrows(AssessmentProfileSerializationException.class,
+                    () -> codec.decode(JSONB.valueOf(mapper.writeValueAsString(malformed)), (short) 3));
+        }
     }
 }

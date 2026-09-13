@@ -20,6 +20,11 @@ public class EligibilityPreflightController {
         return service.preview(new WorkspaceId(workspaceId), new AssessmentId(assessmentId));
     }
 
+    @GetMapping("/api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight")
+    public EligibilityPreflightV3 previewWithAuthenticationControls(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId) {
+        return service.previewWithAuthenticationControls(new WorkspaceId(workspaceId), new AssessmentId(assessmentId));
+    }
+
     @GetMapping("/api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight")
     public EligibilityPreflightV2 previewWithResidency(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId) {
         return service.previewWithResidency(new WorkspaceId(workspaceId), new AssessmentId(assessmentId));

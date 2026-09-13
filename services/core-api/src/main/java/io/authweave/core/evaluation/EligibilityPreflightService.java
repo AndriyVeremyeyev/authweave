@@ -33,6 +33,19 @@ public class EligibilityPreflightService {
     }
 
     @Transactional(readOnly = true)
+    public EligibilityPreflightV3 previewWithAuthenticationControls(WorkspaceId workspaceId, AssessmentId assessmentId) {
+        var assessment = assessments.getAssessment(workspaceId, assessmentId);
+        var at = clock.instant();
+        var profile = assessment.assessment().profile();
+        return new EligibilityPreflightV3(workspaceId.value(), assessmentId.value(), assessment.version(),
+                catalog.catalogVersion(), catalog.kind(), EligibilityEvaluator.AUTHENTICATION_POLICY_VERSION,
+                CapabilityEvaluator.POLICY_VERSION, EligibilityEvaluator.POLICY_VERSION, ResidencyEvaluator.POLICY_VERSION,
+                AuthenticationControlEvaluator.POLICY_VERSION, profile.security().assurance(),
+                at, "SYNTHETIC_ELIGIBILITY_PREFLIGHT", false, EligibilityEvaluator.RESIDENCY_DEFERRED_PATHS,
+                EligibilityEvaluator.evaluateWithAuthenticationControls(profile, catalog, at));
+    }
+
+    @Transactional(readOnly = true)
     public EligibilityPreflightV2 previewWithResidency(WorkspaceId workspaceId, AssessmentId assessmentId) {
         var assessment = assessments.getAssessment(workspaceId, assessmentId);
         var at = clock.instant();

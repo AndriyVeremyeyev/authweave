@@ -36,8 +36,9 @@ public class AssessmentHistoryController {
             @RequestParam(required = false) @Min(0) @Max(9007199254740991L) Long afterVersion,
             @RequestParam(defaultValue = "50") @Min(1) @Max(100) int limit) {
         var page = service.getRevisions(new WorkspaceId(workspaceId), new AssessmentId(assessmentId), afterVersion, limit);
-        if (page.items().stream().anyMatch(revision -> revision.profileSchemaVersion() != 1)) {
-            throw new io.authweave.core.assessment.application.ProfileUpgradeRequiredException();
+        int requiredVersion = page.items().stream().mapToInt(AssessmentRevision::profileSchemaVersion).max().orElse(1);
+        if (requiredVersion > 1) {
+            throw new io.authweave.core.assessment.application.ProfileUpgradeRequiredException(requiredVersion);
         }
         return page;
     }

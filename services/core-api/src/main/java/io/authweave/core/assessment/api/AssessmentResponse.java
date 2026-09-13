@@ -17,8 +17,9 @@ public record AssessmentResponse(
         ApplicationIdentityProfile profile) {
 
     static AssessmentResponse from(PersistedAssessment persisted) {
-        if (!persisted.assessment().profile().security().dataResidencyDetails().isUnrecorded()) {
-            throw new io.authweave.core.assessment.application.ProfileUpgradeRequiredException();
+        if (persisted.assessment().profile().security().minimumSchemaVersion() > 1) {
+            throw new io.authweave.core.assessment.application.ProfileUpgradeRequiredException(
+                    persisted.assessment().profile().security().minimumSchemaVersion());
         }
         return new AssessmentResponse(
                 persisted.assessment().id().value(),

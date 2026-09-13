@@ -58,7 +58,7 @@ class EligibilityEvaluatorTests {
         var missing = new Option("another-plan", complete.displayName(), "Basic", "Other region",
                 complete.facts(), Compatibility.empty());
         var result = EligibilityEvaluator.evaluate(seed(0),
-                new ProviderCatalog(3, "test", Kind.SYNTHETIC, List.of(complete, missing)), NOW).getFirst();
+                new ProviderCatalog(4, "test", Kind.SYNTHETIC, List.of(complete, missing)), NOW).getFirst();
         assertEquals(NEEDS_INFORMATION, result.status());
         assertTrue(result.contextChecks().stream().allMatch(c -> c.reasonCode() == EVIDENCE_MISSING));
         assertTrue(result.contextChecks().stream().allMatch(c -> c.evidence() == null));
@@ -158,7 +158,7 @@ class EligibilityEvaluatorTests {
         var profile = seed(0);
         var noScim = fixture().options().get(1);
         var result = EligibilityEvaluator.evaluate(profile,
-                new ProviderCatalog(3, "test", Kind.SYNTHETIC, List.of(new Option(noScim.id(), noScim.displayName(),
+                new ProviderCatalog(4, "test", Kind.SYNTHETIC, List.of(new Option(noScim.id(), noScim.displayName(),
                         noScim.plan(), noScim.region(), noScim.facts(), Compatibility.empty()))), NOW).getFirst();
         assertEquals(DOES_NOT_MATCH, result.status());
         assertTrue(result.contextChecks().stream().allMatch(c -> c.outcome() == UNKNOWN));
@@ -203,7 +203,7 @@ class EligibilityEvaluatorTests {
         var catalog = fixture();
         assertEquals(EligibilityEvaluator.evaluate(seed(0), catalog, NOW),
                 EligibilityEvaluator.evaluate(seed(0),
-                        new ProviderCatalog(3, catalog.catalogVersion(), catalog.kind(), catalog.options().reversed()), NOW));
+                        new ProviderCatalog(4, catalog.catalogVersion(), catalog.kind(), catalog.options().reversed()), NOW));
         var applications = new EnumMap<ApplicationTopology.ApplicationType, CompatibilityFact>(ApplicationTopology.ApplicationType.class);
         applications.put(B2B_SAAS, YES);
         var copy = new Compatibility(applications, Map.of(), Map.of(), Map.of(), Map.of());
@@ -247,7 +247,7 @@ class EligibilityEvaluatorTests {
 
     private static EligibilityPreflight.Candidate evaluate(ApplicationIdentityProfile profile, Compatibility compatibility) throws Exception {
         var option = fixture().options().getFirst();
-        return EligibilityEvaluator.evaluate(profile, new ProviderCatalog(3, "test", Kind.SYNTHETIC,
+        return EligibilityEvaluator.evaluate(profile, new ProviderCatalog(4, "test", Kind.SYNTHETIC,
                 List.of(new Option(option.id(), option.displayName(), option.plan(), option.region(), option.facts(), compatibility))), NOW).getFirst();
     }
 
@@ -256,7 +256,7 @@ class EligibilityEvaluatorTests {
     }
 
     private static ProviderCatalog fixture() throws Exception {
-        try (var input = new ClassPathResource("catalog/synthetic.v3.json").getInputStream()) {
+        try (var input = new ClassPathResource("catalog/synthetic.v4.json").getInputStream()) {
             return JsonMapper.builder().build().readValue(input, ProviderCatalog.class);
         }
     }

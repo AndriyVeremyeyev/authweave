@@ -144,7 +144,7 @@ workload authorization. Hosting is a preference, not an elimination rule.
 The response separates `capabilityChecks` and `contextChecks` and identifies both
 policies. It still has `recommendationReady: false`: security dimensions beyond MFA
 and operational constraints remain deferred. The existing `/capability-preflight`
-response shape and scope are unchanged. Both endpoints now use catalog v3; the v1/v2
+response shape and scope are unchanged. Both endpoints now use catalog v4; the v1/v2/v3
 fixtures and schemas remain as compatibility baselines. Neither endpoint writes to the database.
 
 ### Architecture pattern preflight
@@ -174,7 +174,8 @@ are versioned with the policy; references are never fetched during evaluation. S
 The local API v2 records where identity data may be stored at rest. Under
 `/api/v2/workspaces/{workspaceId}/assessments`, use POST to create, GET `/{assessmentId}`
 to read and PUT `/{assessmentId}/profile` to replace a complete profile with
-`expectedVersion`. Workspace provisioning, events and preflights retain their v1 URLs.
+`expectedVersion`. Workspace provisioning and events retain their v1 URLs; versioned
+eligibility preflights are described below.
 
 Profile v2 adds `security.dataResidencyDetails` alongside the existing
 `security.dataResidency` criticality. For example, this fragment permits either listed
@@ -199,7 +200,8 @@ The v2 eligibility preflight below checks this scope; v1 preflights continue to 
 
 V2 reads project old profiles with empty details and `profileSchemaVersion: 2` without
 changing stored data. This field identifies the response format, not a database update.
-The database retains v1 when both arrays are empty and uses v2 when either is populated.
+Without recorded authentication controls, the database retains v1 when both arrays
+are empty and uses v2 when either is populated.
 No-op saves change neither assessment version nor history. An explicit v2 clear may
 return the current stored format to v1; previous v2 revisions remain unchanged.
 
@@ -214,8 +216,9 @@ The browser-only preview and its downloadable profile remain v1 for now.
 
 GET `/api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight`
 adds `residencyChecks` to the existing capability and context checks. It works with
-both stored profile versions. Unrecorded inputs in old profiles remain unknown, not
-an unrestricted-storage assumption. The response identifies catalog v3 and the
+all supported stored profile versions, but does not evaluate the v3 authentication
+controls described below. Unrecorded inputs remain unknown, not an unrestricted-storage
+assumption. The response identifies catalog v4 and the
 capability, context, residency and combined policy versions.
 
 Catalog evidence lists confirmed storage countries for each category in the exact
@@ -242,6 +245,70 @@ This remains a synthetic, read-only preflight with `recommendationReady: false`.
 It changes neither assessment state nor history. Processing, remote access, transfers,
 compliance and remaining security/operations constraints are not covered. There is no
 score, final recommendation, real-provider claim or persisted evaluation yet.
+
+### Independent authentication controls
+
+Profile API v3 adds `security.authenticationControls`. These are requirements for the
+application being evaluated, not changes to AuthWeave's own login. All three fields
+are explicit and initially `UNKNOWN`; the existing MFA requirement is not duplicated:
+
+- `phishingResistance`: authentication cryptographically bound to the legitimate
+  verifier. A manually entered one-time code alone does not provide this property.
+- `nonExportableKeys`: authentication keys cannot leave their protected authenticator.
+  Supporting passkeys, or disabling synchronization alone, does not establish this.
+- `stepUpAuthentication`: request and verify stronger authentication before a sensitive
+  action, not simply repeat the same-strength login.
+
+For example, the following security fragment requires phishing resistance, records a
+preference for non-exportable keys and leaves step-up undecided:
+
+```json
+{
+  "authenticationControls": {
+    "phishingResistance": "REQUIRED",
+    "nonExportableKeys": "PREFERRED",
+    "stepUpAuthentication": "UNKNOWN"
+  }
+}
+```
+
+`BASELINE`, `ELEVATED` and `HIGH` remain planning expectations. They neither set these
+fields automatically nor correspond to NIST AAL1/2/3. Technical background:
+[NIST authenticator requirements](https://pages.nist.gov/800-63-4/sp800-63b/authenticators/)
+and [assurance levels](https://pages.nist.gov/800-63-4/sp800-63b/aal/).
+
+Under `/api/v3/workspaces/{workspaceId}/assessments`, POST, GET `/{assessmentId}` and
+PUT `/{assessmentId}/profile` use a complete v3 profile with the existing optimistic
+lock. Reads project older profiles without modifying them. Storage uses v3 only when
+at least one control is not `UNKNOWN`, otherwise the existing lossless v1/v2 rules
+apply. V3 snapshots include both residency details and controls. GET `/{assessmentId}/revisions`
+returns original mixed v1/v2/v3 snapshots; old history is never rewritten.
+
+V1/v2 current reads and writes reject recorded controls with 409 `profile-upgrade-required`.
+Older history APIs reject only pages containing unsupported formats. An intentional
+v3 clear can restore older current-profile compatibility, but cannot erase v3 history.
+Flyway V5 widens version constraints without rewriting existing data.
+
+GET `/{assessmentId}/eligibility-preflight` under v3 adds `authenticationControlChecks`
+to the capability/context/residency checks. Catalog v4 distinguishes availability
+from enforceability for each exact plan/region, human client and user population.
+Requirements apply to every selected human client/population pair. Browser evidence
+cannot establish native support; missing populations or facts remain unknown.
+Machine-only profiles mark these human controls `NOT_APPLIED`.
+
+`REQUIRED` passes only with reviewed, fresh evidence of both availability and the
+ability to require the control in that flow. Confirmed lack of either fails. Missing,
+unreviewed, future or stale evidence proves neither outcome; the inclusive 90-day
+window is unchanged. `PREFERRED` is not scored, `NOT_REQUIRED` imposes no constraint,
+and `UNKNOWN`/`FORBIDDEN` require clarification. Any failure dominates without hiding
+other unknown checks. V1/v2 eligibility endpoints retain their previous, narrower scope.
+
+This does not verify deployed policy, sensitive-action wiring, enrollment, recovery,
+session lifecycle, combined configuration or full assurance. No AAL/certification,
+winner or final recommendation is produced. Broad assurance remains deferred;
+`assuranceExpectation` is context only and `recommendationReady` stays false.
+Catalog v1/v2/v3 fixtures remain frozen; runtime loads only v4, not historical catalog
+replay. The browser preview still uses profile v1 and has no controls UI yet.
 
 ### Contract validation
 
