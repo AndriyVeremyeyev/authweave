@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-draft-validation.v1.schema.json",
+  "title": "Catalog draft validation report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scope",
+    "policyVersion",
+    "canonicalizationVersion",
+    "catalogVersion",
+    "catalogSchemaVersion",
+    "evaluatedAt",
+    "status",
+    "contentSha256",
+    "sourceVerificationPerformed",
+    "approvalGranted",
+    "writesPerformed",
+    "evaluationReady",
+    "optionCount",
+    "factCount",
+    "issues",
+    "facts"
+  ],
+  "properties": {
+    "scope": {
+      "const": "CATALOG_DRAFT_VALIDATION"
+    },
+    "policyVersion": {
+      "const": "catalog-draft-validation-1"
+    },
+    "canonicalizationVersion": {
+      "const": "catalog-draft-canonical-json-1"
+    },
+    "catalogVersion": {
+      "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+    },
+    "catalogSchemaVersion": {
+      "const": 1
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "enum": [
+        "VALID_DRAFT",
+        "INVALID_DRAFT"
+      ]
+    },
+    "contentSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "approvalGranted": {
+      "const": false
+    },
+    "writesPerformed": {
+      "const": false
+    },
+    "evaluationReady": {
+      "const": false
+    },
+    "optionCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    },
+    "factCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6800
+    },
+    "issues": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "optionId",
+          "path",
+          "code",
+          "explanation"
+        ],
+        "properties": {
+          "optionId": {
+            "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "code": {
+            "enum": [
+              "DUPLICATE_OPTION_ID",
+              "DUPLICATE_OPTION_SCOPE",
+              "NO_FACTS_RECORDED",
+              "INVALID_COUNTRY",
+              "RESIDENCY_COVERAGE_INCONSISTENT",
+              "AUTHENTICATION_ENFORCEMENT_WITHOUT_AVAILABILITY"
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    "facts": {
+      "type": "array",
+      "maxItems": 6800,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "optionId",
+          "path",
+          "evidenceStatus",
+          "freshness",
+          "conditions",
+          "evidence"
+        ],
+        "properties": {
+          "optionId": {
+            "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "evidenceStatus": {
+            "const": "UNREVIEWED"
+          },
+          "freshness": {
+            "enum": [
+              "CURRENT",
+              "STALE",
+              "FUTURE"
+            ]
+          },
+          "conditions": {
+            "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/conditions"
+          },
+          "evidence": {
+            "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/evidence"
+          }
+        }
+      }
+    }
+  }
+}

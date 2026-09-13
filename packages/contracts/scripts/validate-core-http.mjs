@@ -30,6 +30,8 @@ for (const { name, schema, valid, payload } of samples) {
   covered.add(`${schema}:${valid}`);
 }
 for (const required of ["assessment-response:true", "core-problem:true",
+  "provider-catalog-draft:true", "provider-catalog-draft:false",
+  "catalog-draft-validation:true", "catalog-draft-validation:false",
   "capability-preflight:true", "eligibility-preflight:true", "architecture-pattern-preflight:true",
   "eligibility-preflight.v2:true", "eligibility-preflight.v2:false",
   "assessment-revision-page:true", "assessment-event-page:true",

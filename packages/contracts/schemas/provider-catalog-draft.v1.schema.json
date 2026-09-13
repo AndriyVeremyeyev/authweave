@@ -1,0 +1,602 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/provider-catalog-draft.v1.schema.json",
+  "title": "Unreviewed provider catalog draft v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "catalogVersion",
+    "kind",
+    "options"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "catalogVersion": {
+      "$ref": "#/$defs/identifier"
+    },
+    "kind": {
+      "const": "PROVIDER_CATALOG_DRAFT"
+    },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "[^\\u0000-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability",
+        "conditions",
+        "evidence"
+      ],
+      "properties": {
+        "availability": {
+          "enum": [
+            "OPTIONAL",
+            "MANDATORY",
+            "UNAVAILABLE",
+            "UNKNOWN"
+          ]
+        },
+        "conditions": {
+          "$ref": "#/$defs/conditions"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "plan",
+        "region",
+        "facts",
+        "compatibility",
+        "residency",
+        "authenticationControls",
+        "providerId",
+        "product",
+        "deployment",
+        "configuration"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "plan": {
+          "$ref": "#/$defs/label"
+        },
+        "region": {
+          "$ref": "#/$defs/label"
+        },
+        "facts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "OIDC": {
+              "$ref": "#/$defs/fact"
+            },
+            "SAML": {
+              "$ref": "#/$defs/fact"
+            },
+            "OAUTH2_APIS": {
+              "$ref": "#/$defs/fact"
+            },
+            "SOCIAL_LOGIN": {
+              "$ref": "#/$defs/fact"
+            },
+            "ENTERPRISE_SSO": {
+              "$ref": "#/$defs/fact"
+            },
+            "SCIM": {
+              "$ref": "#/$defs/fact"
+            },
+            "JIT": {
+              "$ref": "#/$defs/fact"
+            },
+            "GROUP_SYNC": {
+              "$ref": "#/$defs/fact"
+            },
+            "MFA": {
+              "$ref": "#/$defs/fact"
+            }
+          }
+        },
+        "compatibility": {
+          "$ref": "#/$defs/compatibility"
+        },
+        "residency": {
+          "description": "Category-specific at-rest destinations for this exact option. No inference from the region label; an absent category is unknown.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "USER_PROFILES": {
+              "$ref": "#/$defs/residencyFact"
+            },
+            "CREDENTIALS": {
+              "$ref": "#/$defs/residencyFact"
+            },
+            "AUDIT_LOGS": {
+              "$ref": "#/$defs/residencyFact"
+            },
+            "BACKUPS": {
+              "$ref": "#/$defs/residencyFact"
+            }
+          }
+        },
+        "authenticationControls": {
+          "$ref": "#/$defs/authenticationControls"
+        },
+        "providerId": {
+          "$ref": "#/$defs/identifier"
+        },
+        "product": {
+          "$ref": "#/$defs/label"
+        },
+        "deployment": {
+          "enum": [
+            "MANAGED",
+            "SELF_HOSTED"
+          ]
+        },
+        "configuration": {
+          "$ref": "#/$defs/label"
+        }
+      }
+    },
+    "compatibilityFact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "support",
+        "conditions",
+        "evidence"
+      ],
+      "properties": {
+        "support": {
+          "enum": [
+            "SUPPORTED",
+            "UNSUPPORTED",
+            "UNKNOWN"
+          ]
+        },
+        "conditions": {
+          "$ref": "#/$defs/conditions"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applications",
+        "clients",
+        "populations",
+        "tenancy",
+        "membership"
+      ],
+      "properties": {
+        "applications": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "B2B_SAAS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "PARTNER_PORTAL": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "PUBLIC_SECTOR_PORTAL": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "INTERNAL_WORKFORCE": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        },
+        "clients": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "BROWSER": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "NATIVE_MOBILE": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "MACHINE_TO_MACHINE": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        },
+        "populations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "EXTERNAL_CUSTOMERS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "PARTNERS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "CITIZENS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "EMPLOYEES": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "CONTRACTORS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "INTERNAL_OPERATORS": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        },
+        "tenancy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "MULTI_TENANT_ORGANIZATIONS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "SINGLE_ORGANIZATION": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "NO_ORGANIZATION_BOUNDARY": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        },
+        "membership": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "SINGLE_ORGANIZATION_PER_USER": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "MULTIPLE_ORGANIZATIONS_PER_USER": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "NOT_APPLICABLE": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        }
+      }
+    },
+    "residencyFact": {
+      "description": "Proposed at-rest destinations, not selectable alternatives. COMPLETE includes all destinations and replicas for the category; recovery copies belong to BACKUPS. UNKNOWN with countries and known coverage without countries are reported as semantic issues.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage",
+        "storageCountries",
+        "conditions",
+        "evidence"
+      ],
+      "properties": {
+        "coverage": {
+          "enum": [
+            "COMPLETE",
+            "PARTIAL",
+            "UNKNOWN"
+          ]
+        },
+        "storageCountries": {
+          "type": "array",
+          "maxItems": 249,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          }
+        },
+        "conditions": {
+          "$ref": "#/$defs/conditions"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "authenticationControlFact": {
+      "description": "Proposed availability and enforceability in this exact option/client/population. Enforcement without availability is a semantic issue. This does not prove deployed settings, recovery, sessions or any assurance level.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability",
+        "enforcement",
+        "conditions",
+        "evidence"
+      ],
+      "properties": {
+        "availability": {
+          "enum": [
+            "SUPPORTED",
+            "UNSUPPORTED",
+            "UNKNOWN"
+          ]
+        },
+        "enforcement": {
+          "enum": [
+            "SUPPORTED",
+            "UNSUPPORTED",
+            "UNKNOWN"
+          ]
+        },
+        "conditions": {
+          "$ref": "#/$defs/conditions"
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidence"
+        }
+      }
+    },
+    "authenticationControls": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "BROWSER": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "EXTERNAL_CUSTOMERS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "PARTNERS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "CITIZENS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "EMPLOYEES": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "CONTRACTORS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "INTERNAL_OPERATORS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            }
+          }
+        },
+        "NATIVE_MOBILE": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "EXTERNAL_CUSTOMERS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "PARTNERS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "CITIZENS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "EMPLOYEES": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "CONTRACTORS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            },
+            "INTERNAL_OPERATORS": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "PHISHING_RESISTANCE": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "NON_EXPORTABLE_KEYS": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                },
+                "STEP_UP_AUTHENTICATION": {
+                  "$ref": "#/$defs/authenticationControlFact"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "conditions": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 500,
+        "pattern": "[^\\u0000-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]"
+      },
+      "description": "Explicit applicability conditions or limitations. Empty is an assertion of no recorded conditions, not verified unconditional support. Order is not significant."
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceUrl",
+        "observedAt",
+        "summary"
+      ],
+      "properties": {
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:[/?#][^\\s]*)?$",
+          "description": "Owner-supplied locator only. It is not fetched or approved for ingestion by validation."
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "[^\\u0000-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff]",
+          "description": "Bounded paraphrase of the proposed evidence, not a full source copy or executable instruction."
+        }
+      }
+    }
+  },
+  "description": "Proposed data, never an active or approved catalog. Structural validation does not verify sources, conditions, freshness, legal scope or provider compatibility."
+}

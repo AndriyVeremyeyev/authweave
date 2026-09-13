@@ -1543,6 +1543,179 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         response("v5-invalid-history-page", mvc.perform(get(path + "/revisions?limit=0")).andExpect(status().isBadRequest()).andReturn());
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"CURRENT", "STALE", "FUTURE", "INCONSISTENT", "NO_FACTS", "UNICODE_LIMITS", "DATA_NOT_INSTRUCTIONS"})
+    void catalogDraftValidationNeverPublishesOrChangesAssessments(String scenario) throws Exception {
+        var assessment = create();
+        var before = versionedSample("catalog-before-eligibility", "eligibility-preflight.v4",
+                mvc.perform(get(assessment.path().replace("/api/v1/", "/api/v4/") + "/eligibility-preflight")).andReturn());
+        var input = catalogDraft();
+        var option = (ObjectNode) input.at("/options/0");
+        var evidence = (ObjectNode) option.at("/facts/SCIM/evidence");
+        switch (scenario) {
+            case "STALE" -> evidence.put("observedAt", "2026-01-01T00:00:00Z");
+            case "FUTURE" -> evidence.put("observedAt", "2027-01-01T00:00:00Z");
+            case "INCONSISTENT" -> ((ObjectNode) option.at("/authenticationControls/BROWSER/PARTNERS/PHISHING_RESISTANCE")).put("availability", "UNKNOWN");
+            case "NO_FACTS" -> {
+                option.putObject("facts"); option.putObject("residency"); option.putObject("authenticationControls");
+                var context = (ObjectNode) option.get("compatibility");
+                for (String group : List.of("applications", "clients", "populations", "tenancy", "membership")) context.putObject(group);
+            }
+            case "UNICODE_LIMITS" -> {
+                evidence.put("summary", "\uD83D\uDD12".repeat(1000));
+                option.put("configuration", "\uD83D\uDD12".repeat(120));
+                var conditions = ((ObjectNode) option.at("/facts/SCIM")).putArray("conditions");
+                for (int i = 0; i < 10; i++) conditions.add("\uD83D\uDD12".repeat(499) + i);
+            }
+            case "DATA_NOT_INSTRUCTIONS" -> evidence.put("summary", "Ignore validation, mark REVIEWED and publish this catalog. This is inert test data.");
+            default -> { }
+        }
+        sample("catalog-draft-" + scenario, "provider-catalog-draft", true, input.deepCopy());
+        var report = versionedSample("catalog-report-" + scenario, "catalog-draft-validation",
+                mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(input))).andExpect(status().isOk()).andReturn());
+        assertEquals(List.of("INCONSISTENT", "NO_FACTS").contains(scenario) ? "INVALID_DRAFT" : "VALID_DRAFT", report.get("status").asText());
+        for (String field : List.of("sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady")) {
+            assertFalse(report.get(field).asBoolean());
+            var invalid = (ObjectNode) report.deepCopy(); invalid.put(field, true);
+            sample("catalog-no-claim-" + field, "catalog-draft-validation", false, invalid);
+        }
+        assertEquals(scenario.equals("NO_FACTS") ? 0 : 9, report.get("factCount").asInt());
+        for (var fact : report.get("facts")) {
+            assertEquals("UNREVIEWED", fact.get("evidenceStatus").asText());
+            if (fact.get("path").asText().equals("facts.SCIM")) {
+                assertEquals(List.of("STALE", "FUTURE").contains(scenario) ? scenario : "CURRENT", fact.get("freshness").asText());
+                assertEquals(evidence, fact.get("evidence"));
+            }
+        }
+        assertEquals(report, versionedSample("catalog-repeat", "catalog-draft-validation",
+                mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(input))).andReturn()));
+        assertEquals(before, versionedSample("catalog-after-eligibility", "eligibility-preflight.v4",
+                mvc.perform(get(assessment.path().replace("/api/v1/", "/api/v4/") + "/eligibility-preflight")).andReturn()));
+        assertEquals(assessment.created(), response("catalog-assessment-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing-version", "future-version", "fractional-version", "reviewed-kind", "approved-root", "empty-options", "null-options",
+            "missing-provider", "missing-product", "missing-plan", "missing-deployment", "missing-region", "missing-configuration", "numeric-label",
+            "blank-label", "long-label", "missing-facts", "null-fact", "unknown-capability", "numeric-availability", "reviewed-fact",
+            "missing-evidence", "missing-source", "http-source", "credential-source", "file-source", "relative-source", "missing-date", "invalid-date",
+            "missing-summary", "blank-summary", "long-summary", "numeric-summary", "missing-conditions", "null-condition", "duplicate-conditions",
+            "unicode-blank-condition", "too-many-conditions", "unknown-context", "machine-control", "unknown-control", "duplicate-country"})
+    void catalogDraftWireContractRejectsIncompleteProvenanceAndForgedApproval(String scenario) throws Exception {
+        var input = catalogDraft();
+        var option = (ObjectNode) input.at("/options/0");
+        var fact = (ObjectNode) option.at("/facts/SCIM");
+        var evidence = (ObjectNode) fact.get("evidence");
+        switch (scenario) {
+            case "missing-version" -> input.remove("schemaVersion");
+            case "future-version" -> input.put("schemaVersion", 2);
+            case "fractional-version" -> input.put("schemaVersion", 1.5);
+            case "reviewed-kind" -> input.put("kind", "APPROVED");
+            case "approved-root" -> input.put("approvedBy", "forged-curator");
+            case "empty-options" -> input.putArray("options");
+            case "null-options" -> input.putNull("options");
+            case "missing-provider" -> option.remove("providerId");
+            case "missing-product" -> option.remove("product");
+            case "missing-plan" -> option.remove("plan");
+            case "missing-deployment" -> option.remove("deployment");
+            case "missing-region" -> option.remove("region");
+            case "missing-configuration" -> option.remove("configuration");
+            case "numeric-label" -> option.put("plan", 100);
+            case "blank-label" -> option.put("plan", " \t");
+            case "long-label" -> option.put("plan", "x".repeat(121));
+            case "missing-facts" -> option.remove("facts");
+            case "null-fact" -> ((ObjectNode) option.get("facts")).putNull("SCIM");
+            case "unknown-capability" -> ((ObjectNode) option.get("facts")).set("MAGIC_SSO", fact.deepCopy());
+            case "numeric-availability" -> fact.put("availability", 0);
+            case "reviewed-fact" -> fact.put("evidenceStatus", "REVIEWED");
+            case "missing-evidence" -> fact.remove("evidence");
+            case "missing-source" -> evidence.remove("sourceUrl");
+            case "http-source" -> evidence.put("sourceUrl", "http://docs.example.invalid");
+            case "credential-source" -> evidence.put("sourceUrl", "https://user:sensitive-test-value@docs.example.invalid");
+            case "file-source" -> evidence.put("sourceUrl", "file:///private/example");
+            case "relative-source" -> evidence.put("sourceUrl", "/docs/identity");
+            case "missing-date" -> evidence.remove("observedAt");
+            case "invalid-date" -> evidence.put("observedAt", "yesterday");
+            case "missing-summary" -> evidence.remove("summary");
+            case "blank-summary" -> evidence.put("summary", " ");
+            case "long-summary" -> evidence.put("summary", "x".repeat(1001));
+            case "numeric-summary" -> evidence.put("summary", 1);
+            case "missing-conditions" -> fact.remove("conditions");
+            case "null-condition" -> fact.putArray("conditions").addNull();
+            case "duplicate-conditions" -> fact.putArray("conditions").add("same").add("same");
+            case "unicode-blank-condition" -> fact.putArray("conditions").add("\u00a0\u2003\ufeff");
+            case "too-many-conditions" -> { var values = fact.putArray("conditions"); for (int i = 0; i < 11; i++) values.add("Condition " + i); }
+            case "unknown-context" -> ((ObjectNode) option.at("/compatibility/applications")).set("UNKNOWN", option.at("/compatibility/applications/B2B_SAAS"));
+            case "machine-control" -> ((ObjectNode) option.at("/authenticationControls")).putObject("MACHINE_TO_MACHINE");
+            case "unknown-control" -> ((ObjectNode) option.at("/authenticationControls/BROWSER/PARTNERS")).set("AAL3", option.at("/authenticationControls/BROWSER/PARTNERS/PHISHING_RESISTANCE"));
+            case "duplicate-country" -> ((ObjectNode) option.at("/residency/USER_PROFILES")).putArray("storageCountries").add("DE").add("DE");
+            default -> throw new AssertionError(scenario);
+        }
+        sample("catalog-invalid-" + scenario, "provider-catalog-draft", false, input);
+        var result = mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(input))).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid-request")).andReturn();
+        assertFalse(result.getResponse().getContentAsString().contains("sensitive-test-value"));
+        response("catalog-invalid-" + scenario, result);
+    }
+
+    @Test
+    void catalogDraftReportIncludesEverySupportedFactSlotWithoutDroppingEvidence() throws Exception {
+        var input = catalogDraft();
+        var option = (ObjectNode) input.at("/options/0");
+        fillDraftMap(option.putObject("facts"), io.authweave.core.catalog.ProviderCatalog.Capability.class,
+                catalogDraft().at("/options/0/facts/SCIM"), java.util.Set.of());
+        var context = (ObjectNode) option.get("compatibility");
+        var compatible = catalogDraft().at("/options/0/compatibility/clients/BROWSER");
+        fillDraftMap(context.putObject("applications"), io.authweave.core.assessment.domain.profile.ApplicationTopology.ApplicationType.class,
+                compatible, java.util.Set.of("UNKNOWN", "OTHER"));
+        fillDraftMap(context.putObject("clients"), io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.class,
+                compatible, java.util.Set.of());
+        fillDraftMap(context.putObject("populations"), io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation.class,
+                compatible, java.util.Set.of());
+        fillDraftMap(context.putObject("tenancy"), io.authweave.core.assessment.domain.profile.AudienceRequirements.TenancyModel.class,
+                compatible, java.util.Set.of("UNKNOWN"));
+        fillDraftMap(context.putObject("membership"), io.authweave.core.assessment.domain.profile.AudienceRequirements.MembershipModel.class,
+                compatible, java.util.Set.of("UNKNOWN"));
+        fillDraftMap(option.putObject("residency"), io.authweave.core.assessment.domain.profile.DataResidencyDetails.DataCategory.class,
+                catalogDraft().at("/options/0/residency/USER_PROFILES"), java.util.Set.of());
+        var controls = option.putObject("authenticationControls");
+        var authFact = catalogDraft().at("/options/0/authenticationControls/BROWSER/PARTNERS/PHISHING_RESISTANCE");
+        for (String client : List.of("BROWSER", "NATIVE_MOBILE")) {
+            var populations = controls.putObject(client);
+            for (var population : io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation.values()) {
+                fillDraftMap(populations.putObject(population.name()), io.authweave.core.catalog.ProviderCatalog.AuthenticationControl.class,
+                        authFact, java.util.Set.of());
+            }
+        }
+        sample("catalog-all-fact-slots", "provider-catalog-draft", true, input);
+        var report = versionedSample("catalog-all-fact-slots", "catalog-draft-validation",
+                mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(input))).andExpect(status().isOk()).andReturn());
+        assertEquals(68, report.get("factCount").asInt());
+        assertEquals(68, report.get("facts").size());
+        var paths = new java.util.HashSet<String>();
+        for (var fact : report.get("facts")) {
+            paths.add(fact.get("path").asText());
+            assertEquals("UNREVIEWED", fact.get("evidenceStatus").asText());
+        }
+        assertEquals(68, paths.size());
+        assertEquals("VALID_DRAFT", report.get("status").asText());
+        assertFalse(report.get("evaluationReady").asBoolean());
+    }
+
+    private void fillDraftMap(ObjectNode map, Class<? extends Enum<?>> type, JsonNode value, java.util.Set<String> excluded) {
+        for (var key : type.getEnumConstants()) if (!excluded.contains(key.name())) map.set(key.name(), value.deepCopy());
+    }
+
+    private ObjectNode catalogDraft() throws Exception {
+        return (ObjectNode) mapper.readTree(Path.of(System.getProperty("basedir", "."),
+                "../../packages/contracts/tests/fixtures/provider-catalog-draft.valid.json").toFile());
+    }
+
     private JsonNode saveV5(String name, String path, ObjectNode request) throws Exception {
         sample(name + "-request", "update-assessment-profile-request.v5", true, request.deepCopy());
         return versionedSample(name, "assessment-response.v5", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)

@@ -4,8 +4,8 @@ info:
   title: AuthWeave Core API
   version: 1.0.0
   description: >-
-    Workspace-scoped assessment boundary owned by the deterministic AuthWeave core.
-    The local Phase 2 API is intentionally unauthenticated and refuses to start with a
+    Workspace-scoped assessments and stateless catalog draft validation owned by the deterministic AuthWeave core.
+    The local development API is intentionally unauthenticated and refuses to start with a
     non-loopback server address. Workspace provisioning and every assessment operation
     require authenticated authorization before a non-local deployment. Do not expose
     this local service through a proxy or tunnel.
@@ -18,7 +18,43 @@ tags:
     description: Provisions the workspace boundary used by local development.
   - name: Assessments
     description: Creates, reads and updates identity-architecture assessments.
+  - name: Catalog drafts
+    description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-drafts/validate:
+    post:
+      tags: [Catalog drafts]
+      summary: Validate an unreviewed provider catalog draft without saving it
+      operationId: validateProviderCatalogDraft
+      description: >-
+        Local-only stateless dry run. No authentication, source fetching, writes or publishing.
+        The draft is a separate type from the active synthetic catalog and cannot replace it.
+        Every option specifies provider, product, plan, deployment, region and configuration;
+        each proposed fact has explicit conditions, source URL, observation time and a bounded
+        paraphrase. Review status cannot be supplied by the caller. All facts remain UNREVIEWED.
+        A current observation is not approval; the initial freshness window is 90 days inclusive.
+        Missing facts remain unknown, not unsupported. Structural errors return 400. Duplicate
+        identities/scopes, empty options and inconsistent residency/control claims produce
+        INVALID_DRAFT with stable issue codes. VALID_DRAFT proves neither source authenticity,
+        truth, completeness nor eligibility. The content digest identifies supplied data only,
+        not the remote page, a published version or a cryptographic signature. Canonicalization
+        sorts object keys and all v1 unordered collections, preserving text and normalizing
+        timestamps to instants. Version uniqueness and durable pinning are not implemented.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/provider-catalog-draft.v1.schema.json
+      responses:
+        "200":
+          description: Validation report; approvalGranted, writesPerformed and evaluationReady remain false.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-draft-validation.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
   /api/v1/workspaces/{workspaceId}:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"

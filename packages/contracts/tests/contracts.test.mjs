@@ -521,6 +521,67 @@ test("profile v5 records bounded usage inputs without turning unknowns into zero
   }
 });
 
+test("provider catalog drafts require scoped provenance but cannot claim review or publication", async () => {
+  const fixture = await readJson(path.join(fixturesRoot, "provider-catalog-draft.valid.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/provider-catalog-draft.v1.schema.json");
+  assert.equal(validate(fixture), true, validationMessage(validate));
+  for (const version of [1, 2, 3, 4]) {
+    assert.equal(ajv.getSchema(`https://authweave.dev/contracts/synthetic-provider-catalog.v${version}.schema.json`)(fixture), false);
+  }
+  for (const field of ["providerId", "product", "plan", "deployment", "region", "configuration", "compatibility", "residency", "authenticationControls"]) {
+    const invalid = structuredClone(fixture); delete invalid.options[0][field];
+    assert.equal(validate(invalid), false, field);
+  }
+  const selectors = [option => option.facts.SCIM, option => option.compatibility.clients.BROWSER,
+    option => option.residency.USER_PROFILES, option => option.authenticationControls.BROWSER.PARTNERS.PHISHING_RESISTANCE];
+  for (const select of selectors) {
+    for (const field of ["conditions", "evidence"]) {
+      const invalid = structuredClone(fixture); delete select(invalid.options[0])[field]; assert.equal(validate(invalid), false);
+    }
+    for (const field of ["sourceUrl", "observedAt", "summary"]) {
+      const invalid = structuredClone(fixture); delete select(invalid.options[0]).evidence[field]; assert.equal(validate(invalid), false);
+    }
+    const reviewed = structuredClone(fixture); select(reviewed.options[0]).evidenceStatus = "REVIEWED";
+    assert.equal(validate(reviewed), false);
+    const valid = structuredClone(fixture); select(valid.options[0]).conditions = [];
+    assert.equal(validate(valid), true, validationMessage(validate));
+    for (const sourceUrl of ["http://example.invalid", "file:///private/example", "https://user:secret@example.invalid", "/source"]) {
+      const invalid = structuredClone(fixture); select(invalid.options[0]).evidence.sourceUrl = sourceUrl;
+      assert.equal(validate(invalid), false, sourceUrl);
+    }
+  }
+  for (const forged of [{ approvedBy: "owner" }, { evidenceStatus: "REVIEWED" }, { kind: "APPROVED" }, { schemaVersion: 2 }]) {
+    assert.equal(validate({ ...fixture, ...forged }), false);
+  }
+  for (const blank of ["", " \t", "\u00a0\u2003\ufeff"]) {
+    const invalid = structuredClone(fixture); invalid.options[0].facts.SCIM.evidence.summary = blank;
+    assert.equal(validate(invalid), false);
+  }
+  const unicode = structuredClone(fixture); unicode.options[0].facts.SCIM.evidence.summary = "\uD83D\uDD12".repeat(1000);
+  assert.equal(validate(unicode), true); unicode.options[0].facts.SCIM.evidence.summary += "x"; assert.equal(validate(unicode), false);
+  const empty = structuredClone(fixture); empty.options = []; assert.equal(validate(empty), false);
+  const maximum = structuredClone(fixture);
+  maximum.options = Array.from({ length: 100 }, (_, i) => ({ ...structuredClone(fixture.options[0]), id: `example-${i}`, configuration: `Configuration ${i}` }));
+  assert.equal(validate(maximum), true, validationMessage(validate));
+  maximum.options.push(structuredClone(fixture.options[0])); assert.equal(validate(maximum), false);
+});
+
+test("catalog draft shape and semantic review are deliberately separate", async () => {
+  const fixture = await readJson(path.join(fixturesRoot, "provider-catalog-draft.valid.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/provider-catalog-draft.v1.schema.json");
+  const input = structuredClone(fixture);
+  input.options[0].residency.USER_PROFILES.coverage = "UNKNOWN";
+  input.options[0].residency.USER_PROFILES.storageCountries = ["ZZ"];
+  input.options[0].authenticationControls.BROWSER.PARTNERS.PHISHING_RESISTANCE.availability = "UNSUPPORTED";
+  input.options.push(structuredClone(input.options[0]));
+  assert.equal(validate(input), true, "The Core dry run must report these contradictions; structural validity is not approval.");
+  const unknown = structuredClone(fixture);
+  unknown.options[0].facts.SCIM.availability = "UNKNOWN";
+  unknown.options[0].facts.SCIM.evidence.observedAt = "2099-01-01T00:00:00Z";
+  assert.equal(validate(unknown), true);
+  delete unknown.options[0].facts.SCIM; assert.equal(validate(unknown), true);
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

@@ -411,6 +411,58 @@ additional environments and operational costs still need a separate cost model.
 V1/v2/v3/v4 eligibility endpoints, policies and synthetic catalog v4 remain unchanged;
 there is no v5 eligibility endpoint. The browser preview remains v1 with no usage-input UI.
 
+### Provider catalog drafts: validation before review
+
+`POST /api/v1/catalog-drafts/validate` accepts a separate, versioned
+`provider-catalog-draft.v1` document and returns a read-only validation report.
+It neither saves nor activates the draft. The existing synthetic catalog and all
+assessment preflights remain unchanged. No authentication or remote source fetcher
+is implemented for this endpoint; it is subject to the Core API's loopback-only boundary.
+
+Each option identifies the provider, product, plan, `MANAGED` or `SELF_HOSTED`
+deployment, region and configuration variant. Each proposed capability, context,
+residency or human-authentication fact requires explicit `conditions` and an evidence
+object: HTTPS `sourceUrl`, `observedAt` and a bounded paraphrase (`summary`). Omitted
+facts remain unknown, not unsupported. Conditions are recorded for later human review;
+they are not executed or interpreted as rules. No pricing or full assurance model is added.
+
+Malformed shapes, missing provenance, unknown fields and forged review/publication
+metadata return 400. Well-formed drafts receive 200 with `VALID_DRAFT` or `INVALID_DRAFT`.
+Semantic issues identify duplicate option IDs/scopes, options without facts,
+unrecognized country codes, inconsistent residency coverage, and enforcement claims
+without availability. Configuration variants can distinguish options with otherwise
+identical product/plan/deployment/region labels; scope comparison uses exact values.
+
+Every fact remains `UNREVIEWED`. `CURRENT`, `STALE` and `FUTURE` describe observation
+times only, using the initial inclusive 90-day window. Neither a recent date nor
+`SUPPORTED` nor `VALID_DRAFT` establishes truth, completeness, approval or applicability.
+`sourceVerificationPerformed`, `approvalGranted`, `writesPerformed` and `evaluationReady`
+are always false. URL validation checks syntax, not source authenticity or an ingestion
+allowlist; URLs are never fetched. The example contains fictional claims only.
+
+Reports include `contentSha256` with policy `catalog-draft-validation-1` and
+canonicalization `catalog-draft-canonical-json-1`. The application-specific digest
+sorts object keys and all v1 unordered collections (options, conditions, countries),
+normalizes timestamps to instants and preserves text. It hashes the supplied data,
+not the remote page, and is not a signature or publication ID. The observation clock
+can change freshness without changing this digest. Version names are not reserved;
+immutable storage, authorized approval, semantic diff, catalog activation and durable
+assessment/result pinning remain subsequent steps.
+
+With the local Core API already running, from the repository root:
+
+```shell
+curl --fail-with-body --silent --show-error \
+  -H 'Content-Type: application/json' \
+  --data-binary @packages/contracts/tests/fixtures/provider-catalog-draft.valid.json \
+  http://127.0.0.1:8080/api/v1/catalog-drafts/validate
+```
+
+The fixture yields nine unreviewed facts and `VALID_DRAFT`; freshness depends on the
+current time. This is a validation-only backend slice, not a real-provider baseline,
+curator UI, published catalog or final recommendation. It requires no new accounts,
+dependencies, migrations or paid services.
+
 ### Contract validation
 
 Requirement criticality has five explicit values: `REQUIRED`, `PREFERRED`,
