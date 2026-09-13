@@ -6,18 +6,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.Locale;
 
 import io.authweave.core.assessment.domain.profile.ApplicationTopology.ApplicationType;
 import io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType;
 import io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation;
 import io.authweave.core.assessment.domain.profile.AudienceRequirements.TenancyModel;
 import io.authweave.core.assessment.domain.profile.AudienceRequirements.MembershipModel;
+import io.authweave.core.assessment.domain.profile.DataResidencyDetails.DataCategory;
 
 /** The first catalog is deliberately synthetic; real evidence requires a publication workflow. */
 public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kind, List<Option> options) {
 
     public ProviderCatalog {
-        if (schemaVersion != 2) throw new IllegalArgumentException("Unsupported catalog schema version");
+        if (schemaVersion != 3) throw new IllegalArgumentException("Unsupported catalog schema version");
         identifier(catalogVersion);
         Objects.requireNonNull(kind);
         options = List.copyOf(options);
@@ -34,6 +37,7 @@ public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kin
     public enum Availability { OPTIONAL, MANDATORY, UNAVAILABLE, UNKNOWN }
     public enum EvidenceStatus { REVIEWED, UNREVIEWED }
     public enum Support { SUPPORTED, UNSUPPORTED, UNKNOWN }
+    public enum ResidencyCoverage { COMPLETE, PARTIAL, UNKNOWN }
 
     public interface Evidence {
         EvidenceStatus evidenceStatus();
@@ -42,7 +46,7 @@ public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kin
     }
 
     public record Option(String id, String displayName, String plan, String region,
-            Map<Capability, Fact> facts, Compatibility compatibility) {
+            Map<Capability, Fact> facts, Compatibility compatibility, Map<DataCategory, ResidencyFact> residency) {
         public Option {
             identifier(id);
             label(displayName);
@@ -50,6 +54,32 @@ public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kin
             label(region);
             facts = Map.copyOf(facts);
             Objects.requireNonNull(compatibility);
+            residency = Map.copyOf(residency);
+        }
+
+        public Option(String id, String displayName, String plan, String region,
+                Map<Capability, Fact> facts, Compatibility compatibility) {
+            this(id, displayName, plan, region, facts, compatibility, Map.of());
+        }
+    }
+
+    /** Confirmed storage destinations for this option, not a menu of configurable locations.
+     * COMPLETE covers all destinations for the category, including replicas.
+     * Recovery copies belong to BACKUPS, separately from primary profile/credential/log storage.
+     * Empty countries mean UNKNOWN, never proof that the category is not stored. */
+    public record ResidencyFact(ResidencyCoverage coverage, List<String> storageCountries,
+            EvidenceStatus evidenceStatus, URI sourceUrl, Instant observedAt) implements Evidence {
+        public ResidencyFact {
+            Objects.requireNonNull(coverage);
+            storageCountries = List.copyOf(storageCountries);
+            var codes = Set.of(Locale.getISOCountries());
+            if (storageCountries.size() > 249 || new HashSet<>(storageCountries).size() != storageCountries.size()
+                    || !codes.containsAll(storageCountries)
+                    || (coverage == ResidencyCoverage.UNKNOWN) != storageCountries.isEmpty()) {
+                throw new IllegalArgumentException("Residency evidence requires unique country codes and consistent coverage");
+            }
+            storageCountries = storageCountries.stream().sorted().toList();
+            validateEvidence(evidenceStatus, sourceUrl, observedAt);
         }
     }
 

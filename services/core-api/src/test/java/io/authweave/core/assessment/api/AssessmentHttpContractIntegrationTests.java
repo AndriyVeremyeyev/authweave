@@ -372,7 +372,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.assessmentVersion").value(1))
                 .andExpect(jsonPath("$.workspaceId").value(assessment.workspaceId().value().toString()))
                 .andExpect(jsonPath("$.assessmentId").value(assessment.id().value().toString()))
-                .andExpect(jsonPath("$.catalogVersion").value("synthetic-2026-09-12.2"))
+                .andExpect(jsonPath("$.catalogVersion").value("synthetic-2026-09-12.3"))
                 .andExpect(jsonPath("$.catalogKind").value("SYNTHETIC"))
                 .andExpect(jsonPath("$.policyVersion").value("eligibility-preflight-1"))
                 .andExpect(jsonPath("$.capabilityPolicyVersion").value("capability-preflight-1"))
@@ -743,6 +743,162 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         sample("v2-history-page", "assessment-revision-page.v2", true, payload);
         assertEquals(history.at("/items/1"), payload.at("/items/0"));
         assertEquals(1, payload.get("nextAfterVersion").asInt());
+    }
+
+    @Test
+    void residencyEligibilityIsCombinedReadOnlyAndSensitiveToTheAllowlist() throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v2/");
+        var update = residencyRequest("REQUIRED");
+        var details = (ObjectNode) update.at("/profile/security/dataResidencyDetails");
+        details.putArray("allowedCountries").add("DE").add("FR");
+        details.putArray("dataCategories").add("USER_PROFILES").add("BACKUPS");
+        var before = v2Response("residency-evaluation-profile", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var revisions = v2History("residency-evaluation-history-before", path);
+        var events = historyResponse("residency-evaluation-events-before", "events",
+                mvc.perform(get(assessment.path() + "/events")).andExpect(status().isOk()).andReturn());
+        var payload = residencyPreflight("residency-eligibility", path);
+        assertEquals("eligibility-preflight-2", payload.get("policyVersion").asText());
+        assertEquals("residency-preflight-1", payload.get("residencyPolicyVersion").asText());
+        assertEquals("eligibility-preflight-1", payload.get("contextPolicyVersion").asText());
+        assertEquals("capability-preflight-1", payload.get("capabilityPolicyVersion").asText());
+        assertEquals("synthetic-2026-09-12.3", payload.get("catalogVersion").asText());
+        assertEquals(before.get("version"), payload.get("assessmentVersion"));
+        assertEquals(before.get("workspaceId"), payload.get("workspaceId"));
+        assertEquals(before.get("id"), payload.get("assessmentId"));
+        assertEquals("SYNTHETIC", payload.get("catalogKind").asText());
+        assertEquals("SYNTHETIC_ELIGIBILITY_PREFLIGHT", payload.get("scope").asText());
+        assertEquals(5, payload.get("deferredPaths").size());
+        assertEquals("MATCHES_CHECKED_REQUIREMENTS", payload.at("/candidates/0/status").asText());
+        assertEquals("DOES_NOT_MATCH", payload.at("/candidates/1/status").asText());
+        assertEquals("NEEDS_INFORMATION", payload.at("/candidates/2/status").asText());
+        assertEquals("EVIDENCE_MISSING", payload.at("/candidates/2/residencyChecks/0/reasonCode").asText());
+        assertEquals("STORAGE_LOCATIONS_INCOMPLETE", payload.at("/candidates/2/residencyChecks/1/reasonCode").asText());
+        assertEquals(payload, residencyPreflight("residency-repeat", path));
+        assertEquals(before, v2Response("residency-read-only", mvc.perform(get(path)).andReturn()));
+        assertEquals(revisions, v2History("residency-history-read-only", path));
+        assertEquals(events, historyResponse("residency-events-read-only", "events",
+                mvc.perform(get(assessment.path() + "/events")).andReturn()));
+
+        var legacy = mvc.perform(get(assessment.path() + "/eligibility-preflight")).andExpect(status().isOk()).andReturn();
+        var oldPayload = mapper.readTree(legacy.getResponse().getContentAsString());
+        sample("residency-legacy-eligibility", "eligibility-preflight", true, oldPayload);
+        assertEquals(6, oldPayload.get("deferredPaths").size());
+        assertFalse(oldPayload.at("/candidates/0").has("residencyChecks"));
+        for (String group : List.of("capabilityChecks", "contextChecks")) {
+            assertEquals(oldPayload.at("/candidates/0/" + group), payload.at("/candidates/0/" + group));
+        }
+        details.putArray("allowedCountries").add("DE");
+        update.put("expectedVersion", 1);
+        var restricted = v2Response("residency-restricted-profile", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var blocked = residencyPreflight("residency-backup-exclusion", path);
+        assertEquals("DOES_NOT_MATCH", blocked.at("/candidates/0/status").asText());
+        assertEquals("FR", blocked.at("/candidates/0/residencyChecks/0/outsideAllowedCountries/0").asText());
+        assertEquals("PASS", blocked.at("/candidates/0/residencyChecks/1/outcome").asText());
+        assertEquals(restricted, v2Response("residency-restricted-read-only", mvc.perform(get(path)).andReturn()));
+
+        var falseRecommendation = (ObjectNode) payload.deepCopy();
+        falseRecommendation.put("recommendationReady", true);
+        sample("residency-no-final-recommendation", "eligibility-preflight.v2", false, falseRecommendation);
+        var falseWinner = (ObjectNode) payload.deepCopy();
+        falseWinner.put("winner", "fictional-complete");
+        sample("residency-no-winner", "eligibility-preflight.v2", false, falseWinner);
+
+        var persisted = repository.findById(assessment.workspaceId(), assessment.id()).orElseThrow();
+        persisted.assessment().archive();
+        repository.update(persisted.assessment(), persisted.version());
+        var archived = v2Response("residency-archived-before", mvc.perform(get(path)).andReturn());
+        var archivedHistory = v2History("residency-archived-history-before", path);
+        assertEquals("DOES_NOT_MATCH", residencyPreflight("residency-archived", path).at("/candidates/0/status").asText());
+        assertEquals(archived, v2Response("residency-archived-after", mvc.perform(get(path)).andReturn()));
+        assertEquals(archivedHistory, v2History("residency-archived-history-after", path));
+
+        String other = path.replace(assessment.workspaceId().value().toString(), UUID.randomUUID().toString());
+        response("residency-cross-workspace", mvc.perform(get(other + "/eligibility-preflight")).andExpect(status().isNotFound()).andReturn());
+        response("residency-missing-assessment", mvc.perform(get("/api/v2/workspaces/" + assessment.workspaceId().value()
+                + "/assessments/" + UUID.randomUUID() + "/eligibility-preflight")).andExpect(status().isNotFound()).andReturn());
+        response("residency-invalid-id", mvc.perform(get("/api/v2/workspaces/not-a-uuid/assessments/"
+                + assessment.id().value() + "/eligibility-preflight")).andExpect(status().isBadRequest()).andReturn());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN",
+            "NO_SCOPE", "NO_COUNTRIES", "NO_DETAILS", "ALL_CATEGORIES"})
+    void residencyEligibilityExposesCriticalityUncertaintyAndCategoryBoundaries(String scenario) throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v2/");
+        var blank = residencyPreflight("residency-blank", path);
+        assertEquals("NEEDS_INFORMATION", blank.at("/candidates/0/status").asText());
+        assertEquals("REQUIREMENT_UNKNOWN", blank.at("/candidates/0/residencyChecks/0/reasonCode").asText());
+        assertHistorySize(assessment, 1);
+        boolean criticality = List.of("REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN").contains(scenario);
+        var update = residencyRequest(criticality ? scenario : "REQUIRED");
+        var details = (ObjectNode) update.at("/profile/security/dataResidencyDetails");
+        details.putArray("allowedCountries").add("CA");
+        details.putArray("dataCategories").add("USER_PROFILES");
+        switch (scenario) {
+            case "NO_SCOPE" -> details.putArray("dataCategories");
+            case "NO_COUNTRIES" -> details.putArray("allowedCountries");
+            case "NO_DETAILS" -> { details.putArray("allowedCountries"); details.putArray("dataCategories"); }
+            case "ALL_CATEGORIES" -> {
+                details.putArray("allowedCountries").add("DE").add("FR");
+                details.putArray("dataCategories").add("USER_PROFILES").add("CREDENTIALS").add("BACKUPS").add("AUDIT_LOGS");
+            }
+        }
+        var before = v2Response("residency-boundary-profile", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        var history = v2History("residency-boundary-history-before", path);
+        var result = residencyPreflight("residency-" + scenario, path);
+        String reason = switch (scenario) {
+            case "REQUIRED" -> "STORAGE_OUTSIDE_ALLOWED_COUNTRIES";
+            case "PREFERRED" -> "PREFERENCE_NOT_SCORED";
+            case "NOT_REQUIRED" -> "NO_REQUIREMENT";
+            case "FORBIDDEN" -> "RESIDENCY_INTENT_UNCLEAR";
+            case "UNKNOWN" -> "REQUIREMENT_UNKNOWN";
+            case "NO_SCOPE", "NO_DETAILS" -> "DATA_SCOPE_UNKNOWN";
+            case "NO_COUNTRIES" -> "ALLOWED_COUNTRIES_UNKNOWN";
+            case "ALL_CATEGORIES" -> "STORAGE_WITHIN_ALLOWED_COUNTRIES";
+            default -> throw new AssertionError(scenario);
+        };
+        assertEquals(reason, result.at("/candidates/0/residencyChecks/0/reasonCode").asText());
+        assertEquals(scenario.equals("ALL_CATEGORIES") ? 4 : 1, result.at("/candidates/0/residencyChecks").size());
+        String expectedStatus = switch (scenario) {
+            case "REQUIRED" -> "DOES_NOT_MATCH";
+            case "PREFERRED", "NOT_REQUIRED", "ALL_CATEGORIES" -> "MATCHES_CHECKED_REQUIREMENTS";
+            default -> "NEEDS_INFORMATION";
+        };
+        assertEquals(expectedStatus, result.at("/candidates/0/status").asText());
+        if (scenario.equals("ALL_CATEGORIES")) {
+            assertEquals("EVIDENCE_UNREVIEWED", result.at("/candidates/2/residencyChecks/0/reasonCode").asText());
+            assertEquals("STORAGE_LOCATIONS_UNKNOWN", result.at("/candidates/2/residencyChecks/2/reasonCode").asText());
+        }
+        assertEquals(before, v2Response("residency-boundary-read-only", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v2History("residency-boundary-history-after", path));
+    }
+
+    private ObjectNode residencyRequest(String criticality) throws Exception {
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        var security = (ObjectNode) update.at("/profile/security");
+        security.put("dataResidency", criticality);
+        var details = security.putObject("dataResidencyDetails");
+        details.putArray("allowedCountries");
+        details.putArray("dataCategories");
+        return update;
+    }
+
+    private JsonNode residencyPreflight(String name, String path) throws Exception {
+        var result = mvc.perform(get(path + "/eligibility-preflight")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.recommendationReady").value(false)).andReturn();
+        var payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample(name, "eligibility-preflight.v2", true, payload);
+        return payload;
     }
 
     private JsonNode v2History(String name, String path) throws Exception {

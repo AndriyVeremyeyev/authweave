@@ -339,7 +339,8 @@ paths:
         not unrestricted. Processing locations, remote access, cross-border transfers
         and compliance are not represented by this input. REQUIRED and PREFERRED retain
         their existing meaning; FORBIDDEN is not interpreted as a country denylist.
-        This slice records details, but residency evaluation remains deferred.
+        Scoped residency evaluation is available through the v2 eligibility-preflight
+        endpoint; v1 preflights continue to defer it.
         Reads/no-op saves do not rewrite old snapshots. Changes atomically append a
         versioned snapshot and security-section event. V1 writes return 409 when the
         current profile contains residency details, preventing accidental data loss.
@@ -387,6 +388,41 @@ paths:
             application/json:
               schema:
                 $ref: ../schemas/assessment-revision-page.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Check capabilities, context and scoped at-rest residency against synthetic evidence
+      description: >-
+        Read-only, local-only partial eligibility check. Works with both stored profile
+        formats; legacy profiles have unrecorded residency details. Extends v1 capability
+        and context checks with one residency check per selected data category.
+        A missing scope produces an explicit unknown check for a required constraint.
+        REQUIRED passes only with complete reviewed evidence inside the allowlist;
+        confirmed outside storage fails even if other destinations are unknown.
+        Missing, unreviewed, future or stale evidence cannot prove a match or violation.
+        PREFERRED is not scored and cannot eliminate. NOT_REQUIRED imposes no constraint.
+        UNKNOWN and FORBIDDEN require clarification; an allowlist is never a denylist.
+        Region labels do not establish storage locations. Primary/replica storage and
+        BACKUPS are distinct categories. Processing, remote access, international transfers
+        and compliance are not evaluated. Any checked FAIL takes precedence without hiding
+        unknown checks. recommendationReady remains false; no scores or winner are returned.
+        Catalog and all three rule policies are identified, but no result is persisted.
+        GET does not change the profile, lifecycle, version, timestamps or history.
+      operationId: getAssessmentEligibilityPreflightV2
+      responses:
+        "200":
+          description: Versioned partial eligibility result with scoped residency reasons and evidence.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/eligibility-preflight.v2.schema.json
         "400":
           $ref: "#/components/responses/InvalidRequest"
         "404":

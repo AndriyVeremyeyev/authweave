@@ -31,6 +31,7 @@ for (const { name, schema, valid, payload } of samples) {
 }
 for (const required of ["assessment-response:true", "core-problem:true",
   "capability-preflight:true", "eligibility-preflight:true", "architecture-pattern-preflight:true",
+  "eligibility-preflight.v2:true", "eligibility-preflight.v2:false",
   "assessment-revision-page:true", "assessment-event-page:true",
   "assessment-response.v2:true", "assessment-revision-page.v2:true",
   "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",

@@ -144,8 +144,8 @@ workload authorization. Hosting is a preference, not an elimination rule.
 The response separates `capabilityChecks` and `contextChecks` and identifies both
 policies. It still has `recommendationReady: false`: security dimensions beyond MFA
 and operational constraints remain deferred. The existing `/capability-preflight`
-response shape and scope are unchanged. Both endpoints use catalog v2; the v1 fixture
-and schema remain as a compatibility baseline. Neither endpoint writes to the database.
+response shape and scope are unchanged. Both endpoints now use catalog v3; the v1/v2
+fixtures and schemas remain as compatibility baselines. Neither endpoint writes to the database.
 
 ### Architecture pattern preflight
 
@@ -195,7 +195,7 @@ must be uppercase ISO 3166-1 alpha-2 codes recognized by the backend. Empty arra
 unrecorded, not unrestricted. Both arrays must be explicit in v2; incomplete drafts
 are allowed. `FORBIDDEN` is not interpreted as a country denylist. These fields do not
 describe processing locations, support access, international transfers or compliance.
-Residency evaluation remains deferred in all preflights; no provider match is implied.
+The v2 eligibility preflight below checks this scope; v1 preflights continue to defer it.
 
 V2 reads project old profiles with empty details and `profileSchemaVersion: 2` without
 changing stored data. This field identifies the response format, not a database update.
@@ -209,6 +209,39 @@ under v2 returns original v1/v2 snapshots with each stored `profileSchemaVersion
 V1 history rejects pages containing v2 snapshots rather than dropping those details.
 Flyway V4 only widens version constraints; it does not rewrite profiles or history.
 The browser-only preview and its downloadable profile remain v1 for now.
+
+### Scoped residency eligibility
+
+GET `/api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight`
+adds `residencyChecks` to the existing capability and context checks. It works with
+both stored profile versions. Unrecorded inputs in old profiles remain unknown, not
+an unrestricted-storage assumption. The response identifies catalog v3 and the
+capability, context, residency and combined policy versions.
+
+Catalog evidence lists confirmed storage countries for each category in the exact
+option, not a menu of configurable locations. Region labels alone are not evidence.
+`COMPLETE` covers all destinations, including replicas, for that category; recovery
+copies are covered separately under `BACKUPS`. `PARTIAL` lists known destinations
+but cannot rule out others. `UNKNOWN` records no countries. Empty evidence never
+proves that a category is not stored. Alternative configurations need separate options.
+
+For `REQUIRED`, complete, reviewed, fresh evidence wholly inside the allowlist passes.
+A confirmed outside destination fails even when the remaining list is incomplete.
+Missing categories, incomplete in-country coverage, unreviewed, future or stale evidence
+give unknown, not a match. The existing inclusive 90-day evidence window applies.
+`PREFERRED` is not scored and cannot eliminate; `NOT_REQUIRED` imposes no constraint.
+`UNKNOWN` and `FORBIDDEN` require clarification rather than an inferred restriction.
+
+For example, the first fictional option stores primary profiles in `DE` and backups
+in `DE`/`FR`. Allowing only `DE` passes the profile check but fails when `BACKUPS` is
+also required; allowing `DE` and `FR` passes both checks. Any checked failure determines
+`DOES_NOT_MATCH`, without hiding other unknown checks. Unselected categories are not
+evaluated. V1 eligibility keeps its previous scope and result shape.
+
+This remains a synthetic, read-only preflight with `recommendationReady: false`.
+It changes neither assessment state nor history. Processing, remote access, transfers,
+compliance and remaining security/operations constraints are not covered. There is no
+score, final recommendation, real-provider claim or persisted evaluation yet.
 
 ### Contract validation
 

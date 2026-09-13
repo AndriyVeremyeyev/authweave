@@ -31,4 +31,15 @@ public class EligibilityPreflightService {
                 EligibilityEvaluator.DEFERRED_PATHS,
                 EligibilityEvaluator.evaluate(assessment.assessment().profile(), catalog, at));
     }
+
+    @Transactional(readOnly = true)
+    public EligibilityPreflightV2 previewWithResidency(WorkspaceId workspaceId, AssessmentId assessmentId) {
+        var assessment = assessments.getAssessment(workspaceId, assessmentId);
+        var at = clock.instant();
+        return new EligibilityPreflightV2(workspaceId.value(), assessmentId.value(), assessment.version(),
+                catalog.catalogVersion(), catalog.kind(), EligibilityEvaluator.RESIDENCY_POLICY_VERSION,
+                CapabilityEvaluator.POLICY_VERSION, EligibilityEvaluator.POLICY_VERSION, ResidencyEvaluator.POLICY_VERSION,
+                at, "SYNTHETIC_ELIGIBILITY_PREFLIGHT", false, EligibilityEvaluator.RESIDENCY_DEFERRED_PATHS,
+                EligibilityEvaluator.evaluateWithResidency(assessment.assessment().profile(), catalog, at));
+    }
 }

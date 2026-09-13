@@ -19,4 +19,9 @@ public class EligibilityPreflightController {
     public EligibilityPreflight preview(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId) {
         return service.preview(new WorkspaceId(workspaceId), new AssessmentId(assessmentId));
     }
+
+    @GetMapping("/api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight")
+    public EligibilityPreflightV2 previewWithResidency(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId) {
+        return service.previewWithResidency(new WorkspaceId(workspaceId), new AssessmentId(assessmentId));
+    }
 }

@@ -288,6 +288,39 @@ test("catalog v2 requires explicit context evidence and rejects unclassified cat
   assert.equal(validate(empty), false, "All context groups must be explicit, even when empty.");
 });
 
+test("catalog v3 preserves old facts and requires category-scoped residency evidence", async () => {
+  const catalog = await readJson(path.join(contractsRoot,
+    "../../services/core-api/src/main/resources/catalog/synthetic.v3.json"));
+  const legacy = await readJson(path.join(contractsRoot,
+    "../../services/core-api/src/main/resources/catalog/synthetic.v2.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/synthetic-provider-catalog.v3.schema.json");
+  assert.equal(validate(catalog), true, validationMessage(validate));
+  assert.deepEqual(catalog.options.map(({ residency, ...option }) => option), legacy.options,
+    "Residency evidence must not rewrite existing capability or context facts.");
+  assert.equal(validate(legacy), false);
+  const original = catalog.options[0].residency.USER_PROFILES;
+  for (const field of ["coverage", "storageCountries", "evidenceStatus", "sourceUrl", "observedAt"]) {
+    const invalid = structuredClone(catalog);
+    delete invalid.options[0].residency.USER_PROFILES[field];
+    assert.equal(validate(invalid), false, field);
+  }
+  for (const changes of [{ coverage: "COMPLETE", storageCountries: [] },
+    { coverage: "PARTIAL", storageCountries: [] }, { coverage: "UNKNOWN", storageCountries: ["DE"] },
+    { storageCountries: ["DE", "DE"] }, { storageCountries: ["de"] },
+    { sourceUrl: "https://vendor.example.com/residency" }, { coverage: "MAYBE" }, { compliant: true }]) {
+    const invalid = structuredClone(catalog);
+    invalid.options[0].residency.USER_PROFILES = { ...original, ...changes };
+    assert.equal(validate(invalid), false, JSON.stringify(changes));
+  }
+  const missing = structuredClone(catalog);
+  missing.options[0].residency = {};
+  assert.equal(validate(missing), true, "Missing categories must remain representable as unknown evidence.");
+  missing.options[0].residency.ALL = original;
+  assert.equal(validate(missing), false);
+  delete missing.options[0].residency;
+  assert.equal(validate(missing), false, "The v3 category map must be explicit, even when empty.");
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

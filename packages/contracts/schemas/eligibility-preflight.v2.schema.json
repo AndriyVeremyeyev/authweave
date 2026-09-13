@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/eligibility-preflight.v2.schema.json",
+  "title": "Synthetic eligibility preflight v2 with scoped residency",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "catalogVersion",
+    "catalogKind",
+    "policyVersion",
+    "evaluatedAt",
+    "scope",
+    "recommendationReady",
+    "deferredPaths",
+    "candidates",
+    "capabilityPolicyVersion",
+    "contextPolicyVersion",
+    "residencyPolicyVersion"
+  ],
+  "properties": {
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "catalogVersion": {
+      "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/identifier"
+    },
+    "catalogKind": {
+      "const": "SYNTHETIC"
+    },
+    "policyVersion": {
+      "const": "eligibility-preflight-2"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "const": "SYNTHETIC_ELIGIBILITY_PREFLIGHT"
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "deferredPaths": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "security.browserTokenExposureMinimization",
+          "security.auditability",
+          "security.assurance",
+          "security.complianceTargets",
+          "operations"
+        ]
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    },
+    "capabilityPolicyVersion": {
+      "const": "capability-preflight-1"
+    },
+    "contextPolicyVersion": {
+      "const": "eligibility-preflight-1"
+    },
+    "residencyPolicyVersion": {
+      "const": "residency-preflight-1"
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionId",
+        "displayName",
+        "plan",
+        "region",
+        "status",
+        "capabilityChecks",
+        "contextChecks",
+        "residencyChecks"
+      ],
+      "properties": {
+        "optionId": {
+          "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/identifier"
+        },
+        "displayName": {
+          "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/label"
+        },
+        "plan": {
+          "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/label"
+        },
+        "region": {
+          "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/label"
+        },
+        "status": {
+          "enum": [
+            "MATCHES_CHECKED_REQUIREMENTS",
+            "DOES_NOT_MATCH",
+            "NEEDS_INFORMATION"
+          ]
+        },
+        "capabilityChecks": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "items": {
+            "$ref": "./capability-preflight.v1.schema.json#/$defs/check"
+          }
+        },
+        "contextChecks": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/contextCheck"
+          }
+        },
+        "residencyChecks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4,
+          "items": {
+            "$ref": "#/$defs/residencyCheck"
+          }
+        }
+      }
+    },
+    "contextCheck": {
+      "$ref": "./eligibility-preflight.v1.schema.json#/$defs/contextCheck"
+    },
+    "residencyCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profilePath",
+        "criticality",
+        "dataCategory",
+        "allowedCountries",
+        "outsideAllowedCountries",
+        "outcome",
+        "reasonCode",
+        "explanation",
+        "evidence"
+      ],
+      "properties": {
+        "profilePath": {
+          "const": "security.dataResidency"
+        },
+        "criticality": {
+          "enum": [
+            "REQUIRED",
+            "PREFERRED",
+            "NOT_REQUIRED",
+            "FORBIDDEN",
+            "UNKNOWN"
+          ]
+        },
+        "dataCategory": {
+          "enum": [
+            "USER_PROFILES",
+            "CREDENTIALS",
+            "AUDIT_LOGS",
+            "BACKUPS",
+            null
+          ]
+        },
+        "allowedCountries": {
+          "type": "array",
+          "maxItems": 249,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          }
+        },
+        "outsideAllowedCountries": {
+          "type": "array",
+          "maxItems": 249,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          }
+        },
+        "outcome": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+            "NOT_APPLIED"
+          ]
+        },
+        "reasonCode": {
+          "enum": [
+            "STORAGE_WITHIN_ALLOWED_COUNTRIES",
+            "STORAGE_OUTSIDE_ALLOWED_COUNTRIES",
+            "STORAGE_LOCATIONS_INCOMPLETE",
+            "STORAGE_LOCATIONS_UNKNOWN",
+            "DATA_SCOPE_UNKNOWN",
+            "ALLOWED_COUNTRIES_UNKNOWN",
+            "RESIDENCY_INTENT_UNCLEAR",
+            "REQUIREMENT_UNKNOWN",
+            "PREFERENCE_NOT_SCORED",
+            "NO_REQUIREMENT",
+            "EVIDENCE_MISSING",
+            "EVIDENCE_UNREVIEWED",
+            "EVIDENCE_FROM_FUTURE",
+            "EVIDENCE_STALE"
+          ]
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "evidence": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "./synthetic-provider-catalog.v3.schema.json#/$defs/residencyFact"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
