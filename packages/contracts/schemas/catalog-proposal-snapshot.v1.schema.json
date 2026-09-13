@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-snapshot.v1.schema.json",
+  "title": "Stored unreviewed catalog proposal snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "proposalId",
+    "version",
+    "state",
+    "requestSchemaVersion",
+    "proposalSha256",
+    "recordedAt",
+    "request",
+    "preview"
+  ],
+  "properties": {
+    "proposalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "state": {
+      "const": "PROPOSED"
+    },
+    "requestSchemaVersion": {
+      "const": 1
+    },
+    "proposalSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "request": {
+      "$ref": "./catalog-change-preview-request.v1.schema.json"
+    },
+    "preview": {
+      "$ref": "./catalog-change-preview.v1.schema.json",
+      "type": "object",
+      "properties": {
+        "status": {
+          "const": "REVIEW_REQUIRED"
+        },
+        "diffComputed": {
+          "const": true
+        }
+      }
+    }
+  }
+}

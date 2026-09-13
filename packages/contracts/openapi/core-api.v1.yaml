@@ -21,6 +21,81 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-change-proposals/{proposalId}:
+    get:
+      tags: [Catalog drafts]
+      summary: Read the latest stored unreviewed proposal revision
+      operationId: getCatalogProposal
+      description: >-
+        Loopback-only development read, not authenticated curator access. Writes are only
+        available through an explicit local non-web command. Returns the immutable stored
+        request and preview without recalculating freshness or trusting the supplied base.
+        PROPOSED is stored, but no approval, rejection or catalog activation exists.
+        The nested preview's writesPerformed=false describes the historical preview, not
+        whether this proposal snapshot was persisted. Proposal versions are independent
+        from catalogVersion and do not reserve a published catalog version name.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+      responses:
+        '200':
+          description: Latest persisted request and historical preview.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-snapshot.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
+  /api/v1/catalog-change-proposals/{proposalId}/revisions:
+    get:
+      tags: [Catalog drafts]
+      summary: Read immutable proposal revisions in ascending version order
+      operationId: getCatalogProposalRevisions
+      description: >-
+        Local-only history. afterVersion is an exclusive cursor; nextAfterVersion is null
+        when no later revision was observed. Stored previews retain their original clock,
+        policy and provenance, not a current source verification. No writes are performed.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - $ref: '#/components/parameters/AfterVersion'
+        - $ref: '#/components/parameters/HistoryLimit'
+      responses:
+        '200':
+          description: A bounded page of stored proposal revisions.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-revision-page.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
+  /api/v1/catalog-change-proposals/{proposalId}/events:
+    get:
+      tags: [Catalog drafts]
+      summary: Read committed proposal creation and revision events
+      operationId: getCatalogProposalEvents
+      description: >-
+        Local-only minimal events, attributed to SERVICE/core-api-local-catalog rather
+        than an authenticated curator. No rationale, source text or raw proposal payload.
+        No-op saves and failed transactions do not create events. This is not a record
+        of authorized review decisions. afterVersion is exclusive; ordering is ascending.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - $ref: '#/components/parameters/AfterVersion'
+        - $ref: '#/components/parameters/HistoryLimit'
+      responses:
+        '200':
+          description: A bounded page of proposal write events.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-event-page.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
   /api/v1/catalog-change-proposals/preview:
     post:
       tags: [Catalog drafts]
@@ -883,6 +958,14 @@ paths:
           $ref: "#/components/responses/AssessmentNotFound"
 components:
   parameters:
+    CatalogProposalId:
+      name: proposalId
+      in: path
+      required: true
+      description: Identifier of a locally stored unreviewed catalog proposal.
+      schema:
+        type: string
+        format: uuid
     WorkspaceId:
       name: workspaceId
       in: path
@@ -922,6 +1005,12 @@ components:
         type: string
         format: uri-reference
   responses:
+    CatalogProposalNotFound:
+      description: No stored proposal exists for this ID.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/core-problem.v1.schema.json
     ProfileUpgradeRequired:
       description: This representation cannot preserve newer requirements; use the compatible v2, v3, v4 or v5 endpoint.
       content:

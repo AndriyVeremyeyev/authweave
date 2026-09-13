@@ -446,8 +446,8 @@ sorts object keys and all v1 unordered collections (options, conditions, countri
 normalizes timestamps to instants and preserves text. It hashes the supplied data,
 not the remote page, and is not a signature or publication ID. The observation clock
 can change freshness without changing this digest. Version names are not reserved;
-immutable storage, authorized approval, catalog activation and durable assessment/result
-pinning remain subsequent steps. A stateless semantic diff is available below.
+authorized approval, catalog activation and durable assessment/result pinning remain
+subsequent steps. Semantic diff and local proposal history are available below.
 
 With the local Core API already running, from the repository root:
 
@@ -516,8 +516,55 @@ curl --fail-with-body --silent --show-error \
 
 This fictional fixture yields `REVIEW_REQUIRED`, one `facts.SCIM` claim change from
 `OPTIONAL` to `UNAVAILABLE`, and all six flags false. No new accounts, dependencies,
-migrations or paid services are required. Durable proposal history, authorized curator
-decisions, impact analysis, activation and catalog-version pinning remain subsequent work.
+migrations or paid services are required for the preview. Local proposal history is
+described below; authorized curator decisions, impact analysis, activation and
+catalog-version pinning remain subsequent work.
+
+### Local proposal storage and history
+
+An explicit non-web command can now save an unreviewed proposal to PostgreSQL. Normal
+Core API startup does not enable its `local-catalog-write` component; there is no HTTP
+create/update/approve/reject/publish action. This development command is not authenticated
+curator authorization and must not be exposed as a remote user-facing write interface.
+Use only synthetic, non-sensitive input until the authentication and data-handling flow
+is implemented. The active catalog and assessments are not changed.
+
+The command accepts the same preview request as a regular local JSON file (absolute
+path, at most 32 MiB). Only `REVIEW_REQUIRED` proposals are stored; malformed, blocked
+and content-unchanged comparisons are rejected. Starting from the repository root with
+local PostgreSQL running:
+
+```shell
+AUTHWEAVE_CATALOG_PROPOSAL_FILE="$PWD/packages/contracts/tests/fixtures/catalog-change-preview-request.valid.json" \
+  make store-catalog-proposal
+```
+
+Leave `AUTHWEAVE_CATALOG_EXPECTED_VERSION` unset for creation. The first call reports
+`SAVED ... version=0 state=PROPOSED`; the identical creation retry reports `UNCHANGED`.
+To revise an existing proposal, provide a changed file with the same `proposalId` and
+`AUTHWEAVE_CATALOG_EXPECTED_VERSION=0` (or its current version). A successful revision
+increments the proposal version. This version is separate from the draft's `catalogVersion`;
+it does not reserve or publish a catalog version. Missing/stale expected versions cannot
+overwrite an existing proposal. Stale-version checks precede no-op detection; a matching
+current version with identical canonical content preserves the original snapshot and event.
+
+Each successful change commits the head, immutable request/preview snapshot and minimal
+event together. Failure rolls back all three. Events identify `SERVICE/core-api-local-catalog`,
+not a verified human, and contain IDs, versions and a digest, not rationale or source text.
+Runtime permissions deny rewriting/deleting history; the web database role has no access.
+This protects against runtime history mutation, not a database administrator.
+
+With the local Core API running, GET `/api/v1/catalog-change-proposals/{proposalId}`
+returns the latest stored revision; `/revisions` and `/events` accept `afterVersion`
+(exclusive, non-negative safe integer) and `limit` (1–100, default 50). These local-only
+reads are not workspace-authorized endpoints. They return historical snapshots without
+recomputing freshness. The nested preview's `writesPerformed: false` describes that
+preview operation, not whether the containing proposal was saved. State is only `PROPOSED`;
+there is no review decision, verified baseline, impact run, approval or activation.
+
+Flyway V8 adds the proposal head, revision and event tables without rewriting assessment
+data. jOOQ types are generated from the migration. No dependencies, accounts or paid
+services are added; the command exits without leaving a development server running.
 
 ### Contract validation
 

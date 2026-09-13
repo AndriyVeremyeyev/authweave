@@ -28,6 +28,15 @@ import tools.jackson.core.JacksonException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
 
+    @ExceptionHandler(io.authweave.core.catalog.proposal.CatalogProposalException.class)
+    ProblemDetail catalogProposalMissing(io.authweave.core.catalog.proposal.CatalogProposalException exception,
+            HttpServletRequest request) {
+        // Only reads are HTTP-accessible. Do not accidentally expose future write failures as 404.
+        if (exception.reason() != io.authweave.core.catalog.proposal.CatalogProposalException.Reason.NOT_FOUND) throw exception;
+        return problem(HttpStatus.NOT_FOUND, "catalog-proposal-not-found", "Catalog proposal not found",
+                "The requested catalog proposal does not exist.", request);
+    }
+
     @ExceptionHandler(io.authweave.core.assessment.application.ProfileUpgradeRequiredException.class)
     ProblemDetail profileUpgradeRequired(RuntimeException exception, HttpServletRequest request) {
         return problem(HttpStatus.CONFLICT, "profile-upgrade-required", "Use profile API v2", exception.getMessage(), request);

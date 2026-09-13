@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 
 import javax.annotation.processing.Generated;
 
@@ -27,4 +28,10 @@ public class Tables {
      * update or delete events.
      */
     public static final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
+
+    /**
+     * Atomic proposal-write events attributed to the local service, not a
+     * verified human curator. No raw proposal text.
+     */
+    public static final CatalogProposalEvents CATALOG_PROPOSAL_EVENTS = CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS;
 }

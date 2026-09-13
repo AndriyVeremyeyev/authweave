@@ -641,6 +641,35 @@ test("catalog change reports preserve typed before/after values and fail closed"
   assert.equal(validate({ ...blocked, proposalState: "APPROVED" }), false);
   const unchanged = { ...blocked, status: "NO_CONTENT_CHANGES", diffComputed: true, blockers: [] };
   assert.equal(validate(unchanged), true);
+
+  const snapshot = { proposalId: input.proposalId, version: 0, state: "PROPOSED", requestSchemaVersion: 1,
+    proposalSha256: report.proposalSha256, recordedAt: report.evaluatedAt, request: input, preview: report };
+  const validateSnapshot = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-snapshot.v1.schema.json");
+  assert.equal(validateSnapshot(snapshot), true, validationMessage(validateSnapshot));
+  for (const invalid of [{ state: "APPROVED" }, { version: -1 }, { version: 9007199254740992 }, { requestSchemaVersion: 2 },
+    { preview: blocked }, { preview: unchanged }, { actorId: "forged" }]) assert.equal(validateSnapshot({ ...snapshot, ...invalid }), false);
+  const validatePage = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-revision-page.v1.schema.json");
+  assert.equal(validatePage({ items: [snapshot], nextAfterVersion: null }), true);
+  assert.equal(validatePage({ items: [], nextAfterVersion: null }), true);
+  assert.equal(validatePage({ items: [snapshot], nextAfterVersion: -1 }), false);
+  assert.equal(validatePage({ items: Array(101).fill(snapshot), nextAfterVersion: 0 }), false);
+});
+
+test("stored proposal events describe local writes without claiming authorized review", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-event.v1.schema.json");
+  const event = { id: "11111111-1111-4111-8111-111111111111", proposalId: "22222222-2222-4222-8222-222222222222",
+    version: 0, previousVersion: null, action: "catalog-proposal.created", actorType: "SERVICE", actorId: "core-api-local-catalog",
+    correlationId: "33333333-3333-4333-8333-333333333333", outcome: "SUCCEEDED", proposalSha256: "0".repeat(64), occurredAt: "2026-09-13T12:00:00Z" };
+  assert.equal(validate(event), true, validationMessage(validate));
+  assert.equal(validate({ ...event, version: 1, previousVersion: 0, action: "catalog-proposal.revised" }), true);
+  for (const invalid of [{ previousVersion: 0 }, { version: 1 }, { actorType: "CURATOR" }, { actorId: "forged" },
+    { action: "catalog-proposal.approved" }, { rationale: "Raw input" }, { outcome: "FAILED" }, { version: 9007199254740992 }]) {
+    assert.equal(validate({ ...event, ...invalid }), false);
+  }
+  const page = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-event-page.v1.schema.json");
+  assert.equal(page({ items: [event], nextAfterVersion: 0 }), true);
+  assert.equal(page({ items: [], nextAfterVersion: null }), true);
+  assert.equal(page({ items: [{ ...event, actorType: "CURATOR" }], nextAfterVersion: null }), false);
 });
 
 test("request rejects unknown fields", () => {

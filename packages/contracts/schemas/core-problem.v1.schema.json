@@ -17,6 +17,7 @@
         "invalid-assessment-transition",
         "workspace-not-found",
         "assessment-not-found",
+        "catalog-proposal-not-found",
         "assessment-version-conflict",
         "profile-upgrade-required",
         "invalid-application-identity-profile"

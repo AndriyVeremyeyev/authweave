@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-event.v1.schema.json",
+  "title": "Local catalog proposal event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "proposalId",
+    "version",
+    "previousVersion",
+    "action",
+    "actorType",
+    "actorId",
+    "correlationId",
+    "outcome",
+    "proposalSha256",
+    "occurredAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "proposalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "previousVersion": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      ]
+    },
+    "action": {
+      "enum": [
+        "catalog-proposal.created",
+        "catalog-proposal.revised"
+      ]
+    },
+    "actorType": {
+      "const": "SERVICE"
+    },
+    "actorId": {
+      "const": "core-api-local-catalog"
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "outcome": {
+      "const": "SUCCEEDED"
+    },
+    "proposalSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "const": 0
+          }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "previousVersion": {
+            "type": "null"
+          },
+          "action": {
+            "const": "catalog-proposal.created"
+          }
+        }
+      },
+      "else": {
+        "type": "object",
+        "properties": {
+          "previousVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "action": {
+            "const": "catalog-proposal.revised"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -57,6 +57,11 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     @Autowired private MockMvc mvc;
     @Autowired private ObjectMapper mapper;
     @Autowired private AssessmentRepository repository;
+    @Autowired private org.jooq.DSLContext proposalDsl;
+    @Autowired private org.springframework.transaction.PlatformTransactionManager proposalTransactions;
+    @Autowired private io.authweave.core.catalog.proposal.CatalogProposalRepository proposals;
+    @Autowired private io.authweave.core.catalog.draft.CatalogChangePreviewService proposalPreviews;
+    @Autowired private org.springframework.context.ApplicationContext applicationContext;
 
     @TestConfiguration(proxyBeanMethods = false)
     static class PreflightClock {
@@ -1854,6 +1859,74 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         sample("proposal-invalid-" + scenario, "catalog-change-preview-request", false, input);
         response("proposal-invalid-" + scenario, mvc.perform(post("/api/v1/catalog-change-proposals/preview").contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(input))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("invalid-request")).andReturn());
+    }
+
+    @Test
+    void storedProposalReadsExposeImmutableVersionsAndMinimalEventsWithoutAnHttpWriteBoundary() throws Exception {
+        assertEquals(0, applicationContext.getBeansOfType(io.authweave.core.catalog.proposal.LocalCatalogProposalWriter.class).size());
+        var input = proposalRequest(); var id = UUID.randomUUID(); input.put("proposalId", id.toString());
+        String base = "/api/v1/catalog-change-proposals/" + id;
+        // Fixture setup uses the explicit command writer inside a transaction, not an HTTP mutation.
+        var first = storeProposal(input, null);
+        var original = versionedSample("stored-proposal-current", "catalog-proposal-snapshot", mvc.perform(get(base)).andExpect(status().isOk()).andReturn());
+        // Compare the wire representation: tree conversion preserves Java Long nodes while JSON parsing uses Int for zero.
+        assertEquals(mapper.readTree(mapper.writeValueAsString(first.proposal())), original);
+        assertEquals("PROPOSED", original.get("state").asText());
+        assertEquals("REVIEW_REQUIRED", original.at("/preview/status").asText());
+        input.put("rationale", "A revised fictional explanation"); storeProposal(input, 0L);
+        var latest = versionedSample("stored-proposal-revised", "catalog-proposal-snapshot", mvc.perform(get(base)).andReturn());
+        assertEquals(1, latest.get("version").asInt());
+        var revisions = versionedSample("stored-proposal-revisions", "catalog-proposal-revision-page", mvc.perform(get(base + "/revisions?limit=1")).andReturn());
+        assertEquals(original, revisions.get("items").get(0)); assertEquals(0L, revisions.get("nextAfterVersion").asLong());
+        var rest = versionedSample("stored-proposal-revisions-next", "catalog-proposal-revision-page", mvc.perform(get(base + "/revisions?afterVersion=0&limit=1")).andReturn());
+        assertEquals(latest, rest.get("items").get(0)); assertEquals(mapper.nullNode(), rest.get("nextAfterVersion"));
+        versionedSample("stored-proposal-revisions-empty", "catalog-proposal-revision-page", mvc.perform(get(base + "/revisions?afterVersion=1")).andReturn());
+        var events = versionedSample("stored-proposal-events", "catalog-proposal-event-page", mvc.perform(get(base + "/events")).andReturn());
+        assertEquals(2, events.get("items").size()); assertEquals("SERVICE", events.at("/items/0/actorType").asText());
+        assertFalse(events.toString().contains("rationale")); assertFalse(events.toString().contains("sourceUrl"));
+        assertFalse(events.toString().contains(input.get("rationale").asText()));
+        versionedSample("stored-proposal-events-page", "catalog-proposal-event-page", mvc.perform(get(base + "/events?limit=1")).andReturn());
+        versionedSample("stored-proposal-events-next", "catalog-proposal-event-page", mvc.perform(get(base + "/events?afterVersion=0&limit=1")).andReturn());
+        versionedSample("stored-proposal-events-empty", "catalog-proposal-event-page", mvc.perform(get(base + "/events?afterVersion=1")).andReturn());
+        var invalid = (ObjectNode) latest.deepCopy(); invalid.put("state", "APPROVED"); sample("stored-no-approval", "catalog-proposal-snapshot", false, invalid);
+        invalid = (ObjectNode) latest.deepCopy(); ((ObjectNode) invalid.get("preview")).put("approvalGranted", true);
+        sample("stored-no-false-preview-approval", "catalog-proposal-snapshot", false, invalid);
+        invalid = (ObjectNode) revisions.deepCopy(); invalid.put("nextAfterVersion", -1); sample("stored-invalid-cursor", "catalog-proposal-revision-page", false, invalid);
+        invalid = (ObjectNode) events.deepCopy(); ((ObjectNode) invalid.at("/items/0")).put("actorType", "CURATOR");
+        sample("stored-no-forged-human", "catalog-proposal-event-page", false, invalid);
+        invalid = (ObjectNode) events.deepCopy(); ((ObjectNode) invalid.at("/items/0")).put("rationale", "Raw input is not an event");
+        sample("stored-no-event-payload", "catalog-proposal-event-page", false, invalid);
+        mvc.perform(post("/api/v1/catalog-change-proposals").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(input))).andExpect(status().is4xxClientError());
+        mvc.perform(put(base).contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(input))).andExpect(status().isMethodNotAllowed());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(base)).andExpect(status().isMethodNotAllowed());
+        for (String action : List.of("approve", "reject", "publish")) mvc.perform(post(base + "/" + action)).andExpect(status().is4xxClientError());
+        assertEquals(latest, versionedSample("stored-proposal-unchanged-by-reads", "catalog-proposal-snapshot", mvc.perform(get(base)).andReturn()));
+        assertEquals(2, proposals.events(id, null, 100).items().size());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"limit=0", "limit=101", "limit=1.5", "limit=no", "afterVersion=-1", "afterVersion=9007199254740992", "afterVersion=1.5", "afterVersion=no"})
+    void proposalHistoryRejectsInvalidPageParameters(String query) throws Exception {
+        for (String suffix : List.of("revisions", "events")) {
+            response("proposal-history-bounds", mvc.perform(get("/api/v1/catalog-change-proposals/" + UUID.randomUUID() + "/" + suffix + "?" + query))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("invalid-request")).andReturn());
+        }
+    }
+
+    @Test
+    void proposalReadsDistinguishInvalidIdsAndAbsentProposals() throws Exception {
+        for (String suffix : List.of("", "/revisions", "/events")) {
+            response("proposal-invalid-id", mvc.perform(get("/api/v1/catalog-change-proposals/invalid" + suffix))
+                    .andExpect(status().isBadRequest()).andReturn());
+            response("proposal-not-found", mvc.perform(get("/api/v1/catalog-change-proposals/" + UUID.randomUUID() + suffix))
+                    .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("catalog-proposal-not-found")).andReturn());
+        }
+    }
+
+    private io.authweave.core.catalog.proposal.LocalCatalogProposalWriter.SaveResult storeProposal(ObjectNode input, Long expectedVersion) {
+        return new org.springframework.transaction.support.TransactionTemplate(proposalTransactions).execute(status ->
+                new io.authweave.core.catalog.proposal.LocalCatalogProposalWriter(proposalDsl, mapper, proposalPreviews, proposals)
+                        .save(mapper.treeToValue(input, io.authweave.core.catalog.draft.CatalogChangePreviewRequest.class), expectedVersion));
     }
 
     private JsonNode previewProposal(String name, ObjectNode input) throws Exception {

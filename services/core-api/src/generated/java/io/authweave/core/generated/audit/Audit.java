@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 
 import java.util.Arrays;
 import java.util.List;
@@ -44,6 +45,12 @@ public class Audit extends SchemaImpl {
     public final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
 
     /**
+     * Atomic proposal-write events attributed to the local service, not a
+     * verified human curator. No raw proposal text.
+     */
+    public final CatalogProposalEvents CATALOG_PROPOSAL_EVENTS = CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS;
+
+    /**
      * No further instances allowed
      */
     private Audit() {
@@ -59,7 +66,8 @@ public class Audit extends SchemaImpl {
     @Override
     public final List<Table<?>> getTables() {
         return Arrays.asList(
-            AssessmentEvents.ASSESSMENT_EVENTS
+            AssessmentEvents.ASSESSMENT_EVENTS,
+            CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS
         );
     }
 }

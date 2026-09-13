@@ -6,6 +6,8 @@ package io.authweave.core.generated.jooq;
 
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
+import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
+import io.authweave.core.generated.jooq.tables.CatalogProposals;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 
 import javax.annotation.processing.Generated;
@@ -35,6 +37,18 @@ public class Tables {
      * version.
      */
     public static final Assessments ASSESSMENTS = Assessments.ASSESSMENTS;
+
+    /**
+     * Immutable request and preview snapshots. Freshness is historical, never
+     * recomputed when reading.
+     */
+    public static final CatalogProposalRevisions CATALOG_PROPOSAL_REVISIONS = CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS;
+
+    /**
+     * Local unreviewed proposal heads, not catalog activation, approval or
+     * authenticated ownership.
+     */
+    public static final CatalogProposals CATALOG_PROPOSALS = CatalogProposals.CATALOG_PROPOSALS;
 
     /**
      * Personal AuthWeave workspace boundary; authentication ownership is added

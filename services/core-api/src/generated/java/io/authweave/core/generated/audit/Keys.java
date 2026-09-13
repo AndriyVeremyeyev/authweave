@@ -5,7 +5,9 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 import io.authweave.core.generated.audit.tables.records.AssessmentEventsRecord;
+import io.authweave.core.generated.audit.tables.records.CatalogProposalEventsRecord;
 
 import javax.annotation.processing.Generated;
 
@@ -35,4 +37,6 @@ public class Keys {
 
     public static final UniqueKey<AssessmentEventsRecord> ASSESSMENT_EVENTS_ID_KEY = Internal.createUniqueKey(AssessmentEvents.ASSESSMENT_EVENTS, DSL.name("assessment_events_id_key"), new TableField[] { AssessmentEvents.ASSESSMENT_EVENTS.ID }, true);
     public static final UniqueKey<AssessmentEventsRecord> ASSESSMENT_EVENTS_PK = Internal.createUniqueKey(AssessmentEvents.ASSESSMENT_EVENTS, DSL.name("assessment_events_pk"), new TableField[] { AssessmentEvents.ASSESSMENT_EVENTS.WORKSPACE_ID, AssessmentEvents.ASSESSMENT_EVENTS.ASSESSMENT_ID, AssessmentEvents.ASSESSMENT_EVENTS.VERSION }, true);
+    public static final UniqueKey<CatalogProposalEventsRecord> CATALOG_PROPOSAL_EVENTS_ID_KEY = Internal.createUniqueKey(CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS, DSL.name("catalog_proposal_events_id_key"), new TableField[] { CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS.ID }, true);
+    public static final UniqueKey<CatalogProposalEventsRecord> CATALOG_PROPOSAL_EVENTS_PK = Internal.createUniqueKey(CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS, DSL.name("catalog_proposal_events_pk"), new TableField[] { CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS.PROPOSAL_ID, CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS.VERSION }, true);
 }
