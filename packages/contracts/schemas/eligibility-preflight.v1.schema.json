@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/eligibility-preflight.v1.schema.json",
+  "title": "Synthetic eligibility preflight v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "catalogVersion",
+    "catalogKind",
+    "policyVersion",
+    "evaluatedAt",
+    "scope",
+    "recommendationReady",
+    "deferredPaths",
+    "candidates",
+    "capabilityPolicyVersion"
+  ],
+  "properties": {
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "catalogVersion": {
+      "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/identifier"
+    },
+    "catalogKind": {
+      "const": "SYNTHETIC"
+    },
+    "policyVersion": {
+      "const": "eligibility-preflight-1"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "const": "SYNTHETIC_ELIGIBILITY_PREFLIGHT"
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "deferredPaths": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "security.browserTokenExposureMinimization",
+          "security.auditability",
+          "security.dataResidency",
+          "security.assurance",
+          "security.complianceTargets",
+          "operations"
+        ]
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    },
+    "capabilityPolicyVersion": {
+      "const": "capability-preflight-1"
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionId",
+        "displayName",
+        "plan",
+        "region",
+        "status",
+        "capabilityChecks",
+        "contextChecks"
+      ],
+      "properties": {
+        "optionId": {
+          "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/identifier"
+        },
+        "displayName": {
+          "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/label"
+        },
+        "plan": {
+          "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/label"
+        },
+        "region": {
+          "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/label"
+        },
+        "status": {
+          "enum": [
+            "MATCHES_CHECKED_REQUIREMENTS",
+            "DOES_NOT_MATCH",
+            "NEEDS_INFORMATION"
+          ]
+        },
+        "capabilityChecks": {
+          "type": "array",
+          "minItems": 9,
+          "maxItems": 9,
+          "items": {
+            "$ref": "./capability-preflight.v1.schema.json#/$defs/check"
+          }
+        },
+        "contextChecks": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 12,
+          "items": {
+            "$ref": "#/$defs/contextCheck"
+          }
+        }
+      }
+    },
+    "contextCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dimension",
+        "profilePath",
+        "requestedValue",
+        "outcome",
+        "reasonCode",
+        "explanation",
+        "evidence"
+      ],
+      "properties": {
+        "dimension": {
+          "enum": [
+            "APPLICATION_TYPE",
+            "CLIENT_TYPE",
+            "USER_POPULATION",
+            "TENANCY",
+            "MEMBERSHIP"
+          ]
+        },
+        "profilePath": {
+          "enum": [
+            "application.type",
+            "application.clients",
+            "audience.populations",
+            "audience.tenancy",
+            "audience.membership"
+          ]
+        },
+        "requestedValue": {
+          "enum": [
+            "B2B_SAAS",
+            "PARTNER_PORTAL",
+            "PUBLIC_SECTOR_PORTAL",
+            "INTERNAL_WORKFORCE",
+            "BROWSER",
+            "NATIVE_MOBILE",
+            "MACHINE_TO_MACHINE",
+            "EXTERNAL_CUSTOMERS",
+            "PARTNERS",
+            "CITIZENS",
+            "EMPLOYEES",
+            "CONTRACTORS",
+            "INTERNAL_OPERATORS",
+            "MULTI_TENANT_ORGANIZATIONS",
+            "SINGLE_ORGANIZATION",
+            "NO_ORGANIZATION_BOUNDARY",
+            "SINGLE_ORGANIZATION_PER_USER",
+            "MULTIPLE_ORGANIZATIONS_PER_USER",
+            "NOT_APPLICABLE",
+            "UNKNOWN",
+            "OTHER",
+            null
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+            "NOT_APPLIED"
+          ]
+        },
+        "reasonCode": {
+          "enum": [
+            "CONTEXT_SUPPORTED",
+            "CONTEXT_UNSUPPORTED",
+            "PROFILE_CONTEXT_UNKNOWN",
+            "CONTEXT_SUPPORT_UNKNOWN",
+            "HUMAN_POPULATION_NOT_APPLICABLE",
+            "EVIDENCE_MISSING",
+            "EVIDENCE_UNREVIEWED",
+            "EVIDENCE_STALE",
+            "EVIDENCE_FROM_FUTURE"
+          ]
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "evidence": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "./synthetic-provider-catalog.v2.schema.json#/$defs/compatibilityFact"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

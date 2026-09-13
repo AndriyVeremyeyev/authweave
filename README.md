@@ -68,8 +68,8 @@ selections mean no choice was recorded, not that a topic is unnecessary.
 The Core API stores immutable assessment revisions and atomic state-change events,
 with workspace-scoped paginated history reads. Runtime database roles cannot update
 or delete history. The API remains local-only, without authenticated workspace access.
-The Core API also offers a read-only capability preflight against explicitly fictional
-plans. Full provider evaluation, ADR export and authenticated workflows are still
+The Core API also offers read-only capability and context preflights against explicitly
+fictional plans. Full provider evaluation, ADR export and authenticated workflows are still
 planned. The AI worker exposes health endpoints.
 
 To run just the preview, only Node.js and npm are required:
@@ -121,6 +121,31 @@ All evidence URLs use reserved `.invalid` hosts and are never fetched. The fixtu
 observation dates are fixed, not refreshed automatically; tests use an explicit clock.
 The catalog and policy versions plus evaluation instant identify the inputs to this
 partial check. PostgreSQL catalog publication and durable result pinning remain planned.
+
+### Synthetic context compatibility
+
+Use the same assessment URL with `/eligibility-preflight` to combine the nine
+capability checks with application type, clients, user populations, tenancy and
+organization membership:
+
+```shell
+curl --fail --silent --show-error \
+  http://127.0.0.1:8080/api/v1/workspaces/60000000-0000-4000-8000-000000000001/assessments/60000000-0000-4000-8000-000000000101/eligibility-preflight
+```
+
+Each selected context value is checked against its own plan/region evidence. Missing
+evidence means unknown, not unsupported. A reviewed, fresh incompatibility excludes
+the option even when its protocols match. All checks stay visible, including unknowns.
+`OTHER` application type needs classification. An empty human population is not applied
+only for machine-only clients; tenancy and membership still need explicit values.
+Independent category checks do not establish combined configuration compatibility or
+workload authorization. Hosting is a preference, not an elimination rule.
+
+The response separates `capabilityChecks` and `contextChecks` and identifies both
+policies. It still has `recommendationReady: false`: security dimensions beyond MFA
+and operational constraints remain deferred. The existing `/capability-preflight`
+response shape and scope are unchanged. Both endpoints use catalog v2; the v1 fixture
+and schema remain as a compatibility baseline. Neither endpoint writes to the database.
 
 ### Contract validation
 

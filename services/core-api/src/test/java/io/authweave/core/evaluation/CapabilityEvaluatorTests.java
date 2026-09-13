@@ -92,17 +92,17 @@ class CapabilityEvaluatorTests {
         var a = option("a", Map.of(SCIM, fact(Availability.OPTIONAL, NOW)));
         var b = option("b", Map.of(SCIM, fact(Availability.UNAVAILABLE, NOW)));
         var profile = profile(REQUIRED, NOT_REQUIRED);
-        assertEquals(CapabilityEvaluator.evaluate(profile, new ProviderCatalog(1, "test-1", Kind.SYNTHETIC, List.of(a, b)), NOW),
-                CapabilityEvaluator.evaluate(profile, new ProviderCatalog(1, "test-1", Kind.SYNTHETIC, List.of(b, a)), NOW));
+        assertEquals(CapabilityEvaluator.evaluate(profile, new ProviderCatalog(2, "test-1", Kind.SYNTHETIC, List.of(a, b)), NOW),
+                CapabilityEvaluator.evaluate(profile, new ProviderCatalog(2, "test-1", Kind.SYNTHETIC, List.of(b, a)), NOW));
     }
 
     @Test
     void factsDoNotLeakBetweenPlansOrRegions() {
         var supported = new Option("plan-a", "Fictional option", "Enterprise", "Region A",
-                Map.of(SCIM, fact(Availability.OPTIONAL, NOW)));
-        var missing = new Option("plan-b", "Fictional option", "Basic", "Region B", Map.of());
+                Map.of(SCIM, fact(Availability.OPTIONAL, NOW)), Compatibility.empty());
+        var missing = new Option("plan-b", "Fictional option", "Basic", "Region B", Map.of(), Compatibility.empty());
         var results = CapabilityEvaluator.evaluate(profile(REQUIRED, NOT_REQUIRED),
-                new ProviderCatalog(1, "test-1", Kind.SYNTHETIC, List.of(supported, missing)), NOW);
+                new ProviderCatalog(2, "test-1", Kind.SYNTHETIC, List.of(supported, missing)), NOW);
         assertEquals(Status.MATCHES_CHECKED_REQUIREMENTS, results.getFirst().status());
         assertEquals(Status.NEEDS_INFORMATION, results.getLast().status());
         assertEquals(Reason.EVIDENCE_MISSING, find(results.getLast(), SCIM).reasonCode());
@@ -116,11 +116,11 @@ class CapabilityEvaluatorTests {
                 URI.create("https://vendor.example.com/scim"), NOW));
         assertThrows(IllegalArgumentException.class, () -> new Fact(Availability.OPTIONAL, EvidenceStatus.REVIEWED,
                 URI.create("https://user:secret@example.invalid/scim"), NOW));
-        assertThrows(IllegalArgumentException.class, () -> new Option("plan", "Plan", " ", "Region A", Map.of()));
-        assertThrows(IllegalArgumentException.class, () -> new Option("plan", "Plan", "Basic", "", Map.of()));
+        assertThrows(IllegalArgumentException.class, () -> new Option("plan", "Plan", " ", "Region A", Map.of(), Compatibility.empty()));
+        assertThrows(IllegalArgumentException.class, () -> new Option("plan", "Plan", "Basic", "", Map.of(), Compatibility.empty()));
         var option = option("a", Map.of());
-        assertThrows(IllegalArgumentException.class, () -> new ProviderCatalog(1, "test", Kind.SYNTHETIC, List.of(option, option)));
-        assertThrows(IllegalArgumentException.class, () -> new ProviderCatalog(2, "test", Kind.SYNTHETIC, List.of(option)));
+        assertThrows(IllegalArgumentException.class, () -> new ProviderCatalog(2, "test", Kind.SYNTHETIC, List.of(option, option)));
+        assertThrows(IllegalArgumentException.class, () -> new ProviderCatalog(3, "test", Kind.SYNTHETIC, List.of(option)));
     }
 
     private static void assertUncertain(Fact fact, Reason reason) {
@@ -146,11 +146,11 @@ class CapabilityEvaluatorTests {
     }
 
     private static Option option(String id, Map<Capability, Fact> facts) {
-        return new Option(id, "Fictional option", "Synthetic plan", "Synthetic region", facts);
+        return new Option(id, "Fictional option", "Synthetic plan", "Synthetic region", facts, Compatibility.empty());
     }
 
     private static ProviderCatalog catalog(Map<Capability, Fact> facts) {
-        return new ProviderCatalog(1, "test-1", Kind.SYNTHETIC, List.of(option("a", facts)));
+        return new ProviderCatalog(2, "test-1", Kind.SYNTHETIC, List.of(option("a", facts)));
     }
 
     private static ApplicationIdentityProfile profile(RequirementCriticality scim, RequirementCriticality social) {

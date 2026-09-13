@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/synthetic-provider-catalog.v2.schema.json",
+  "title": "Synthetic provider catalog v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "catalogVersion",
+    "kind",
+    "options"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 2
+    },
+    "catalogVersion": {
+      "$ref": "#/$defs/identifier"
+    },
+    "kind": {
+      "const": "SYNTHETIC"
+    },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/option"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "\\S"
+    },
+    "capability": {
+      "type": "string",
+      "enum": [
+        "OIDC",
+        "SAML",
+        "OAUTH2_APIS",
+        "SOCIAL_LOGIN",
+        "ENTERPRISE_SSO",
+        "SCIM",
+        "JIT",
+        "GROUP_SYNC",
+        "MFA"
+      ]
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "availability",
+        "evidenceStatus",
+        "sourceUrl",
+        "observedAt"
+      ],
+      "properties": {
+        "availability": {
+          "enum": [
+            "OPTIONAL",
+            "MANDATORY",
+            "UNAVAILABLE",
+            "UNKNOWN"
+          ]
+        },
+        "evidenceStatus": {
+          "enum": [
+            "REVIEWED",
+            "UNREVIEWED"
+          ]
+        },
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https://[A-Za-z0-9.-]+\\.invalid(?::[0-9]+)?(?:[/?#][^\\s]*)?$"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "displayName",
+        "plan",
+        "region",
+        "facts",
+        "compatibility"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "displayName": {
+          "$ref": "#/$defs/label"
+        },
+        "plan": {
+          "$ref": "#/$defs/label"
+        },
+        "region": {
+          "$ref": "#/$defs/label"
+        },
+        "facts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "OIDC": {
+              "$ref": "#/$defs/fact"
+            },
+            "SAML": {
+              "$ref": "#/$defs/fact"
+            },
+            "OAUTH2_APIS": {
+              "$ref": "#/$defs/fact"
+            },
+            "SOCIAL_LOGIN": {
+              "$ref": "#/$defs/fact"
+            },
+            "ENTERPRISE_SSO": {
+              "$ref": "#/$defs/fact"
+            },
+            "SCIM": {
+              "$ref": "#/$defs/fact"
+            },
+            "JIT": {
+              "$ref": "#/$defs/fact"
+            },
+            "GROUP_SYNC": {
+              "$ref": "#/$defs/fact"
+            },
+            "MFA": {
+              "$ref": "#/$defs/fact"
+            }
+          }
+        },
+        "compatibility": {
+          "$ref": "#/$defs/compatibility"
+        }
+      }
+    },
+    "compatibilityFact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "support",
+        "evidenceStatus",
+        "sourceUrl",
+        "observedAt"
+      ],
+      "properties": {
+        "evidenceStatus": {
+          "enum": [
+            "REVIEWED",
+            "UNREVIEWED"
+          ]
+        },
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https://[A-Za-z0-9.-]+\\.invalid(?::[0-9]+)?(?:[/?#][^\\s]*)?$"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "support": {
+          "enum": [
+            "SUPPORTED",
+            "UNSUPPORTED",
+            "UNKNOWN"
+          ]
+        }
+      }
+    },
+    "compatibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "applications",
+        "clients",
+        "populations",
+        "tenancy",
+        "membership"
+      ],
+      "properties": {
+        "applications": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "B2B_SAAS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "PARTNER_PORTAL": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "PUBLIC_SECTOR_PORTAL": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "INTERNAL_WORKFORCE": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        },
+        "clients": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "BROWSER": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "NATIVE_MOBILE": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "MACHINE_TO_MACHINE": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        },
+        "populations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "EXTERNAL_CUSTOMERS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "PARTNERS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "CITIZENS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "EMPLOYEES": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "CONTRACTORS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "INTERNAL_OPERATORS": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        },
+        "tenancy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "MULTI_TENANT_ORGANIZATIONS": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "SINGLE_ORGANIZATION": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "NO_ORGANIZATION_BOUNDARY": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        },
+        "membership": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "SINGLE_ORGANIZATION_PER_USER": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "MULTIPLE_ORGANIZATIONS_PER_USER": {
+              "$ref": "#/$defs/compatibilityFact"
+            },
+            "NOT_APPLICABLE": {
+              "$ref": "#/$defs/compatibilityFact"
+            }
+          }
+        }
+      }
+    }
+  }
+}

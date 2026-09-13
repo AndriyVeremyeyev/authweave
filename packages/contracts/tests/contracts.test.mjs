@@ -205,6 +205,46 @@ test("synthetic catalog requires dated, scoped provenance without claiming real 
   assert.equal(validate(missing), true, "A missing fact is allowed; the evaluator must not infer support.");
 });
 
+test("catalog v2 requires explicit context evidence and rejects unclassified categories", async () => {
+  const catalog = await readJson(path.join(contractsRoot,
+    "../../services/core-api/src/main/resources/catalog/synthetic.v2.json"));
+  const legacy = await readJson(path.join(contractsRoot,
+    "../../services/core-api/src/main/resources/catalog/synthetic.v1.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/synthetic-provider-catalog.v2.schema.json");
+  assert.equal(validate(catalog), true, validationMessage(validate));
+  assert.equal(validate(legacy), false);
+  assert.deepEqual(catalog.options.map(({ compatibility, ...option }) => option), legacy.options,
+    "Catalog v2 must preserve every existing capability fact and option identity.");
+  for (const field of ["support", "sourceUrl", "observedAt", "evidenceStatus"]) {
+    const invalid = structuredClone(catalog);
+    delete invalid.options[0].compatibility.applications.B2B_SAAS[field];
+    assert.equal(validate(invalid), false, "Missing " + field + " must be rejected");
+  }
+  for (const [group, key] of [["applications", "OTHER"], ["applications", "UNKNOWN"],
+    ["clients", "WEB"], ["populations", "EVERYONE"], ["tenancy", "UNKNOWN"], ["membership", "UNKNOWN"]]) {
+    const invalid = structuredClone(catalog);
+    invalid.options[0].compatibility[group][key] = catalog.options[0].compatibility.applications.B2B_SAAS;
+    assert.equal(validate(invalid), false);
+  }
+  for (const value of ["MAYBE", null, true]) {
+    const invalid = structuredClone(catalog);
+    invalid.options[0].compatibility.applications.B2B_SAAS.support = value;
+    assert.equal(validate(invalid), false);
+  }
+  for (const url of ["https://vendor.example.com/facts", "https://user:secret@example.invalid/facts"]) {
+    const invalid = structuredClone(catalog);
+    invalid.options[0].compatibility.applications.B2B_SAAS.sourceUrl = url;
+    assert.equal(validate(invalid), false);
+  }
+  const empty = structuredClone(catalog);
+  for (const group of Object.keys(empty.options[0].compatibility)) {
+    empty.options[0].compatibility[group] = {};
+  }
+  assert.equal(validate(empty), true, "Absence of facts must be representable without inferring lack of support.");
+  delete empty.options[0].compatibility.clients;
+  assert.equal(validate(empty), false, "All context groups must be explicit, even when empty.");
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

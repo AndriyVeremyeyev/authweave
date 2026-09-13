@@ -14,7 +14,6 @@ import io.authweave.core.catalog.ProviderCatalog.Fact;
 import static io.authweave.core.catalog.ProviderCatalog.Availability.MANDATORY;
 import static io.authweave.core.catalog.ProviderCatalog.Availability.UNAVAILABLE;
 import static io.authweave.core.catalog.ProviderCatalog.Capability.*;
-import static io.authweave.core.catalog.ProviderCatalog.EvidenceStatus.REVIEWED;
 import static io.authweave.core.evaluation.CapabilityPreflight.*;
 import static io.authweave.core.evaluation.CapabilityPreflight.Outcome.*;
 import static io.authweave.core.evaluation.CapabilityPreflight.Reason.*;
@@ -24,7 +23,7 @@ import static io.authweave.core.evaluation.CapabilityPreflight.Status.*;
 public final class CapabilityEvaluator {
 
     public static final String POLICY_VERSION = "capability-preflight-1";
-    public static final Duration MAX_EVIDENCE_AGE = Duration.ofDays(90);
+    public static final Duration MAX_EVIDENCE_AGE = EvidencePolicy.MAX_AGE;
     public static final List<String> DEFERRED_PATHS = List.of(
             "application", "audience", "security.browserTokenExposureMinimization",
             "security.auditability", "security.dataResidency", "security.assurance",
@@ -61,14 +60,8 @@ public final class CapabilityEvaluator {
     }
 
     private static Check hardConstraint(Requirement requirement, Fact fact, Instant at) {
-        if (fact == null) return result(requirement, null, UNKNOWN, EVIDENCE_MISSING,
-                "This plan and region have no recorded fact for the capability.");
-        if (fact.evidenceStatus() != REVIEWED) return result(requirement, fact, UNKNOWN, EVIDENCE_UNREVIEWED,
-                "The recorded fact has not been reviewed; it cannot establish a match or an exclusion.");
-        if (fact.observedAt().isAfter(at)) return result(requirement, fact, UNKNOWN, EVIDENCE_FROM_FUTURE,
-                "The observation is later than the evaluation instant and cannot be used.");
-        if (fact.observedAt().isBefore(at.minus(MAX_EVIDENCE_AGE))) return result(requirement, fact, UNKNOWN, EVIDENCE_STALE,
-                "The observation is older than the 90-day preflight policy; review it before deciding.");
+        var problem = EvidencePolicy.problem(fact, at);
+        if (problem != null) return result(requirement, fact, UNKNOWN, Reason.valueOf(problem.name()), problem.explanation());
         if (fact.availability() == ProviderCatalog.Availability.UNKNOWN) return result(requirement, fact, UNKNOWN, CAPABILITY_UNKNOWN,
                 "The capability's availability is not established for this plan and region.");
         if (requirement.criticality() == RequirementCriticality.REQUIRED) {

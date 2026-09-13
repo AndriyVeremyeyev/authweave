@@ -358,6 +358,114 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertHistorySize(assessment, 1);
     }
 
+    @Test
+    void eligibilityIsScopedReadOnlyAndKeepsCapabilityContractUnchanged() throws Exception {
+        var assessment = create();
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        var before = response("eligibility-profile", mvc.perform(put(assessment.path() + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var result = mvc.perform(get(assessment.path() + "/eligibility-preflight"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.assessmentVersion").value(1))
+                .andExpect(jsonPath("$.workspaceId").value(assessment.workspaceId().value().toString()))
+                .andExpect(jsonPath("$.assessmentId").value(assessment.id().value().toString()))
+                .andExpect(jsonPath("$.catalogVersion").value("synthetic-2026-09-12.2"))
+                .andExpect(jsonPath("$.catalogKind").value("SYNTHETIC"))
+                .andExpect(jsonPath("$.policyVersion").value("eligibility-preflight-1"))
+                .andExpect(jsonPath("$.capabilityPolicyVersion").value("capability-preflight-1"))
+                .andExpect(jsonPath("$.recommendationReady").value(false))
+                .andExpect(jsonPath("$.scope").value("SYNTHETIC_ELIGIBILITY_PREFLIGHT"))
+                .andExpect(jsonPath("$.deferredPaths.length()").value(6))
+                .andExpect(jsonPath("$.candidates[0].status").value("MATCHES_CHECKED_REQUIREMENTS"))
+                .andExpect(jsonPath("$.candidates[0].capabilityChecks.length()").value(9))
+                .andExpect(jsonPath("$.candidates[0].contextChecks.length()").value(6))
+                .andExpect(jsonPath("$.candidates[1].status").value("DOES_NOT_MATCH"))
+                .andExpect(jsonPath("$.candidates[2].status").value("NEEDS_INFORMATION"))
+                .andReturn();
+        var payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample("eligibility-preflight", "eligibility-preflight", true, payload);
+        var repeated = mvc.perform(get(assessment.path() + "/eligibility-preflight")).andExpect(status().isOk()).andReturn();
+        assertEquals(payload, mapper.readTree(repeated.getResponse().getContentAsString()));
+        var legacy = mvc.perform(get(assessment.path() + "/capability-preflight"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.deferredPaths.length()").value(8))
+                .andExpect(jsonPath("$.candidates[0].checks.length()").value(9))
+                .andExpect(jsonPath("$.candidates[0].contextChecks").doesNotExist()).andReturn();
+        sample("eligibility-legacy-contract", "capability-preflight", true, mapper.readTree(legacy.getResponse().getContentAsString()));
+        assertEquals(before, response("eligibility-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+
+        String otherWorkspace = "/api/v1/workspaces/" + UUID.randomUUID();
+        mvc.perform(put(otherWorkspace)).andExpect(status().isCreated());
+        response("eligibility-cross-workspace", mvc.perform(get(otherWorkspace + "/assessments/"
+                        + assessment.id().value() + "/eligibility-preflight")).andExpect(status().isNotFound()).andReturn());
+        response("eligibility-missing", mvc.perform(get("/api/v1/workspaces/" + assessment.workspaceId().value()
+                        + "/assessments/" + UUID.randomUUID() + "/eligibility-preflight"))
+                .andExpect(status().isNotFound()).andReturn());
+        response("eligibility-invalid-id", mvc.perform(get("/api/v1/workspaces/not-a-uuid/assessments/"
+                        + assessment.id().value() + "/eligibility-preflight")).andExpect(status().isBadRequest()).andReturn());
+    }
+
+    @Test
+    void eligibilityReflectsChangedContextAndNeverTreatsBlankProfilesAsMatches() throws Exception {
+        var assessment = create();
+        var blank = mvc.perform(get(assessment.path() + "/eligibility-preflight")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.candidates[0].status").value("NEEDS_INFORMATION"))
+                .andExpect(jsonPath("$.candidates[1].status").value("NEEDS_INFORMATION"))
+                .andExpect(jsonPath("$.candidates[2].status").value("NEEDS_INFORMATION")).andReturn();
+        sample("blank-eligibility", "eligibility-preflight", true, mapper.readTree(blank.getResponse().getContentAsString()));
+        assertHistorySize(assessment, 1);
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(2).get("profile"));
+        }
+        response("workforce-profile", mvc.perform(put(assessment.path() + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var result = mvc.perform(get(assessment.path() + "/eligibility-preflight")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.assessmentVersion").value(1))
+                .andExpect(jsonPath("$.candidates[0].status").value("DOES_NOT_MATCH"))
+                .andExpect(jsonPath("$.candidates[0].contextChecks[0].requestedValue").value("INTERNAL_WORKFORCE"))
+                .andExpect(jsonPath("$.candidates[0].contextChecks[0].reasonCode").value("CONTEXT_UNSUPPORTED")).andReturn();
+        sample("workforce-eligibility", "eligibility-preflight", true, mapper.readTree(result.getResponse().getContentAsString()));
+        assertHistorySize(assessment, 2);
+    }
+
+    @Test
+    void eligibilityContractSupportsMachineOnlyNullValuesAndAllSelectedContextValues() throws Exception {
+        for (boolean machineOnly : new boolean[] { true, false }) {
+            var assessment = create();
+            var update = request();
+            ObjectNode profile;
+            try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+                profile = (ObjectNode) mapper.readTree(input).get(0).get("profile");
+            }
+            var clients = ((ObjectNode) profile.get("application")).putArray("clients");
+            clients.add("MACHINE_TO_MACHINE");
+            var populations = ((ObjectNode) profile.get("audience")).putArray("populations");
+            if (!machineOnly) {
+                clients.add("BROWSER").add("NATIVE_MOBILE");
+                for (var value : new String[] { "CITIZENS", "EMPLOYEES", "CONTRACTORS",
+                        "EXTERNAL_CUSTOMERS", "PARTNERS", "INTERNAL_OPERATORS" }) {
+                    populations.add(value);
+                }
+            }
+            update.set("profile", profile);
+            response("context-boundary-profile", mvc.perform(put(assessment.path() + "/profile")
+                            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                    .andExpect(status().isOk()).andReturn());
+            var result = mvc.perform(get(assessment.path() + "/eligibility-preflight")).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.candidates[0].contextChecks.length()").value(machineOnly ? 5 : 12))
+                    .andExpect(jsonPath("$.candidates[0].status").value(
+                            machineOnly ? "MATCHES_CHECKED_REQUIREMENTS" : "DOES_NOT_MATCH")).andReturn();
+            sample("context-boundary-eligibility-" + machineOnly, "eligibility-preflight", true,
+                    mapper.readTree(result.getResponse().getContentAsString()));
+            assertHistorySize(assessment, 2);
+        }
+    }
+
     private ObjectNode request() {
         ObjectNode request = mapper.createObjectNode().put("expectedVersion", 0);
         request.set("profile", mapper.valueToTree(ApplicationIdentityProfile.unknown()));

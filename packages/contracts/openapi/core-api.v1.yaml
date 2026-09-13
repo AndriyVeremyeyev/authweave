@@ -202,6 +202,41 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Preview capabilities and context compatibility against fictional plans
+      description: >-
+        Read-only local preflight combining the existing capability policy with
+        application type, every selected client and user population, tenancy and
+        membership. Known context selections are required compatibility constraints;
+        OTHER or UNKNOWN application type and missing context need clarification.
+        An empty human population is not applied only for a machine-only client set.
+        Missing, unreviewed, future or more-than-90-day-old evidence cannot establish
+        support or exclusion. A fresh reviewed incompatibility takes precedence over
+        missing information, but all checks remain visible. Context checks are
+        independent categories, not proof that the combined configuration works.
+        Hosting is a preference, not a hard constraint, and operations remain deferred.
+        No workload authorization, scoring, ranking, full eligibility or recommendation.
+        Does not change assessment status, version or history. Both policy versions,
+        catalog version and evaluation instant are returned. Every plan and evidence
+        source is synthetic; reserved .invalid evidence URLs are never fetched.
+        The existing capability-preflight response shape remains unchanged.
+      operationId: getEligibilityPreflightV1
+      responses:
+        "200":
+          description: Partial synthetic capability and context checks with explicit scope limits.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/eligibility-preflight.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   parameters:
     WorkspaceId:

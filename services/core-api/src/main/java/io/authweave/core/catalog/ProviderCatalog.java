@@ -7,11 +7,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import io.authweave.core.assessment.domain.profile.ApplicationTopology.ApplicationType;
+import io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType;
+import io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation;
+import io.authweave.core.assessment.domain.profile.AudienceRequirements.TenancyModel;
+import io.authweave.core.assessment.domain.profile.AudienceRequirements.MembershipModel;
+
 /** The first catalog is deliberately synthetic; real evidence requires a publication workflow. */
 public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kind, List<Option> options) {
 
     public ProviderCatalog {
-        if (schemaVersion != 1) throw new IllegalArgumentException("Unsupported catalog schema version");
+        if (schemaVersion != 2) throw new IllegalArgumentException("Unsupported catalog schema version");
         identifier(catalogVersion);
         Objects.requireNonNull(kind);
         options = List.copyOf(options);
@@ -27,29 +33,73 @@ public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kin
     /** OPTIONAL means it can be enabled or disabled for this specific plan and region. */
     public enum Availability { OPTIONAL, MANDATORY, UNAVAILABLE, UNKNOWN }
     public enum EvidenceStatus { REVIEWED, UNREVIEWED }
+    public enum Support { SUPPORTED, UNSUPPORTED, UNKNOWN }
 
-    public record Option(String id, String displayName, String plan, String region, Map<Capability, Fact> facts) {
+    public interface Evidence {
+        EvidenceStatus evidenceStatus();
+        URI sourceUrl();
+        Instant observedAt();
+    }
+
+    public record Option(String id, String displayName, String plan, String region,
+            Map<Capability, Fact> facts, Compatibility compatibility) {
         public Option {
             identifier(id);
             label(displayName);
             label(plan);
             label(region);
             facts = Map.copyOf(facts);
+            Objects.requireNonNull(compatibility);
         }
     }
 
-    public record Fact(Availability availability, EvidenceStatus evidenceStatus, URI sourceUrl, Instant observedAt) {
+    public record Compatibility(
+            Map<ApplicationType, CompatibilityFact> applications,
+            Map<ClientType, CompatibilityFact> clients,
+            Map<UserPopulation, CompatibilityFact> populations,
+            Map<TenancyModel, CompatibilityFact> tenancy,
+            Map<MembershipModel, CompatibilityFact> membership) {
+        public Compatibility {
+            applications = Map.copyOf(applications);
+            clients = Map.copyOf(clients);
+            populations = Map.copyOf(populations);
+            tenancy = Map.copyOf(tenancy);
+            membership = Map.copyOf(membership);
+            if (applications.containsKey(ApplicationType.UNKNOWN) || applications.containsKey(ApplicationType.OTHER)
+                    || tenancy.containsKey(TenancyModel.UNKNOWN) || membership.containsKey(MembershipModel.UNKNOWN)) {
+                throw new IllegalArgumentException("Unknown or unclassified context cannot be a supported catalog category");
+            }
+        }
+
+        public static Compatibility empty() {
+            return new Compatibility(Map.of(), Map.of(), Map.of(), Map.of(), Map.of());
+        }
+    }
+
+    public record CompatibilityFact(Support support, EvidenceStatus evidenceStatus, URI sourceUrl, Instant observedAt)
+            implements Evidence {
+        public CompatibilityFact {
+            Objects.requireNonNull(support);
+            validateEvidence(evidenceStatus, sourceUrl, observedAt);
+        }
+    }
+
+    public record Fact(Availability availability, EvidenceStatus evidenceStatus, URI sourceUrl, Instant observedAt)
+            implements Evidence {
         public Fact {
             Objects.requireNonNull(availability);
-            Objects.requireNonNull(evidenceStatus);
-            Objects.requireNonNull(sourceUrl);
-            Objects.requireNonNull(observedAt);
-            // Reserved fictional provenance. Never fetched, and never presented as actual vendor evidence.
-            if (!"https".equals(sourceUrl.getScheme()) || sourceUrl.getHost() == null
-                    || !sourceUrl.getHost().endsWith(".invalid") || sourceUrl.getUserInfo() != null
-                    || sourceUrl.toString().length() > 2048) {
-                throw new IllegalArgumentException("Synthetic facts require an HTTPS .invalid source URL without credentials");
-            }
+            validateEvidence(evidenceStatus, sourceUrl, observedAt);
+        }
+    }
+
+    private static void validateEvidence(EvidenceStatus status, URI sourceUrl, Instant observedAt) {
+        Objects.requireNonNull(status);
+        Objects.requireNonNull(sourceUrl);
+        Objects.requireNonNull(observedAt);
+        if (!"https".equals(sourceUrl.getScheme()) || sourceUrl.getHost() == null
+                || !sourceUrl.getHost().endsWith(".invalid") || sourceUrl.getUserInfo() != null
+                || sourceUrl.toString().length() > 2048) {
+            throw new IllegalArgumentException("Synthetic facts require an HTTPS .invalid source URL without credentials");
         }
     }
 
