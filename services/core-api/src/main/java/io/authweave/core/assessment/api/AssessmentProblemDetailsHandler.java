@@ -28,6 +28,11 @@ import tools.jackson.core.JacksonException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
 
+    @ExceptionHandler(io.authweave.core.assessment.application.ProfileUpgradeRequiredException.class)
+    ProblemDetail profileUpgradeRequired(RuntimeException exception, HttpServletRequest request) {
+        return problem(HttpStatus.CONFLICT, "profile-upgrade-required", "Use profile API v2", exception.getMessage(), request);
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ProblemDetail unreadableBody(HttpMessageNotReadableException exception, HttpServletRequest request) {
         String path = "$";

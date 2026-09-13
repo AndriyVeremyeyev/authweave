@@ -19,7 +19,17 @@ public final class ApplicationIdentityProfileValidator {
         validateMinimumContext(profile, issues);
         validateTenancy(profile.audience(), issues);
         validateEnterpriseSingleSignOn(profile.protocols(), issues);
+        validateResidency(profile.security().dataResidencyDetails(), issues);
         return new ProfileValidationResult(issues);
+    }
+
+    private static void validateResidency(DataResidencyDetails details, List<ProfileIssue> issues) {
+        var countryCodes = java.util.Set.of(java.util.Locale.getISOCountries());
+        if (details.allowedCountries().size() > 249
+                || details.allowedCountries().stream().anyMatch(country -> !countryCodes.contains(country))) {
+            issues.add(contradiction("invalid_residency_country", "security.dataResidencyDetails.allowedCountries",
+                    "Use supported uppercase ISO 3166-1 alpha-2 country codes."));
+        }
     }
 
     private static void validateMinimumContext(

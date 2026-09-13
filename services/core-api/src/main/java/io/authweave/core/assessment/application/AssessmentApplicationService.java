@@ -60,12 +60,26 @@ public class AssessmentApplicationService {
             AssessmentId assessmentId,
             long expectedVersion,
             ApplicationIdentityProfile profile) {
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, false);
+    }
+
+    @Transactional
+    public PersistedAssessment updateLegacyProfile(WorkspaceId workspaceId, AssessmentId assessmentId,
+            long expectedVersion, ApplicationIdentityProfile profile) {
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, true);
+    }
+
+    private PersistedAssessment updateProfile(WorkspaceId workspaceId, AssessmentId assessmentId,
+            long expectedVersion, ApplicationIdentityProfile profile, boolean legacy) {
         PersistedAssessment persisted = getAssessment(workspaceId, assessmentId);
         if (persisted.version() != expectedVersion) {
             throw new AssessmentVersionConflictException(
                     workspaceId, assessmentId, expectedVersion, persisted.version());
         }
         ApplicationIdentityProfile previousProfile = persisted.assessment().profile();
+        if (legacy && !previousProfile.security().dataResidencyDetails().isUnrecorded()) {
+            throw new ProfileUpgradeRequiredException();
+        }
         persisted.assessment().updateProfile(profile);
         if (previousProfile.equals(profile)) {
             return persisted;

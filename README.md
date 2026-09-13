@@ -169,6 +169,47 @@ are versioned with the policy; references are never fetched during evaluation. S
 [native apps](https://www.rfc-editor.org/rfc/rfc8252.html) and
 [client credentials](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.4).
 
+### Residency inputs and profile versions
+
+The local API v2 records where identity data may be stored at rest. Under
+`/api/v2/workspaces/{workspaceId}/assessments`, use POST to create, GET `/{assessmentId}`
+to read and PUT `/{assessmentId}/profile` to replace a complete profile with
+`expectedVersion`. Workspace provisioning, events and preflights retain their v1 URLs.
+
+Profile v2 adds `security.dataResidencyDetails` alongside the existing
+`security.dataResidency` criticality. For example, this fragment permits either listed
+country for every selected category; it is not a complete update request:
+
+```json
+{
+  "dataResidency": "REQUIRED",
+  "dataResidencyDetails": {
+    "allowedCountries": ["DE", "FR"],
+    "dataCategories": ["USER_PROFILES", "BACKUPS"]
+  }
+}
+```
+
+Categories are `USER_PROFILES`, `CREDENTIALS`, `AUDIT_LOGS` and `BACKUPS`. Countries
+must be uppercase ISO 3166-1 alpha-2 codes recognized by the backend. Empty arrays mean
+unrecorded, not unrestricted. Both arrays must be explicit in v2; incomplete drafts
+are allowed. `FORBIDDEN` is not interpreted as a country denylist. These fields do not
+describe processing locations, support access, international transfers or compliance.
+Residency evaluation remains deferred in all preflights; no provider match is implied.
+
+V2 reads project old profiles with empty details and `profileSchemaVersion: 2` without
+changing stored data. This field identifies the response format, not a database update.
+The database retains v1 when both arrays are empty and uses v2 when either is populated.
+No-op saves change neither assessment version nor history. An explicit v2 clear may
+return the current stored format to v1; previous v2 revisions remain unchanged.
+
+V1 reads and updates return 409 `profile-upgrade-required` when the current profile
+contains residency details, preventing silent data loss. GET `/{assessmentId}/revisions`
+under v2 returns original v1/v2 snapshots with each stored `profileSchemaVersion`.
+V1 history rejects pages containing v2 snapshots rather than dropping those details.
+Flyway V4 only widens version constraints; it does not rewrite profiles or history.
+The browser-only preview and its downloadable profile remain v1 for now.
+
 ### Contract validation
 
 Requirement criticality has five explicit values: `REQUIRED`, `PREFERRED`,

@@ -18,6 +18,7 @@
         "workspace-not-found",
         "assessment-not-found",
         "assessment-version-conflict",
+        "profile-upgrade-required",
         "invalid-application-identity-profile"
       ]
     },

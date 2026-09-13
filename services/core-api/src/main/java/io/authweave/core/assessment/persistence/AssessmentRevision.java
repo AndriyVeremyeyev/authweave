@@ -4,7 +4,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 import io.authweave.core.assessment.domain.AssessmentStatus;
-import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
+import tools.jackson.databind.JsonNode;
 
 /** A historical snapshot, not a mutable aggregate revalidated against today's rules. */
 public record AssessmentRevision(
@@ -13,7 +13,7 @@ public record AssessmentRevision(
         long version,
         AssessmentStatus status,
         short profileSchemaVersion,
-        ApplicationIdentityProfile profile,
+        JsonNode profile,
         Origin origin,
         Instant recordedAt) {
 

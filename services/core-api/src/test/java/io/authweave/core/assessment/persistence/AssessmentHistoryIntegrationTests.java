@@ -11,6 +11,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -24,6 +26,9 @@ import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
 import io.authweave.core.assessment.domain.profile.ApplicationTopology;
 import io.authweave.core.assessment.domain.profile.ApplicationTopology.ApplicationType;
 import io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType;
+import io.authweave.core.assessment.domain.profile.DataResidencyDetails;
+import io.authweave.core.assessment.domain.profile.RequirementCriticality;
+import io.authweave.core.assessment.domain.profile.SecurityRequirements;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -34,6 +39,7 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
     @Autowired private AssessmentRepository assessments;
     @Autowired private AssessmentHistoryRepository history;
     @Autowired private PlatformTransactionManager transactions;
+    @Autowired private tools.jackson.databind.ObjectMapper mapper;
 
     @Test
     void storesImmutableSnapshotsAndMinimalEventsButNothingForNoOpsOrConflicts() {
@@ -51,8 +57,8 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
 
         var revisions = history.findRevisions(workspace, id, null, 100);
         assertEquals(List.of(0L, 1L), revisions.items().stream().map(AssessmentRevision::version).toList());
-        assertEquals(ApplicationIdentityProfile.unknown(), revisions.items().getFirst().profile());
-        assertEquals(changed, revisions.items().getLast().profile());
+        assertEquals(mapper.valueToTree(ApplicationIdentityProfile.unknown()), revisions.items().getFirst().profile());
+        assertEquals(mapper.valueToTree(changed), revisions.items().getLast().profile());
         assertEquals(AssessmentRevision.Origin.CREATED, revisions.items().getFirst().origin());
         assertEquals(AssessmentRevision.Origin.UPDATED, revisions.items().getLast().origin());
         assertNull(revisions.nextAfterVersion());
@@ -103,15 +109,16 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
                 () -> service.getEvents(missingWorkspace, id, null, 50));
     }
 
-    @Test
-    void concurrentWritersCommitExactlyOneNewRevisionAndEvent() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void concurrentWritersCommitExactlyOneNewRevisionAndEvent(boolean mixedFormats) throws Exception {
         var created = create();
         var workspace = created.assessment().workspaceId();
         var id = created.assessment().id();
         // Both writers hold version 0 before either is allowed to attempt its CAS.
         var first = assessments.findById(workspace, id).orElseThrow();
         var second = assessments.findById(workspace, id).orElseThrow();
-        first.assessment().updateProfile(profile(ApplicationType.B2B_SAAS));
+        first.assessment().updateProfile(mixedFormats ? residencyProfile() : profile(ApplicationType.B2B_SAAS));
         second.assessment().updateProfile(profile(ApplicationType.PARTNER_PORTAL));
         var start = new CyclicBarrier(2);
         try (var executor = Executors.newFixedThreadPool(2)) {
@@ -128,18 +135,22 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
         assertEquals(1, current.version());
         var revisions = service.getRevisions(workspace, id, null, 100).items();
         assertEquals(2, revisions.size());
-        assertEquals(current.assessment().profile(), revisions.getLast().profile());
+        assertEquals(mapper.valueToTree(current.assessment().profile()), revisions.getLast().profile());
+        assertEquals(current.assessment().profile().security().dataResidencyDetails().isUnrecorded() ? 1 : 2,
+                revisions.getLast().profileSchemaVersion());
         assertEquals(2, service.getEvents(workspace, id, null, 100).items().size());
     }
 
-    @Test
-    void auditInsertFailureRollsBackBothCreationAndUpdate() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void auditInsertFailureRollsBackBothCreationAndUpdate(boolean expandedProfile) throws Exception {
         var created = create();
         var workspace = created.assessment().workspaceId();
         var id = created.assessment().id();
         try (var failure = new AuditInsertFailure(id)) {
             RuntimeException exception = assertThrows(RuntimeException.class,
-                    () -> service.updateProfile(workspace, id, 0, profile(ApplicationType.B2B_SAAS)));
+                    () -> service.updateProfile(workspace, id, 0,
+                            expandedProfile ? residencyProfile() : profile(ApplicationType.B2B_SAAS)));
             assertInjectedFailure(exception);
         }
         var unchanged = service.getAssessment(workspace, id);
@@ -165,7 +176,7 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
         var workspace = created.assessment().workspaceId();
         var id = created.assessment().id();
         assertThrows(DeliberateRollback.class, () -> new TransactionTemplate(transactions).execute(status -> {
-            service.updateProfile(workspace, id, 0, profile(ApplicationType.B2B_SAAS));
+            service.updateProfile(workspace, id, 0, residencyProfile());
             assertEquals(2, history.findEvents(workspace, id, null, 100).items().size());
             throw new DeliberateRollback();
         }));
@@ -215,6 +226,16 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
         var unknown = ApplicationIdentityProfile.unknown();
         return new ApplicationIdentityProfile(new ApplicationTopology(type, Set.of(ClientType.BROWSER)),
                 unknown.audience(), unknown.protocols(), unknown.provisioning(), unknown.security(), unknown.operations());
+    }
+
+    private static ApplicationIdentityProfile residencyProfile() {
+        var base = profile(ApplicationType.B2B_SAAS);
+        var security = base.security();
+        return new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(),
+                base.provisioning(), new SecurityRequirements(security.multiFactorAuthentication(),
+                security.browserTokenExposureMinimization(), security.auditability(), RequirementCriticality.REQUIRED,
+                security.assurance(), security.complianceTargets(),
+                new DataResidencyDetails(Set.of("DE"), Set.of(DataResidencyDetails.DataCategory.BACKUPS))), base.operations());
     }
 
     private static void denied(Connection connection, String sql) throws SQLException {

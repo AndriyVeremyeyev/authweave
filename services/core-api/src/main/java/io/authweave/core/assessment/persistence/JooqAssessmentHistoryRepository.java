@@ -71,12 +71,9 @@ public class JooqAssessmentHistoryRepository implements AssessmentHistoryReposit
                 .orderBy(ASSESSMENT_REVISIONS.VERSION.asc())
                 .limit(limit + 1)
                 .fetch(record -> {
-                    if (record.getProfileSchemaVersion() != JooqAssessmentRepository.PROFILE_SCHEMA_VERSION) {
-                        throw new UnsupportedAssessmentProfileVersionException(record.getProfileSchemaVersion());
-                    }
                     return new AssessmentRevision(record.getWorkspaceId(), record.getAssessmentId(),
                             record.getVersion(), AssessmentStatus.valueOf(record.getStatus()),
-                            record.getProfileSchemaVersion(), codec.decode(record.getProfile()),
+                            record.getProfileSchemaVersion(), codec.snapshot(record.getProfile(), record.getProfileSchemaVersion()),
                             AssessmentRevision.Origin.valueOf(record.getOrigin()), record.getRecordedAt().toInstant());
                 });
         return HistoryPage.from(rows, limit, AssessmentRevision::version);
@@ -113,8 +110,8 @@ public class JooqAssessmentHistoryRepository implements AssessmentHistoryReposit
         }
         List<String> changed = new ArrayList<>();
         if (!previous.getStatus().equals(current.getStatus())) changed.add("status");
-        var before = codec.decode(previous.getProfile());
-        var after = codec.decode(current.getProfile());
+        var before = codec.decode(previous.getProfile(), previous.getProfileSchemaVersion());
+        var after = codec.decode(current.getProfile(), current.getProfileSchemaVersion());
         if (!before.application().equals(after.application())) changed.add("application");
         if (!before.audience().equals(after.audience())) changed.add("audience");
         if (!before.protocols().equals(after.protocols())) changed.add("protocols");

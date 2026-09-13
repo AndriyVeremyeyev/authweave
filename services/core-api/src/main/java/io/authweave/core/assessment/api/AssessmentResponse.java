@@ -17,6 +17,9 @@ public record AssessmentResponse(
         ApplicationIdentityProfile profile) {
 
     static AssessmentResponse from(PersistedAssessment persisted) {
+        if (!persisted.assessment().profile().security().dataResidencyDetails().isUnrecorded()) {
+            throw new io.authweave.core.assessment.application.ProfileUpgradeRequiredException();
+        }
         return new AssessmentResponse(
                 persisted.assessment().id().value(),
                 persisted.assessment().workspaceId().value(),

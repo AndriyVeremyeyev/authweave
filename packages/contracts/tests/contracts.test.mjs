@@ -163,6 +163,49 @@ test("history contracts accept snapshots and minimal events but reject profile v
   assert.equal(revisions({ items: [{ ...revision, origin: "INVENTED" }], nextAfterVersion: null }), false);
 });
 
+test("profile v2 requires explicit residency details without silently expanding v1", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/update-assessment-profile-request.v2.schema.json");
+  const validateResponse = ajv.getSchema("https://authweave.dev/contracts/assessment-response.v2.schema.json");
+  const profile = structuredClone(validAssessmentResponse.profile);
+  const request = { expectedVersion: 0, profile };
+  assert.equal(validate(request), false, "Missing details must not be defaulted by the v2 API.");
+  profile.security.dataResidencyDetails = { allowedCountries: [], dataCategories: [] };
+  assert.equal(validate(request), true, validationMessage(validate));
+  assert.equal(validateUpdateAssessmentProfile(request), false, "v1 must reject the new field, even when empty.");
+  const response = { ...validAssessmentResponse, profileSchemaVersion: 2, profile };
+  assert.equal(validateResponse(response), true, validationMessage(validateResponse));
+  assert.equal(validateResponse({ ...response, profileSchemaVersion: 1 }), false);
+  for (const details of [null, {}, { allowedCountries: ["de"], dataCategories: [] },
+    { allowedCountries: ["DE", "DE"], dataCategories: [] },
+    { allowedCountries: ["DE"], dataCategories: ["BACKUPS", "BACKUPS"] },
+    { allowedCountries: ["DE"], dataCategories: ["ALL"] },
+    { allowedCountries: ["DE"], dataCategories: [], compliant: true }]) {
+    profile.security.dataResidencyDetails = details;
+    assert.equal(validate(request), false);
+  }
+  profile.security.dataResidencyDetails = { allowedCountries: ["DE", "FR"], dataCategories: ["USER_PROFILES", "BACKUPS"] };
+  assert.equal(validate(request), true, validationMessage(validate));
+});
+
+test("v2 history preserves mixed schema versions and rejects mislabeled snapshots", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/assessment-revision-page.v2.schema.json");
+  const old = { workspaceId: validAssessmentResponse.workspaceId, assessmentId: validAssessmentResponse.id,
+    version: 0, status: "DRAFT", profileSchemaVersion: 1, profile: validAssessmentResponse.profile,
+    origin: "CREATED", recordedAt: validAssessmentResponse.createdAt };
+  const expanded = structuredClone(old);
+  expanded.version = 1;
+  expanded.origin = "UPDATED";
+  expanded.profileSchemaVersion = 2;
+  expanded.profile.security.dataResidencyDetails = { allowedCountries: ["DE"], dataCategories: ["BACKUPS"] };
+  const page = { items: [old, expanded], nextAfterVersion: null };
+  assert.equal(validate(page), true, validationMessage(validate));
+  for (const revision of [{ ...old, profileSchemaVersion: 2 }, { ...expanded, profileSchemaVersion: 1 },
+    { ...expanded, profileSchemaVersion: 3 }]) {
+    assert.equal(validate({ items: [revision], nextAfterVersion: null }), false);
+  }
+  assert.equal(validate({ items: [], nextAfterVersion: null }), true);
+});
+
 test("runnable synthetic seeds match the canonical profile contract", async () => {
   const seeds = await readJson(path.join(contractsRoot,
     "../../services/core-api/src/main/resources/seed/assessments.v1.json"));

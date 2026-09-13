@@ -32,6 +32,7 @@ class SyntheticAssessmentSeederIntegrationTests extends PostgresIntegrationTest 
     @Autowired private AssessmentApplicationService service;
     @Autowired private AssessmentRepository assessments;
     @Autowired private WorkspaceRepository workspaces;
+    @Autowired private tools.jackson.databind.ObjectMapper mapper;
 
     @Test
     void createsThreeDistinctDraftsWithCompleteInitialHistory() {
@@ -47,7 +48,7 @@ class SyntheticAssessmentSeederIntegrationTests extends PostgresIntegrationTest 
             assertTrue(ApplicationIdentityProfileValidator.validate(current.assessment().profile()).canEvaluate());
             var revisions = service.getRevisions(WORKSPACE_ID, id, null, 100).items();
             assertEquals(1, revisions.size());
-            assertEquals(current.assessment().profile(), revisions.getFirst().profile());
+            assertEquals(mapper.valueToTree(current.assessment().profile()), revisions.getFirst().profile());
             var events = service.getEvents(WORKSPACE_ID, id, null, 100).items();
             assertEquals(1, events.size());
             assertEquals("assessment.created", events.getFirst().action());

@@ -72,6 +72,8 @@ paths:
       summary: Read an assessment
       operationId: getAssessmentV1
       responses:
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
         "200":
           description: Current assessment representation.
           content:
@@ -134,6 +136,8 @@ paths:
         shares the local-only restriction of the rest of this API.
       operationId: getAssessmentRevisionsV1
       responses:
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
         "200":
           description: Revision page; nextAfterVersion is null when no more rows were found.
           content:
@@ -273,6 +277,120 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v2/workspaces/{workspaceId}/assessments:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      tags: [Assessments]
+      summary: Create a draft with a profile v2 representation
+      description: >-
+        Provision the workspace through the existing v1 workspace endpoint first.
+        Empty residency details mean unrecorded. The database uses the smallest lossless
+        profile format; the response always projects profile v2. This API is local-only.
+      operationId: createAssessmentV2
+      responses:
+        "201":
+          description: Created assessment with empty residency details.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/WorkspaceNotFound"
+  /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Read a current assessment as profile v2
+      description: >-
+        Projects legacy profiles with empty residency details without updating stored
+        data, timestamps, version or history. profileSchemaVersion describes the response
+        representation. The original criticality is preserved. Existing v1 reads return
+        409 profile-upgrade-required when residency details cannot be represented.
+      operationId: getAssessmentV2
+      responses:
+        "200":
+          description: Current assessment with an explicit v2 profile.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    put:
+      tags: [Assessments]
+      summary: Replace a profile including scoped country residency inputs
+      description: >-
+        Requires the complete profile and expectedVersion. Countries are an allowlist
+        for at-rest storage of every selected data category. Empty lists are unrecorded,
+        not unrestricted. Processing locations, remote access, cross-border transfers
+        and compliance are not represented by this input. REQUIRED and PREFERRED retain
+        their existing meaning; FORBIDDEN is not interpreted as a country denylist.
+        This slice records details, but residency evaluation remains deferred.
+        Reads/no-op saves do not rewrite old snapshots. Changes atomically append a
+        versioned snapshot and security-section event. V1 writes return 409 when the
+        current profile contains residency details, preventing accidental data loss.
+      operationId: updateAssessmentProfileV2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/update-assessment-profile-request.v2.schema.json
+      responses:
+        "200":
+          description: Updated or unchanged assessment.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
+        "422":
+          $ref: "#/components/responses/InvalidProfile"
+  /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+      - $ref: "#/components/parameters/AfterVersion"
+      - $ref: "#/components/parameters/HistoryLimit"
+    get:
+      tags: [Assessments]
+      summary: Read original v1 and v2 profile snapshots
+      description: >-
+        Preserves each stored profile and its profileSchemaVersion without applying
+        current domain validation or projecting old snapshots into a newer shape.
+        Uses the same exclusive version cursor as v1. A v1 history request returns 409
+        if its page contains a v2 snapshot. State-change events keep their existing v1 endpoint.
+      operationId: getAssessmentRevisionsV2
+      responses:
+        "200":
+          description: A page containing original versioned snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-revision-page.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   parameters:
     WorkspaceId:
@@ -314,6 +432,12 @@ components:
         type: string
         format: uri-reference
   responses:
+    ProfileUpgradeRequired:
+      description: This representation cannot preserve residency details; use the corresponding v2 endpoint.
+      content:
+        application/problem+json:
+          schema:
+            $ref: ../schemas/core-problem.v1.schema.json
     InvalidRequest:
       description: The request body, path or query parameters are malformed or outside the documented bounds.
       content:
@@ -333,7 +457,7 @@ components:
           schema:
             $ref: ../schemas/core-problem.v1.schema.json
     VersionConflict:
-      description: The supplied expected version is stale or the assessment is archived.
+      description: The expected version is stale, the assessment is archived, or a legacy client must use profile API v2.
       content:
         application/problem+json:
           schema:

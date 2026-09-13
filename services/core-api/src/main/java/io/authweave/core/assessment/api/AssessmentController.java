@@ -63,7 +63,7 @@ public class AssessmentController {
             @PathVariable UUID workspaceId,
             @PathVariable UUID assessmentId,
             @Valid @RequestBody UpdateAssessmentProfileRequest request) {
-        return AssessmentResponse.from(assessmentService.updateProfile(
+        return AssessmentResponse.from(assessmentService.updateLegacyProfile(
                 new WorkspaceId(workspaceId),
                 new AssessmentId(assessmentId),
                 request.expectedVersion(),

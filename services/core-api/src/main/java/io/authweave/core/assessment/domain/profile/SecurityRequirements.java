@@ -2,6 +2,7 @@ package io.authweave.core.assessment.domain.profile;
 
 import java.util.Objects;
 import java.util.Set;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 public record SecurityRequirements(
         RequirementCriticality multiFactorAuthentication,
@@ -9,9 +10,13 @@ public record SecurityRequirements(
         RequirementCriticality auditability,
         RequirementCriticality dataResidency,
         AssuranceLevel assurance,
-        Set<ComplianceTarget> complianceTargets) {
+        Set<ComplianceTarget> complianceTargets,
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = DataResidencyDetails.UnrecordedFilter.class)
+        DataResidencyDetails dataResidencyDetails) {
 
     public SecurityRequirements {
+        // Legacy v1 JSON has no details. The v2 wire input and versioned codec require this field.
+        if (dataResidencyDetails == null) dataResidencyDetails = DataResidencyDetails.unknown();
         Objects.requireNonNull(
                 multiFactorAuthentication,
                 "multiFactorAuthentication must not be null");
@@ -25,6 +30,13 @@ public record SecurityRequirements(
                 Objects.requireNonNull(
                         complianceTargets,
                         "complianceTargets must not be null"));
+    }
+
+    public SecurityRequirements(RequirementCriticality multiFactorAuthentication,
+            RequirementCriticality browserTokenExposureMinimization, RequirementCriticality auditability,
+            RequirementCriticality dataResidency, AssuranceLevel assurance, Set<ComplianceTarget> complianceTargets) {
+        this(multiFactorAuthentication, browserTokenExposureMinimization, auditability, dataResidency,
+                assurance, complianceTargets, DataResidencyDetails.unknown());
     }
 
     public static SecurityRequirements unknown() {

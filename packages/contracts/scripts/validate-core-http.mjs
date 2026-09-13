@@ -22,7 +22,8 @@ assert.ok(Array.isArray(samples) && samples.length > 0, "HTTP contract samples m
 const covered = new Set();
 for (const { name, schema, valid, payload } of samples) {
   assert.equal(typeof valid, "boolean", `${name}: expected validity is required`);
-  const validate = ajv.getSchema(`https://authweave.dev/contracts/${schema}.v1.schema.json`);
+  const versionedName = /\.v[0-9]+$/.test(schema) ? schema : `${schema}.v1`;
+  const validate = ajv.getSchema(`https://authweave.dev/contracts/${versionedName}.schema.json`);
   assert.ok(validate, `${name}: unknown schema ${schema}`);
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
@@ -31,6 +32,8 @@ for (const { name, schema, valid, payload } of samples) {
 for (const required of ["assessment-response:true", "core-problem:true",
   "capability-preflight:true", "eligibility-preflight:true", "architecture-pattern-preflight:true",
   "assessment-revision-page:true", "assessment-event-page:true",
+  "assessment-response.v2:true", "assessment-revision-page.v2:true",
+  "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",
   "update-assessment-profile-request:true", "update-assessment-profile-request:false"]) {
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }

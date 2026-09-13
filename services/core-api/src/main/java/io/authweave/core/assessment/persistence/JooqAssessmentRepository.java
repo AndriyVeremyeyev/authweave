@@ -20,8 +20,6 @@ import static org.jooq.impl.DSL.currentOffsetDateTime;
 @Repository
 public class JooqAssessmentRepository implements AssessmentRepository {
 
-    static final short PROFILE_SCHEMA_VERSION = 1;
-
     private final DSLContext dsl;
     private final AssessmentProfileJsonCodec profileJsonCodec;
     private final JooqAssessmentHistoryRepository history;
@@ -43,7 +41,7 @@ public class JooqAssessmentRepository implements AssessmentRepository {
                         .set(ASSESSMENTS.WORKSPACE_ID, assessment.workspaceId().value())
                         .set(ASSESSMENTS.ID, assessment.id().value())
                         .set(ASSESSMENTS.STATUS, assessment.status().name())
-                        .set(ASSESSMENTS.PROFILE_SCHEMA_VERSION, PROFILE_SCHEMA_VERSION)
+                        .set(ASSESSMENTS.PROFILE_SCHEMA_VERSION, profileJsonCodec.schemaVersion(assessment.profile()))
                         .set(ASSESSMENTS.PROFILE, profileJsonCodec.encode(assessment.profile()))
                         .returning()
                         .fetchOne(),
@@ -89,7 +87,7 @@ public class JooqAssessmentRepository implements AssessmentRepository {
 
         AssessmentsRecord record = dsl.update(ASSESSMENTS)
                 .set(ASSESSMENTS.STATUS, assessment.status().name())
-                .set(ASSESSMENTS.PROFILE_SCHEMA_VERSION, PROFILE_SCHEMA_VERSION)
+                .set(ASSESSMENTS.PROFILE_SCHEMA_VERSION, profileJsonCodec.schemaVersion(assessment.profile()))
                 .set(ASSESSMENTS.PROFILE, profileJsonCodec.encode(assessment.profile()))
                 .set(ASSESSMENTS.LOCK_VERSION, ASSESSMENTS.LOCK_VERSION.plus(1L))
                 .set(ASSESSMENTS.UPDATED_AT, currentOffsetDateTime())
@@ -127,10 +125,6 @@ public class JooqAssessmentRepository implements AssessmentRepository {
         short profileSchemaVersion = Objects.requireNonNull(
                 record.getProfileSchemaVersion(),
                 "profile schema version must not be null");
-        if (profileSchemaVersion != PROFILE_SCHEMA_VERSION) {
-            throw new UnsupportedAssessmentProfileVersionException(profileSchemaVersion);
-        }
-
         OffsetDateTime createdAt = Objects.requireNonNull(
                 record.getCreatedAt(),
                 "createdAt must not be null");
@@ -147,7 +141,7 @@ public class JooqAssessmentRepository implements AssessmentRepository {
                         "status must not be null")),
                 profileJsonCodec.decode(Objects.requireNonNull(
                         record.getProfile(),
-                        "profile must not be null")));
+                        "profile must not be null"), profileSchemaVersion));
         return new PersistedAssessment(
                 assessment,
                 Objects.requireNonNull(record.getLockVersion(), "lockVersion must not be null"),

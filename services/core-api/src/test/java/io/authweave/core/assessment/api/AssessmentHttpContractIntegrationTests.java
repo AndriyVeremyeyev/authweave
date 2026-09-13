@@ -578,6 +578,187 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertHistorySize(assessment, 2);
     }
 
+    @Test
+    void residencyV2PreservesLegacyReadsAndBlocksLossyLegacyWrites() throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v2/");
+        var initial = v2Response("v2-project-legacy", mvc.perform(get(path)).andExpect(status().isOk()).andReturn());
+        assertEquals(2, initial.get("profileSchemaVersion").asInt());
+        assertEquals(0, initial.at("/profile/security/dataResidencyDetails/allowedCountries").size());
+        assertEquals(assessment.created(), response("v1-after-projection", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 1);
+
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", initial.get("profile").deepCopy());
+        sample("v2-unrecorded-request", "update-assessment-profile-request.v2", true, update);
+        assertEquals(initial, v2Response("v2-projection-no-op", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn()));
+        assertHistorySize(assessment, 1);
+        var security = (ObjectNode) update.get("profile").get("security");
+        security.put("dataResidency", "REQUIRED");
+        var details = (ObjectNode) security.get("dataResidencyDetails");
+        details.putArray("allowedCountries").add("DE").add("FR");
+        details.putArray("dataCategories").add("USER_PROFILES").add("BACKUPS");
+        sample("v2-residency-request", "update-assessment-profile-request.v2", true, update);
+        var saved = v2Response("v2-residency-saved", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        assertEquals(1, saved.get("version").asLong());
+        assertEquals(2, saved.at("/profile/security/dataResidencyDetails/allowedCountries").size());
+        assertEquals(saved, v2Response("v2-residency-loaded", mvc.perform(get(path)).andExpect(status().isOk()).andReturn()));
+        update.put("expectedVersion", 1);
+        assertEquals(saved, v2Response("v2-residency-no-op", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn()));
+        update.put("expectedVersion", 0);
+        response("v2-residency-stale", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isConflict()).andReturn());
+
+        response("v1-residency-read-blocked", mvc.perform(get(assessment.path())).andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+        var legacy = request();
+        response("v1-residency-stale-write", mvc.perform(put(assessment.path() + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(legacy)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("assessment-version-conflict")).andReturn());
+        legacy.put("expectedVersion", 1);
+        response("v1-residency-write-blocked", mvc.perform(put(assessment.path() + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(legacy)))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+        assertEquals(saved, v2Response("v2-after-legacy-block", mvc.perform(get(path)).andReturn()));
+        var history = v2History("v2-original-snapshots", path);
+        assertEquals(2, history.get("items").size());
+        assertEquals(1, history.at("/items/0/profileSchemaVersion").asInt());
+        assertEquals(2, history.at("/items/1/profileSchemaVersion").asInt());
+        assertEquals(assessment.created().get("profile"), history.at("/items/0/profile"));
+        assertEquals(saved.get("profile"), history.at("/items/1/profile"));
+        response("v1-mixed-history-blocked", mvc.perform(get(assessment.path() + "/revisions")).andExpect(status().isConflict()).andReturn());
+        var legacyPage = mvc.perform(get(assessment.path() + "/revisions?limit=1")).andExpect(status().isOk()).andReturn();
+        historyResponse("v1-older-page-preserved", "revisions", legacyPage);
+        var events = historyResponse("residency-security-event", "events",
+                mvc.perform(get(assessment.path() + "/events")).andExpect(status().isOk()).andReturn());
+        assertEquals(2, events.get("items").size());
+        assertEquals("security", events.at("/items/1/changedSections/0").asText());
+        assertEquals(1, events.at("/items/1/changedSections").size());
+
+        String other = path.replace(assessment.workspaceId().value().toString(), UUID.randomUUID().toString());
+        response("v2-cross-workspace", mvc.perform(get(other)).andExpect(status().isNotFound()).andReturn());
+        response("v2-history-cross-workspace", mvc.perform(get(other + "/revisions")).andExpect(status().isNotFound()).andReturn());
+        response("v2-write-cross-workspace", mvc.perform(put(other + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isNotFound()).andReturn());
+
+        // An intentional v2 clear may return to a lossless v1 storage representation; old history stays intact.
+        update.put("expectedVersion", 1);
+        details.putArray("allowedCountries");
+        details.putArray("dataCategories");
+        var cleared = v2Response("v2-clear-details", mvc.perform(put(path + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        assertEquals(2, cleared.get("version").asLong());
+        response("v1-readable-after-explicit-clear", mvc.perform(get(assessment.path())).andExpect(status().isOk()).andReturn());
+        var after = v2History("v2-history-after-clear", path);
+        assertEquals(history.get("items").get(0), after.get("items").get(0));
+        assertEquals(history.get("items").get(1), after.get("items").get(1));
+        assertEquals(1, after.at("/items/2/profileSchemaVersion").asInt());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "missing-details", "null-details", "missing-countries", "null-country", "lowercase-country",
+            "unknown-country", "duplicate-country", "duplicate-category", "unknown-category", "extra-field", "unsafe-version" })
+    void rejectsInvalidResidencyV2WithoutChangingData(String scenario) throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v2/");
+        var before = v2Response("v2-before-invalid", mvc.perform(get(path)).andReturn());
+        var request = mapper.createObjectNode().put("expectedVersion", 0);
+        request.set("profile", before.get("profile").deepCopy());
+        var security = (ObjectNode) request.get("profile").get("security");
+        var details = (ObjectNode) security.get("dataResidencyDetails");
+        switch (scenario) {
+            case "missing-details" -> security.remove("dataResidencyDetails");
+            case "null-details" -> security.putNull("dataResidencyDetails");
+            case "missing-countries" -> details.remove("allowedCountries");
+            case "null-country" -> details.putArray("allowedCountries").addNull();
+            case "lowercase-country" -> details.putArray("allowedCountries").add("de");
+            case "unknown-country" -> details.putArray("allowedCountries").add("ZZ");
+            case "duplicate-country" -> details.putArray("allowedCountries").add("DE").add("DE");
+            case "duplicate-category" -> details.putArray("dataCategories").add("BACKUPS").add("BACKUPS");
+            case "unknown-category" -> details.putArray("dataCategories").add("EVERYTHING");
+            case "extra-field" -> details.put("compliant", true);
+            case "unsafe-version" -> request.put("expectedVersion", 9007199254740992L);
+            default -> throw new AssertionError(scenario);
+        }
+        boolean shapeValid = scenario.equals("unknown-country");
+        sample("v2-invalid-" + scenario, "update-assessment-profile-request.v2", shapeValid, request);
+        response("v2-invalid-" + scenario, mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(request))).andExpect(status().is(shapeValid ? 422 : 400)).andReturn());
+        assertEquals(before, v2Response("v2-invalid-unchanged", mvc.perform(get(path)).andReturn()));
+        assertHistorySize(assessment, 1);
+    }
+
+    @Test
+    void createsV2AssessmentsAndPreservesExistingPreflightContracts() throws Exception {
+        var workspace = UUID.randomUUID();
+        mvc.perform(put("/api/v1/workspaces/" + workspace)).andExpect(status().isCreated());
+        var result = mvc.perform(post("/api/v2/workspaces/" + workspace + "/assessments")).andExpect(status().isCreated()).andReturn();
+        var created = v2Response("v2-create", result);
+        assertEquals(2, created.get("profileSchemaVersion").asInt());
+        String path = result.getResponse().getHeader("Location");
+        assertEquals(created, v2Response("v2-create-read", mvc.perform(get(path)).andReturn()));
+        var request = mapper.createObjectNode().put("expectedVersion", 0);
+        request.set("profile", created.get("profile").deepCopy());
+        ((ObjectNode) request.at("/profile/security/dataResidencyDetails")).putArray("allowedCountries").add("CA");
+        v2Response("v2-partial-details", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(request))).andExpect(status().isOk()).andReturn());
+        for (String endpoint : List.of("capability-preflight", "eligibility-preflight", "architecture-pattern-preflight")) {
+            var preflight = mvc.perform(get(path.replace("/api/v2/", "/api/v1/") + "/" + endpoint))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.recommendationReady").value(false)).andReturn();
+            sample("v2-" + endpoint, endpoint, true, mapper.readTree(preflight.getResponse().getContentAsString()));
+        }
+        response("v2-history-invalid-page", mvc.perform(get(path + "/revisions?limit=0")).andExpect(status().isBadRequest()).andReturn());
+        response("v2-invalid-id", mvc.perform(get("/api/v2/workspaces/not-a-uuid/assessments/" + UUID.randomUUID()))
+                .andExpect(status().isBadRequest()).andReturn());
+    }
+
+    @Test
+    void archivedV2ProfilesAndVersionedHistoryRemainReadableButNotEditable() throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v2/");
+        var initial = v2Response("v2-before-archive", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", initial.get("profile").deepCopy());
+        var details = (ObjectNode) update.at("/profile/security/dataResidencyDetails");
+        details.putArray("dataCategories").add("AUDIT_LOGS");
+        v2Response("v2-scope-only", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(update))).andExpect(status().isOk()).andReturn());
+        var persisted = repository.findById(assessment.workspaceId(), assessment.id()).orElseThrow();
+        persisted.assessment().archive();
+        repository.update(persisted.assessment(), persisted.version());
+        var before = v2Response("v2-archived-read", mvc.perform(get(path)).andExpect(status().isOk()).andReturn());
+        assertEquals("ARCHIVED", before.get("status").asText());
+        var history = v2History("v2-archived-history", path);
+        assertEquals(3, history.get("items").size());
+        update.put("expectedVersion", 2);
+        response("v2-archived-update", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(update))).andExpect(status().isConflict()).andReturn());
+        assertEquals(before, v2Response("v2-archived-unchanged", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v2History("v2-archived-history-unchanged", path));
+        var page = mvc.perform(get(path + "/revisions?afterVersion=0&limit=1")).andExpect(status().isOk()).andReturn();
+        var payload = mapper.readTree(page.getResponse().getContentAsString());
+        sample("v2-history-page", "assessment-revision-page.v2", true, payload);
+        assertEquals(history.at("/items/1"), payload.at("/items/0"));
+        assertEquals(1, payload.get("nextAfterVersion").asInt());
+    }
+
+    private JsonNode v2History(String name, String path) throws Exception {
+        var result = mvc.perform(get(path + "/revisions")).andExpect(status().isOk()).andReturn();
+        var payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample(name, "assessment-revision-page.v2", true, payload);
+        return payload;
+    }
+
+    private JsonNode v2Response(String name, MvcResult result) throws Exception {
+        assertEquals(true, result.getResponse().getStatus() < 400);
+        var payload = mapper.readTree(result.getResponse().getContentAsString());
+        sample(name, "assessment-response.v2", true, payload);
+        return payload;
+    }
+
     private ObjectNode request() {
         ObjectNode request = mapper.createObjectNode().put("expectedVersion", 0);
         request.set("profile", mapper.valueToTree(ApplicationIdentityProfile.unknown()));

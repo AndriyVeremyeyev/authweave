@@ -74,9 +74,27 @@ class AssessmentHistoryMigrationTests extends PostgresIntegrationTest {
                         assertEquals(7, rows.getLong(1));
                     }
                 }
+                String beforeUpgrade = snapshots(url);
+                migrate(url, "4");
+                migrate(url, "4");
+                assertEquals(beforeUpgrade, snapshots(url),
+                        "V4 must not rewrite old profiles, timestamps, versions, revisions or events");
             } finally {
                 adminSql.execute("DROP DATABASE " + database);
             }
+        }
+    }
+
+    private static String snapshots(String url) throws Exception {
+        try (var connection = connect(url); var sql = connection.createStatement();
+                var rows = sql.executeQuery("""
+                        SELECT jsonb_build_object(
+                          'assessments', (SELECT jsonb_agg(to_jsonb(a)) FROM core.assessments a),
+                          'revisions', (SELECT jsonb_agg(to_jsonb(r)) FROM core.assessment_revisions r),
+                          'events', (SELECT jsonb_agg(to_jsonb(e)) FROM audit.assessment_events e))
+                        """)) {
+            assertTrue(rows.next());
+            return rows.getString(1);
         }
     }
 
