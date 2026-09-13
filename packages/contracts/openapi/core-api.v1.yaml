@@ -21,6 +21,95 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/impact-reports:
+    get:
+      tags: [Catalog drafts]
+      summary: List historical scenario reports for one exact proposal revision
+      operationId: listCatalogImpactReports
+      description: >-
+        Local-only, read-only, unauthenticated historical data. Reports are immutable snapshots
+        saved by an explicit non-web command, not trusted evidence or curator approval.
+        Reads never rerun scenario rules, refresh timestamps or alter proposal history.
+        Ordered by reportNumber ascending with an exclusive cursor; numbers may have gaps.
+        The cursor is scoped to this revision, not a report count or catalog version.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - $ref: '#/components/parameters/CatalogProposalVersion'
+        - $ref: '#/components/parameters/ImpactAfterReportNumber'
+        - $ref: '#/components/parameters/HistoryLimit'
+      responses:
+        '200':
+          description: Historical local-service recording, never a fresh approval or evaluation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-impact-report-page.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          description: The requested revision or report is not present in this scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
+  /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/impact-reports/{reportId}:
+    get:
+      tags: [Catalog drafts]
+      summary: Read an original stored scenario report without recalculation
+      operationId: getCatalogImpactReport
+      description: >-
+        Local-only, read-only, unauthenticated historical data. Reports are immutable snapshots
+        saved by an explicit non-web command, not trusted evidence or curator approval.
+        Reads never rerun scenario rules, refresh timestamps or alter proposal history.
+        The report must belong to both path IDs; cross-proposal or cross-revision reads return 404.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - $ref: '#/components/parameters/CatalogProposalVersion'
+        - $ref: '#/components/parameters/CatalogImpactReportId'
+      responses:
+        '200':
+          description: Historical local-service recording, never a fresh approval or evaluation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-impact-report.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          description: The requested revision or report is not present in this scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
+  /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/impact-reports/{reportId}/event:
+    get:
+      tags: [Catalog drafts]
+      summary: Read the minimal local-service report recording event
+      operationId: getCatalogImpactReportEvent
+      description: >-
+        Local-only, read-only, unauthenticated historical data. Reports are immutable snapshots
+        saved by an explicit non-web command, not trusted evidence or curator approval.
+        Reads never rerun scenario rules, refresh timestamps or alter proposal history.
+        The report must belong to both path IDs; cross-proposal or cross-revision reads return 404.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - $ref: '#/components/parameters/CatalogProposalVersion'
+        - $ref: '#/components/parameters/CatalogImpactReportId'
+      responses:
+        '200':
+          description: Historical local-service recording, never a fresh approval or evaluation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-impact-report-event.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          description: The requested revision or report is not present in this scope.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
   /api/v1/catalog-change-proposals/scenario-impact-preview:
     post:
       tags: [Catalog drafts]
@@ -1106,6 +1195,31 @@ components:
       schema:
         type: string
         format: uuid
+    CatalogProposalVersion:
+      name: version
+      in: path
+      required: true
+      description: Exact stored proposal revision, never implicit latest.
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 9007199254740991
+    CatalogImpactReportId:
+      name: reportId
+      in: path
+      required: true
+      description: UUID of a locally recorded immutable scenario report.
+      schema:
+        type: string
+        format: uuid
+    ImpactAfterReportNumber:
+      name: afterReportNumber
+      in: query
+      description: Exclusive report-number cursor within this exact proposal revision.
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 9007199254740991
     WorkspaceId:
       name: workspaceId
       in: path

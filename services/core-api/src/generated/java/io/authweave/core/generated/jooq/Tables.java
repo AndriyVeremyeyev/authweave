@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq;
 
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
+import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
 import io.authweave.core.generated.jooq.tables.Workspaces;
@@ -37,6 +38,12 @@ public class Tables {
      * version.
      */
     public static final Assessments ASSESSMENTS = Assessments.ASSESSMENTS;
+
+    /**
+     * Immutable conditional scenario snapshots bound to an exact proposal
+     * revision. Not approval or active catalog evidence.
+     */
+    public static final CatalogImpactReports CATALOG_IMPACT_REPORTS = CatalogImpactReports.CATALOG_IMPACT_REPORTS;
 
     /**
      * Immutable request and preview snapshots. Freshness is historical, never

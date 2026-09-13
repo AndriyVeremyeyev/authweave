@@ -28,6 +28,13 @@ import tools.jackson.core.JacksonException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
 
+    @ExceptionHandler(io.authweave.core.catalog.impact.CatalogImpactReportException.class)
+    ProblemDetail catalogImpactMissing(io.authweave.core.catalog.impact.CatalogImpactReportException exception, HttpServletRequest request) {
+        if (exception.reason() != io.authweave.core.catalog.impact.CatalogImpactReportException.Reason.NOT_FOUND) throw exception;
+        return problem(HttpStatus.NOT_FOUND, "catalog-impact-report-not-found", "Catalog impact report not found",
+                "The requested impact report does not exist in this proposal revision.", request);
+    }
+
     @ExceptionHandler(io.authweave.core.catalog.proposal.CatalogProposalException.class)
     ProblemDetail catalogProposalMissing(io.authweave.core.catalog.proposal.CatalogProposalException exception,
             HttpServletRequest request) {

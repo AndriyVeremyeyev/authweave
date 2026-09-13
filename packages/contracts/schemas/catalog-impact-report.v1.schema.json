@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-impact-report.v1.schema.json",
+  "title": "Stored conditional scenario impact report v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reportId",
+    "reportNumber",
+    "proposalId",
+    "proposalVersion",
+    "reportSchemaVersion",
+    "canonicalizationVersion",
+    "proposalSha256",
+    "reportSha256",
+    "recordedAt",
+    "report"
+  ],
+  "properties": {
+    "reportId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "reportNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "proposalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "proposalVersion": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "reportSchemaVersion": {
+      "const": 1
+    },
+    "canonicalizationVersion": {
+      "const": "catalog-draft-canonical-json-1"
+    },
+    "proposalSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "reportSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "report": {
+      "allOf": [
+        {
+          "$ref": "./catalog-scenario-impact.v1.schema.json"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "storedProposalVersion": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "storedRequestDigestVerified": {
+              "const": true
+            }
+          }
+        }
+      ]
+    }
+  }
+}

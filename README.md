@@ -561,7 +561,8 @@ returns the latest stored revision; `/revisions` and `/events` accept `afterVers
 reads are not workspace-authorized endpoints. They return historical snapshots without
 recomputing freshness. The nested preview's `writesPerformed: false` describes that
 preview operation, not whether the containing proposal was saved. State is only `PROPOSED`;
-there is no review decision, verified baseline, stored impact artifact, approval or activation.
+there is no review decision, verified baseline, approval or activation. This command does
+not save an impact report; the separate report command is described below.
 
 Flyway V8 adds the proposal head, revision and event tables without rewriting assessment
 data. jOOQ types are generated from the migration. No dependencies, accounts or paid
@@ -682,7 +683,8 @@ uses exact revision 0 and verifies its request digest. Missing/incompatible revi
 the 404/409 behavior described above. The report identifies policy `catalog-scenario-impact-1`,
 profile policy `eligibility-preflight-4`, shared claim rules and `catalog-profile-scenarios-1`
 with a canonical digest of all profile definitions. Reanalysis uses current rules/time;
-the proposal, historical preview and events are not changed, and the impact report is not saved.
+the proposal, historical preview and events are not changed. These preview endpoints do
+not save their reports; explicit report storage is described below.
 
 Full profiles do not imply full decision coverage. `deferredPaths` includes browser-token
 exposure, auditability, assurance, compliance obligations and operations/cost. Human-control
@@ -691,6 +693,63 @@ execution, so these broader areas remain deferred too. Coverage, baseline/source
 approval, writes, evaluation and recommendation readiness remain false. No source fetches,
 scoring, AI calls, installations, migrations or paid services are introduced. These endpoints
 remain local-only and unauthenticated; authorized curator decisions and activation are separate work.
+
+### Stored scenario impact reports
+
+An explicit local command can run the three-profile analysis for an exact proposal revision
+and store its result for later review. It requires a caller-selected report UUID, proposal UUID
+and revision; it never silently selects the latest revision or accepts a caller-supplied report.
+With local PostgreSQL running and the fictional proposal above already stored, run from the
+repository root:
+
+```shell
+AUTHWEAVE_CATALOG_IMPACT_REPORT_ID=44444444-4444-4444-8444-444444444444 \
+AUTHWEAVE_CATALOG_PROPOSAL_ID=33333333-3333-4333-8333-333333333333 \
+AUTHWEAVE_CATALOG_PROPOSAL_VERSION=0 \
+  make store-catalog-impact
+```
+
+The first call reports `SAVED`; the identical retry reports `UNCHANGED`, returning the original
+result without rerunning analysis or adding an event. To request a new analysis with current
+rules/time, use a new report UUID. Reusing an existing UUID for another proposal or revision
+is rejected. Missing or incompatible input cannot create a report. A stored `BLOCKED` result,
+if analysis is blocked, explicitly records that no hypothetical evaluation was performed.
+
+Each snapshot contains `reportSchemaVersion`, `canonicalizationVersion`, `proposalSha256`,
+`reportSha256`, `recordedAt` and the original report JSON. The nested report retains its
+`evaluatedAt`, rule/policy versions, case-set version/digest, full scenario definitions,
+outcomes and coverage limitations. Historical reads do not replay current rules, refresh
+evidence or reinterpret the report as the current domain model. The report digest uses the
+documented catalog canonicalization, not raw response bytes; it is not a signature or proof
+that source claims are true. The nested `report.writesPerformed: false` describes the pure
+analysis operation, not whether its containing snapshot was saved.
+
+With Core API running, these local-only GET routes use the prefix
+`/api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/impact-reports`:
+
+- The prefix itself lists reports for that exact revision. `limit` is 1–100 (default 50);
+  `afterReportNumber` is an optional exclusive non-negative safe-integer cursor.
+  Continue with `nextAfterReportNumber` until it is null. Report numbers can have gaps;
+  they are ordering keys, not counts. Writes for the same proposal are serialized before
+  allocating numbers so an in-flight lower-numbered report cannot be skipped.
+- `/{reportId}` reads one immutable snapshot. A report under a different proposal or
+  revision returns 404 `catalog-impact-report-not-found`.
+- `/{reportId}/event` reads the single recording event: `catalog-impact.recorded`, IDs,
+  revision, digest, timestamp and `SERVICE/core-api-local-catalog`, without raw report text.
+
+Flyway V9 adds report/event tables and binds each report to its exact proposal revision
+and digest. Report and event commit together; the database rejects a report without its
+matching event. Core runtime cannot update/delete/truncate either table; the web role has
+no access. This is runtime history protection, not protection from a database administrator.
+The proposal head/version, its old snapshots/events, active catalog and assessments stay unchanged.
+
+The command runs under `local-catalog-impact-write`, exits without a server and is not enabled
+by normal Core API startup. HTTP has no report writes, curator authentication, approval or
+activation. Use only synthetic, non-sensitive data; these reads are not workspace-authorized.
+Recording a service event does not identify a human reviewer or make the report an approval
+gate. Coverage, baseline/source verification, approval and readiness remain false. The
+separate 24-rule-probe preview is still stateless. No new dependencies, accounts or paid
+services are required.
 
 ### Contract validation
 

@@ -12,6 +12,26 @@ import io.authweave.core.assessment.seed.SyntheticAssessmentSeeder;
 public class CoreApiApplication {
 
     public static void main(String[] args) {
+        if (Arrays.asList(args).contains("--store-catalog-impact")) {
+            SpringApplication application = new SpringApplication(CoreApiApplication.class);
+            application.setWebApplicationType(WebApplicationType.NONE);
+            application.setAdditionalProfiles("local-catalog-impact-write");
+            int exitCode = 0;
+            try (var context = application.run(args)) {
+                var result = context.getBean(io.authweave.core.catalog.impact.LocalCatalogImpactCommand.class).store(System.getenv());
+                var report = result.report();
+                System.out.printf("%s report=%s proposal=%s version=%d status=%s approval=false activation=false%n",
+                        result.changed() ? "SAVED" : "UNCHANGED", report.reportId(), report.proposalId(), report.proposalVersion(), report.report().get("status").asText());
+            } catch (io.authweave.core.catalog.proposal.CatalogProposalException | io.authweave.core.catalog.impact.CatalogImpactReportException failure) {
+                System.err.println("Catalog impact command rejected: " + failure.getMessage()); exitCode = 2;
+            } catch (IllegalArgumentException failure) {
+                System.err.println("Invalid catalog impact command: " + failure.getMessage()); exitCode = 2;
+            } catch (RuntimeException failure) {
+                System.err.println("Catalog impact command failed (" + failure.getClass().getSimpleName() + "). No success is claimed."); exitCode = 1;
+            }
+            System.exit(exitCode);
+            return;
+        }
         if (Arrays.asList(args).contains("--store-catalog-proposal")) {
             SpringApplication application = new SpringApplication(CoreApiApplication.class);
             application.setWebApplicationType(WebApplicationType.NONE);

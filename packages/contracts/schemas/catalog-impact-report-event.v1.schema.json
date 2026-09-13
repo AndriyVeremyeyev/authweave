@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-impact-report-event.v1.schema.json",
+  "title": "Local report recording event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "reportId",
+    "proposalId",
+    "proposalVersion",
+    "reportSha256",
+    "action",
+    "actorType",
+    "actorId",
+    "correlationId",
+    "outcome",
+    "occurredAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "reportId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "proposalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "proposalVersion": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "reportSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "action": {
+      "const": "catalog-impact.recorded"
+    },
+    "actorType": {
+      "const": "SERVICE"
+    },
+    "actorId": {
+      "const": "core-api-local-catalog"
+    },
+    "correlationId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "outcome": {
+      "const": "SUCCEEDED"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

@@ -183,7 +183,7 @@
 									<generator>
 										<database>
 											<inputSchema>audit</inputSchema>
-											<includes>assessment_events|catalog_proposal_events</includes>
+											<includes>assessment_events|catalog_proposal_events|catalog_impact_report_events</includes>
 										</database>
 										<target>
 											<packageName>io.authweave.core.generated.audit</packageName>
@@ -203,7 +203,7 @@
 								<database>
 									<name>org.jooq.meta.postgres.PostgresDatabase</name>
 									<inputSchema>core</inputSchema>
-									<includes>workspaces|assessments|assessment_revisions|catalog_proposals|catalog_proposal_revisions</includes>
+									<includes>workspaces|assessments|assessment_revisions|catalog_proposals|catalog_proposal_revisions|catalog_impact_reports</includes>
 								</database>
 								<generate>
 									<deprecated>false</deprecated>

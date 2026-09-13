@@ -764,6 +764,36 @@ test("scenario impact wire shape forbids readiness claims and preserves storage 
   assert.equal(validate(blocked), true, validationMessage(validate));
   assert.equal(validate({ ...blocked, scenarios: report.scenarios }), false);
   assert.equal(validate({ ...blocked, hypotheticalEvaluationPerformed: true }), false);
+  const stored = { reportId: "44444444-4444-4444-8444-444444444444", reportNumber: 1,
+    proposalId: report.proposalId, proposalVersion: 0, reportSchemaVersion: 1,
+    canonicalizationVersion: "catalog-draft-canonical-json-1", proposalSha256: report.proposalSha256,
+    reportSha256: "1".repeat(64), recordedAt: report.evaluatedAt,
+    report: { ...report, storedProposalVersion: 0, storedRequestDigestVerified: true } };
+  const validateStored = ajv.getSchema("https://authweave.dev/contracts/catalog-impact-report.v1.schema.json");
+  assert.equal(validateStored(stored), true, validationMessage(validateStored));
+  for (const invalid of [{ reportNumber: 0 }, { reportNumber: 9007199254740992 }, { proposalVersion: -1 },
+    { reportSchemaVersion: 2 }, { canonicalizationVersion: "unversioned" }, { reportSha256: "bad" }, { report }, { approved: true }]) {
+    assert.equal(validateStored({ ...stored, ...invalid }), false, JSON.stringify(invalid));
+  }
+  assert.equal(validateStored({ ...stored, report: { ...stored.report, approvalGranted: true } }), false);
+  const validatePage = ajv.getSchema("https://authweave.dev/contracts/catalog-impact-report-page.v1.schema.json");
+  assert.equal(validatePage({ items: [stored], nextAfterReportNumber: 1 }), true);
+  assert.equal(validatePage({ items: [], nextAfterReportNumber: null }), true);
+  assert.equal(validatePage({ items: [stored], nextAfterReportNumber: -1 }), false);
+  assert.equal(validatePage({ items: Array(101).fill(stored), nextAfterReportNumber: 1 }), false);
+});
+
+test("impact recording events do not claim human authorization or embed report contents", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-impact-report-event.v1.schema.json");
+  const event = { id: "11111111-1111-4111-8111-111111111111", reportId: "44444444-4444-4444-8444-444444444444",
+    proposalId: "33333333-3333-4333-8333-333333333333", proposalVersion: 0, reportSha256: "1".repeat(64),
+    action: "catalog-impact.recorded", actorType: "SERVICE", actorId: "core-api-local-catalog",
+    correlationId: "22222222-2222-4222-8222-222222222222", outcome: "SUCCEEDED", occurredAt: "2026-09-13T12:00:00Z" };
+  assert.equal(validate(event), true, validationMessage(validate));
+  for (const invalid of [{ actorType: "CURATOR" }, { actorId: "human" }, { action: "catalog-proposal.approved" },
+    { report: {} }, { proposalVersion: -1 }, { reportSha256: "bad" }, { outcome: "APPROVED" }]) {
+    assert.equal(validate({ ...event, ...invalid }), false, JSON.stringify(invalid));
+  }
 });
 
 test("stored proposal events describe local writes without claiming authorized review", () => {

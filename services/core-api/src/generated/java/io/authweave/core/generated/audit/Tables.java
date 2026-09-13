@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 
 import javax.annotation.processing.Generated;
@@ -28,6 +29,12 @@ public class Tables {
      * update or delete events.
      */
     public static final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
+
+    /**
+     * Atomic report-save events from a local service, not an authenticated
+     * human. No raw source or profile text.
+     */
+    public static final CatalogImpactReportEvents CATALOG_IMPACT_REPORT_EVENTS = CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS;
 
     /**
      * Atomic proposal-write events attributed to the local service, not a

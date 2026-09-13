@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 
 import java.util.Arrays;
@@ -45,6 +46,12 @@ public class Audit extends SchemaImpl {
     public final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
 
     /**
+     * Atomic report-save events from a local service, not an authenticated
+     * human. No raw source or profile text.
+     */
+    public final CatalogImpactReportEvents CATALOG_IMPACT_REPORT_EVENTS = CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS;
+
+    /**
      * Atomic proposal-write events attributed to the local service, not a
      * verified human curator. No raw proposal text.
      */
@@ -67,6 +74,7 @@ public class Audit extends SchemaImpl {
     public final List<Table<?>> getTables() {
         return Arrays.asList(
             AssessmentEvents.ASSESSMENT_EVENTS,
+            CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS,
             CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS
         );
     }

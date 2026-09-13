@@ -2036,14 +2036,83 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                     .setControllerAdvice(new AssessmentProblemDetailsHandler()).build();
             response("impact-replay-unavailable-" + scenario, standalone.perform(get("/api/v1/catalog-change-proposals/" + stored.proposalId() + "/revisions/0/impact-preview"))
                     .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("catalog-proposal-replay-unavailable")).andReturn());
+            var scenarioService = new io.authweave.core.catalog.impact.CatalogScenarioImpactService(proposalPreviews, new io.authweave.core.catalog.impact.CatalogScenarioCases(mapper));
             var scenarioMvc = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
-                    new io.authweave.core.catalog.impact.CatalogScenarioImpactController(
-                            new io.authweave.core.catalog.impact.CatalogScenarioImpactService(proposalPreviews, new io.authweave.core.catalog.impact.CatalogScenarioCases(mapper)), fakeRepository, mapper))
+                    new io.authweave.core.catalog.impact.CatalogScenarioImpactController(scenarioService,
+                            new io.authweave.core.catalog.impact.CatalogScenarioReplay(scenarioService, fakeRepository, mapper)))
                     .setControllerAdvice(new AssessmentProblemDetailsHandler()).build();
             response("scenario-replay-unavailable-" + scenario, scenarioMvc.perform(get("/api/v1/catalog-change-proposals/" + stored.proposalId() + "/revisions/0/scenario-impact-preview"))
                     .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("catalog-proposal-replay-unavailable")).andReturn());
         }
         assertEquals(stored, proposals.current(stored.proposalId())); assertEquals(1, proposals.events(stored.proposalId(), null, 100).items().size());
+    }
+
+    @Test
+    void readsStoredImpactReportsAndEventsWithoutReplayingOrEnablingHttpWrites() throws Exception {
+        assertEquals(0, applicationContext.getBeansOfType(io.authweave.core.catalog.impact.LocalCatalogImpactWriter.class).size());
+        assertEquals(0, applicationContext.getBeansOfType(io.authweave.core.catalog.impact.LocalCatalogImpactCommand.class).size());
+        var input = proposalRequest(); input.put("proposalId", UUID.randomUUID().toString());
+        var proposal = storeProposal(input, null).proposal();
+        var first = storeImpact(UUID.randomUUID(), proposal.proposalId(), 0);
+        var base = "/api/v1/catalog-change-proposals/" + proposal.proposalId() + "/revisions/0/impact-reports";
+        var original = versionedSample("impact-report-original", "catalog-impact-report", mvc.perform(get(base + "/" + first.reportId())).andReturn());
+        assertEquals(mapper.readTree(mapper.writeValueAsString(first)), original);
+        assertEquals(false, original.at("/report/writesPerformed").asBoolean());
+        var event = versionedSample("impact-report-event", "catalog-impact-report-event", mvc.perform(get(base + "/" + first.reportId() + "/event")).andReturn());
+        assertEquals("catalog-impact.recorded", event.get("action").asText()); assertEquals("SERVICE", event.get("actorType").asText());
+        assertEquals(original.get("reportSha256"), event.get("reportSha256"));
+        var second = storeImpact(UUID.randomUUID(), proposal.proposalId(), 0);
+        var page = versionedSample("impact-report-page", "catalog-impact-report-page", mvc.perform(get(base + "?limit=1")).andReturn());
+        assertEquals(original, page.get("items").get(0)); assertEquals(first.reportNumber(), page.get("nextAfterReportNumber").asLong());
+        var rest = versionedSample("impact-report-page-rest", "catalog-impact-report-page", mvc.perform(get(base + "?limit=1&afterReportNumber=" + first.reportNumber())).andReturn());
+        assertEquals(second.reportId().toString(), rest.at("/items/0/reportId").asText()); assertEquals(mapper.nullNode(), rest.get("nextAfterReportNumber"));
+        var empty = versionedSample("impact-report-page-empty", "catalog-impact-report-page", mvc.perform(get(base + "?afterReportNumber=" + second.reportNumber())).andReturn());
+        assertEquals(0, empty.get("items").size());
+        input.put("rationale", "A later fictional proposal revision"); storeProposal(input, 0L);
+        assertEquals(original, versionedSample("impact-report-unchanged-after-revision", "catalog-impact-report", mvc.perform(get(base + "/" + first.reportId())).andReturn()));
+        assertEquals(event, versionedSample("impact-event-unchanged-after-revision", "catalog-impact-report-event", mvc.perform(get(base + "/" + first.reportId() + "/event")).andReturn()));
+        var newBase = base.replace("/revisions/0/", "/revisions/1/");
+        assertEquals(0, versionedSample("impact-report-new-revision-empty", "catalog-impact-report-page", mvc.perform(get(newBase)).andReturn()).get("items").size());
+        for (String path : List.of(newBase + "/" + first.reportId(), newBase + "/" + first.reportId() + "/event",
+                base.replace(proposal.proposalId().toString(), UUID.randomUUID().toString()) + "/" + first.reportId(), base + "/" + UUID.randomUUID())) {
+            response("impact-report-wrong-scope", mvc.perform(get(path)).andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.code").value("catalog-impact-report-not-found")).andReturn());
+        }
+        response("impact-report-missing-revision", mvc.perform(get(base.replace("/revisions/0/", "/revisions/2/"))).andExpect(status().isNotFound()).andReturn());
+        for (String field : List.of("reportSchemaVersion", "reportNumber", "proposalVersion")) {
+            var bad = (ObjectNode) original.deepCopy(); bad.put(field, -1); sample("impact-report-invalid-" + field, "catalog-impact-report", false, bad);
+        }
+        var unbound = (ObjectNode) original.deepCopy(); ((ObjectNode) unbound.get("report")).put("storedRequestDigestVerified", false);
+        sample("impact-report-unbound", "catalog-impact-report", false, unbound);
+        var badPage = (ObjectNode) page.deepCopy(); badPage.put("nextAfterReportNumber", -1); sample("impact-report-page-invalid", "catalog-impact-report-page", false, badPage);
+        var fakeActor = (ObjectNode) event.deepCopy(); fakeActor.put("actorType", "CURATOR"); sample("impact-report-event-not-authorized", "catalog-impact-report-event", false, fakeActor);
+        mvc.perform(post(base).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isMethodNotAllowed());
+        mvc.perform(put(base + "/" + first.reportId()).contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isMethodNotAllowed());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete(base + "/" + first.reportId())).andExpect(status().isMethodNotAllowed());
+        assertEquals(2, proposals.events(proposal.proposalId(), null, 100).items().size());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"afterReportNumber=-1", "afterReportNumber=9007199254740992", "afterReportNumber=1.5", "afterReportNumber=bad", "limit=0", "limit=101"})
+    void storedImpactHistoryRejectsBadPagination(String query) throws Exception {
+        response("impact-report-invalid-page", mvc.perform(get("/api/v1/catalog-change-proposals/" + UUID.randomUUID() + "/revisions/0/impact-reports?" + query))
+                .andExpect(status().isBadRequest()).andReturn());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"-1", "9007199254740992", "1.5", "bad"})
+    void storedImpactHistoryRejectsBadRevisionPaths(String version) throws Exception {
+        var base = "/api/v1/catalog-change-proposals/" + UUID.randomUUID() + "/revisions/" + version + "/impact-reports";
+        for (var suffix : List.of("", "/" + UUID.randomUUID(), "/" + UUID.randomUUID() + "/event")) {
+            response("impact-report-invalid-version", mvc.perform(get(base + suffix)).andExpect(status().isBadRequest()).andReturn());
+        }
+    }
+
+    private io.authweave.core.catalog.impact.CatalogImpactReport storeImpact(UUID id, UUID proposalId, long version) {
+        return new org.springframework.transaction.support.TransactionTemplate(proposalTransactions).execute(s ->
+                new io.authweave.core.catalog.impact.LocalCatalogImpactWriter(proposalDsl, mapper,
+                        applicationContext.getBean(io.authweave.core.catalog.impact.CatalogScenarioReplay.class),
+                        applicationContext.getBean(io.authweave.core.catalog.impact.CatalogImpactReportRepository.class)).save(id, proposalId, version).report());
     }
 
     private JsonNode scenarioImpact(String name, ObjectNode input) throws Exception {

@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq.tables;
 
 import io.authweave.core.generated.jooq.Core;
 import io.authweave.core.generated.jooq.Keys;
+import io.authweave.core.generated.jooq.tables.CatalogImpactReports.CatalogImpactReportsPath;
 import io.authweave.core.generated.jooq.tables.CatalogProposals.CatalogProposalsPath;
 import io.authweave.core.generated.jooq.tables.records.CatalogProposalRevisionsRecord;
 
@@ -194,6 +195,11 @@ public class CatalogProposalRevisions extends TableImpl<CatalogProposalRevisions
     }
 
     @Override
+    public List<UniqueKey<CatalogProposalRevisionsRecord>> getUniqueKeys() {
+        return Arrays.asList(Keys.CATALOG_PROPOSAL_REVISION_DIGEST_UK);
+    }
+
+    @Override
     public List<ForeignKey<CatalogProposalRevisionsRecord, ?>> getReferences() {
         return Arrays.asList(Keys.CATALOG_PROPOSAL_REVISIONS__CATALOG_PROPOSAL_REVISIONS_PROPOSAL_ID_FKEY);
     }
@@ -209,6 +215,19 @@ public class CatalogProposalRevisions extends TableImpl<CatalogProposalRevisions
             _catalogProposals = new CatalogProposalsPath(this, Keys.CATALOG_PROPOSAL_REVISIONS__CATALOG_PROPOSAL_REVISIONS_PROPOSAL_ID_FKEY, null);
 
         return _catalogProposals;
+    }
+
+    private transient CatalogImpactReportsPath _catalogImpactReports;
+
+    /**
+     * Get the implicit to-many join path to the
+     * <code>core.catalog_impact_reports</code> table
+     */
+    public CatalogImpactReportsPath catalogImpactReports() {
+        if (_catalogImpactReports == null)
+            _catalogImpactReports = new CatalogImpactReportsPath(this, null, Keys.CATALOG_IMPACT_REPORTS__CATALOG_IMPACT_REVISION_FK.getInverseKey());
+
+        return _catalogImpactReports;
     }
 
     @Override
