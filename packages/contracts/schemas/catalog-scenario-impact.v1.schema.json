@@ -1,0 +1,593 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-scenario-impact.v1.schema.json",
+  "title": "Conditional full-profile catalog scenario impact v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scope",
+    "policyVersion",
+    "ruleVersion",
+    "caseSetVersion",
+    "caseSetSha256",
+    "analysisBasis",
+    "evaluatedAt",
+    "proposalId",
+    "proposalSha256",
+    "storedProposalVersion",
+    "storedRequestDigestVerified",
+    "status",
+    "impactAnalysisPerformed",
+    "hypotheticalEvaluationPerformed",
+    "coverageComplete",
+    "baselineVerified",
+    "sourceVerificationPerformed",
+    "approvalGranted",
+    "writesPerformed",
+    "evaluationReady",
+    "recommendationReady",
+    "changePreview",
+    "uncoveredChanges",
+    "profilePolicyVersion",
+    "deferredPaths",
+    "scenarioDefinitions",
+    "scenarios"
+  ],
+  "properties": {
+    "scope": {
+      "const": "CATALOG_PROFILE_SCENARIO_IMPACT"
+    },
+    "policyVersion": {
+      "const": "catalog-scenario-impact-1"
+    },
+    "ruleVersion": {
+      "const": "assertion-claim-rules-1"
+    },
+    "caseSetVersion": {
+      "const": "catalog-profile-scenarios-1"
+    },
+    "caseSetSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "analysisBasis": {
+      "const": "ASSUMED_TRUE_CLAIMS_AND_APPLICABLE_CONDITIONS"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "proposalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "proposalSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "storedProposalVersion": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      ]
+    },
+    "storedRequestDigestVerified": {
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "BLOCKED",
+        "ANALYZED"
+      ]
+    },
+    "impactAnalysisPerformed": {
+      "type": "boolean"
+    },
+    "hypotheticalEvaluationPerformed": {
+      "type": "boolean"
+    },
+    "coverageComplete": {
+      "const": false
+    },
+    "baselineVerified": {
+      "const": false
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "approvalGranted": {
+      "const": false
+    },
+    "writesPerformed": {
+      "const": false
+    },
+    "evaluationReady": {
+      "const": false
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "changePreview": {
+      "$ref": "./catalog-change-preview.v1.schema.json"
+    },
+    "uncoveredChanges": {
+      "type": "array",
+      "maxItems": 13600,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "optionId",
+          "factPath",
+          "reason"
+        ],
+        "properties": {
+          "optionId": {
+            "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+          },
+          "factPath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "reason": {
+            "const": "NO_SCENARIO_DEPENDENCY"
+          }
+        }
+      }
+    },
+    "profilePolicyVersion": {
+      "const": "eligibility-preflight-4"
+    },
+    "deferredPaths": {
+      "const": [
+        "security.browserTokenExposureMinimization",
+        "security.auditability",
+        "security.assurance",
+        "security.complianceTargets",
+        "security.authenticationControls",
+        "provisioning",
+        "operations"
+      ]
+    },
+    "scenarioDefinitions": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/definition"
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 600,
+      "items": {
+        "$ref": "#/$defs/scenario"
+      }
+    }
+  },
+  "$defs": {
+    "definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "profileSchemaVersion",
+        "profile"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "profileSchemaVersion": {
+          "const": 5
+        },
+        "profile": {
+          "$ref": "./application-identity-profile.v5.schema.json"
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "checkId",
+        "profilePath",
+        "factPath",
+        "usesFact",
+        "factPresent",
+        "conditionalOutcome",
+        "reason",
+        "freshness",
+        "conditionsRecorded"
+      ],
+      "properties": {
+        "checkId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 450
+        },
+        "profilePath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "factPath": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "usesFact": {
+          "type": "boolean"
+        },
+        "factPresent": {
+          "type": "boolean"
+        },
+        "conditionalOutcome": {
+          "enum": [
+            "WOULD_SATISFY",
+            "WOULD_VIOLATE",
+            "INDETERMINATE",
+            "NOT_APPLIED"
+          ]
+        },
+        "reason": {
+          "enum": [
+            "REQUIRED_CLAIM_AVAILABLE",
+            "REQUIRED_CLAIM_UNAVAILABLE",
+            "FORBIDDEN_CLAIM_AVOIDABLE",
+            "FORBIDDEN_CLAIM_UNAVOIDABLE",
+            "CLAIM_UNKNOWN",
+            "FACT_MISSING",
+            "OPTION_ABSENT",
+            "NO_REQUIREMENT",
+            "PREFERENCE_NOT_SCORED",
+            "REQUIREMENT_UNKNOWN",
+            "CONTEXT_SUPPORTED",
+            "CONTEXT_UNSUPPORTED",
+            "STORAGE_OUTSIDE_ALLOWLIST",
+            "STORAGE_COMPLETE_WITHIN_ALLOWLIST",
+            "STORAGE_INCOMPLETE",
+            "CONTROL_ENFORCEABLE",
+            "CONTROL_UNAVAILABLE",
+            "ENFORCEMENT_UNSUPPORTED",
+            "PROFILE_CONTEXT_UNKNOWN",
+            "HUMAN_POPULATION_NOT_APPLICABLE",
+            "DATA_SCOPE_UNKNOWN",
+            "ALLOWED_COUNTRIES_UNKNOWN",
+            "RESIDENCY_INTENT_UNCLEAR",
+            "CLIENT_SCOPE_UNKNOWN",
+            "POPULATION_SCOPE_UNKNOWN",
+            "HUMAN_AUTH_NOT_APPLICABLE",
+            "CONTROL_INTENT_UNCLEAR",
+            "COMPLIANCE_SCOPE_UNKNOWN",
+            "NO_COMPLIANCE_TARGETS_IDENTIFIED",
+            "COMPLIANCE_TARGETS_NOT_EVALUATED",
+            "COMPLIANCE_SCOPE_INCONSISTENT"
+          ]
+        },
+        "freshness": {
+          "enum": [
+            null,
+            "CURRENT",
+            "STALE",
+            "FUTURE"
+          ]
+        },
+        "conditionsRecorded": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "factPresent": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "freshness": {
+                "type": "null"
+              },
+              "conditionsRecorded": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "freshness": {
+                "type": "string"
+              },
+              "factPath": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "usesFact": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "factPath": {
+                "type": "string"
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "conditionalOutcome": {
+                "enum": [
+                  "INDETERMINATE",
+                  "NOT_APPLIED"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "usesFact": {
+                "const": true
+              },
+              "factPresent": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "conditionalOutcome": {
+                "const": "INDETERMINATE"
+              },
+              "reason": {
+                "enum": [
+                  "FACT_MISSING",
+                  "OPTION_ABSENT"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "side": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionPresent",
+        "conditionalStatus",
+        "checks"
+      ],
+      "properties": {
+        "optionPresent": {
+          "type": "boolean"
+        },
+        "conditionalStatus": {
+          "enum": [
+            "WOULD_SATISFY_CHECKED_REQUIREMENTS",
+            "WOULD_VIOLATE_CHECKED_REQUIREMENTS",
+            "INDETERMINATE",
+            "OPTION_ABSENT"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "optionPresent": {
+                "const": false
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "conditionalStatus": {
+                "const": "OPTION_ABSENT"
+              }
+            }
+          },
+          "else": {
+            "type": "object",
+            "properties": {
+              "conditionalStatus": {
+                "not": {
+                  "const": "OPTION_ABSENT"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenarioId",
+        "optionId",
+        "scopeChanged",
+        "affectedFactPaths",
+        "conditionalStatusChanged",
+        "changedCheckIds",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "scenarioId": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "optionId": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "scopeChanged": {
+          "type": "boolean"
+        },
+        "affectedFactPaths": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 68,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "uniqueItems": true
+        },
+        "conditionalStatusChanged": {
+          "type": "boolean"
+        },
+        "changedCheckIds": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 450
+          },
+          "uniqueItems": true
+        },
+        "before": {
+          "$ref": "#/$defs/side"
+        },
+        "after": {
+          "$ref": "#/$defs/side"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "BLOCKED"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "impactAnalysisPerformed": {
+            "const": false
+          },
+          "hypotheticalEvaluationPerformed": {
+            "const": false
+          },
+          "uncoveredChanges": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "changePreview": {
+            "properties": {
+              "diffComputed": {
+                "const": false
+              }
+            },
+            "type": "object"
+          },
+          "scenarios": {
+            "maxItems": 0,
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "else": {
+        "properties": {
+          "impactAnalysisPerformed": {
+            "const": true
+          },
+          "hypotheticalEvaluationPerformed": {
+            "const": true
+          },
+          "changePreview": {
+            "properties": {
+              "diffComputed": {
+                "const": true
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "storedProposalVersion": {
+            "type": "null"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "storedRequestDigestVerified": {
+            "const": false
+          }
+        },
+        "type": "object"
+      },
+      "else": {
+        "properties": {
+          "storedRequestDigestVerified": {
+            "const": true
+          }
+        },
+        "type": "object"
+      }
+    }
+  ]
+}

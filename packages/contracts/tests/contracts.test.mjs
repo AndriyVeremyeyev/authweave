@@ -698,6 +698,74 @@ test("catalog impact remains conditional, version-bound and explicit about incom
   assert.equal(validate({ ...blocked, changePreview: report.changePreview }), false);
 });
 
+test("full-profile impact scenarios preserve all three seeds with explicit unknown newer fields", async () => {
+  const definitions = await readJson(path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog/impact-scenarios.v1.json"));
+  const seeds = await readJson(path.join(contractsRoot, "../../services/core-api/src/main/resources/seed/assessments.v1.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-scenario-impact.v1.schema.json#/$defs/definition");
+  assert.deepEqual(definitions.map(d => d.id), seeds.map(s => s.key));
+  for (const [i, definition] of definitions.entries()) {
+    assert.equal(validate(definition), true, validationMessage(validate));
+    const profile = structuredClone(definition.profile);
+    assert.deepEqual(profile.security.dataResidencyDetails, { allowedCountries: [], dataCategories: [] });
+    assert.deepEqual(profile.security.authenticationControls, { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN" });
+    assert.equal(profile.security.complianceScopeStatus, "UNKNOWN");
+    assert.deepEqual(profile.operations.usagePlanning, { scopeDescription: "", assumptions: [], volumes: {} });
+    delete profile.security.dataResidencyDetails; delete profile.security.authenticationControls;
+    delete profile.security.complianceScopeStatus; delete profile.operations.usagePlanning;
+    assert.deepEqual(profile, seeds[i].profile);
+    const missing = structuredClone(definition); delete missing.profile.operations.usagePlanning;
+    assert.equal(validate(missing), false);
+    assert.equal(validate({ ...definition, profileSchemaVersion: 1 }), false);
+  }
+});
+
+test("scenario impact wire shape forbids readiness claims and preserves storage and absence boundaries", async () => {
+  const { caseDefinitions, cases, ...common } = await readJson(path.join(fixturesRoot, "catalog-impact-preview.valid.json"));
+  const definitions = await readJson(path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog/impact-scenarios.v1.json"));
+  const golden = await readJson(path.join(fixturesRoot, "catalog-scenario-impact.expected.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-scenario-impact.v1.schema.json");
+  const check = { checkId: "provisioning.scim|facts.SCIM", profilePath: "provisioning.scim", factPath: "facts.SCIM", usesFact: true,
+    factPresent: true, conditionalOutcome: "WOULD_SATISFY", reason: "REQUIRED_CLAIM_AVAILABLE", freshness: "CURRENT", conditionsRecorded: true };
+  const side = { optionPresent: true, conditionalStatus: "WOULD_SATISFY_CHECKED_REQUIREMENTS", checks: [check] };
+  const report = { ...common, scope: "CATALOG_PROFILE_SCENARIO_IMPACT", policyVersion: "catalog-scenario-impact-1",
+    profilePolicyVersion: "eligibility-preflight-4", caseSetVersion: golden.caseSetVersion, caseSetSha256: golden.caseSetSha256,
+    deferredPaths: ["security.browserTokenExposureMinimization", "security.auditability", "security.assurance", "security.complianceTargets",
+      "security.authenticationControls", "provisioning", "operations"], scenarioDefinitions: definitions,
+    scenarios: [{ scenarioId: "b2b-saas", optionId: "example-managed-eu", scopeChanged: false, affectedFactPaths: ["facts.SCIM"],
+      conditionalStatusChanged: false, changedCheckIds: [], before: side, after: side }] };
+  assert.equal(validate(report), true, validationMessage(validate));
+  assert.equal(validate({ ...report, storedProposalVersion: 0, storedRequestDigestVerified: true }), true);
+  for (const field of ["coverageComplete", "baselineVerified", "sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady", "recommendationReady"]) {
+    assert.equal(validate({ ...report, [field]: true }), false, field);
+  }
+  for (const change of [{ deferredPaths: [] }, { scenarioDefinitions: [] }, { storedRequestDigestVerified: true },
+    { storedProposalVersion: 0 }, { impactAnalysisPerformed: false }, { hypotheticalEvaluationPerformed: false }, { recommendation: "winner" }]) {
+    assert.equal(validate({ ...report, ...change }), false, JSON.stringify(change));
+  }
+  for (const change of [{ conditionalOutcome: "PASS" }, { conditionalOutcome: "FAIL" }, { usesFact: false }, { freshness: null }, { factPath: null }]) {
+    const invalid = structuredClone(report); Object.assign(invalid.scenarios[0].before.checks[0], change);
+    assert.equal(validate(invalid), false, JSON.stringify(change));
+  }
+  const absent = structuredClone(report);
+  Object.assign(absent.scenarios[0].before, { optionPresent: false, conditionalStatus: "OPTION_ABSENT" });
+  Object.assign(absent.scenarios[0].before.checks[0], { factPresent: false, conditionalOutcome: "INDETERMINATE", reason: "OPTION_ABSENT", freshness: null, conditionsRecorded: false });
+  assert.equal(validate(absent), true, validationMessage(validate));
+  absent.scenarios[0].before.conditionalStatus = "WOULD_SATISFY_CHECKED_REQUIREMENTS";
+  assert.equal(validate(absent), false);
+  const missingFact = structuredClone(report);
+  Object.assign(missingFact.scenarios[0].before.checks[0], { factPresent: false, freshness: null, conditionsRecorded: false });
+  assert.equal(validate(missingFact), false);
+  const unusedFact = structuredClone(report);
+  Object.assign(unusedFact.scenarios[0].before.checks[0], { usesFact: false, conditionalOutcome: "NOT_APPLIED", reason: "NO_REQUIREMENT" });
+  assert.equal(validate(unusedFact), true, validationMessage(validate));
+  const blocked = { ...report, status: "BLOCKED", impactAnalysisPerformed: false, hypotheticalEvaluationPerformed: false,
+    scenarios: [], uncoveredChanges: [], changePreview: { ...report.changePreview, status: "BLOCKED", diffComputed: false,
+      blockers: ["BASE_DIGEST_MISMATCH"], affectedOptionIds: [], optionChanges: [], factChanges: [] } };
+  assert.equal(validate(blocked), true, validationMessage(validate));
+  assert.equal(validate({ ...blocked, scenarios: report.scenarios }), false);
+  assert.equal(validate({ ...blocked, hypotheticalEvaluationPerformed: true }), false);
+});
+
 test("stored proposal events describe local writes without claiming authorized review", () => {
   const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-event.v1.schema.json");
   const event = { id: "11111111-1111-4111-8111-111111111111", proposalId: "22222222-2222-4222-8222-222222222222",

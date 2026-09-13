@@ -1,0 +1,194 @@
+[
+  {
+    "id": "b2b-saas",
+    "description": "Frozen b2b-saas seed with newer requirement fields explicitly unrecorded; not an owner assessment.",
+    "profileSchemaVersion": 5,
+    "profile": {
+      "application": {
+        "type": "B2B_SAAS",
+        "clients": [
+          "BROWSER"
+        ]
+      },
+      "audience": {
+        "populations": [
+          "EXTERNAL_CUSTOMERS",
+          "PARTNERS"
+        ],
+        "tenancy": "MULTI_TENANT_ORGANIZATIONS",
+        "membership": "MULTIPLE_ORGANIZATIONS_PER_USER"
+      },
+      "protocols": {
+        "federation": {
+          "OIDC": "REQUIRED",
+          "SAML": "REQUIRED"
+        },
+        "oauth2ProtectedApis": "REQUIRED",
+        "socialLogin": "PREFERRED",
+        "enterpriseSingleSignOn": "REQUIRED"
+      },
+      "provisioning": {
+        "scim": "REQUIRED",
+        "justInTimeProvisioning": "PREFERRED",
+        "groupSynchronization": "REQUIRED"
+      },
+      "security": {
+        "multiFactorAuthentication": "REQUIRED",
+        "browserTokenExposureMinimization": "PREFERRED",
+        "auditability": "REQUIRED",
+        "dataResidency": "UNKNOWN",
+        "assurance": "BASELINE",
+        "complianceTargets": [],
+        "dataResidencyDetails": {
+          "allowedCountries": [],
+          "dataCategories": []
+        },
+        "authenticationControls": {
+          "phishingResistance": "UNKNOWN",
+          "nonExportableKeys": "UNKNOWN",
+          "stepUpAuthentication": "UNKNOWN"
+        },
+        "complianceScopeStatus": "UNKNOWN"
+      },
+      "operations": {
+        "hosting": "MANAGED",
+        "deploymentTarget": "AZURE",
+        "identityExpertise": "LIMITED",
+        "budgetSensitivity": "HIGH",
+        "usagePlanning": {
+          "scopeDescription": "",
+          "assumptions": [],
+          "volumes": {}
+        }
+      }
+    }
+  },
+  {
+    "id": "public-sector-portal",
+    "description": "Frozen public-sector-portal seed with newer requirement fields explicitly unrecorded; not an owner assessment.",
+    "profileSchemaVersion": 5,
+    "profile": {
+      "application": {
+        "type": "PUBLIC_SECTOR_PORTAL",
+        "clients": [
+          "BROWSER"
+        ]
+      },
+      "audience": {
+        "populations": [
+          "CITIZENS"
+        ],
+        "tenancy": "NO_ORGANIZATION_BOUNDARY",
+        "membership": "NOT_APPLICABLE"
+      },
+      "protocols": {
+        "federation": {
+          "OIDC": "REQUIRED",
+          "SAML": "UNKNOWN"
+        },
+        "oauth2ProtectedApis": "REQUIRED",
+        "socialLogin": "FORBIDDEN",
+        "enterpriseSingleSignOn": "NOT_REQUIRED"
+      },
+      "provisioning": {
+        "scim": "NOT_REQUIRED",
+        "justInTimeProvisioning": "UNKNOWN",
+        "groupSynchronization": "NOT_REQUIRED"
+      },
+      "security": {
+        "multiFactorAuthentication": "REQUIRED",
+        "browserTokenExposureMinimization": "REQUIRED",
+        "auditability": "REQUIRED",
+        "dataResidency": "UNKNOWN",
+        "assurance": "HIGH",
+        "complianceTargets": [],
+        "dataResidencyDetails": {
+          "allowedCountries": [],
+          "dataCategories": []
+        },
+        "authenticationControls": {
+          "phishingResistance": "UNKNOWN",
+          "nonExportableKeys": "UNKNOWN",
+          "stepUpAuthentication": "UNKNOWN"
+        },
+        "complianceScopeStatus": "UNKNOWN"
+      },
+      "operations": {
+        "hosting": "UNKNOWN",
+        "deploymentTarget": "UNDECIDED",
+        "identityExpertise": "UNKNOWN",
+        "budgetSensitivity": "UNKNOWN",
+        "usagePlanning": {
+          "scopeDescription": "",
+          "assumptions": [],
+          "volumes": {}
+        }
+      }
+    }
+  },
+  {
+    "id": "internal-workforce",
+    "description": "Frozen internal-workforce seed with newer requirement fields explicitly unrecorded; not an owner assessment.",
+    "profileSchemaVersion": 5,
+    "profile": {
+      "application": {
+        "type": "INTERNAL_WORKFORCE",
+        "clients": [
+          "BROWSER",
+          "MACHINE_TO_MACHINE"
+        ]
+      },
+      "audience": {
+        "populations": [
+          "EMPLOYEES",
+          "CONTRACTORS"
+        ],
+        "tenancy": "SINGLE_ORGANIZATION",
+        "membership": "SINGLE_ORGANIZATION_PER_USER"
+      },
+      "protocols": {
+        "federation": {
+          "OIDC": "REQUIRED",
+          "SAML": "PREFERRED"
+        },
+        "oauth2ProtectedApis": "REQUIRED",
+        "socialLogin": "FORBIDDEN",
+        "enterpriseSingleSignOn": "REQUIRED"
+      },
+      "provisioning": {
+        "scim": "UNKNOWN",
+        "justInTimeProvisioning": "UNKNOWN",
+        "groupSynchronization": "REQUIRED"
+      },
+      "security": {
+        "multiFactorAuthentication": "REQUIRED",
+        "browserTokenExposureMinimization": "PREFERRED",
+        "auditability": "REQUIRED",
+        "dataResidency": "UNKNOWN",
+        "assurance": "UNKNOWN",
+        "complianceTargets": [],
+        "dataResidencyDetails": {
+          "allowedCountries": [],
+          "dataCategories": []
+        },
+        "authenticationControls": {
+          "phishingResistance": "UNKNOWN",
+          "nonExportableKeys": "UNKNOWN",
+          "stepUpAuthentication": "UNKNOWN"
+        },
+        "complianceScopeStatus": "UNKNOWN"
+      },
+      "operations": {
+        "hosting": "UNKNOWN",
+        "deploymentTarget": "UNDECIDED",
+        "identityExpertise": "ADVANCED",
+        "budgetSensitivity": "UNKNOWN",
+        "usagePlanning": {
+          "scopeDescription": "",
+          "assumptions": [],
+          "volumes": {}
+        }
+      }
+    }
+  }
+]

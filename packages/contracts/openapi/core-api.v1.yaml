@@ -21,6 +21,74 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-change-proposals/scenario-impact-preview:
+    post:
+      tags: [Catalog drafts]
+      summary: Preview conditional impact across three frozen full-profile scenarios
+      operationId: previewCatalogScenarioImpact
+      description: >-
+        Local-only, read-only comparison under assumed-true claims and applicable conditions.
+        Uses complete version-5 profiles frozen from the three synthetic seeds, preserving
+        unknown newer requirements. Checks capability, context, residency, human controls
+        and compliance-scope uncertainty; lists deferred dimensions explicitly. Reports all
+        three scenarios for each changed option, even if their checked status is unchanged.
+        Affected fact paths are consumed dependencies, not all facts mentioned by the profile.
+        Freshness and provenance changes do not verify the hypothetical assumption. No real
+        eligibility, ranking, source fetching, storage, approval or activation occurs.
+        Coverage is always incomplete. Caller-supplied profiles or scenario definitions are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-change-preview-request.v1.schema.json
+      responses:
+        '200':
+          description: Conditional checked-scenario comparison or a blocked run, never approval.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-scenario-impact.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+  /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/scenario-impact-preview:
+    get:
+      tags: [Catalog drafts]
+      summary: Analyze an exact stored proposal revision against current versioned scenarios
+      operationId: previewStoredCatalogScenarioImpact
+      description: >-
+        Verifies the selected immutable request digest and runs current versioned scenarios
+        at current server time. Does not silently switch to latest, rewrite historical previews,
+        save an impact artifact or advance proposal state. Storage binding is not baseline
+        verification or curator authorization. Incompatible historical input returns 409;
+        original history reads remain available. Local-only and unauthenticated.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - name: version
+          in: path
+          required: true
+          description: Exact stored proposal revision; not a catalog version.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+      responses:
+        '200':
+          description: Conditional scenario comparison bound to the selected stored request.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-scenario-impact.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
+        '409':
+          description: Stored input cannot be replayed with the current request contract or digest policy.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
   /api/v1/catalog-change-proposals/impact-preview:
     post:
       tags: [Catalog drafts]

@@ -1,0 +1,13 @@
+{
+  "caseSetVersion": "catalog-profile-scenarios-1",
+  "caseSetSha256": "ad34a1fba95468535dc7919cab839a7828497847198112a1f86157723c5e5eac",
+  "sourceFixture": "catalog-change-preview-request.valid.json",
+  "scenarios": [
+    { "id": "b2b-saas", "checks": 23, "before": "INDETERMINATE", "after": "WOULD_VIOLATE_CHECKED_REQUIREMENTS",
+      "changedCheckIds": ["provisioning.scim|facts.SCIM"], "affectedFactPaths": ["facts.SCIM"] },
+    { "id": "public-sector-portal", "checks": 19, "before": "INDETERMINATE", "after": "INDETERMINATE",
+      "changedCheckIds": [], "affectedFactPaths": [] },
+    { "id": "internal-workforce", "checks": 24, "before": "INDETERMINATE", "after": "INDETERMINATE",
+      "changedCheckIds": [], "affectedFactPaths": [] }
+  ]
+}

@@ -73,8 +73,7 @@ public final class CatalogImpactService {
         var result = new TreeMap<String, Option>(); draft.options().forEach(option -> result.put(option.id(), option)); return result;
     }
     static Side side(CatalogImpactCases.Probe probe, boolean optionPresent, ProposedFact fact, Instant at) {
-        var freshness = fact == null ? null : fact.evidence().observedAt().isAfter(at) ? CatalogDraftValidation.Freshness.FUTURE
-                : fact.evidence().observedAt().isBefore(at.minus(EvidencePolicy.MAX_AGE)) ? CatalogDraftValidation.Freshness.STALE : CatalogDraftValidation.Freshness.CURRENT;
+        var freshness = freshness(fact, at);
         Outcome outcome = INDETERMINATE; Reason reason;
         if (!optionPresent) reason = OPTION_ABSENT;
         else if (probe.criticality() == io.authweave.core.assessment.domain.profile.RequirementCriticality.NOT_REQUIRED) {
@@ -111,6 +110,10 @@ public final class CatalogImpactService {
             }
         }
         return new Side(optionPresent, fact != null, outcome, reason, freshness, fact != null && !fact.conditions().isEmpty());
+    }
+    static CatalogDraftValidation.Freshness freshness(ProposedFact fact, Instant at) {
+        return fact == null ? null : fact.evidence().observedAt().isAfter(at) ? CatalogDraftValidation.Freshness.FUTURE
+                : fact.evidence().observedAt().isBefore(at.minus(EvidencePolicy.MAX_AGE)) ? CatalogDraftValidation.Freshness.STALE : CatalogDraftValidation.Freshness.CURRENT;
     }
     private static Outcome conditional(io.authweave.core.evaluation.CapabilityPreflight.Outcome value) {
         return switch (value) { case PASS -> WOULD_SATISFY; case FAIL -> WOULD_VIOLATE; case UNKNOWN -> INDETERMINATE; case NOT_APPLIED -> NOT_APPLIED; };

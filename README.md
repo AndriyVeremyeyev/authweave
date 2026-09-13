@@ -519,7 +519,7 @@ This fictional fixture yields `REVIEW_REQUIRED`, one `facts.SCIM` claim change f
 `OPTIONAL` to `UNAVAILABLE`, and all six flags false. No new accounts, dependencies,
 migrations or paid services are required for the preview. Local proposal history is
 described below, followed by conditional rule impact. Authorized curator decisions,
-full assessment impact, activation and catalog-version pinning remain subsequent work.
+complete decision coverage, activation and catalog-version pinning remain subsequent work.
 
 ### Local proposal storage and history
 
@@ -629,6 +629,68 @@ the nested `changePreview.impactAnalysisPerformed` remains false because that su
 only computes a diff. Baseline/source verification, approval, writes, evaluation readiness,
 recommendation readiness and complete coverage remain false. Both endpoints are local-only
 and unauthenticated. No migration, dependency, account or paid service is added.
+
+### Full-profile scenario impact
+
+`POST /api/v1/catalog-change-proposals/scenario-impact-preview` accepts the same proposal
+request and compares the checked outcome for each of three frozen synthetic profiles:
+`b2b-saas`, `public-sector-portal` and `internal-workforce`. These are complete v5 profile
+inputs based on the existing seeds, not saved user assessments. Newer residency, human-control,
+compliance-scope and usage fields remain explicitly unrecorded; no requirements are inferred
+from an assurance label or population. The original seeds and the 24-probe endpoint are unchanged.
+
+The scenario plan derives applicable checks from the existing capability, topology, residency,
+human-authentication and compliance-scope preflights using an empty option with no facts.
+Only then are draft assertions examined with the shared conditional claim rules. This does
+not promote drafts into reviewed synthetic evidence or bypass the real evaluator's evidence
+gates. Tests compare the conditional outcomes with production preflights on current, reviewed,
+fictional evidence, including unknown scopes, prohibitions and mixed/machine-only clients.
+
+For every changed option, `scenarios` contains all three comparisons, including unchanged
+results. Each side includes every scoped check and a conditional status. One known conditional
+violation takes precedence over unknowns; otherwise missing information prevents a checked
+match. Even `WOULD_SATISFY_CHECKED_REQUIREMENTS` is conditional and scoped, not a recommendation.
+An added/removed option is explicitly `OPTION_ABSENT` on the missing side.
+
+`usesFact` identifies checks that actually consume a catalog assertion. `factPresent` and
+freshness describe the fact at that address even if the requirement does not consume it.
+`affectedFactPaths` lists changed consumed dependencies; `changedCheckIds` compares outcomes
+and reasons, while `conditionalStatusChanged` compares the aggregate checked status.
+Scope changes are always flagged. Changed provenance/conditions still appear in `changePreview`
+even if no status changes. `uncoveredChanges` lists paths with no consumed scenario dependency.
+These three profiles currently consume 24 of the 68 possible fact paths; they are not an
+exhaustive catalog regression suite. The separate 24 rule probes also exercise requirements
+not selected in these frozen profiles.
+
+With the local Core API running, from the repository root:
+
+```shell
+curl --fail-with-body --silent --show-error \
+  -H 'Content-Type: application/json' \
+  --data-binary @packages/contracts/tests/fixtures/catalog-change-preview-request.valid.json \
+  http://127.0.0.1:8080/api/v1/catalog-change-proposals/scenario-impact-preview
+```
+
+The fictional SCIM correction changes B2B from `INDETERMINATE` to
+`WOULD_VIOLATE_CHECKED_REQUIREMENTS`. Public-sector and workforce remain `INDETERMINATE`:
+SCIM is respectively not required and unknown. None was previously a verified match.
+The profiles produce 23, 19 and 24 scoped checks per option, including compliance uncertainty.
+
+For the previously stored example, GET
+`/api/v1/catalog-change-proposals/33333333-3333-4333-8333-333333333333/revisions/0/scenario-impact-preview`
+uses exact revision 0 and verifies its request digest. Missing/incompatible revisions retain
+the 404/409 behavior described above. The report identifies policy `catalog-scenario-impact-1`,
+profile policy `eligibility-preflight-4`, shared claim rules and `catalog-profile-scenarios-1`
+with a canonical digest of all profile definitions. Reanalysis uses current rules/time;
+the proposal, historical preview and events are not changed, and the impact report is not saved.
+
+Full profiles do not imply full decision coverage. `deferredPaths` includes browser-token
+exposure, auditability, assurance, compliance obligations and operations/cost. Human-control
+availability does not verify configured flows; SCIM availability does not verify lifecycle
+execution, so these broader areas remain deferred too. Coverage, baseline/source verification,
+approval, writes, evaluation and recommendation readiness remain false. No source fetches,
+scoring, AI calls, installations, migrations or paid services are introduced. These endpoints
+remain local-only and unauthenticated; authorized curator decisions and activation are separate work.
 
 ### Contract validation
 
