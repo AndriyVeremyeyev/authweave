@@ -200,7 +200,7 @@ The v2 eligibility preflight below checks this scope; v1 preflights continue to 
 
 V2 reads project old profiles with empty details and `profileSchemaVersion: 2` without
 changing stored data. This field identifies the response format, not a database update.
-Without recorded authentication controls, the database retains v1 when both arrays
+Without recorded authentication controls or compliance scope, the database retains v1 when both arrays
 are empty and uses v2 when either is populated.
 No-op saves change neither assessment version nor history. An explicit v2 clear may
 return the current stored format to v1; previous v2 revisions remain unchanged.
@@ -279,7 +279,8 @@ and [assurance levels](https://pages.nist.gov/800-63-4/sp800-63b/aal/).
 
 Under `/api/v3/workspaces/{workspaceId}/assessments`, POST, GET `/{assessmentId}` and
 PUT `/{assessmentId}/profile` use a complete v3 profile with the existing optimistic
-lock. Reads project older profiles without modifying them. Storage uses v3 only when
+lock. Reads project older profiles without modifying them. Without a recorded compliance
+scope, storage uses v3 only when
 at least one control is not `UNKNOWN`, otherwise the existing lossless v1/v2 rules
 apply. V3 snapshots include both residency details and controls. GET `/{assessmentId}/revisions`
 returns original mixed v1/v2/v3 snapshots; old history is never rewritten.
@@ -309,6 +310,48 @@ winner or final recommendation is produced. Broad assurance remains deferred;
 `assuranceExpectation` is context only and `recommendationReady` stays false.
 Catalog v1/v2/v3 fixtures remain frozen; runtime loads only v4, not historical catalog
 replay. The browser preview still uses profile v1 and has no controls UI yet.
+
+### Explicit compliance requirements scope
+
+Profile API v4 adds `security.complianceScopeStatus` alongside the existing
+`complianceTargets` list. It records what the assessment owner has established:
+
+- `UNKNOWN`: the requirements scope is not yet recorded. Empty and partially recorded
+  target lists are both allowed; existing labels are never dropped or treated as proof.
+- `NONE_IDENTIFIED`: no requirements have been identified for this assessment;
+  `complianceTargets` must be empty. This is not a legal exemption or compliance finding.
+- `TARGETS_IDENTIFIED`: at least one target label is recorded. Detailed obligations,
+  applicable service scope and supporting evidence still need investigation.
+
+The last two states cannot contradict the target list; inconsistent updates return
+422 without changing data. Unknown or missing fields return 400. A framework label,
+including `OTHER`, never verifies or rejects a provider by itself.
+
+Use POST/GET/PUT and revision history under
+`/api/v4/workspaces/{workspaceId}/assessments`, with the same complete-profile and
+`expectedVersion` rules. V4 reads project every older format with `UNKNOWN` scope,
+preserving even non-empty target lists. They do not infer that an empty list means
+no requirements. No-op saves do not change data or history. Recorded scope requires
+stored format v4, including residency and authentication fields; otherwise the existing
+minimal v1/v2/v3 rules apply. Flyway V6 widens constraints without rewriting old records.
+
+V1/v2/v3 current-profile reads and writes reject recorded scope with 409
+`profile-upgrade-required`; old history endpoints reject pages containing unsupported
+versions. V4 history returns original mixed v1/v2/v3/v4 snapshots. An explicit reset
+to `UNKNOWN` may restore older current-profile compatibility, but never erases history.
+
+V4 `/{assessmentId}/eligibility-preflight` adds one shared `complianceScopeCheck`.
+`UNKNOWN` scope requires more information. `NONE_IDENTIFIED` yields `NOT_APPLIED`,
+not `PASS`. Selected targets remain unknown because target-specific evidence is not
+evaluated yet. An unresolved scope check changes otherwise matching candidates to
+`NEEDS_INFORMATION`; existing checked failures still take precedence. Every earlier
+candidate check remains visible. Compliance verification remains deferred and
+`verificationPerformed` is always false. There is no legal applicability decision,
+certification, score or final recommendation.
+
+The synthetic catalog remains v4 with unchanged facts and dates. V1/v2/v3 eligibility
+keeps its earlier scope and shapes. This is a local backend step; the browser preview
+remains v1 and does not yet expose these controls or compliance-scope choices.
 
 ### Contract validation
 

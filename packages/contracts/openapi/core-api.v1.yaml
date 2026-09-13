@@ -466,7 +466,7 @@ paths:
       tags: [Assessments]
       summary: Read a current assessment as profile v3
       description: >-
-        Projects v1/v2 profiles without rewriting data, timestamps, versions or history. UNKNOWN controls do not follow from assurance labels. profileSchemaVersion identifies the response representation. Older current-profile endpoints return 409 if they cannot preserve recorded requirements.
+        Projects v1/v2 profiles without rewriting data, timestamps, versions or history. UNKNOWN controls do not follow from assurance labels. profileSchemaVersion identifies the response representation. Older current-profile endpoints return 409 if they cannot preserve recorded requirements. This v3 endpoint also returns 409 for a recorded v4 compliance scope.
       operationId: getAssessmentV3
       responses:
         "200":
@@ -479,6 +479,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
   /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
@@ -487,7 +489,7 @@ paths:
       tags: [Assessments]
       summary: Replace a profile including independent authentication controls
       description: >-
-        Replace the complete profile with expectedVersion. Authentication controls apply independently to all selected human clients and populations; no automatic assurance-level or NIST AAL mapping. REQUIRED needs enforceability, not mere availability. Step-up means stronger authentication, not repeating the same method. PREFERRED is not yet scored; FORBIDDEN needs intent clarification. Residency rules remain unchanged. No-op saves preserve storage; real changes append an atomic snapshot and security-section event. Older v1/v2 writes cannot silently erase recorded controls.
+        Replace the complete profile with expectedVersion. Authentication controls apply independently to all selected human clients and populations; no automatic assurance-level or NIST AAL mapping. REQUIRED needs enforceability, not mere availability. Step-up means stronger authentication, not repeating the same method. PREFERRED is not yet scored; FORBIDDEN needs intent clarification. Residency rules remain unchanged. No-op saves preserve storage; real changes append an atomic snapshot and security-section event. Older v1/v2 writes cannot silently erase recorded controls. V3 writes reject recorded v4 compliance scope.
       operationId: updateAssessmentProfileV3
       requestBody:
         required: true
@@ -520,7 +522,7 @@ paths:
       tags: [Assessments]
       summary: Read original v1, v2 and v3 profile snapshots
       description: >-
-        Return exact mixed v1/v2/v3 snapshots and original schema versions, with the existing exclusive version cursor. No history upcasting or rewriting. Older history endpoints reject a page containing a newer unsupported format. Events keep their v1 endpoint.
+        Return exact mixed v1/v2/v3 snapshots and original schema versions, with the existing exclusive version cursor. No history upcasting or rewriting. Older history endpoints reject a page containing a newer unsupported format, including v4 scope snapshots. Events keep their v1 endpoint.
       operationId: getAssessmentRevisionsV3
       responses:
         "200":
@@ -533,6 +535,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
   /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
@@ -550,6 +554,125 @@ paths:
             application/json:
               schema:
                 $ref: ../schemas/eligibility-preflight.v3.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v4/workspaces/{workspaceId}/assessments:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+    post:
+      tags: [Assessments]
+      summary: Create a draft with a profile v4 representation
+      description: >-
+        Provision the workspace through the existing v1 endpoint first. A new draft has UNKNOWN complianceScopeStatus, empty target labels, empty residency details and UNKNOWN authentication controls. This local-only response projects profile v4; storage uses the smallest lossless format.
+      operationId: createAssessmentV4
+      responses:
+        "201":
+          description: Created assessment with unrecorded requirements scope.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v4.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/WorkspaceNotFound"
+  /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Read a current assessment as profile v4
+      description: >-
+        Projects legacy profiles with UNKNOWN complianceScopeStatus without changing targets, timestamps, versions or history. Empty legacy target lists do not imply NONE_IDENTIFIED. Existing target labels do not confirm scope or provider compliance. The response profileSchemaVersion describes the representation.
+      operationId: getAssessmentV4
+      responses:
+        "200":
+          description: Current assessment with an explicit v4 profile.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v4.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    put:
+      tags: [Assessments]
+      summary: Replace a profile including an explicit compliance requirements scope
+      description: >-
+        Replace the complete profile with expectedVersion. UNKNOWN preserves an unrecorded or incomplete requirements scope, including existing target lists. NONE_IDENTIFIED requires an empty target list; TARGETS_IDENTIFIED requires at least one label. Contradictions return 422, malformed fields return 400. These are owner-recorded inputs, not legal applicability or compliance findings. No-op saves do not rewrite storage. Real changes append an atomic security-section event and snapshot. V1/v2/v3 writes cannot silently clear recorded scope; an intentional v4 clear to UNKNOWN can restore older current-profile compatibility without altering history.
+      operationId: updateAssessmentProfileV4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/update-assessment-profile-request.v4.schema.json
+      responses:
+        "200":
+          description: Updated or unchanged assessment.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v4.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
+        "422":
+          $ref: "#/components/responses/InvalidProfile"
+  /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+      - $ref: "#/components/parameters/AfterVersion"
+      - $ref: "#/components/parameters/HistoryLimit"
+    get:
+      tags: [Assessments]
+      summary: Read original v1, v2, v3 and v4 profile snapshots
+      description: >-
+        Return exact mixed v1/v2/v3/v4 snapshots and their original schema versions, using the existing exclusive version cursor. No history projection, rewriting or current-domain revalidation. Older APIs reject pages containing unsupported formats. Events remain on the v1 endpoint.
+      operationId: getAssessmentRevisionsV4
+      responses:
+        "200":
+          description: A page containing original versioned snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-revision-page.v4.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Check existing eligibility requirements and shared compliance-scope uncertainty
+      description: >-
+        Read-only local-only synthetic eligibility extending v3 with one shared complianceScopeCheck. UNKNOWN scope needs information even when some target labels exist. NONE_IDENTIFIED imposes no target check but proves neither legal exemption nor compliance. TARGETS_IDENTIFIED remains unknown because detailed obligations, service scope and supporting evidence are not evaluated. OTHER also needs a concrete definition. No label alone verifies or rejects a provider. An unresolved shared check yields NEEDS_INFORMATION unless an existing capability/context/residency/authentication failure already determines DOES_NOT_MATCH; all reasons remain visible. Catalog v4 and earlier fact policies are unchanged. No certification, scores, winner or final recommendation; recommendationReady and verificationPerformed remain false. This request does not write to the database.
+      operationId: getAssessmentEligibilityPreflightV4
+      responses:
+        "200":
+          description: Partial eligibility with shared requirements-scope reasoning, not a compliance verdict.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/eligibility-preflight.v4.schema.json
         "400":
           $ref: "#/components/responses/InvalidRequest"
         "404":
@@ -596,7 +719,7 @@ components:
         format: uri-reference
   responses:
     ProfileUpgradeRequired:
-      description: This representation cannot preserve newer security requirements; use the compatible v2 or v3 endpoint.
+      description: This representation cannot preserve newer security requirements; use the compatible v2, v3 or v4 endpoint.
       content:
         application/problem+json:
           schema:

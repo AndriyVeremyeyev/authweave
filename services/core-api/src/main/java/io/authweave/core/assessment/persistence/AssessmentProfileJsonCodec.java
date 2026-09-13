@@ -21,9 +21,13 @@ final class AssessmentProfileJsonCodec {
     JSONB encode(ApplicationIdentityProfile profile) {
         try {
             ObjectNode tree = objectMapper.valueToTree(profile);
-            if (schemaVersion(profile) == 3) {
+            if (schemaVersion(profile) >= 3) {
                 ((ObjectNode) tree.get("security")).set("dataResidencyDetails",
                         objectMapper.valueToTree(profile.security().dataResidencyDetails()));
+            }
+            if (schemaVersion(profile) == 4) {
+                ((ObjectNode) tree.get("security")).set("authenticationControls",
+                        objectMapper.valueToTree(profile.security().authenticationControls()));
             }
             return JSONB.valueOf(objectMapper.writeValueAsString(tree));
         } catch (JacksonException exception) {
@@ -38,12 +42,14 @@ final class AssessmentProfileJsonCodec {
     }
 
     JsonNode snapshot(JSONB profile, short version) {
-        if (version < 1 || version > 3) throw new UnsupportedAssessmentProfileVersionException(version);
+        if (version < 1 || version > 4) throw new UnsupportedAssessmentProfileVersionException(version);
         var node = objectMapper.readTree(profile.data());
         var details = node.path("security").get("dataResidencyDetails");
         var controls = node.path("security").get("authenticationControls");
+        var complianceScope = node.path("security").get("complianceScopeStatus");
         if ((version == 1 && details != null) || (version >= 2 && (details == null || details.isNull()))
-                || (version < 3 && controls != null) || (version == 3 && (controls == null || controls.isNull()))) {
+                || (version < 3 && controls != null) || (version >= 3 && (controls == null || controls.isNull()))
+                || (version < 4 && complianceScope != null) || (version == 4 && (complianceScope == null || complianceScope.isNull()))) {
             throw new AssessmentProfileSerializationException("Profile does not match its stored schema version",
                     new IllegalArgumentException("Security details presence does not match schema version"));
         }

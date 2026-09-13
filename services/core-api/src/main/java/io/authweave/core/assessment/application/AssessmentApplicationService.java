@@ -60,7 +60,7 @@ public class AssessmentApplicationService {
             AssessmentId assessmentId,
             long expectedVersion,
             ApplicationIdentityProfile profile) {
-        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 3);
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 4);
     }
 
     @Transactional
@@ -73,6 +73,12 @@ public class AssessmentApplicationService {
     public PersistedAssessment updateProfileV2(WorkspaceId workspaceId, AssessmentId assessmentId,
             long expectedVersion, ApplicationIdentityProfile profile) {
         return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 2);
+    }
+
+    @Transactional
+    public PersistedAssessment updateProfileV3(WorkspaceId workspaceId, AssessmentId assessmentId,
+            long expectedVersion, ApplicationIdentityProfile profile) {
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 3);
     }
 
     private PersistedAssessment updateProfile(WorkspaceId workspaceId, AssessmentId assessmentId,

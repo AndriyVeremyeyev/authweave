@@ -16,6 +16,7 @@ public final class EligibilityEvaluator {
     public static final String POLICY_VERSION = "eligibility-preflight-1";
     public static final String RESIDENCY_POLICY_VERSION = "eligibility-preflight-2";
     public static final String AUTHENTICATION_POLICY_VERSION = "eligibility-preflight-3";
+    public static final String COMPLIANCE_SCOPE_POLICY_VERSION = "eligibility-preflight-4";
     public static final List<String> DEFERRED_PATHS = List.of(
             "security.browserTokenExposureMinimization", "security.auditability", "security.dataResidency",
             "security.assurance", "security.complianceTargets", "operations");
@@ -61,6 +62,17 @@ public final class EligibilityEvaluator {
                     controls.stream().map(AuthenticationControlCheck::outcome)).flatMap(stream -> stream).toList();
             return new EligibilityPreflightV3.Candidate(base.optionId(), base.displayName(), base.plan(), base.region(),
                     status(outcomes), base.capabilityChecks(), base.contextChecks(), base.residencyChecks(), controls);
+        }).toList();
+    }
+
+    public static List<EligibilityPreflightV3.Candidate> evaluateWithComplianceScope(
+            ApplicationIdentityProfile profile, ProviderCatalog catalog, Instant at) {
+        var compliance = ComplianceScopeEvaluator.evaluate(profile.security());
+        return evaluateWithAuthenticationControls(profile, catalog, at).stream().map(base -> {
+            var status = base.status();
+            if (compliance.outcome() == UNKNOWN && status != DOES_NOT_MATCH) status = NEEDS_INFORMATION;
+            return new EligibilityPreflightV3.Candidate(base.optionId(), base.displayName(), base.plan(), base.region(),
+                    status, base.capabilityChecks(), base.contextChecks(), base.residencyChecks(), base.authenticationControlChecks());
         }).toList();
     }
 

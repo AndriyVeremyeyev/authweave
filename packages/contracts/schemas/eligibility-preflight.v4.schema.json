@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/eligibility-preflight.v4.schema.json",
+  "title": "Synthetic eligibility preflight v4 with scoped residency",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "catalogVersion",
+    "catalogKind",
+    "policyVersion",
+    "evaluatedAt",
+    "scope",
+    "recommendationReady",
+    "deferredPaths",
+    "candidates",
+    "capabilityPolicyVersion",
+    "contextPolicyVersion",
+    "residencyPolicyVersion",
+    "authenticationControlPolicyVersion",
+    "assuranceExpectation",
+    "complianceScopeCheck",
+    "complianceScopePolicyVersion"
+  ],
+  "properties": {
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "catalogVersion": {
+      "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/identifier"
+    },
+    "catalogKind": {
+      "const": "SYNTHETIC"
+    },
+    "policyVersion": {
+      "const": "eligibility-preflight-4"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scope": {
+      "const": "SYNTHETIC_ELIGIBILITY_PREFLIGHT"
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "deferredPaths": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "security.browserTokenExposureMinimization",
+          "security.auditability",
+          "security.assurance",
+          "security.complianceTargets",
+          "operations"
+        ]
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    },
+    "capabilityPolicyVersion": {
+      "const": "capability-preflight-1"
+    },
+    "contextPolicyVersion": {
+      "const": "eligibility-preflight-1"
+    },
+    "residencyPolicyVersion": {
+      "const": "residency-preflight-1"
+    },
+    "authenticationControlPolicyVersion": {
+      "const": "authentication-controls-preflight-1"
+    },
+    "assuranceExpectation": {
+      "enum": [
+        "BASELINE",
+        "ELEVATED",
+        "HIGH",
+        "UNKNOWN"
+      ],
+      "description": "Planning context only; not evaluated as an AAL or used to infer controls."
+    },
+    "complianceScopePolicyVersion": {
+      "const": "compliance-scope-preflight-1"
+    },
+    "complianceScopeCheck": {
+      "$ref": "#/$defs/complianceScopeCheck"
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "$ref": "./eligibility-preflight.v3.schema.json#/$defs/candidate"
+    },
+    "complianceScopeCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profilePath",
+        "scopeStatus",
+        "recordedTargets",
+        "outcome",
+        "reasonCode",
+        "explanation",
+        "verificationPerformed"
+      ],
+      "properties": {
+        "profilePath": {
+          "const": "security.complianceScopeStatus"
+        },
+        "scopeStatus": {
+          "$ref": "./application-identity-profile.v4.schema.json#/properties/security/properties/complianceScopeStatus"
+        },
+        "recordedTargets": {
+          "$ref": "./application-identity-profile.v4.schema.json#/properties/security/properties/complianceTargets"
+        },
+        "outcome": {
+          "enum": [
+            "UNKNOWN",
+            "NOT_APPLIED"
+          ]
+        },
+        "reasonCode": {
+          "enum": [
+            "COMPLIANCE_SCOPE_UNKNOWN",
+            "NO_COMPLIANCE_TARGETS_IDENTIFIED",
+            "COMPLIANCE_TARGETS_NOT_EVALUATED",
+            "COMPLIANCE_SCOPE_INCONSISTENT"
+          ]
+        },
+        "explanation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 350
+        },
+        "verificationPerformed": {
+          "const": false
+        }
+      }
+    }
+  },
+  "description": "Read-only synthetic eligibility including one shared requirements-scope check. No target-specific compliance evidence or legal applicability is evaluated. An unresolved shared check yields NEEDS_INFORMATION unless an existing checked failure already excludes the candidate."
+}

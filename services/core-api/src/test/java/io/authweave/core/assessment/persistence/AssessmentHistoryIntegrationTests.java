@@ -110,7 +110,7 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 3})
+    @ValueSource(ints = {1, 2, 3, 4})
     void concurrentWritersCommitExactlyOneNewRevisionAndEvent(int format) throws Exception {
         var created = create();
         var workspace = created.assessment().workspaceId();
@@ -142,7 +142,7 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {1, 2, 3})
+    @ValueSource(ints = {1, 2, 3, 4})
     void auditInsertFailureRollsBackBothCreationAndUpdate(int format) throws Exception {
         var created = create();
         var workspace = created.assessment().workspaceId();
@@ -171,7 +171,7 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {2, 3})
+    @ValueSource(ints = {2, 3, 4})
     void callerRollbackCannotLeaveASuccessEventOrRevisionBehind(int format) {
         var created = create();
         var workspace = created.assessment().workspaceId();
@@ -238,7 +238,9 @@ class AssessmentHistoryIntegrationTests extends PostgresIntegrationTest {
                 new SecurityRequirements(s.multiFactorAuthentication(), s.browserTokenExposureMinimization(), s.auditability(),
                 s.dataResidency(), s.assurance(), s.complianceTargets(), s.dataResidencyDetails(),
                 new io.authweave.core.assessment.domain.profile.AuthenticationControls(RequirementCriticality.REQUIRED,
-                        RequirementCriticality.UNKNOWN, RequirementCriticality.UNKNOWN)), base.operations());
+                        RequirementCriticality.UNKNOWN, RequirementCriticality.UNKNOWN),
+                format == 4 ? io.authweave.core.assessment.domain.profile.ComplianceScopeStatus.NONE_IDENTIFIED
+                        : io.authweave.core.assessment.domain.profile.ComplianceScopeStatus.UNKNOWN), base.operations());
     }
 
     private static ApplicationIdentityProfile residencyProfile() {

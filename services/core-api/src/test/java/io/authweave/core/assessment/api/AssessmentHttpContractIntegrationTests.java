@@ -1081,6 +1081,223 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         response("v3-invalid-history-page", mvc.perform(get(path + "/revisions?limit=0")).andExpect(status().isBadRequest()).andReturn());
     }
 
+    @ParameterizedTest
+    @ValueSource(ints = {1, 2, 3})
+    void v4ScopePreservesLegacyProfilesAndHistoryAndBlocksLossyOlderWrites(int originalFormat) throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v4/");
+        var projected = versionedSample("v4-initial-projection", "assessment-response.v4", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", projected.get("profile").deepCopy());
+        var security = (ObjectNode) update.at("/profile/security");
+        security.putArray("complianceTargets").add("SOC_2");
+        if (originalFormat == 2) ((ObjectNode) security.get("dataResidencyDetails")).putArray("allowedCountries").add("DE");
+        if (originalFormat == 3) ((ObjectNode) security.get("authenticationControls")).put("phishingResistance", "REQUIRED");
+        var baseline = saveV4("v4-unrecorded-scope", path, update);
+        var historyBefore = v4History("v4-history-before-recording", path);
+        assertEquals(originalFormat, historyBefore.at("/items/1/profileSchemaVersion").asInt());
+        assertFalse(historyBefore.at("/items/1/profile/security").has("complianceScopeStatus"));
+        assertEquals("SOC_2", baseline.at("/profile/security/complianceTargets/0").asText());
+        assertEquals("UNKNOWN", baseline.at("/profile/security/complianceScopeStatus").asText());
+        assertEquals(4, baseline.get("profileSchemaVersion").asInt());
+        update.put("expectedVersion", 1);
+        assertEquals(baseline, saveV4("v4-legacy-noop", path, update));
+        assertEquals(historyBefore, v4History("v4-noop-preserves-format", path));
+        versionedSample("v4-old-api-still-readable", originalFormat == 1 ? "assessment-response" : "assessment-response.v" + originalFormat,
+                mvc.perform(get(path.replace("/api/v4/", "/api/v" + originalFormat + "/"))).andExpect(status().isOk()).andReturn());
+        security.put("complianceScopeStatus", "NONE_IDENTIFIED");
+        security.putArray("complianceTargets");
+        var saved = saveV4("v4-explicit-none", path, update);
+        assertEquals(2, saved.get("version").asInt());
+        var history = v4History("v4-recorded-history", path);
+        assertEquals(3, history.get("items").size());
+        assertEquals(4, history.at("/items/2/profileSchemaVersion").asInt());
+        assertEquals(saved.get("profile"), history.at("/items/2/profile"));
+        assertEquals(historyBefore.get("items").get(0), history.get("items").get(0));
+        assertEquals(historyBefore.get("items").get(1), history.get("items").get(1));
+        update.put("expectedVersion", 2);
+        assertEquals(saved, saveV4("v4-recorded-noop", path, update));
+        var events = historyResponse("v4-scope-events", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        assertEquals(3, events.get("items").size());
+        assertEquals("security", events.at("/items/2/changedSections/0").asText());
+        assertEquals(1, events.at("/items/2/changedSections").size());
+        for (int api : List.of(1, 2, 3)) {
+            String oldPath = path.replace("/api/v4/", "/api/v" + api + "/");
+            response("v4-older-read-blocked", mvc.perform(get(oldPath)).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+            response("v4-older-history-blocked", mvc.perform(get(oldPath + "/revisions")).andExpect(status().isConflict()).andReturn());
+            var oldRequest = update.deepCopy();
+            var oldSecurity = (ObjectNode) oldRequest.at("/profile/security");
+            oldSecurity.remove("complianceScopeStatus");
+            if (api < 3) oldSecurity.remove("authenticationControls");
+            if (api < 2) oldSecurity.remove("dataResidencyDetails");
+            response("v4-older-write-blocked", mvc.perform(put(oldPath + "/profile").contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(oldRequest))).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+            oldRequest.put("expectedVersion", 0);
+            response("v4-older-stale-version-first", mvc.perform(put(oldPath + "/profile").contentType(MediaType.APPLICATION_JSON)
+                    .content(mapper.writeValueAsString(oldRequest))).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("assessment-version-conflict")).andReturn());
+            versionedSample("v4-older-compatible-history-page", api == 1 ? "assessment-revision-page" : "assessment-revision-page.v" + api,
+                    mvc.perform(get(oldPath + "/revisions?limit=1")).andExpect(status().isOk()).andReturn());
+        }
+        assertEquals(saved, versionedSample("v4-blocked-writes-preserve-state", "assessment-response.v4", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v4History("v4-blocked-writes-preserve-history", path));
+        var page = versionedSample("v4-history-cursor", "assessment-revision-page.v4",
+                mvc.perform(get(path + "/revisions?afterVersion=1&limit=1")).andExpect(status().isOk()).andReturn());
+        assertEquals(history.at("/items/2"), page.at("/items/0"));
+        security.put("complianceScopeStatus", "UNKNOWN");
+        var cleared = saveV4("v4-explicit-scope-clear", path, update);
+        assertEquals(3, cleared.get("version").asInt());
+        var after = v4History("v4-history-after-clear", path);
+        for (int i = 0; i < 3; i++) assertEquals(history.get("items").get(i), after.get("items").get(i));
+        assertEquals(originalFormat, after.at("/items/3/profileSchemaVersion").asInt());
+        versionedSample("v4-compatible-current-after-clear", originalFormat == 1 ? "assessment-response" : "assessment-response.v" + originalFormat,
+                mvc.perform(get(path.replace("/api/v4/", "/api/v" + originalFormat + "/"))).andExpect(status().isOk()).andReturn());
+        response("v4-history-not-erased-by-clear", mvc.perform(get(path.replace("/api/v4/", "/api/v3/") + "/revisions"))
+                .andExpect(status().isConflict()).andReturn());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"missing-scope", "null-scope", "unknown-scope", "boolean-scope", "numeric-scope", "unknown-field",
+            "missing-targets", "duplicate-targets", "null-target", "unknown-target", "none-with-targets", "identified-without-targets", "missing-controls"})
+    void v4RejectsMalformedOrContradictoryScopeWithoutWriting(String scenario) throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v4/");
+        var before = versionedSample("v4-invalid-before", "assessment-response.v4", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", before.get("profile").deepCopy());
+        var security = (ObjectNode) update.at("/profile/security");
+        switch (scenario) {
+            case "missing-scope" -> security.remove("complianceScopeStatus");
+            case "null-scope" -> security.putNull("complianceScopeStatus");
+            case "unknown-scope" -> security.put("complianceScopeStatus", "COMPLIANT");
+            case "boolean-scope" -> security.put("complianceScopeStatus", true);
+            case "numeric-scope" -> security.put("complianceScopeStatus", 1);
+            case "unknown-field" -> security.put("complianceVerified", true);
+            case "missing-targets" -> security.remove("complianceTargets");
+            case "duplicate-targets" -> security.putArray("complianceTargets").add("SOC_2").add("SOC_2");
+            case "null-target" -> security.putArray("complianceTargets").addNull();
+            case "unknown-target" -> security.putArray("complianceTargets").add("EVERYTHING");
+            case "none-with-targets" -> {
+                security.put("complianceScopeStatus", "NONE_IDENTIFIED"); security.putArray("complianceTargets").add("GDPR");
+            }
+            case "identified-without-targets" -> security.put("complianceScopeStatus", "TARGETS_IDENTIFIED");
+            case "missing-controls" -> security.remove("authenticationControls");
+            default -> throw new AssertionError(scenario);
+        }
+        boolean contradiction = List.of("none-with-targets", "identified-without-targets").contains(scenario);
+        sample("v4-invalid-" + scenario, "update-assessment-profile-request.v4", contradiction, update);
+        var failure = mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().is(contradiction ? 422 : 400));
+        if (contradiction) failure.andExpect(jsonPath("$.issues[0].code").value(scenario.equals("none-with-targets")
+                ? "compliance_scope_none_has_targets" : "compliance_scope_targets_missing"));
+        response("v4-invalid-" + scenario, failure.andReturn());
+        assertEquals(before, versionedSample("v4-invalid-unchanged", "assessment-response.v4", mvc.perform(get(path)).andReturn()));
+        assertHistorySize(assessment, 1);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UNKNOWN", "UNKNOWN_WITH_TARGETS", "NONE_IDENTIFIED", "TARGETS_IDENTIFIED", "OTHER", "ALL_TARGETS", "MACHINE"})
+    void v4SharedScopeCheckIsReadOnlyAndCannotClaimCompliance(String scenario) throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v4/");
+        var update = residencyRequest("NOT_REQUIRED");
+        var security = (ObjectNode) update.at("/profile/security");
+        var controls = security.putObject("authenticationControls");
+        for (String field : List.of("phishingResistance", "nonExportableKeys", "stepUpAuthentication")) controls.put(field, "NOT_REQUIRED");
+        String scope = switch (scenario) {
+            case "UNKNOWN_WITH_TARGETS", "MACHINE" -> "UNKNOWN";
+            case "OTHER", "ALL_TARGETS" -> "TARGETS_IDENTIFIED";
+            default -> scenario;
+        };
+        security.put("complianceScopeStatus", scope);
+        var targets = security.putArray("complianceTargets");
+        if (scenario.equals("TARGETS_IDENTIFIED") || scenario.equals("UNKNOWN_WITH_TARGETS")) targets.add("SOC_2");
+        if (scenario.equals("OTHER")) targets.add("OTHER");
+        if (scenario.equals("ALL_TARGETS")) for (String target : List.of("SOC_2", "ISO_27001", "HIPAA", "FEDRAMP", "GDPR", "OTHER")) targets.add(target);
+        if (scenario.equals("MACHINE")) ((ObjectNode) update.at("/profile/application")).putArray("clients").add("MACHINE_TO_MACHINE");
+        var before = saveV4("v4-scope-scenario", path, update);
+        var history = v4History("v4-preflight-history-before", path);
+        var events = historyResponse("v4-preflight-events-before", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        var report = versionedSample("v4-eligibility-" + scenario, "eligibility-preflight.v4", mvc.perform(get(path + "/eligibility-preflight"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.recommendationReady").value(false)).andReturn());
+        assertEquals("eligibility-preflight-4", report.get("policyVersion").asText());
+        assertEquals("compliance-scope-preflight-1", report.get("complianceScopePolicyVersion").asText());
+        assertEquals("synthetic-2026-09-12.4", report.get("catalogVersion").asText());
+        assertEquals(before.get("version"), report.get("assessmentVersion"));
+        assertEquals(scope, report.at("/complianceScopeCheck/scopeStatus").asText());
+        assertFalse(report.at("/complianceScopeCheck/verificationPerformed").asBoolean());
+        assertEquals(targets.size(), report.at("/complianceScopeCheck/recordedTargets").size());
+        assertEquals(scope.equals("NONE_IDENTIFIED") ? "NOT_APPLIED" : "UNKNOWN", report.at("/complianceScopeCheck/outcome").asText());
+        assertEquals(scope.equals("NONE_IDENTIFIED") ? "MATCHES_CHECKED_REQUIREMENTS" : "NEEDS_INFORMATION", report.at("/candidates/0/status").asText());
+        assertEquals("DOES_NOT_MATCH", report.at("/candidates/1/status").asText());
+        assertEquals("NEEDS_INFORMATION", report.at("/candidates/2/status").asText());
+        for (int api : List.of(1, 2, 3)) {
+            var older = versionedSample("v4-older-preflight", api == 1 ? "eligibility-preflight" : "eligibility-preflight.v" + api,
+                    mvc.perform(get(path.replace("/api/v4/", "/api/v" + api + "/") + "/eligibility-preflight")).andExpect(status().isOk()).andReturn());
+            assertFalse(older.has("complianceScopeCheck"));
+            for (String group : List.of("capabilityChecks", "contextChecks")) assertEquals(older.at("/candidates/0/" + group), report.at("/candidates/0/" + group));
+            if (api == 3) {
+                assertEquals("MATCHES_CHECKED_REQUIREMENTS", older.at("/candidates/0/status").asText());
+                for (String group : List.of("residencyChecks", "authenticationControlChecks")) assertEquals(older.at("/candidates/0/" + group), report.at("/candidates/0/" + group));
+            }
+        }
+        assertEquals(report, versionedSample("v4-repeat", "eligibility-preflight.v4", mvc.perform(get(path + "/eligibility-preflight")).andReturn()));
+        assertEquals(before, versionedSample("v4-preflight-state-after", "assessment-response.v4", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v4History("v4-preflight-history-after", path));
+        assertEquals(events, historyResponse("v4-preflight-events-after", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+        var invalid = (ObjectNode) report.deepCopy();
+        ((ObjectNode) invalid.get("complianceScopeCheck")).put("verificationPerformed", true);
+        sample("v4-cannot-claim-verification", "eligibility-preflight.v4", false, invalid);
+        invalid = (ObjectNode) report.deepCopy();
+        ((ObjectNode) invalid.get("complianceScopeCheck")).put("outcome", "PASS");
+        sample("v4-no-compliance-pass", "eligibility-preflight.v4", false, invalid);
+    }
+
+    @Test
+    void v4CreateArchiveAndWorkspaceBoundariesArePreserved() throws Exception {
+        var workspace = UUID.randomUUID();
+        mvc.perform(put("/api/v1/workspaces/" + workspace)).andExpect(status().isCreated());
+        var result = mvc.perform(post("/api/v4/workspaces/" + workspace + "/assessments")).andExpect(status().isCreated()).andReturn();
+        var created = versionedSample("v4-create", "assessment-response.v4", result);
+        var path = result.getResponse().getHeader("Location");
+        var update = mapper.createObjectNode().put("expectedVersion", 0);
+        update.set("profile", created.get("profile").deepCopy());
+        ((ObjectNode) update.at("/profile/security")).put("complianceScopeStatus", "NONE_IDENTIFIED");
+        saveV4("v4-scope-only", path, update);
+        var persisted = repository.findById(new WorkspaceId(workspace), new AssessmentId(UUID.fromString(created.get("id").asText()))).orElseThrow();
+        persisted.assessment().archive(); repository.update(persisted.assessment(), persisted.version());
+        var before = versionedSample("v4-archived-read", "assessment-response.v4", mvc.perform(get(path)).andReturn());
+        assertEquals("ARCHIVED", before.get("status").asText());
+        var history = v4History("v4-archived-history", path);
+        versionedSample("v4-archived-preflight", "eligibility-preflight.v4", mvc.perform(get(path + "/eligibility-preflight")).andExpect(status().isOk()).andReturn());
+        update.put("expectedVersion", 2);
+        response("v4-archived-write-blocked", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(update))).andExpect(status().isConflict()).andReturn());
+        assertEquals(before, versionedSample("v4-archive-state-unchanged", "assessment-response.v4", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, v4History("v4-archive-history-unchanged", path));
+        for (String suffix : List.of("", "/revisions", "/eligibility-preflight")) {
+            response("v4-cross-workspace", mvc.perform(get(path.replace(workspace.toString(), UUID.randomUUID().toString()) + suffix))
+                    .andExpect(status().isNotFound()).andReturn());
+            response("v4-invalid-id", mvc.perform(get(path.replace(workspace.toString(), "invalid") + suffix))
+                    .andExpect(status().isBadRequest()).andReturn());
+        }
+        response("v4-cross-workspace-write", mvc.perform(put(path.replace(workspace.toString(), UUID.randomUUID().toString()) + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update))).andExpect(status().isNotFound()).andReturn());
+        response("v4-invalid-history-page", mvc.perform(get(path + "/revisions?limit=0")).andExpect(status().isBadRequest()).andReturn());
+    }
+
+    private JsonNode saveV4(String name, String path, ObjectNode request) throws Exception {
+        sample(name + "-request", "update-assessment-profile-request.v4", true, request.deepCopy());
+        return versionedSample(name, "assessment-response.v4", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(request))).andExpect(status().isOk()).andReturn());
+    }
+
+    private JsonNode v4History(String name, String path) throws Exception {
+        return versionedSample(name, "assessment-revision-page.v4", mvc.perform(get(path + "/revisions")).andExpect(status().isOk()).andReturn());
+    }
+
     private JsonNode versionedSample(String name, String schema, MvcResult result) throws Exception {
         assertEquals(true, result.getResponse().getStatus() < 400);
         var payload = mapper.readTree(result.getResponse().getContentAsString());

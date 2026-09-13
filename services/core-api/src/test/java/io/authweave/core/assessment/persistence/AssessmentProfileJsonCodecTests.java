@@ -35,11 +35,63 @@ class AssessmentProfileJsonCodecTests {
         assertEquals(expanded, codec.decode(expandedJson, (short) 2));
         assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(expandedJson, (short) 1));
         assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(oldJson, (short) 2));
-        assertThrows(UnsupportedAssessmentProfileVersionException.class, () -> codec.decode(oldJson, (short) 4));
+        assertThrows(UnsupportedAssessmentProfileVersionException.class, () -> codec.decode(oldJson, (short) 5));
         ObjectNode malformed = (ObjectNode) mapper.readTree(expandedJson.data()).deepCopy();
         ((ObjectNode) malformed.get("security")).putNull("dataResidencyDetails");
         assertThrows(AssessmentProfileSerializationException.class,
                 () -> codec.decode(JSONB.valueOf(mapper.writeValueAsString(malformed)), (short) 2));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {1, 2, 3})
+    void legacyFormatsKeepBothEmptyAndNonEmptyTargetsWithoutInferringScope(int format) {
+        var base = ApplicationIdentityProfile.unknown();
+        var s = base.security();
+        for (var targets : java.util.List.of(Set.<SecurityRequirements.ComplianceTarget>of(), Set.of(SecurityRequirements.ComplianceTarget.GDPR))) {
+            var profile = new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(), base.provisioning(),
+                    new SecurityRequirements(s.multiFactorAuthentication(), s.browserTokenExposureMinimization(), s.auditability(),
+                    s.dataResidency(), s.assurance(), targets,
+                    format == 2 ? new DataResidencyDetails(Set.of("DE"), Set.of()) : DataResidencyDetails.unknown(),
+                    format == 3 ? new AuthenticationControls(RequirementCriticality.REQUIRED, RequirementCriticality.UNKNOWN,
+                            RequirementCriticality.UNKNOWN) : AuthenticationControls.unknown()), base.operations());
+            var encoded = codec.encode(profile);
+            assertEquals(format, codec.schemaVersion(profile));
+            assertFalse(mapper.readTree(encoded.data()).get("security").has("complianceScopeStatus"));
+            var decoded = codec.decode(encoded, (short) format);
+            assertEquals(profile, decoded);
+            assertEquals(ComplianceScopeStatus.UNKNOWN, decoded.security().complianceScopeStatus());
+            assertEquals(targets, decoded.security().complianceTargets());
+            assertEquals(encoded, codec.encode(decoded));
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = ComplianceScopeStatus.class, names = {"NONE_IDENTIFIED", "TARGETS_IDENTIFIED"})
+    void recordedScopeUsesV4AndRejectsMislabeledOrIncompleteSnapshots(ComplianceScopeStatus scope) {
+        var base = ApplicationIdentityProfile.unknown();
+        var s = base.security();
+        var profile = new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(), base.provisioning(),
+                new SecurityRequirements(s.multiFactorAuthentication(), s.browserTokenExposureMinimization(), s.auditability(),
+                s.dataResidency(), s.assurance(), scope == ComplianceScopeStatus.TARGETS_IDENTIFIED
+                        ? Set.of(SecurityRequirements.ComplianceTarget.SOC_2) : Set.of(),
+                s.dataResidencyDetails(), s.authenticationControls(), scope), base.operations());
+        var encoded = codec.encode(profile);
+        assertEquals(4, codec.schemaVersion(profile));
+        assertEquals(profile, codec.decode(encoded, (short) 4));
+        assertTrue(mapper.readTree(encoded.data()).at("/security/authenticationControls").isObject());
+        assertTrue(mapper.readTree(encoded.data()).at("/security/dataResidencyDetails").isObject());
+        for (short format : new short[] {1, 2, 3}) {
+            assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(encoded, format));
+        }
+        for (String field : new String[] {"dataResidencyDetails", "authenticationControls", "complianceScopeStatus"}) {
+            ObjectNode malformed = (ObjectNode) mapper.readTree(encoded.data());
+            ((ObjectNode) malformed.get("security")).remove(field);
+            assertThrows(AssessmentProfileSerializationException.class,
+                    () -> codec.decode(JSONB.valueOf(mapper.writeValueAsString(malformed)), (short) 4));
+            ((ObjectNode) malformed.get("security")).putNull(field);
+            assertThrows(AssessmentProfileSerializationException.class,
+                    () -> codec.decode(JSONB.valueOf(mapper.writeValueAsString(malformed)), (short) 4));
+        }
     }
 
     @Test

@@ -1,0 +1,331 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/application-identity-profile.v4.schema.json",
+  "title": "Application identity profile v4",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "application",
+    "audience",
+    "protocols",
+    "provisioning",
+    "security",
+    "operations"
+  ],
+  "properties": {
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "clients"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "B2B_SAAS",
+            "PARTNER_PORTAL",
+            "PUBLIC_SECTOR_PORTAL",
+            "INTERNAL_WORKFORCE",
+            "OTHER",
+            "UNKNOWN"
+          ]
+        },
+        "clients": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "BROWSER",
+              "NATIVE_MOBILE",
+              "MACHINE_TO_MACHINE"
+            ]
+          }
+        }
+      }
+    },
+    "audience": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "populations",
+        "tenancy",
+        "membership"
+      ],
+      "properties": {
+        "populations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "EXTERNAL_CUSTOMERS",
+              "PARTNERS",
+              "CITIZENS",
+              "EMPLOYEES",
+              "CONTRACTORS",
+              "INTERNAL_OPERATORS"
+            ]
+          }
+        },
+        "tenancy": {
+          "type": "string",
+          "enum": [
+            "MULTI_TENANT_ORGANIZATIONS",
+            "SINGLE_ORGANIZATION",
+            "NO_ORGANIZATION_BOUNDARY",
+            "UNKNOWN"
+          ]
+        },
+        "membership": {
+          "type": "string",
+          "enum": [
+            "SINGLE_ORGANIZATION_PER_USER",
+            "MULTIPLE_ORGANIZATIONS_PER_USER",
+            "NOT_APPLICABLE",
+            "UNKNOWN"
+          ]
+        }
+      }
+    },
+    "protocols": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "federation",
+        "oauth2ProtectedApis",
+        "socialLogin",
+        "enterpriseSingleSignOn"
+      ],
+      "properties": {
+        "federation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "OIDC": {
+              "$ref": "#/$defs/criticality"
+            },
+            "SAML": {
+              "$ref": "#/$defs/criticality"
+            }
+          }
+        },
+        "oauth2ProtectedApis": {
+          "$ref": "#/$defs/criticality"
+        },
+        "socialLogin": {
+          "$ref": "#/$defs/criticality"
+        },
+        "enterpriseSingleSignOn": {
+          "$ref": "#/$defs/criticality"
+        }
+      }
+    },
+    "provisioning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scim",
+        "justInTimeProvisioning",
+        "groupSynchronization"
+      ],
+      "properties": {
+        "scim": {
+          "$ref": "#/$defs/criticality"
+        },
+        "justInTimeProvisioning": {
+          "$ref": "#/$defs/criticality"
+        },
+        "groupSynchronization": {
+          "$ref": "#/$defs/criticality"
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "multiFactorAuthentication",
+        "browserTokenExposureMinimization",
+        "auditability",
+        "dataResidency",
+        "assurance",
+        "complianceTargets",
+        "dataResidencyDetails",
+        "authenticationControls",
+        "complianceScopeStatus"
+      ],
+      "properties": {
+        "multiFactorAuthentication": {
+          "$ref": "#/$defs/criticality"
+        },
+        "browserTokenExposureMinimization": {
+          "$ref": "#/$defs/criticality"
+        },
+        "auditability": {
+          "$ref": "#/$defs/criticality"
+        },
+        "dataResidency": {
+          "$ref": "#/$defs/criticality"
+        },
+        "assurance": {
+          "type": "string",
+          "enum": [
+            "BASELINE",
+            "ELEVATED",
+            "HIGH",
+            "UNKNOWN"
+          ],
+          "description": "Planning expectation only, not a certification, NIST AAL or automatic set of authentication controls."
+        },
+        "complianceTargets": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "SOC_2",
+              "ISO_27001",
+              "HIPAA",
+              "FEDRAMP",
+              "GDPR",
+              "OTHER"
+            ]
+          }
+        },
+        "dataResidencyDetails": {
+          "description": "At-rest residency planning detail. All selected data categories use the same country allowlist; any listed country is allowed. Empty lists are unrecorded. This does not cover processing locations, support access, transfers or compliance.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "allowedCountries",
+            "dataCategories"
+          ],
+          "properties": {
+            "allowedCountries": {
+              "type": "array",
+              "uniqueItems": true,
+              "maxItems": 249,
+              "items": {
+                "type": "string",
+                "pattern": "^[A-Z]{2}$"
+              },
+              "description": "Uppercase ISO 3166-1 alpha-2 codes. The core domain also checks the JDK country-code registry. Empty means unrecorded, not worldwide permission."
+            },
+            "dataCategories": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "enum": [
+                  "USER_PROFILES",
+                  "CREDENTIALS",
+                  "AUDIT_LOGS",
+                  "BACKUPS"
+                ]
+              }
+            }
+          }
+        },
+        "authenticationControls": {
+          "description": "Independent requirements for every selected human client and user population. UNKNOWN is unrecorded. REQUIRED requires enforceability, not just feature availability. FORBIDDEN needs intent clarification. No automatic mapping from assurance labels or to NIST AAL; MFA remains a separate existing field.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "phishingResistance",
+            "nonExportableKeys",
+            "stepUpAuthentication"
+          ],
+          "properties": {
+            "phishingResistance": {
+              "$ref": "#/$defs/criticality",
+              "description": "Authentication cryptographically bound to the legitimate verifier; manually entered OTP alone is not phishing resistant."
+            },
+            "nonExportableKeys": {
+              "$ref": "#/$defs/criticality",
+              "description": "Authentication private keys cannot be exported from their protected authenticator; a passkey label or lack of sync alone is not sufficient evidence."
+            },
+            "stepUpAuthentication": {
+              "$ref": "#/$defs/criticality",
+              "description": "Ability to request and verify stronger authentication before a sensitive action; repeating the same authentication method alone does not qualify. Action policies are not yet modeled."
+            }
+          }
+        },
+        "complianceScopeStatus": {
+          "type": "string",
+          "enum": [
+            "UNKNOWN",
+            "NONE_IDENTIFIED",
+            "TARGETS_IDENTIFIED"
+          ],
+          "description": "Owner-recorded requirements scope, not legal applicability or a compliance verdict. UNKNOWN preserves unreviewed/legacy target lists; NONE_IDENTIFIED requires an empty target list; TARGETS_IDENTIFIED requires at least one label but does not establish detailed obligations or provider support. Cross-field contradictions are rejected by the domain with HTTP 422."
+        }
+      }
+    },
+    "operations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hosting",
+        "deploymentTarget",
+        "identityExpertise",
+        "budgetSensitivity"
+      ],
+      "properties": {
+        "hosting": {
+          "type": "string",
+          "enum": [
+            "MANAGED",
+            "SELF_HOSTED",
+            "NO_PREFERENCE",
+            "UNKNOWN"
+          ]
+        },
+        "deploymentTarget": {
+          "type": "string",
+          "enum": [
+            "AZURE",
+            "AWS",
+            "GOOGLE_CLOUD",
+            "ON_PREMISES",
+            "MULTI_CLOUD",
+            "UNDECIDED"
+          ]
+        },
+        "identityExpertise": {
+          "type": "string",
+          "enum": [
+            "LIMITED",
+            "MODERATE",
+            "ADVANCED",
+            "UNKNOWN"
+          ]
+        },
+        "budgetSensitivity": {
+          "type": "string",
+          "enum": [
+            "HIGH",
+            "MODERATE",
+            "LOW",
+            "UNKNOWN"
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "criticality": {
+      "description": "REQUIRED is mandatory; PREFERRED is desirable; NOT_REQUIRED imposes no constraint; FORBIDDEN explicitly excludes a capability; UNKNOWN needs clarification.",
+      "type": "string",
+      "enum": [
+        "REQUIRED",
+        "PREFERRED",
+        "NOT_REQUIRED",
+        "UNKNOWN",
+        "FORBIDDEN"
+      ]
+    }
+  }
+}

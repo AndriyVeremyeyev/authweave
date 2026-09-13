@@ -15,13 +15,17 @@ public record SecurityRequirements(
         @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = DataResidencyDetails.UnrecordedFilter.class)
         DataResidencyDetails dataResidencyDetails,
         @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = AuthenticationControls.UnrecordedFilter.class)
-        AuthenticationControls authenticationControls) {
+        AuthenticationControls authenticationControls,
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = ComplianceScopeStatus.UnknownFilter.class)
+        ComplianceScopeStatus complianceScopeStatus) {
 
     public SecurityRequirements {
         // Legacy v1 JSON has no details. The v2 wire input and versioned codec require this field.
         if (dataResidencyDetails == null) dataResidencyDetails = DataResidencyDetails.unknown();
         // Legacy v1/v2 JSON has no controls; v3 input and the codec enforce their presence.
         if (authenticationControls == null) authenticationControls = AuthenticationControls.unknown();
+        // Older formats record targets but not whether their scope was explicitly established.
+        if (complianceScopeStatus == null) complianceScopeStatus = ComplianceScopeStatus.UNKNOWN;
         Objects.requireNonNull(
                 multiFactorAuthentication,
                 "multiFactorAuthentication must not be null");
@@ -40,6 +44,14 @@ public record SecurityRequirements(
     public SecurityRequirements(RequirementCriticality multiFactorAuthentication,
             RequirementCriticality browserTokenExposureMinimization, RequirementCriticality auditability,
             RequirementCriticality dataResidency, AssuranceLevel assurance, Set<ComplianceTarget> complianceTargets,
+            DataResidencyDetails dataResidencyDetails, AuthenticationControls authenticationControls) {
+        this(multiFactorAuthentication, browserTokenExposureMinimization, auditability, dataResidency,
+                assurance, complianceTargets, dataResidencyDetails, authenticationControls, ComplianceScopeStatus.UNKNOWN);
+    }
+
+    public SecurityRequirements(RequirementCriticality multiFactorAuthentication,
+            RequirementCriticality browserTokenExposureMinimization, RequirementCriticality auditability,
+            RequirementCriticality dataResidency, AssuranceLevel assurance, Set<ComplianceTarget> complianceTargets,
             DataResidencyDetails dataResidencyDetails) {
         this(multiFactorAuthentication, browserTokenExposureMinimization, auditability, dataResidency,
                 assurance, complianceTargets, dataResidencyDetails, AuthenticationControls.unknown());
@@ -47,6 +59,7 @@ public record SecurityRequirements(
 
     @JsonIgnore
     public short minimumSchemaVersion() {
+        if (complianceScopeStatus != ComplianceScopeStatus.UNKNOWN) return 4;
         return (short) (!authenticationControls.isUnrecorded() ? 3 : dataResidencyDetails.isUnrecorded() ? 1 : 2);
     }
 

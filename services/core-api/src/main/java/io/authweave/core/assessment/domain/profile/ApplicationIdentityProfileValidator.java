@@ -20,7 +20,20 @@ public final class ApplicationIdentityProfileValidator {
         validateTenancy(profile.audience(), issues);
         validateEnterpriseSingleSignOn(profile.protocols(), issues);
         validateResidency(profile.security().dataResidencyDetails(), issues);
+        validateComplianceScope(profile.security(), issues);
         return new ProfileValidationResult(issues);
+    }
+
+    private static void validateComplianceScope(SecurityRequirements security, List<ProfileIssue> issues) {
+        if (security.complianceScopeStatus() == ComplianceScopeStatus.NONE_IDENTIFIED && !security.complianceTargets().isEmpty()) {
+            issues.add(contradiction("compliance_scope_none_has_targets", "security.complianceTargets",
+                    "A scope with no identified requirements cannot also list compliance targets."));
+        } else if (security.complianceScopeStatus() == ComplianceScopeStatus.TARGETS_IDENTIFIED && security.complianceTargets().isEmpty()) {
+            issues.add(contradiction("compliance_scope_targets_missing", "security.complianceTargets",
+                    "List at least one identified target, or leave the scope unknown."));
+        }
+        // UNKNOWN is a valid draft, including legacy/partially recorded target lists.
+        // This adds no new aggregate lifecycle gate; the preflight exposes missing scope.
     }
 
     private static void validateResidency(DataResidencyDetails details, List<ProfileIssue> issues) {

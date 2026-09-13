@@ -406,6 +406,49 @@ test("catalog v4 freezes older facts and scopes enforceable human authentication
   assert.equal(validate(otherControl), false);
 });
 
+test("profile v4 requires explicit compliance scope and preserves mixed historical formats", () => {
+  const schema = name => ajv.getSchema(`https://authweave.dev/contracts/${name}.schema.json`);
+  const profile = structuredClone(validAssessmentResponse.profile);
+  profile.security.dataResidencyDetails = { allowedCountries: [], dataCategories: [] };
+  profile.security.authenticationControls = { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN" };
+  const validate = schema("update-assessment-profile-request.v4");
+  const request = { expectedVersion: 0, profile };
+  assert.equal(validate(request), false);
+  for (const status of ["UNKNOWN", "NONE_IDENTIFIED", "TARGETS_IDENTIFIED"]) {
+    profile.security.complianceScopeStatus = status;
+    assert.equal(validate(request), true, validationMessage(validate));
+    // Target-list consistency is a domain invariant (422), not silent schema defaulting.
+    for (const api of [1, 2, 3]) assert.equal(schema(`update-assessment-profile-request.v${api}`)(request), false);
+  }
+  for (const value of [null, true, 1, "COMPLIANT", "NOT_APPLICABLE", ""]) {
+    profile.security.complianceScopeStatus = value;
+    assert.equal(validate(request), false);
+  }
+  profile.security.complianceScopeStatus = "NONE_IDENTIFIED";
+  profile.security.complianceTargets = [];
+  const response = { ...validAssessmentResponse, profile, profileSchemaVersion: 4 };
+  assert.equal(schema("assessment-response.v4")(response), true);
+  assert.equal(schema("assessment-response.v4")({ ...response, profileSchemaVersion: 3 }), false);
+  const latest = { workspaceId: response.workspaceId, assessmentId: response.id, version: 3,
+    status: "DRAFT", profileSchemaVersion: 4, profile, origin: "UPDATED", recordedAt: response.createdAt };
+  const items = [1, 2, 3, 4].map(format => {
+    const item = structuredClone(latest);
+    item.version = format - 1; item.profileSchemaVersion = format;
+    if (format < 4) delete item.profile.security.complianceScopeStatus;
+    if (format < 3) delete item.profile.security.authenticationControls;
+    if (format < 2) delete item.profile.security.dataResidencyDetails;
+    return item;
+  });
+  const page = { items, nextAfterVersion: null };
+  assert.equal(schema("assessment-revision-page.v4")(page), true);
+  for (const api of [1, 2, 3]) assert.equal(schema(`assessment-revision-page.v${api}`)(page), false);
+  for (const revision of items) {
+    for (const format of [1, 2, 3, 4, 5].filter(v => v !== revision.profileSchemaVersion)) {
+      assert.equal(schema("assessment-revision-page.v4")({ items: [{ ...revision, profileSchemaVersion: format }], nextAfterVersion: null }), false);
+    }
+  }
+});
+
 test("request rejects unknown fields", () => {
   const request = structuredClone(validRequest);
   request.unknown = true;

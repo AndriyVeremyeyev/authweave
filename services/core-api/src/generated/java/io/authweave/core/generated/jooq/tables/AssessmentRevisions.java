@@ -212,7 +212,7 @@ public class AssessmentRevisions extends TableImpl<AssessmentRevisionsRecord> {
         return Arrays.asList(
             Internal.createCheck(this, DSL.name("assessment_revisions_origin_check"), "(((origin)::text = ANY ((ARRAY['CREATED'::character varying, 'UPDATED'::character varying, 'BASELINE'::character varying])::text[])))", true),
             Internal.createCheck(this, DSL.name("assessment_revisions_profile_check"), "((jsonb_typeof(profile) = 'object'::text))", true),
-            Internal.createCheck(this, DSL.name("assessment_revisions_profile_schema_version_check"), "((profile_schema_version = ANY (ARRAY[1, 2, 3])))", true),
+            Internal.createCheck(this, DSL.name("assessment_revisions_profile_schema_version_check"), "((profile_schema_version = ANY (ARRAY[1, 2, 3, 4])))", true),
             Internal.createCheck(this, DSL.name("assessment_revisions_status_check"), "(((status)::text = ANY ((ARRAY['DRAFT'::character varying, 'READY_FOR_EVALUATION'::character varying, 'EVALUATED'::character varying, 'DECIDED'::character varying, 'ARCHIVED'::character varying])::text[])))", true),
             Internal.createCheck(this, DSL.name("assessment_revisions_version_check"), "((version >= 0))", true)
         );
