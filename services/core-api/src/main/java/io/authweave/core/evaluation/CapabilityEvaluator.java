@@ -11,8 +11,6 @@ import io.authweave.core.assessment.domain.profile.ProtocolRequirements.Federati
 import io.authweave.core.catalog.ProviderCatalog;
 import io.authweave.core.catalog.ProviderCatalog.Fact;
 
-import static io.authweave.core.catalog.ProviderCatalog.Availability.MANDATORY;
-import static io.authweave.core.catalog.ProviderCatalog.Availability.UNAVAILABLE;
 import static io.authweave.core.catalog.ProviderCatalog.Capability.*;
 import static io.authweave.core.evaluation.CapabilityPreflight.*;
 import static io.authweave.core.evaluation.CapabilityPreflight.Outcome.*;
@@ -65,11 +63,11 @@ public final class CapabilityEvaluator {
         if (fact.availability() == ProviderCatalog.Availability.UNKNOWN) return result(requirement, fact, UNKNOWN, CAPABILITY_UNKNOWN,
                 "The capability's availability is not established for this plan and region.");
         if (requirement.criticality() == RequirementCriticality.REQUIRED) {
-            return fact.availability() == UNAVAILABLE
+            return ClaimRules.capability(requirement.criticality(), fact.availability()) == FAIL
                     ? result(requirement, fact, FAIL, REQUIRED_CAPABILITY_UNAVAILABLE, "This plan does not offer the required capability.")
                     : result(requirement, fact, PASS, REQUIRED_CAPABILITY_AVAILABLE, "This plan offers the required capability.");
         }
-        return fact.availability() == MANDATORY
+        return ClaimRules.capability(requirement.criticality(), fact.availability()) == FAIL
                 ? result(requirement, fact, FAIL, FORBIDDEN_CAPABILITY_UNAVOIDABLE, "The forbidden capability cannot be disabled in this plan.")
                 : result(requirement, fact, PASS, FORBIDDEN_CAPABILITY_AVOIDABLE,
                         "The forbidden capability is absent or can be disabled; it must remain disabled in the chosen configuration.");

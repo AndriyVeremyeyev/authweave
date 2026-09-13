@@ -11,12 +11,12 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 /** Application-specific canonicalization, not RFC 8785 or a signature. All v1 arrays are unordered collections. */
-final class CatalogDraftCanonicalizer {
-    static final String VERSION = "catalog-draft-canonical-json-1";
+public final class CatalogDraftCanonicalizer {
+    public static final String VERSION = "catalog-draft-canonical-json-1";
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
     private CatalogDraftCanonicalizer() { }
 
-    static String sha256(Object value) {
+    public static String sha256(Object value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(json(value).getBytes(StandardCharsets.UTF_8)));

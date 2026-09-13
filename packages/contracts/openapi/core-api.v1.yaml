@@ -21,6 +21,78 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-change-proposals/impact-preview:
+    post:
+      tags: [Catalog drafts]
+      summary: Preview conditional effects on selected catalog rule probes
+      operationId: previewCatalogRuleImpact
+      description: >-
+        Local-only, read-only what-if analysis of the same caller-supplied request as
+        the change preview. Runs 24 versioned rule probes, not complete assessment
+        scenarios or all golden cases. Values are evaluated only under the explicit
+        assumption that assertions are true and conditions apply. Drafts never become
+        REVIEWED facts or an active ProviderCatalog. WOULD_SATISFY/WOULD_VIOLATE are
+        conditional rule outcomes, not real eligibility or recommendations. Missing
+        facts remain indeterminate; preferences are not scored. Observation freshness
+        is reported independently and does not validate the hypothetical assumption.
+        Changed provenance or conditions still affect a probe even if its outcome is
+        unchanged. Scope changes require every probe to be reconsidered. Uncovered fact
+        paths are listed explicitly and coverageComplete always stays false. Invalid
+        comparisons are BLOCKED with no impact run. No facts are fetched, approved or saved.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-change-preview-request.v1.schema.json
+      responses:
+        '200':
+          description: Conditional selected-rule analysis or a blocked comparison, never an approval gate.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-impact-preview.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+  /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/impact-preview:
+    get:
+      tags: [Catalog drafts]
+      summary: Analyze an explicitly selected stored proposal revision without changing its history
+      operationId: previewStoredCatalogRuleImpact
+      description: >-
+        Loads this exact immutable revision, verifies its request digest, and runs the
+        current versioned rule probes at the current server time. A later proposal head
+        cannot change the selected input. Does not modify the stored preview, persist
+        an impact artifact, approve anything or confirm the supplied baseline. Readable
+        historical input that cannot be replayed by current rules returns 409. Original
+        history reads remain available. No caller-controlled probe definitions are accepted.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - name: version
+          in: path
+          required: true
+          description: Exact stored proposal revision, not a catalog version or implicit latest revision.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 9007199254740991
+      responses:
+        '200':
+          description: Conditional analysis bound to the requested revision and its verified request digest.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-impact-preview.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
+        '409':
+          description: Stored input cannot be replayed with the current request contract or digest policy.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
   /api/v1/catalog-change-proposals/{proposalId}:
     get:
       tags: [Catalog drafts]

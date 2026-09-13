@@ -31,6 +31,10 @@ public class AssessmentProblemDetailsHandler {
     @ExceptionHandler(io.authweave.core.catalog.proposal.CatalogProposalException.class)
     ProblemDetail catalogProposalMissing(io.authweave.core.catalog.proposal.CatalogProposalException exception,
             HttpServletRequest request) {
+        if (exception.reason() == io.authweave.core.catalog.proposal.CatalogProposalException.Reason.REPLAY_UNAVAILABLE) {
+            return problem(HttpStatus.CONFLICT, "catalog-proposal-replay-unavailable", "Proposal replay unavailable",
+                    "The stored request cannot be replayed with the current contract and digest policy.", request);
+        }
         // Only reads are HTTP-accessible. Do not accidentally expose future write failures as 404.
         if (exception.reason() != io.authweave.core.catalog.proposal.CatalogProposalException.Reason.NOT_FOUND) throw exception;
         return problem(HttpStatus.NOT_FOUND, "catalog-proposal-not-found", "Catalog proposal not found",

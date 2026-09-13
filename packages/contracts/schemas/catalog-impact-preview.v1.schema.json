@@ -1,0 +1,468 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-impact-preview.v1.schema.json",
+  "title": "Conditional catalog rule-probe impact v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "scope",
+    "policyVersion",
+    "ruleVersion",
+    "caseSetVersion",
+    "caseSetSha256",
+    "analysisBasis",
+    "evaluatedAt",
+    "proposalId",
+    "proposalSha256",
+    "storedProposalVersion",
+    "storedRequestDigestVerified",
+    "status",
+    "impactAnalysisPerformed",
+    "hypotheticalEvaluationPerformed",
+    "coverageComplete",
+    "baselineVerified",
+    "sourceVerificationPerformed",
+    "approvalGranted",
+    "writesPerformed",
+    "evaluationReady",
+    "recommendationReady",
+    "changePreview",
+    "caseDefinitions",
+    "cases",
+    "uncoveredChanges"
+  ],
+  "properties": {
+    "scope": {
+      "const": "CATALOG_RULE_PROBE_IMPACT"
+    },
+    "policyVersion": {
+      "const": "catalog-impact-preview-1"
+    },
+    "ruleVersion": {
+      "const": "assertion-claim-rules-1"
+    },
+    "caseSetVersion": {
+      "const": "catalog-impact-probes-1"
+    },
+    "caseSetSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "analysisBasis": {
+      "const": "ASSUMED_TRUE_CLAIMS_AND_APPLICABLE_CONDITIONS"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "proposalId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "proposalSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "storedProposalVersion": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      ]
+    },
+    "storedRequestDigestVerified": {
+      "type": "boolean"
+    },
+    "status": {
+      "enum": [
+        "BLOCKED",
+        "ANALYZED"
+      ]
+    },
+    "impactAnalysisPerformed": {
+      "type": "boolean"
+    },
+    "hypotheticalEvaluationPerformed": {
+      "type": "boolean"
+    },
+    "coverageComplete": {
+      "const": false
+    },
+    "baselineVerified": {
+      "const": false
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "approvalGranted": {
+      "const": false
+    },
+    "writesPerformed": {
+      "const": false
+    },
+    "evaluationReady": {
+      "const": false
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "changePreview": {
+      "$ref": "./catalog-change-preview.v1.schema.json"
+    },
+    "caseDefinitions": {
+      "type": "array",
+      "minItems": 24,
+      "maxItems": 24,
+      "items": {
+        "$ref": "#/$defs/probe"
+      }
+    },
+    "cases": {
+      "type": "array",
+      "maxItems": 4800,
+      "items": {
+        "$ref": "#/$defs/caseImpact"
+      }
+    },
+    "uncoveredChanges": {
+      "type": "array",
+      "maxItems": 13600,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "optionId",
+          "factPath",
+          "reason"
+        ],
+        "properties": {
+          "optionId": {
+            "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+          },
+          "factPath": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "reason": {
+            "const": "NO_PROBE_FOR_FACT_PATH"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "description",
+        "factKind",
+        "factPath",
+        "criticality",
+        "allowedCountries"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "factKind": {
+          "enum": [
+            "CAPABILITY",
+            "COMPATIBILITY",
+            "RESIDENCY",
+            "AUTHENTICATION_CONTROL"
+          ]
+        },
+        "factPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "criticality": {
+          "enum": [
+            "REQUIRED",
+            "PREFERRED",
+            "NOT_REQUIRED",
+            "FORBIDDEN",
+            "UNKNOWN"
+          ]
+        },
+        "allowedCountries": {
+          "type": "array",
+          "maxItems": 249,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Z]{2}$"
+          }
+        }
+      }
+    },
+    "side": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionPresent",
+        "factPresent",
+        "conditionalOutcome",
+        "reason",
+        "freshness",
+        "conditionsRecorded"
+      ],
+      "properties": {
+        "optionPresent": {
+          "type": "boolean"
+        },
+        "factPresent": {
+          "type": "boolean"
+        },
+        "conditionalOutcome": {
+          "enum": [
+            "WOULD_SATISFY",
+            "WOULD_VIOLATE",
+            "INDETERMINATE",
+            "NOT_APPLIED"
+          ]
+        },
+        "reason": {
+          "enum": [
+            "REQUIRED_CLAIM_AVAILABLE",
+            "REQUIRED_CLAIM_UNAVAILABLE",
+            "FORBIDDEN_CLAIM_AVOIDABLE",
+            "FORBIDDEN_CLAIM_UNAVOIDABLE",
+            "CLAIM_UNKNOWN",
+            "FACT_MISSING",
+            "OPTION_ABSENT",
+            "NO_REQUIREMENT",
+            "PREFERENCE_NOT_SCORED",
+            "REQUIREMENT_UNKNOWN",
+            "CONTEXT_SUPPORTED",
+            "CONTEXT_UNSUPPORTED",
+            "STORAGE_OUTSIDE_ALLOWLIST",
+            "STORAGE_COMPLETE_WITHIN_ALLOWLIST",
+            "STORAGE_INCOMPLETE",
+            "CONTROL_ENFORCEABLE",
+            "CONTROL_UNAVAILABLE",
+            "ENFORCEMENT_UNSUPPORTED"
+          ]
+        },
+        "freshness": {
+          "enum": [
+            null,
+            "CURRENT",
+            "STALE",
+            "FUTURE"
+          ]
+        },
+        "conditionsRecorded": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "factPresent": {
+                "const": false
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "freshness": {
+                "type": "null"
+              },
+              "conditionsRecorded": {
+                "const": false
+              }
+            },
+            "type": "object"
+          },
+          "else": {
+            "properties": {
+              "freshness": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "optionPresent": {
+                "const": false
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "factPresent": {
+                "const": false
+              },
+              "conditionalOutcome": {
+                "const": "INDETERMINATE"
+              },
+              "reason": {
+                "const": "OPTION_ABSENT"
+              }
+            },
+            "type": "object"
+          }
+        }
+      ]
+    },
+    "caseImpact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "caseId",
+        "optionId",
+        "factPath",
+        "scopeChanged",
+        "changedAspects",
+        "conditionalResultChanged",
+        "before",
+        "after"
+      ],
+      "properties": {
+        "caseId": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "optionId": {
+          "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier"
+        },
+        "factPath": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "scopeChanged": {
+          "type": "boolean"
+        },
+        "changedAspects": {
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "PRESENCE",
+              "CLAIM",
+              "CONDITIONS",
+              "SOURCE_URL",
+              "OBSERVED_AT",
+              "EVIDENCE_SUMMARY"
+            ]
+          }
+        },
+        "conditionalResultChanged": {
+          "type": "boolean"
+        },
+        "before": {
+          "$ref": "#/$defs/side"
+        },
+        "after": {
+          "$ref": "#/$defs/side"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "BLOCKED"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "impactAnalysisPerformed": {
+            "const": false
+          },
+          "hypotheticalEvaluationPerformed": {
+            "const": false
+          },
+          "cases": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "uncoveredChanges": {
+            "maxItems": 0,
+            "type": "array"
+          },
+          "changePreview": {
+            "properties": {
+              "diffComputed": {
+                "const": false
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "else": {
+        "properties": {
+          "impactAnalysisPerformed": {
+            "const": true
+          },
+          "hypotheticalEvaluationPerformed": {
+            "const": true
+          },
+          "changePreview": {
+            "properties": {
+              "diffComputed": {
+                "const": true
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "storedProposalVersion": {
+            "type": "null"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "storedRequestDigestVerified": {
+            "const": false
+          }
+        },
+        "type": "object"
+      },
+      "else": {
+        "properties": {
+          "storedRequestDigestVerified": {
+            "const": true
+          }
+        },
+        "type": "object"
+      }
+    }
+  ]
+}

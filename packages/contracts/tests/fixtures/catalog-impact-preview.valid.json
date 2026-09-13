@@ -1,0 +1,439 @@
+{
+  "scope": "CATALOG_RULE_PROBE_IMPACT",
+  "policyVersion": "catalog-impact-preview-1",
+  "ruleVersion": "assertion-claim-rules-1",
+  "caseSetVersion": "catalog-impact-probes-1",
+  "caseSetSha256": "83f868563220ff62fdc892c37e8fb0be6643f3fe873dc51592566c494497792e",
+  "analysisBasis": "ASSUMED_TRUE_CLAIMS_AND_APPLICABLE_CONDITIONS",
+  "evaluatedAt": "2026-09-12T12:00:00Z",
+  "proposalId": "33333333-3333-4333-8333-333333333333",
+  "proposalSha256": "2f968d8e66619e759df140730fb04f701105c13ffe598885a4f85ed3c0563150",
+  "storedProposalVersion": null,
+  "storedRequestDigestVerified": false,
+  "status": "ANALYZED",
+  "impactAnalysisPerformed": true,
+  "hypotheticalEvaluationPerformed": true,
+  "coverageComplete": false,
+  "baselineVerified": false,
+  "sourceVerificationPerformed": false,
+  "approvalGranted": false,
+  "writesPerformed": false,
+  "evaluationReady": false,
+  "recommendationReady": false,
+  "changePreview": {
+    "scope": "CATALOG_CHANGE_PREVIEW",
+    "policyVersion": "catalog-change-preview-1",
+    "canonicalizationVersion": "catalog-draft-canonical-json-1",
+    "proposalId": "33333333-3333-4333-8333-333333333333",
+    "proposalSha256": "2f968d8e66619e759df140730fb04f701105c13ffe598885a4f85ed3c0563150",
+    "rationale": "Review a fictional correction to the SCIM capability; this is not a real provider claim.",
+    "proposalState": "PROPOSED",
+    "evaluatedAt": "2026-09-12T12:00:00Z",
+    "status": "REVIEW_REQUIRED",
+    "diffComputed": true,
+    "catalogVersionChanged": true,
+    "baselineVerified": false,
+    "sourceVerificationPerformed": false,
+    "approvalGranted": false,
+    "writesPerformed": false,
+    "evaluationReady": false,
+    "impactAnalysisPerformed": false,
+    "baseReview": {
+      "catalogVersion": "example-proposal-1",
+      "contentSha256": "2183c32ee6a03515916d12647344b27f79ed0da45efb8b6259e8d08238ddcf88",
+      "status": "VALID_DRAFT",
+      "optionCount": 1,
+      "factCount": 9,
+      "freshness": {
+        "current": 9,
+        "stale": 0,
+        "future": 0
+      },
+      "issues": []
+    },
+    "candidateReview": {
+      "catalogVersion": "example-proposal-2",
+      "contentSha256": "e10d8096a319d630aa8c5e1bb9288f2060574dfe3d6ed59261133638b64a1ab7",
+      "status": "VALID_DRAFT",
+      "optionCount": 1,
+      "factCount": 9,
+      "freshness": {
+        "current": 9,
+        "stale": 0,
+        "future": 0
+      },
+      "issues": []
+    },
+    "blockers": [],
+    "affectedOptionIds": [
+      "example-managed-eu"
+    ],
+    "optionChanges": [],
+    "factChanges": [
+      {
+        "optionId": "example-managed-eu",
+        "path": "facts.SCIM",
+        "factKind": "CAPABILITY",
+        "changeType": "MODIFIED",
+        "aspects": [
+          "CLAIM"
+        ],
+        "evidenceStatus": "UNREVIEWED",
+        "before": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Configured pilot environment"
+          ],
+          "evidence": {
+            "sourceUrl": "https://docs.example.invalid/identity/plan",
+            "observedAt": "2026-09-12T12:00:00Z",
+            "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+          }
+        },
+        "after": {
+          "availability": "UNAVAILABLE",
+          "conditions": [
+            "Configured pilot environment"
+          ],
+          "evidence": {
+            "sourceUrl": "https://docs.example.invalid/identity/plan",
+            "observedAt": "2026-09-12T12:00:00Z",
+            "summary": "Fictional source paraphrase for validation tests only; not a real provider claim."
+          }
+        }
+      }
+    ]
+  },
+  "caseDefinitions": [
+    {
+      "id": "b2b-application",
+      "description": "Required compatibility with B2B_SAAS",
+      "factKind": "COMPATIBILITY",
+      "factPath": "compatibility.applications.B2B_SAAS",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "backup-storage-de",
+      "description": "Required backup storage limited to DE",
+      "factKind": "RESIDENCY",
+      "factPath": "residency.BACKUPS",
+      "criticality": "REQUIRED",
+      "allowedCountries": [
+        "DE"
+      ]
+    },
+    {
+      "id": "browser-client",
+      "description": "Required compatibility with BROWSER",
+      "factKind": "COMPATIBILITY",
+      "factPath": "compatibility.clients.BROWSER",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "forbidden-scim",
+      "description": "FORBIDDEN SCIM capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.SCIM",
+      "criticality": "FORBIDDEN",
+      "allowedCountries": []
+    },
+    {
+      "id": "multi-organization-membership",
+      "description": "Required compatibility with MULTIPLE_ORGANIZATIONS_PER_USER",
+      "factKind": "COMPATIBILITY",
+      "factPath": "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "not-required-scim",
+      "description": "NOT_REQUIRED SCIM capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.SCIM",
+      "criticality": "NOT_REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "organization-tenancy",
+      "description": "Required compatibility with MULTI_TENANT_ORGANIZATIONS",
+      "factKind": "COMPATIBILITY",
+      "factPath": "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "partner-browser-non-exportable-keys",
+      "description": "Required partner browser NON_EXPORTABLE_KEYS",
+      "factKind": "AUTHENTICATION_CONTROL",
+      "factPath": "authenticationControls.BROWSER.PARTNERS.NON_EXPORTABLE_KEYS",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "partner-browser-phishing-resistance",
+      "description": "Required partner browser PHISHING_RESISTANCE",
+      "factKind": "AUTHENTICATION_CONTROL",
+      "factPath": "authenticationControls.BROWSER.PARTNERS.PHISHING_RESISTANCE",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "partner-browser-step-up-authentication",
+      "description": "Required partner browser STEP_UP_AUTHENTICATION",
+      "factKind": "AUTHENTICATION_CONTROL",
+      "factPath": "authenticationControls.BROWSER.PARTNERS.STEP_UP_AUTHENTICATION",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "partner-population",
+      "description": "Required compatibility with PARTNERS",
+      "factKind": "COMPATIBILITY",
+      "factPath": "compatibility.populations.PARTNERS",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "preferred-scim",
+      "description": "PREFERRED SCIM capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.SCIM",
+      "criticality": "PREFERRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "profile-storage-de-nl",
+      "description": "Required profile storage limited to DE and NL",
+      "factKind": "RESIDENCY",
+      "factPath": "residency.USER_PROFILES",
+      "criticality": "REQUIRED",
+      "allowedCountries": [
+        "DE",
+        "NL"
+      ]
+    },
+    {
+      "id": "public-sector-forbidden-social-login",
+      "description": "FORBIDDEN SOCIAL_LOGIN capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.SOCIAL_LOGIN",
+      "criticality": "FORBIDDEN",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-enterprise-sso",
+      "description": "REQUIRED ENTERPRISE_SSO capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.ENTERPRISE_SSO",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-group-sync",
+      "description": "REQUIRED GROUP_SYNC capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.GROUP_SYNC",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-jit",
+      "description": "REQUIRED JIT capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.JIT",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-mfa",
+      "description": "REQUIRED MFA capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.MFA",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-oauth2-apis",
+      "description": "REQUIRED OAUTH2_APIS capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.OAUTH2_APIS",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-oidc",
+      "description": "REQUIRED OIDC capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.OIDC",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-saml",
+      "description": "REQUIRED SAML capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.SAML",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-scim",
+      "description": "REQUIRED SCIM capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.SCIM",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "required-social-login",
+      "description": "REQUIRED SOCIAL_LOGIN capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.SOCIAL_LOGIN",
+      "criticality": "REQUIRED",
+      "allowedCountries": []
+    },
+    {
+      "id": "unknown-scim",
+      "description": "UNKNOWN SCIM capability rule",
+      "factKind": "CAPABILITY",
+      "factPath": "facts.SCIM",
+      "criticality": "UNKNOWN",
+      "allowedCountries": []
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "forbidden-scim",
+      "optionId": "example-managed-eu",
+      "factPath": "facts.SCIM",
+      "scopeChanged": false,
+      "changedAspects": [
+        "CLAIM"
+      ],
+      "conditionalResultChanged": false,
+      "before": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "WOULD_SATISFY",
+        "reason": "FORBIDDEN_CLAIM_AVOIDABLE",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      },
+      "after": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "WOULD_SATISFY",
+        "reason": "FORBIDDEN_CLAIM_AVOIDABLE",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      }
+    },
+    {
+      "caseId": "not-required-scim",
+      "optionId": "example-managed-eu",
+      "factPath": "facts.SCIM",
+      "scopeChanged": false,
+      "changedAspects": [
+        "CLAIM"
+      ],
+      "conditionalResultChanged": false,
+      "before": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "NOT_APPLIED",
+        "reason": "NO_REQUIREMENT",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      },
+      "after": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "NOT_APPLIED",
+        "reason": "NO_REQUIREMENT",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      }
+    },
+    {
+      "caseId": "preferred-scim",
+      "optionId": "example-managed-eu",
+      "factPath": "facts.SCIM",
+      "scopeChanged": false,
+      "changedAspects": [
+        "CLAIM"
+      ],
+      "conditionalResultChanged": false,
+      "before": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "NOT_APPLIED",
+        "reason": "PREFERENCE_NOT_SCORED",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      },
+      "after": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "NOT_APPLIED",
+        "reason": "PREFERENCE_NOT_SCORED",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      }
+    },
+    {
+      "caseId": "required-scim",
+      "optionId": "example-managed-eu",
+      "factPath": "facts.SCIM",
+      "scopeChanged": false,
+      "changedAspects": [
+        "CLAIM"
+      ],
+      "conditionalResultChanged": true,
+      "before": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "WOULD_SATISFY",
+        "reason": "REQUIRED_CLAIM_AVAILABLE",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      },
+      "after": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "WOULD_VIOLATE",
+        "reason": "REQUIRED_CLAIM_UNAVAILABLE",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      }
+    },
+    {
+      "caseId": "unknown-scim",
+      "optionId": "example-managed-eu",
+      "factPath": "facts.SCIM",
+      "scopeChanged": false,
+      "changedAspects": [
+        "CLAIM"
+      ],
+      "conditionalResultChanged": false,
+      "before": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "INDETERMINATE",
+        "reason": "REQUIREMENT_UNKNOWN",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      },
+      "after": {
+        "optionPresent": true,
+        "factPresent": true,
+        "conditionalOutcome": "INDETERMINATE",
+        "reason": "REQUIREMENT_UNKNOWN",
+        "freshness": "CURRENT",
+        "conditionsRecorded": true
+      }
+    }
+  ],
+  "uncoveredChanges": []
+}

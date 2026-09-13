@@ -655,6 +655,49 @@ test("catalog change reports preserve typed before/after values and fail closed"
   assert.equal(validatePage({ items: Array(101).fill(snapshot), nextAfterVersion: 0 }), false);
 });
 
+test("catalog impact remains conditional, version-bound and explicit about incomplete coverage", async () => {
+  const report = await readJson(path.join(fixturesRoot, "catalog-impact-preview.valid.json"));
+  const golden = await readJson(path.join(fixturesRoot, "catalog-impact-probes.expected.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-impact-preview.v1.schema.json");
+  assert.equal(validate(report), true, validationMessage(validate));
+  assert.equal(report.caseSetSha256, golden.caseSetSha256);
+  assert.equal(report.caseSetVersion, golden.caseSetVersion);
+  assert.equal(report.caseDefinitions.length, 24);
+  assert.deepEqual(report.cases.filter(c => c.conditionalResultChanged).map(c => c.caseId), ["required-scim"]);
+  const stored = { ...report, storedProposalVersion: 0, storedRequestDigestVerified: true };
+  assert.equal(validate(stored), true, validationMessage(validate));
+  for (const field of ["coverageComplete", "baselineVerified", "sourceVerificationPerformed", "approvalGranted",
+    "writesPerformed", "evaluationReady", "recommendationReady"]) {
+    assert.equal(validate({ ...report, [field]: true }), false, field);
+  }
+  for (const change of [{ storedProposalVersion: 0 }, { storedRequestDigestVerified: true }, { impactAnalysisPerformed: false },
+    { hypotheticalEvaluationPerformed: false }, { analysisBasis: "VERIFIED_EVIDENCE" }, { caseSetSha256: "unversioned" },
+    { caseDefinitions: report.caseDefinitions.slice(1) }, { status: "APPROVED" }, { score: 100 }]) {
+    assert.equal(validate({ ...report, ...change }), false, JSON.stringify(change));
+  }
+  for (const value of [-1, 9007199254740992, 1.5]) assert.equal(validate({ ...stored, storedProposalVersion: value }), false);
+  for (const change of [{ conditionalOutcome: "PASS" }, { conditionalOutcome: "FAIL" }, { freshness: null },
+    { factPresent: false }, { optionPresent: false }]) {
+    const invalid = structuredClone(report); Object.assign(invalid.cases[0].before, change);
+    assert.equal(validate(invalid), false, JSON.stringify(change));
+  }
+  const absent = structuredClone(report);
+  Object.assign(absent.cases[0].before, { optionPresent: false, factPresent: false, conditionalOutcome: "INDETERMINATE",
+    reason: "OPTION_ABSENT", freshness: null, conditionsRecorded: false });
+  assert.equal(validate(absent), true, validationMessage(validate));
+  const uncovered = { ...report, cases: [], uncoveredChanges: [{ optionId: "example-managed-eu",
+    factPath: "compatibility.membership.SINGLE_ORGANIZATION_PER_USER", reason: "NO_PROBE_FOR_FACT_PATH" }] };
+  assert.equal(validate(uncovered), true, validationMessage(validate));
+  const blocked = { ...report, status: "BLOCKED", impactAnalysisPerformed: false, hypotheticalEvaluationPerformed: false,
+    cases: [], uncoveredChanges: [], changePreview: { ...report.changePreview, status: "BLOCKED", diffComputed: false,
+      blockers: ["BASE_DIGEST_MISMATCH"], affectedOptionIds: [], optionChanges: [], factChanges: [] } };
+  assert.equal(validate(blocked), true, validationMessage(validate));
+  assert.equal(validate({ ...blocked, impactAnalysisPerformed: true }), false);
+  assert.equal(validate({ ...blocked, cases: report.cases }), false);
+  assert.equal(validate({ ...blocked, uncoveredChanges: uncovered.uncoveredChanges }), false);
+  assert.equal(validate({ ...blocked, changePreview: report.changePreview }), false);
+});
+
 test("stored proposal events describe local writes without claiming authorized review", () => {
   const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-event.v1.schema.json");
   const event = { id: "11111111-1111-4111-8111-111111111111", proposalId: "22222222-2222-4222-8222-222222222222",

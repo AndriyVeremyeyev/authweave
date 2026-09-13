@@ -68,12 +68,13 @@ public final class TopologyEvaluator {
         var problem = EvidencePolicy.problem(fact, at);
         if (problem != null) return new ContextCheck(dimension, path, value, UNKNOWN,
                 Reason.valueOf(problem.name()), problem.explanation(), fact);
+        var outcome = ClaimRules.compatibility(fact.support());
         return switch (fact.support()) {
-            case SUPPORTED -> new ContextCheck(dimension, path, value, PASS, CONTEXT_SUPPORTED,
+            case SUPPORTED -> new ContextCheck(dimension, path, value, outcome, CONTEXT_SUPPORTED,
                     "The recorded plan and region support this selected context value.", fact);
-            case UNSUPPORTED -> new ContextCheck(dimension, path, value, FAIL, CONTEXT_UNSUPPORTED,
+            case UNSUPPORTED -> new ContextCheck(dimension, path, value, outcome, CONTEXT_UNSUPPORTED,
                     "The recorded plan and region do not support this selected context value.", fact);
-            case UNKNOWN -> new ContextCheck(dimension, path, value, UNKNOWN, CONTEXT_SUPPORT_UNKNOWN,
+            case UNKNOWN -> new ContextCheck(dimension, path, value, outcome, CONTEXT_SUPPORT_UNKNOWN,
                     "Support for this context value has not been established for the plan and region.", fact);
         };
     }

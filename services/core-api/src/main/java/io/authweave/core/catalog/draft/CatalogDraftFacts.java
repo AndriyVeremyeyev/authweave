@@ -6,10 +6,10 @@ import java.util.TreeMap;
 import io.authweave.core.catalog.draft.ProviderCatalogDraft.*;
 
 /** Stable typed fact addresses shared by validation and comparison; omitted entries remain unknown. */
-final class CatalogDraftFacts {
+public final class CatalogDraftFacts {
     private CatalogDraftFacts() { }
 
-    static NavigableMap<String, ProposedFact> entries(Option option) {
+    public static NavigableMap<String, ProposedFact> entries(Option option) {
         var entries = new TreeMap<String, ProposedFact>();
         option.facts().forEach((key, value) -> entries.put("facts." + key, value));
         var context = option.compatibility();

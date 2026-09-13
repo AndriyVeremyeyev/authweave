@@ -34,6 +34,14 @@ public class CatalogProposalRepository {
                 .limit(limit + 1).fetch(this::snapshot), limit, CatalogProposalSnapshot::version);
     }
 
+    public CatalogProposalSnapshot revision(UUID id, long version) {
+        if (version < 0 || version > 9007199254740991L) throw new IllegalArgumentException("Invalid proposal version");
+        var r = CATALOG_PROPOSAL_REVISIONS;
+        var row = dsl.selectFrom(r).where(r.PROPOSAL_ID.eq(id)).and(r.VERSION.eq(version)).fetchOne();
+        if (row == null) throw new CatalogProposalException(CatalogProposalException.Reason.NOT_FOUND);
+        return snapshot(row);
+    }
+
     public CatalogProposalPage<CatalogProposalEvent> events(UUID id, Long afterVersion, int limit) {
         bounds(afterVersion, limit); requireExists(id);
         var e = CATALOG_PROPOSAL_EVENTS;

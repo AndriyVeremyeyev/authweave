@@ -85,17 +85,17 @@ public final class AuthenticationControlEvaluator {
                 } else if (problem != null) {
                     reason = AuthenticationControlCheck.Reason.valueOf(problem.name()); explanation = problem.explanation();
                 } else if (fact.availability() == Support.UNSUPPORTED) {
-                    outcome = FAIL; reason = CONTROL_UNAVAILABLE;
+                    outcome = ClaimRules.authentication(fact.availability(), fact.enforcement()); reason = CONTROL_UNAVAILABLE;
                     explanation = "Reviewed scoped evidence establishes that the control is unavailable.";
                 } else if (fact.enforcement() == Support.UNSUPPORTED) {
-                    outcome = FAIL; reason = ENFORCEMENT_UNSUPPORTED;
+                    outcome = ClaimRules.authentication(fact.availability(), fact.enforcement()); reason = ENFORCEMENT_UNSUPPORTED;
                     explanation = "The control cannot be required for this client and population, even if optionally available.";
                 } else if (fact.availability() == Support.UNKNOWN) {
                     reason = CONTROL_AVAILABILITY_UNKNOWN; explanation = "Availability has not been established for this scope.";
                 } else if (fact.enforcement() == Support.UNKNOWN) {
                     reason = ENFORCEMENT_UNKNOWN; explanation = "Availability alone does not establish the ability to require this control.";
                 } else {
-                    outcome = PASS; reason = CONTROL_ENFORCEABLE;
+                    outcome = ClaimRules.authentication(fact.availability(), fact.enforcement()); reason = CONTROL_ENFORCEABLE;
                     explanation = "Reviewed evidence supports requiring this control in the scoped human flow. Deployed configuration, sensitive-action wiring, enrollment, recovery and full assurance remain unverified.";
                 }
             }

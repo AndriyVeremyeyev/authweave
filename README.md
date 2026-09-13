@@ -502,8 +502,9 @@ remain `UNREVIEWED`. `proposalState: PROPOSED` is a preview label, not a stored 
 state. `baselineVerified`, `sourceVerificationPerformed`, `approvalGranted`,
 `writesPerformed`, `evaluationReady` and `impactAnalysisPerformed` are always false.
 Rationale and evidence text remain inert data; sources are never fetched. There is no
-approval/rejection action, initial publication, curator UI or affected-assessment/golden-case
-impact run. The active synthetic catalog and existing assessments remain unchanged.
+approval/rejection action, initial publication, curator UI or impact run in this
+endpoint. The separate conditional impact endpoint is described below. The active
+synthetic catalog and existing assessments remain unchanged.
 
 With the local Core API already running, from the repository root:
 
@@ -517,8 +518,8 @@ curl --fail-with-body --silent --show-error \
 This fictional fixture yields `REVIEW_REQUIRED`, one `facts.SCIM` claim change from
 `OPTIONAL` to `UNAVAILABLE`, and all six flags false. No new accounts, dependencies,
 migrations or paid services are required for the preview. Local proposal history is
-described below; authorized curator decisions, impact analysis, activation and
-catalog-version pinning remain subsequent work.
+described below, followed by conditional rule impact. Authorized curator decisions,
+full assessment impact, activation and catalog-version pinning remain subsequent work.
 
 ### Local proposal storage and history
 
@@ -560,11 +561,74 @@ returns the latest stored revision; `/revisions` and `/events` accept `afterVers
 reads are not workspace-authorized endpoints. They return historical snapshots without
 recomputing freshness. The nested preview's `writesPerformed: false` describes that
 preview operation, not whether the containing proposal was saved. State is only `PROPOSED`;
-there is no review decision, verified baseline, impact run, approval or activation.
+there is no review decision, verified baseline, stored impact artifact, approval or activation.
 
 Flyway V8 adds the proposal head, revision and event tables without rewriting assessment
 data. jOOQ types are generated from the migration. No dependencies, accounts or paid
 services are added; the command exits without leaving a development server running.
+
+### Conditional catalog impact
+
+`POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview
+request and asks: if these assertions are confirmed and their conditions apply, which
+selected rules would produce a different result? It runs 24 source-controlled probes
+covering capability requirements, selected compatibility contexts, storage allowlists
+and partner-browser authentication controls. These are focused rule probes, not complete
+application profiles, all golden scenarios or an approval gate.
+
+The report contains `caseDefinitions`, affected `cases` with typed before/after outcomes,
+and `uncoveredChanges` for changed fact paths without a probe. An option-scope change
+rechecks every probe and also lists unprobed facts in that scope. A provenance or condition
+change affects a probe even when its conditional outcome stays the same.
+`conditionalResultChanged` compares the outcome and reason, not freshness or conditions.
+`coverageComplete` is always false; an empty changed-case list does not authorize publication.
+
+The explicit analysis basis is `ASSUMED_TRUE_CLAIMS_AND_APPLICABLE_CONDITIONS`.
+Outcomes are `WOULD_SATISFY`, `WOULD_VIOLATE`, `INDETERMINATE` or `NOT_APPLIED`, never
+real eligibility decisions. Missing facts remain unknown, preferences are not scored,
+and freshness is reported separately. The shared claim predicates also support the
+existing evaluators, whose evidence and scope checks remain in place. This hypothetical
+analysis neither verifies conditions nor makes unreviewed, stale or future evidence usable
+by the active evaluator. No source fetches, real provider baselines or recommendations
+are produced.
+
+With the local Core API running, from the repository root:
+
+```shell
+curl --fail-with-body --silent --show-error \
+  -H 'Content-Type: application/json' \
+  --data-binary @packages/contracts/tests/fixtures/catalog-change-preview-request.valid.json \
+  http://127.0.0.1:8080/api/v1/catalog-change-proposals/impact-preview
+```
+
+The fictional SCIM correction affects five probes; only `required-scim` changes its
+conditional result: `WOULD_SATISFY` to `WOULD_VIOLATE`. Optional availability and absence
+are both avoidable for a forbidden requirement; preferred/not-required/unknown requirements
+also retain their respective outcomes. `ANALYZED` means the conditional comparison ran,
+not that the candidate is correct. Invalid comparisons return `BLOCKED` without a run.
+
+For a previously stored example, explicitly select revision 0:
+
+```shell
+curl --fail-with-body --silent --show-error \
+  http://127.0.0.1:8080/api/v1/catalog-change-proposals/33333333-3333-4333-8333-333333333333/revisions/0/impact-preview
+```
+
+This GET verifies the stored request digest and reports `storedProposalVersion` and
+`storedRequestDigestVerified: true`; it does not verify the supplied baseline or identity
+of a curator. POST has no storage binding. The report binds its input digest, current
+server time, policy `catalog-impact-preview-1`, claim rules `assertion-claim-rules-1`,
+and case set `catalog-impact-probes-1` with a canonical digest of its definitions.
+Reanalysis uses that exact stored input with current rules/time, without rewriting the
+old preview, advancing the proposal version or recording an event. Missing revisions
+return 404; incompatible stored input/digest returns 409 `catalog-proposal-replay-unavailable`
+while historical reads remain available.
+
+`impactAnalysisPerformed` and `hypotheticalEvaluationPerformed` describe this run;
+the nested `changePreview.impactAnalysisPerformed` remains false because that sub-operation
+only computes a diff. Baseline/source verification, approval, writes, evaluation readiness,
+recommendation readiness and complete coverage remain false. Both endpoints are local-only
+and unauthenticated. No migration, dependency, account or paid service is added.
 
 ### Contract validation
 

@@ -1731,6 +1731,11 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
             assertFalse(change.get("before").isNull()); assertFalse(change.get("after").isNull());
         }
         assertEquals(paths, changedPaths);
+        var impact = impactPreview("impact-all-fact-slots", proposal);
+        assertEquals(24, impact.get("cases").size());
+        assertEquals(49, impact.get("uncoveredChanges").size());
+        for (var check : impact.get("cases")) assertFalse(check.get("conditionalResultChanged").asBoolean());
+        assertFalse(impact.get("coverageComplete").asBoolean());
     }
 
     private void fillDraftMap(ObjectNode map, Class<? extends Enum<?>> type, JsonNode value, java.util.Set<String> excluded) {
@@ -1819,6 +1824,34 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         invalid = (ObjectNode) report.deepCopy(); invalid.put("diffComputed", blocked);
         sample("proposal-diff-status-must-agree", "catalog-change-preview", false, invalid);
         assertEquals(report, previewProposal("proposal-repeat", input));
+        var impact = impactPreview("impact-" + scenario, input);
+        assertEquals(report, impact.get("changePreview"));
+        assertEquals(blocked ? "BLOCKED" : "ANALYZED", impact.get("status").asText());
+        assertEquals(!blocked, impact.get("impactAnalysisPerformed").asBoolean());
+        assertEquals(!blocked, impact.get("hypotheticalEvaluationPerformed").asBoolean());
+        assertEquals(mapper.nullNode(), impact.get("storedProposalVersion"));
+        assertFalse(impact.get("storedRequestDigestVerified").asBoolean());
+        for (String field : List.of("coverageComplete", "baselineVerified", "sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady", "recommendationReady")) {
+            assertFalse(impact.get(field).asBoolean()); var forged = (ObjectNode) impact.deepCopy(); forged.put(field, true);
+            sample("impact-no-false-claim-" + field, "catalog-impact-preview", false, forged);
+        }
+        if (blocked || unchanged) assertEquals(0, impact.get("cases").size());
+        if (scenario.equals("CLAIM")) {
+            assertEquals(5, impact.get("cases").size()); int changed = 0;
+            for (var check : impact.get("cases")) if (check.get("conditionalResultChanged").asBoolean()) {
+                changed++; assertEquals("required-scim", check.get("caseId").asText());
+                assertEquals("WOULD_SATISFY", check.at("/before/conditionalOutcome").asText());
+                assertEquals("WOULD_VIOLATE", check.at("/after/conditionalOutcome").asText());
+            }
+            assertEquals(1, changed);
+            var forged = (ObjectNode) impact.deepCopy(); ((ObjectNode) forged.at("/cases/0/before")).put("conditionalOutcome", "PASS");
+            sample("impact-no-real-pass", "catalog-impact-preview", false, forged);
+        }
+        if (scenario.equals("SCOPE")) assertEquals(24, impact.get("cases").size());
+        if (scenario.equals("RENAME")) assertEquals(48, impact.get("cases").size());
+        var wrongBinding = (ObjectNode) impact.deepCopy(); wrongBinding.put("storedRequestDigestVerified", true);
+        sample("impact-no-pretend-storage", "catalog-impact-preview", false, wrongBinding);
+        assertEquals(impact, impactPreview("impact-repeat", input));
         assertEquals(assessment.created(), response("proposal-assessment-unchanged", mvc.perform(get(assessment.path())).andReturn()));
         assertEquals(eligibility, versionedSample("proposal-eligibility-after", "eligibility-preflight.v4", mvc.perform(get(eligibilityPath)).andReturn()));
         assertHistorySize(assessment, 1);
@@ -1859,6 +1892,8 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         sample("proposal-invalid-" + scenario, "catalog-change-preview-request", false, input);
         response("proposal-invalid-" + scenario, mvc.perform(post("/api/v1/catalog-change-proposals/preview").contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(input))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("invalid-request")).andReturn());
+        response("impact-invalid-" + scenario, mvc.perform(post("/api/v1/catalog-change-proposals/impact-preview").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(input))).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("invalid-request")).andReturn());
     }
 
     @Test
@@ -1873,9 +1908,18 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertEquals(mapper.readTree(mapper.writeValueAsString(first.proposal())), original);
         assertEquals("PROPOSED", original.get("state").asText());
         assertEquals("REVIEW_REQUIRED", original.at("/preview/status").asText());
+        var originalImpact = versionedSample("impact-stored-original", "catalog-impact-preview", mvc.perform(get(base + "/revisions/0/impact-preview")).andReturn());
+        assertEquals(0, originalImpact.get("storedProposalVersion").asInt()); assertEquals(true, originalImpact.get("storedRequestDigestVerified").asBoolean());
+        assertEquals(original.get("proposalSha256"), originalImpact.get("proposalSha256"));
         input.put("rationale", "A revised fictional explanation"); storeProposal(input, 0L);
         var latest = versionedSample("stored-proposal-revised", "catalog-proposal-snapshot", mvc.perform(get(base)).andReturn());
         assertEquals(1, latest.get("version").asInt());
+        assertEquals(originalImpact, versionedSample("impact-stored-not-latest", "catalog-impact-preview", mvc.perform(get(base + "/revisions/0/impact-preview")).andReturn()));
+        var latestImpact = versionedSample("impact-stored-latest", "catalog-impact-preview", mvc.perform(get(base + "/revisions/1/impact-preview")).andReturn());
+        assertEquals(1, latestImpact.get("storedProposalVersion").asInt());
+        assertEquals(latest.get("proposalSha256"), latestImpact.get("proposalSha256"));
+        assertEquals(originalImpact.get("cases"), latestImpact.get("cases"));
+        response("impact-missing-revision", mvc.perform(get(base + "/revisions/2/impact-preview")).andExpect(status().isNotFound()).andReturn());
         var revisions = versionedSample("stored-proposal-revisions", "catalog-proposal-revision-page", mvc.perform(get(base + "/revisions?limit=1")).andReturn());
         assertEquals(original, revisions.get("items").get(0)); assertEquals(0L, revisions.get("nextAfterVersion").asLong());
         var rest = versionedSample("stored-proposal-revisions-next", "catalog-proposal-revision-page", mvc.perform(get(base + "/revisions?afterVersion=0&limit=1")).andReturn());
@@ -1927,6 +1971,42 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         return new org.springframework.transaction.support.TransactionTemplate(proposalTransactions).execute(status ->
                 new io.authweave.core.catalog.proposal.LocalCatalogProposalWriter(proposalDsl, mapper, proposalPreviews, proposals)
                         .save(mapper.treeToValue(input, io.authweave.core.catalog.draft.CatalogChangePreviewRequest.class), expectedVersion));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"-1", "9007199254740992", "1.5", "bad-version"})
+    void storedImpactRejectsInvalidVersionPaths(String version) throws Exception {
+        response("impact-invalid-version", mvc.perform(get("/api/v1/catalog-change-proposals/" + UUID.randomUUID() + "/revisions/" + version + "/impact-preview"))
+                .andExpect(status().isBadRequest()).andReturn());
+    }
+
+    @Test
+    void impactCannotAcceptCallerDefinedProbesOrPretendAnIncompatibleStoredInputWasReplayed() throws Exception {
+        var input = proposalRequest(); input.putArray("caseDefinitions");
+        response("impact-forged-probes", mvc.perform(post("/api/v1/catalog-change-proposals/impact-preview").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(input))).andExpect(status().isBadRequest()).andReturn());
+        input.remove("caseDefinitions"); input.put("proposalId", UUID.randomUUID().toString());
+        var stored = storeProposal(input, null).proposal();
+        for (String scenario : List.of("digest", "format", "shape", "identity")) {
+            var request = stored.request();
+            if (scenario.equals("shape")) ((ObjectNode) request).remove("base");
+            if (scenario.equals("identity")) ((ObjectNode) request).put("proposalId", UUID.randomUUID().toString());
+            var unavailable = new io.authweave.core.catalog.proposal.CatalogProposalSnapshot(stored.proposalId(), stored.version(), stored.state(),
+                    scenario.equals("format") ? 99 : 1, scenario.equals("digest") ? "0".repeat(64) : stored.proposalSha256(), stored.recordedAt(), request, stored.preview());
+            var fakeRepository = org.mockito.Mockito.mock(io.authweave.core.catalog.proposal.CatalogProposalRepository.class);
+            org.mockito.Mockito.when(fakeRepository.revision(stored.proposalId(), 0)).thenReturn(unavailable);
+            var standalone = org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup(
+                    new io.authweave.core.catalog.impact.CatalogImpactController(new io.authweave.core.catalog.impact.CatalogImpactService(proposalPreviews), fakeRepository, mapper))
+                    .setControllerAdvice(new AssessmentProblemDetailsHandler()).build();
+            response("impact-replay-unavailable-" + scenario, standalone.perform(get("/api/v1/catalog-change-proposals/" + stored.proposalId() + "/revisions/0/impact-preview"))
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("catalog-proposal-replay-unavailable")).andReturn());
+        }
+        assertEquals(stored, proposals.current(stored.proposalId())); assertEquals(1, proposals.events(stored.proposalId(), null, 100).items().size());
+    }
+
+    private JsonNode impactPreview(String name, ObjectNode input) throws Exception {
+        return versionedSample(name, "catalog-impact-preview", mvc.perform(post("/api/v1/catalog-change-proposals/impact-preview")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(input))).andExpect(status().isOk()).andReturn());
     }
 
     private JsonNode previewProposal(String name, ObjectNode input) throws Exception {

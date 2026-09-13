@@ -67,12 +67,11 @@ public final class ResidencyEvaluator {
                     explanation = "Storage countries for this data category have not been established for the option.";
                 } else {
                     outside = fact.storageCountries().stream().filter(country -> !countries.contains(country)).toList();
+                    outcome = ClaimRules.residency(fact.coverage(), fact.storageCountries(), countries);
                     if (!outside.isEmpty()) {
-                        outcome = FAIL;
                         reason = STORAGE_OUTSIDE_ALLOWED_COUNTRIES;
                         explanation = "Reviewed evidence confirms storage outside the allowed countries for this category and option.";
                     } else if (fact.coverage() == ResidencyCoverage.COMPLETE) {
-                        outcome = PASS;
                         reason = STORAGE_WITHIN_ALLOWED_COUNTRIES;
                         explanation = "Complete reviewed evidence places all storage for this category within the allowed countries. No claim is made about other categories.";
                     } else {

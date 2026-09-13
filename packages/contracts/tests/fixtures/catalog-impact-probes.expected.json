@@ -1,0 +1,31 @@
+{
+  "caseSetVersion": "catalog-impact-probes-1",
+  "caseSetSha256": "83f868563220ff62fdc892c37e8fb0be6643f3fe873dc51592566c494497792e",
+  "sourceFixture": "catalog-change-preview-request.valid.json",
+  "checks": [
+    { "caseId": "backup-storage-de", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "b2b-application", "before": "WOULD_SATISFY", "after": "WOULD_SATISFY" },
+    { "caseId": "browser-client", "before": "WOULD_SATISFY", "after": "WOULD_SATISFY" },
+    { "caseId": "forbidden-scim", "before": "WOULD_SATISFY", "after": "WOULD_SATISFY" },
+    { "caseId": "multi-organization-membership", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "not-required-scim", "before": "NOT_APPLIED", "after": "NOT_APPLIED" },
+    { "caseId": "organization-tenancy", "before": "WOULD_SATISFY", "after": "WOULD_SATISFY" },
+    { "caseId": "partner-browser-non-exportable-keys", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "partner-browser-phishing-resistance", "before": "WOULD_SATISFY", "after": "WOULD_SATISFY" },
+    { "caseId": "partner-browser-step-up-authentication", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "partner-population", "before": "WOULD_SATISFY", "after": "WOULD_SATISFY" },
+    { "caseId": "preferred-scim", "before": "NOT_APPLIED", "after": "NOT_APPLIED" },
+    { "caseId": "profile-storage-de-nl", "before": "WOULD_VIOLATE", "after": "WOULD_VIOLATE" },
+    { "caseId": "public-sector-forbidden-social-login", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "required-enterprise-sso", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "required-group-sync", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "required-jit", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "required-mfa", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "required-oauth2-apis", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "required-oidc", "before": "WOULD_SATISFY", "after": "WOULD_SATISFY" },
+    { "caseId": "required-saml", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "required-scim", "before": "WOULD_SATISFY", "after": "WOULD_VIOLATE" },
+    { "caseId": "required-social-login", "before": "INDETERMINATE", "after": "INDETERMINATE" },
+    { "caseId": "unknown-scim", "before": "INDETERMINATE", "after": "INDETERMINATE" }
+  ]
+}
