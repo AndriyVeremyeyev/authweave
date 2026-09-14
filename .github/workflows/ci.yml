@@ -54,6 +54,8 @@ jobs:
           python-version-file: .python-version
       - name: Check public artifact language
         run: python scripts/check_public_language.py
+      - name: Test isolated identity configuration without starting services
+        run: make check-auth-config PYTHON=python
 
   core-api:
     name: Core API

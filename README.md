@@ -43,6 +43,59 @@ make check
 
 Run `make help` to see component-specific checks and development-server commands.
 
+### Optional local identity lab
+
+Local ZITADEL infrastructure is prepared for the upcoming BFF/session and curator-authorization
+work. It does not yet authenticate AuthWeave, provision application workspaces or grant a
+catalog-curator role. The existing browser-only preview and loopback-only Core API are unchanged.
+Container startup and a real Console login still require the manual checks below; configuration
+tests alone are not login evidence.
+
+The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
+PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
+database/bootstrap volumes and a separate network. Only the proxy publishes `127.0.0.1:8081`;
+it routes exclusively to ZITADEL, never to Core API, and has no Docker socket or dashboard.
+This follows the [official ZITADEL Compose topology](https://zitadel.com/docs/self-hosting/deploy/compose)
+with static proxy routes. Image metadata was checked for AMD64 and ARM64 support.
+
+This is an HTTP loopback-only lab for synthetic identities, not a hosted deployment or a TLS
+exception for future production sessions. It uses an isolated database superuser and root
+bootstrap containers, as a development trade-off; no application database credentials are shared.
+Do not expose it through a tunnel, reuse real account credentials or assume the host is isolated
+from other local users. Do not share rendered Compose configuration, container inspection output,
+tokens or unreviewed logs.
+
+From the repository root, with Docker Desktop running:
+
+```shell
+make setup-auth
+make check-auth-config
+make auth-up
+make auth-status
+make auth-check
+```
+
+`setup-auth` creates ignored `infra/zitadel/.env` with mode 600, a random 32-character master
+key, distinct database/admin passwords and a Login UI service-token expiry 90 days ahead.
+It never overwrites existing credentials or starts services. `auth-up` explicitly downloads
+missing images and waits for four healthy services; normal `setup`/`infra-up` do not include
+this lab. `auth-check` verifies the exact issuer `http://localhost:8081`, same-origin OIDC
+endpoints, Code/PKCE S256 support and Login UI readiness, without logging in or following redirects.
+
+Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
+`admin@authweave.localhost` using `AUTHWEAVE_ZITADEL_ADMIN_PASSWORD` from the ignored file,
+opened privately in your editor. This synthetic account administers only the local IdP;
+it is not an AuthWeave curator. Test an incorrect password once, then the correct password.
+Application/project registration, ordinary synthetic users, BFF login, sessions and authorization
+remain subsequent steps. No cloud account, SMTP service or paid subscription is needed for this lab.
+
+Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
+with its database: losing or changing it can make stored encrypted data unusable. Bootstrap
+password/expiry settings apply at first initialization; editing `.env` does not rotate an
+existing administrator password or Login UI token. Arrange explicit token rotation before
+expiry; do not regenerate `.env` or delete volumes as a troubleshooting shortcut.
+`make check-auth-config` is also in CI and uses only synthetic values without starting services.
+
 ## Current behavior
 
 The Core API supports workspace provisioning and assessment creation, reading and

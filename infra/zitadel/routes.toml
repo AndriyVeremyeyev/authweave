@@ -1,0 +1,28 @@
+# Static routes: no Docker socket, discovery provider, dashboard or AuthWeave API route.
+[http.routers.login]
+rule = 'Host(`localhost`) && (Path(`/ui/v2/login`) || PathPrefix(`/ui/v2/login/`))'
+entryPoints = ["web"]
+priority = 300
+service = "login"
+
+[http.routers.console-api]
+rule = 'Host(`localhost`) && PathPrefix(`/api/`)'
+entryPoints = ["web"]
+priority = 200
+middlewares = ["strip-api"]
+service = "api"
+
+[http.routers.api]
+rule = 'Host(`localhost`)'
+entryPoints = ["web"]
+priority = 100
+service = "api"
+
+[http.middlewares.strip-api.stripPrefix]
+prefixes = ["/api"]
+
+[[http.services.api.loadBalancer.servers]]
+url = "h2c://zitadel-api:8080"
+
+[[http.services.login.loadBalancer.servers]]
+url = "http://zitadel-login:3000"

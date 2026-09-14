@@ -1,0 +1,126 @@
+# Optional loopback-only IdP lab. Not included by make infra-up or make setup.
+# Based on the ZITADEL v4.17.3 deployment options; see the root README for references.
+name: authweave-identity
+
+services:
+  proxy:
+    image: traefik:v3.7.7@sha256:1cb3845d7a05e1473c9086351426597e911db49db382b6e4769f9b0744962ac8
+    command:
+      - --providers.file.filename=/etc/traefik/routes.toml
+      - --entrypoints.web.address=:8081
+      - --entrypoints.health.address=:8082
+      - --ping=true
+      - --ping.entrypoint=health
+      - --api.dashboard=false
+      - --accesslog=false
+      - --log.level=WARN
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ./routes.toml:/etc/traefik/routes.toml:ro
+    healthcheck:
+      test: [CMD, traefik, healthcheck, --ping, --ping.entrypoint=health, --entrypoints.health.address=:8082]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      zitadel-api:
+        condition: service_healthy
+      zitadel-login:
+        condition: service_healthy
+    read_only: true
+    security_opt: [no-new-privileges:true]
+
+  zitadel-api:
+    image: ghcr.io/zitadel/zitadel:v4.17.3@sha256:2ec2a42551862ca59dc752c321c7041358dea8b33b63ea5e021ec499ad5e2d9f
+    # Matches upstream bootstrap volume ownership; not a production hardening claim.
+    user: "0"
+    command:
+      - start-from-init
+      - --masterkey
+      - "${AUTHWEAVE_ZITADEL_MASTERKEY:?Run make setup-auth first}"
+      - --tlsMode
+      - disabled
+    environment:
+      ZITADEL_PORT: "8080"
+      ZITADEL_EXTERNALDOMAIN: localhost
+      ZITADEL_EXTERNALPORT: "8081"
+      ZITADEL_EXTERNALSECURE: "false"
+      ZITADEL_TLS_ENABLED: "false"
+      # Isolated lab DB only. No AuthWeave application database credentials or network.
+      ZITADEL_DATABASE_POSTGRES_DSN: "postgresql://zitadel:${AUTHWEAVE_ZITADEL_DB_PASSWORD:?Run make setup-auth first}@postgres:5432/zitadel?sslmode=disable"
+      ZITADEL_FIRSTINSTANCE_INSTANCENAME: AuthWeave Local Identity
+      ZITADEL_FIRSTINSTANCE_ORG_NAME: AuthWeave Local
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_USERNAME: admin@authweave.localhost
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_ADDRESS: admin@authweave.localhost
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_EMAIL_VERIFIED: "true"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_FIRSTNAME: Local
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_LASTNAME: Administrator
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORD: "${AUTHWEAVE_ZITADEL_ADMIN_PASSWORD:?Run make setup-auth first}"
+      ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED: "false"
+      ZITADEL_FIRSTINSTANCE_LOGINCLIENTPATPATH: /zitadel/bootstrap/login-client.pat
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_USERNAME: login-client
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_MACHINE_NAME: Local Login UI
+      ZITADEL_FIRSTINSTANCE_ORG_LOGINCLIENT_PAT_EXPIRATIONDATE: "${AUTHWEAVE_ZITADEL_LOGIN_PAT_EXPIRES:?Run make setup-auth first}"
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_REQUIRED: "true"
+      ZITADEL_DEFAULTINSTANCE_FEATURES_LOGINV2_BASEURI: http://localhost:8081/ui/v2/login/
+      ZITADEL_OIDC_DEFAULTLOGINURLV2: http://localhost:8081/ui/v2/login/login?authRequest=
+      ZITADEL_OIDC_DEFAULTLOGOUTURLV2: http://localhost:8081/ui/v2/login/logout?post_logout_redirect=
+      ZITADEL_SAML_DEFAULTLOGINURLV2: http://localhost:8081/ui/v2/login/login?samlRequest=
+      ZITADEL_LOGSTORE_ACCESS_STDOUT_ENABLED: "false"
+      ZITADEL_INSTRUMENTATION_TRACE_EXPORTER_TYPE: none
+    volumes:
+      - bootstrap:/zitadel/bootstrap
+    healthcheck:
+      test: [CMD, /app/zitadel, ready]
+      interval: 10s
+      timeout: 30s
+      retries: 12
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+
+  zitadel-login:
+    image: ghcr.io/zitadel/zitadel-login:v4.17.3@sha256:07ae03bd1aa49dbc015617a0c1bc9e6abd956616856f0bb374269fae7da79059
+    user: "0"
+    environment:
+      ZITADEL_API_URL: http://zitadel-api:8080
+      NEXT_PUBLIC_BASE_PATH: /ui/v2/login
+      ZITADEL_SERVICE_USER_TOKEN_FILE: /zitadel/bootstrap/login-client.pat
+      CUSTOM_REQUEST_HEADERS: Host:localhost:8081,X-Forwarded-Proto:http
+    volumes:
+      - bootstrap:/zitadel/bootstrap:ro
+    healthcheck:
+      test: [CMD, node, /app/healthcheck.mjs, http://localhost:3000/ui/v2/login/healthy]
+      interval: 10s
+      timeout: 30s
+      retries: 12
+      start_period: 20s
+    depends_on:
+      zitadel-api:
+        condition: service_healthy
+    security_opt: [no-new-privileges:true]
+
+  postgres:
+    image: postgres:17.10-alpine@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    environment:
+      POSTGRES_DB: zitadel
+      POSTGRES_USER: zitadel
+      POSTGRES_PASSWORD: "${AUTHWEAVE_ZITADEL_DB_PASSWORD:?Run make setup-auth first}"
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    volumes:
+      - identity-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [CMD, pg_isready, --username=zitadel, --dbname=zitadel]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    stop_grace_period: 30s
+
+# No external/shared network or application database volume; Compose scopes these names.
+volumes:
+  identity-data:
+  bootstrap:

@@ -16,4 +16,5 @@
 
 # Dependency directories and generated test output.
 node_modules/
+__pycache__/
 coverage/
