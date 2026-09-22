@@ -15,22 +15,22 @@
     "test:auth-db": "node --test tests/auth-db.integration.mts"
   },
   "dependencies": {
-    "next": "16.3.3",
+    "next": "16.3.5",
     "openid-client": "^6.8.8",
     "pg": "^8.23.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^24",
+    "@types/node": "^26",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.3",
+    "eslint": "^10",
+    "eslint-config-next": "16.3.5",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^7"
   },
   "packageManager": "npm@11.17.0"
 }
