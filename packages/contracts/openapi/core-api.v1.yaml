@@ -1160,11 +1160,39 @@ paths:
       - $ref: "#/components/parameters/WorkspaceId"
       - $ref: "#/components/parameters/OidcIssuer"
       - $ref: "#/components/parameters/OidcSubject"
+    get:
+      tags: [Assessments]
+      summary: List the current workspace's assessments without profile contents
+      description: >-
+        Keyset pagination ordered by createdAt descending, then ID descending.
+        beforeId must identify an assessment in the same workspace; it is an exclusive
+        cursor. Newer inserts do not move older pages. This is a current-state list,
+        not a frozen snapshot across requests.
+      operationId: listAssessmentsV5
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: "#/components/parameters/AssessmentListBeforeId"
+        - $ref: "#/components/parameters/AssessmentListLimit"
+      responses:
+        "200":
+          description: A bounded list of assessment summaries and an optional next cursor.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-list-page.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
     post:
       tags: [Assessments]
       summary: Create a draft with a profile v5 representation
       description: >-
-        Provision the workspace through the existing v1 endpoint. A new draft has empty usagePlanning inputs; no traffic values or costs are inferred. This response projects profile v5 while storage uses the smallest lossless format. This API is local-only.
+        A personal workspace is provisioned through the credential-protected internal
+        first-login route. A new draft has empty usagePlanning inputs; no traffic values
+        or costs are inferred. This response projects profile v5 while storage uses the
+        smallest lossless format. This API is local-only.
       operationId: createAssessmentV5
       security:
         - BffServiceToken: []
@@ -1351,6 +1379,23 @@ components:
       schema:
         type: string
         format: uuid
+    AssessmentListBeforeId:
+      name: beforeId
+      in: query
+      description: >-
+        Exclusive cursor: ID of the final item on the preceding page in this workspace.
+      schema:
+        type: string
+        format: uuid
+    AssessmentListLimit:
+      name: limit
+      in: query
+      description: Maximum number of assessment summaries in one page.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
     OidcIssuer:
       name: X-AuthWeave-Oidc-Issuer
       in: header

@@ -8,6 +8,7 @@ import io.authweave.core.assessment.domain.AssessmentId;
 import io.authweave.core.assessment.domain.WorkspaceId;
 import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
 import io.authweave.core.assessment.persistence.AssessmentNotFoundException;
+import io.authweave.core.assessment.persistence.AssessmentListPage;
 import io.authweave.core.assessment.persistence.AssessmentEvent;
 import io.authweave.core.assessment.persistence.AssessmentHistoryRepository;
 import io.authweave.core.assessment.persistence.AssessmentRevision;
@@ -16,6 +17,7 @@ import io.authweave.core.assessment.persistence.AssessmentRepository;
 import io.authweave.core.assessment.persistence.AssessmentVersionConflictException;
 import io.authweave.core.assessment.persistence.PersistedAssessment;
 import io.authweave.core.assessment.persistence.WorkspaceRepository;
+import java.util.UUID;
 
 @Service
 public class AssessmentApplicationService {
@@ -52,6 +54,12 @@ public class AssessmentApplicationService {
             AssessmentId assessmentId) {
         return assessmentRepository.findById(workspaceId, assessmentId)
                 .orElseThrow(() -> new AssessmentNotFoundException(workspaceId, assessmentId));
+    }
+
+    @Transactional(readOnly = true)
+    public AssessmentListPage listAssessments(WorkspaceId workspaceId, UUID beforeId, int limit) {
+        requireWorkspace(workspaceId);
+        return assessmentRepository.list(workspaceId, beforeId, limit);
     }
 
     @Transactional

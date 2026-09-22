@@ -178,6 +178,60 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void listsOnlyOwnedAssessmentsAndRejectsForeignPaginationCursor() throws Exception {
+        String issuer = "http://localhost:8081";
+        String alice = "alice-" + UUID.randomUUID();
+        String bob = "bob-" + UUID.randomUUID();
+        UUID aliceWorkspace = provision(issuer, alice);
+        UUID bobWorkspace = provision(issuer, bob);
+        String alicePath = "/api/v5/workspaces/" + aliceWorkspace + "/assessments";
+        String bobPath = "/api/v5/workspaces/" + bobWorkspace + "/assessments";
+        for (int index = 0; index < 2; index++) {
+            mvc.perform(post(alicePath).header("Authorization", TOKEN)
+                            .header("X-AuthWeave-Oidc-Issuer", issuer)
+                            .header("X-AuthWeave-Oidc-Subject", alice))
+                    .andExpect(status().isCreated());
+        }
+        String bobBody = mvc.perform(post(bobPath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", bob))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String bobAssessmentId = mapper.readTree(bobBody).get("id").asText();
+
+        mvc.perform(get(alicePath)).andExpect(status().isUnauthorized());
+        mvc.perform(get(alicePath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", bob))
+                .andExpect(status().isForbidden());
+        String firstPage = mvc.perform(get(alicePath).param("limit", "1")
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.nextBeforeId").isNotEmpty())
+                .andReturn().getResponse().getContentAsString();
+        String beforeId = mapper.readTree(firstPage).get("nextBeforeId").asText();
+        mvc.perform(get(alicePath).param("limit", "1").param("beforeId", beforeId)
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.nextBeforeId").isEmpty());
+        mvc.perform(get(alicePath).param("beforeId", bobAssessmentId)
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isNotFound());
+        mvc.perform(get(alicePath).param("limit", "0")
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isBadRequest());
+    }
+
     private UUID provision(String issuer, String subject) throws Exception {
         String response = mvc.perform(post(PATH).header("Authorization", TOKEN)
                         .contentType(MediaType.APPLICATION_JSON).content(request(issuer, subject)))

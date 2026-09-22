@@ -32,6 +32,7 @@ public class Indexes {
     // INDEX definitions
     // -------------------------------------------------------------------------
 
+    public static final Index ASSESSMENTS_WORKSPACE_CREATED_ID_IDX = Internal.createIndex(DSL.name("assessments_workspace_created_id_idx"), Assessments.ASSESSMENTS, new OrderField[] { Assessments.ASSESSMENTS.WORKSPACE_ID, Assessments.ASSESSMENTS.CREATED_AT.desc(), Assessments.ASSESSMENTS.ID.desc() }, false);
     public static final Index ASSESSMENTS_WORKSPACE_UPDATED_IDX = Internal.createIndex(DSL.name("assessments_workspace_updated_idx"), Assessments.ASSESSMENTS, new OrderField[] { Assessments.ASSESSMENTS.WORKSPACE_ID, Assessments.ASSESSMENTS.UPDATED_AT.desc() }, false);
     public static final Index CATALOG_IMPACT_REVISION_PAGE_IDX = Internal.createIndex(DSL.name("catalog_impact_revision_page_idx"), CatalogImpactReports.CATALOG_IMPACT_REPORTS, new OrderField[] { CatalogImpactReports.CATALOG_IMPACT_REPORTS.PROPOSAL_ID, CatalogImpactReports.CATALOG_IMPACT_REPORTS.PROPOSAL_VERSION, CatalogImpactReports.CATALOG_IMPACT_REPORTS.REPORT_NUMBER }, false);
 }

@@ -49,9 +49,9 @@ Local ZITADEL infrastructure, an AuthWeave OIDC project/application and two ordi
 users support the local BFF sign-in flow. First login provisions a personal workspace;
 versioned workspace routes require the BFF's server-only credential and an OIDC identity
 that owns that workspace. Signed-in users can create a private assessment draft and read
-its current profile through the BFF. Editing, listing and catalog-curator permissions are
-not enabled yet. The public browser-only preview is unchanged. Browser sign-in still
-needs a manual end-to-end check.
+its current profile through the BFF, and browse a bounded list of their assessments.
+Editing and catalog-curator permissions are not enabled yet. The public browser-only
+preview is unchanged. Browser sign-in still needs a manual end-to-end check.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -119,8 +119,9 @@ to the ignored mode-600 `infra/.env` and leaves an existing credential unchanged
 terminal, run `make migrate-web-auth` to apply both replay-safe web migrations, then
 `make dev-web`. Open `http://localhost:3000/account` to try sign-in and sign-out with a
 synthetic user. Once signed in, use **Create assessment draft** to open a private,
-read-only version-5 assessment page; keep its URL for later because listing is not yet
-implemented. The ignored `apps/web/.env.local` must already contain the issuer and client ID
+read-only version-5 assessment page. **View your assessments** lists up to 20 recent
+summaries per page, with an Older link for earlier drafts. The ignored
+`apps/web/.env.local` must already contain the issuer and client ID
 created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
 rotation/revocation and database role isolation.
 
@@ -129,10 +130,10 @@ server-only bearer credential. Versioned workspace routes additionally require
 `X-AuthWeave-Oidc-Issuer` and `X-AuthWeave-Oidc-Subject` headers from the validated
 BFF session; Core checks their immutable mapping against the path workspace ID.
 The browser must never supply these credentials or principal headers directly.
-The BFF creates and reads assessments using only the workspace from its server-side
+The BFF creates, lists and reads assessments using only the workspace from its server-side
 session. Creation requires an exact same-origin request; anonymous sessions are denied.
-Catalog routes remain unauthenticated and loopback-only. Profile editing, assessment
-listing, curator authorization and browser end-to-end verification are still pending.
+Catalog routes remain unauthenticated and loopback-only. Profile editing,
+curator authorization and browser end-to-end verification are still pending.
 Do not expose the local HTTP lab or Core API.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
@@ -169,8 +170,8 @@ selections mean no choice was recorded, not that a topic is unnecessary.
 The Core API stores immutable assessment revisions and atomic state-change events,
 with workspace-scoped paginated history reads. Runtime database roles cannot update
 or delete history. Versioned workspace routes now enforce a local BFF credential and
-personal-workspace ownership; the BFF exposes authenticated draft creation and
-read-only assessment pages, but not editing or listing.
+personal-workspace ownership; the BFF exposes authenticated draft creation,
+bounded summary listing and read-only assessment pages, but not editing.
 The Core API also offers read-only capability and context preflights against explicitly
 fictional plans. Full provider evaluation, ADR export and authenticated workflows are still
 planned. The AI worker exposes health endpoints.
@@ -496,6 +497,9 @@ with a complete profile and `expectedVersion`. V5 reads project older profiles w
 empty planning inputs without changing storage. Any recorded context, assumption or
 quantity requires stored format v5, including all prior security fields. Clearing all
 three restores the smallest lossless v1/v2/v3/v4 format; history is never erased.
+GET on the v5 collection returns at most 20 summary rows by default (50 maximum),
+newest first. `nextBeforeId` is an exclusive same-workspace cursor for the next page;
+profile contents are never included in the list.
 V1 through v4 current-profile reads/writes return 409 `profile-upgrade-required` when
 planning inputs are recorded. V5 history returns exact mixed v1 through v5 snapshots;
 older history endpoints reject pages containing unsupported formats. Flyway V7 only

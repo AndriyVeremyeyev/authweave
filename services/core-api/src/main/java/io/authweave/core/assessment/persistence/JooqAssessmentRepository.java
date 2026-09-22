@@ -1,9 +1,12 @@
 package io.authweave.core.assessment.persistence;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
+import org.jooq.Condition;
 import org.jooq.DSLContext;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +62,40 @@ public class JooqAssessmentRepository implements AssessmentRepository {
                 .where(ASSESSMENTS.WORKSPACE_ID.eq(workspaceId.value()))
                 .and(ASSESSMENTS.ID.eq(assessmentId.value()))
                 .fetchOptional(this::toPersistedAssessment);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AssessmentListPage list(WorkspaceId workspaceId, UUID beforeId, int limit) {
+        if (limit < 1 || limit > 50) {
+            throw new IllegalArgumentException("limit must be between 1 and 50");
+        }
+        Condition scope = ASSESSMENTS.WORKSPACE_ID.eq(workspaceId.value());
+        if (beforeId != null) {
+            var cursor = dsl.select(ASSESSMENTS.CREATED_AT, ASSESSMENTS.ID)
+                    .from(ASSESSMENTS)
+                    .where(scope.and(ASSESSMENTS.ID.eq(beforeId)))
+                    .fetchOne();
+            if (cursor == null) {
+                throw new AssessmentNotFoundException(workspaceId, new AssessmentId(beforeId));
+            }
+            var createdAt = Objects.requireNonNull(cursor.value1());
+            scope = scope.and(ASSESSMENTS.CREATED_AT.lt(createdAt)
+                    .or(ASSESSMENTS.CREATED_AT.eq(createdAt).and(ASSESSMENTS.ID.lt(beforeId))));
+        }
+        List<AssessmentListItem> rows = dsl.select(ASSESSMENTS.ID, ASSESSMENTS.STATUS,
+                        ASSESSMENTS.LOCK_VERSION, ASSESSMENTS.CREATED_AT, ASSESSMENTS.UPDATED_AT)
+                .from(ASSESSMENTS)
+                .where(scope)
+                .orderBy(ASSESSMENTS.CREATED_AT.desc(), ASSESSMENTS.ID.desc())
+                .limit(limit + 1)
+                .fetch(row -> new AssessmentListItem(
+                        Objects.requireNonNull(row.value1()),
+                        AssessmentStatus.valueOf(Objects.requireNonNull(row.value2())),
+                        Objects.requireNonNull(row.value3()),
+                        Objects.requireNonNull(row.value4()).toInstant(),
+                        Objects.requireNonNull(row.value5()).toInstant()));
+        return AssessmentListPage.from(rows, limit);
     }
 
     @Override

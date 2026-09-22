@@ -13,6 +13,7 @@ import io.authweave.core.assessment.application.AssessmentApplicationService;
 import io.authweave.core.assessment.domain.AssessmentId;
 import io.authweave.core.assessment.domain.WorkspaceId;
 import io.authweave.core.assessment.persistence.AssessmentRevision;
+import io.authweave.core.assessment.persistence.AssessmentListPage;
 import io.authweave.core.assessment.persistence.HistoryPage;
 import tools.jackson.databind.ObjectMapper;
 
@@ -33,6 +34,13 @@ public class AssessmentV5Controller {
         var assessment = service.createAssessment(new WorkspaceId(workspaceId), id);
         return ResponseEntity.created(URI.create("/api/v5/workspaces/" + workspaceId + "/assessments/" + id.value()))
                 .body(AssessmentV5Response.from(assessment, mapper));
+    }
+
+    @GetMapping
+    public AssessmentListPage list(@PathVariable UUID workspaceId,
+            @RequestParam(required = false) UUID beforeId,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
+        return service.listAssessments(new WorkspaceId(workspaceId), beforeId, limit);
     }
 
     @GetMapping("/{assessmentId}")

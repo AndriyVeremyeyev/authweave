@@ -35,7 +35,7 @@ export default async function AssessmentPage({ params }: PageProps<"/assessments
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-20 text-slate-100">
-      <Link href="/account" className="text-sm text-cyan-200 hover:underline">← Account</Link>
+      <Link href="/assessments" className="text-sm text-cyan-200 hover:underline">← Your assessments</Link>
       <h1 className="mt-8 text-4xl font-semibold">Assessment draft</h1>
       <dl className="mt-8 grid gap-4 rounded-xl border border-slate-700 p-6 sm:grid-cols-3">
         <div><dt className="text-sm text-slate-400">Status</dt><dd>{assessment.status}</dd></div>

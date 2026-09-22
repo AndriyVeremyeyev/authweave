@@ -190,7 +190,7 @@ public class Assessments extends TableImpl<AssessmentsRecord> {
 
     @Override
     public List<Index> getIndexes() {
-        return Arrays.asList(Indexes.ASSESSMENTS_WORKSPACE_UPDATED_IDX);
+        return Arrays.asList(Indexes.ASSESSMENTS_WORKSPACE_CREATED_ID_IDX, Indexes.ASSESSMENTS_WORKSPACE_UPDATED_IDX);
     }
 
     @Override

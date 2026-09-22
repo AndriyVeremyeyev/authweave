@@ -1548,6 +1548,31 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         response("v5-invalid-history-page", mvc.perform(get(path + "/revisions?limit=0")).andExpect(status().isBadRequest()).andReturn());
     }
 
+    @Test
+    void v5AssessmentListUsesBoundedSummaryPages() throws Exception {
+        var workspace = UUID.randomUUID();
+        String path = "/api/v5/workspaces/" + workspace + "/assessments";
+        mvc.perform(put("/api/v1/workspaces/" + workspace)).andExpect(status().isCreated());
+        for (int index = 0; index < 3; index++) {
+            mvc.perform(post(path)).andExpect(status().isCreated());
+        }
+        JsonNode first = mapper.readTree(mvc.perform(get(path).param("limit", "2"))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        sample("v5-list-first", "assessment-list-page", true, first);
+        assertEquals(2, first.get("items").size());
+        String beforeId = first.get("nextBeforeId").asText();
+        JsonNode second = mapper.readTree(mvc.perform(get(path).param("limit", "2")
+                        .param("beforeId", beforeId))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        sample("v5-list-second", "assessment-list-page", true, second);
+        assertEquals(1, second.get("items").size());
+        assertEquals(mapper.nullNode(), second.get("nextBeforeId"));
+        response("v5-list-invalid-limit", mvc.perform(get(path).param("limit", "0"))
+                .andExpect(status().isBadRequest()).andReturn());
+        response("v5-list-foreign-cursor", mvc.perform(get(path).param("beforeId", UUID.randomUUID().toString()))
+                .andExpect(status().isNotFound()).andReturn());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CURRENT", "STALE", "FUTURE", "INCONSISTENT", "NO_FACTS", "UNICODE_LIMITS", "DATA_NOT_INSTRUCTIONS"})
     void catalogDraftValidationNeverPublishesOrChangesAssessments(String scenario) throws Exception {

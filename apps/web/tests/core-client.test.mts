@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
-  createPersonalAssessment, provisionPersonalWorkspace, readPersonalAssessment,
+  createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
 } from "../src/lib/auth/core-client.ts";
 
 const identity = {
@@ -131,6 +131,46 @@ test("BFF rejects malformed IDs, mismatched Core responses and Core authorizatio
     await assert.rejects(readPersonalAssessment(session, assessmentId), /read failed/);
     globalThis.fetch = async () => new Response(null, { status: 404 });
     assert.equal(await readPersonalAssessment(session, assessmentId), null);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF lists bounded assessment summaries using only its session workspace", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const token = "synthetic-internal-token-000000000000000000000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token;
+  const item = {
+    id: assessmentId, status: "DRAFT", version: 0,
+    createdAt: "2026-09-22T12:00:00Z", updatedAt: "2026-09-22T12:00:00Z",
+  };
+  let calls = 0;
+  globalThis.fetch = async (input, init) => {
+    calls++;
+    assert.equal(input,
+      `http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments?limit=20&beforeId=${assessmentId}`);
+    assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
+    assert.equal(init?.cache, "no-store");
+    return Response.json({ items: [item], nextBeforeId: assessmentId });
+  };
+  try {
+    await assert.rejects(listPersonalAssessments(session, "../other"), /cursor is invalid/);
+    assert.equal(calls, 0);
+    assert.deepEqual(await listPersonalAssessments(session, assessmentId), {
+      items: [item], nextBeforeId: assessmentId,
+    });
+    assert.equal(calls, 1);
+    globalThis.fetch = async () => Response.json({ items: [{ ...item, profile: {} }], nextBeforeId: null });
+    await assert.rejects(listPersonalAssessments(session), /response is invalid/);
+    globalThis.fetch = async () => Response.json({ items: [item], nextBeforeId:
+      "90000000-0000-4000-8000-000000000001" });
+    await assert.rejects(listPersonalAssessments(session), /response is invalid/);
+    globalThis.fetch = async () => new Response(null, { status: 403 });
+    await assert.rejects(listPersonalAssessments(session), /list failed/);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

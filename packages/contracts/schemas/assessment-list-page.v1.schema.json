@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-list-page.v1.schema.json",
+  "title": "Personal assessment list page v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items", "nextBeforeId"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "version", "createdAt", "updatedAt"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "status": {
+            "enum": ["DRAFT", "READY_FOR_EVALUATION", "EVALUATED", "DECIDED", "ARCHIVED"]
+          },
+          "version": { "type": "integer", "minimum": 0 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    },
+    "nextBeforeId": { "type": ["string", "null"], "format": "uuid" }
+  }
+}

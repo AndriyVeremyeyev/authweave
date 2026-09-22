@@ -31,6 +31,7 @@ export default async function AccountPage() {
           <form method="post" action="/api/assessments">
             <button className="rounded-lg bg-cyan-300 px-4 py-2 font-medium text-slate-950">Create assessment draft</button>
           </form>
+          <Link href="/assessments" className="inline-block text-cyan-200 hover:underline">View your assessments →</Link>
           <form method="post" action="/api/auth/logout">
             <button className="rounded-lg bg-white px-4 py-2 font-medium text-slate-950">Sign out</button>
           </form>

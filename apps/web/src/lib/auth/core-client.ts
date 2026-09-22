@@ -11,6 +11,16 @@ export type PersonalAssessment = {
   profile: Record<string, unknown>;
 };
 
+export type PersonalAssessmentListItem = Omit<PersonalAssessment, "profile"> & {
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PersonalAssessmentListPage = {
+  items: PersonalAssessmentListItem[];
+  nextBeforeId: string | null;
+};
+
 function serviceToken(): string {
   const token = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
   if (!token || token.length < 32) {
@@ -89,4 +99,53 @@ export async function readPersonalAssessment(session: BrowserSession, id: string
   if (response.status === 404) return null;
   if (response.status !== 200) throw new Error("Core assessment read failed");
   return assessmentFromCore(await response.json(), session, id);
+}
+
+export async function listPersonalAssessments(
+  session: BrowserSession, beforeId?: string,
+): Promise<PersonalAssessmentListPage> {
+  if (beforeId !== undefined && !UUID.test(beforeId)) throw new Error("Assessment cursor is invalid");
+  const headers = assessmentHeaders(session);
+  const url = new URL(`/api/v5/workspaces/${session.workspaceId}/assessments`, CORE_ORIGIN);
+  url.searchParams.set("limit", "20");
+  if (beforeId) url.searchParams.set("beforeId", beforeId);
+  const response = await fetch(url.toString(), {
+    method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status !== 200) throw new Error("Core assessment list failed");
+  const body: unknown = await response.json();
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error("Core assessment list response is invalid");
+  }
+  const page = body as Record<string, unknown>;
+  if (Object.keys(page).some((key) => !["items", "nextBeforeId"].includes(key)) ||
+      !Array.isArray(page.items) || page.items.length > 20 ||
+      (page.nextBeforeId !== null &&
+        (typeof page.nextBeforeId !== "string" || !UUID.test(page.nextBeforeId)))) {
+    throw new Error("Core assessment list response is invalid");
+  }
+  const items = page.items.map((value: unknown): PersonalAssessmentListItem => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error("Core assessment list response is invalid");
+    }
+    const item = value as Record<string, unknown>;
+    if (Object.keys(item).some((key) => !["id", "status", "version", "createdAt", "updatedAt"].includes(key)) ||
+        typeof item.id !== "string" || !UUID.test(item.id) ||
+        typeof item.status !== "string" ||
+        !["DRAFT", "READY_FOR_EVALUATION", "EVALUATED", "DECIDED", "ARCHIVED"].includes(item.status) ||
+        !Number.isSafeInteger(item.version) || Number(item.version) < 0 ||
+        typeof item.createdAt !== "string" || Number.isNaN(Date.parse(item.createdAt)) ||
+        typeof item.updatedAt !== "string" || Number.isNaN(Date.parse(item.updatedAt))) {
+      throw new Error("Core assessment list response is invalid");
+    }
+    return {
+      id: item.id, status: item.status as PersonalAssessment["status"],
+      version: item.version as number, createdAt: item.createdAt, updatedAt: item.updatedAt,
+    };
+  });
+  if (page.nextBeforeId !== null &&
+      (items.length === 0 || items.at(-1)?.id !== page.nextBeforeId)) {
+    throw new Error("Core assessment list response is invalid");
+  }
+  return { items, nextBeforeId: page.nextBeforeId };
 }

@@ -98,6 +98,19 @@ test("Core API fixtures satisfy their JSON Schemas", () => {
   );
 });
 
+test("assessment list pages are bounded summaries with a valid cursor", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/assessment-list-page.v1.schema.json");
+  const item = {
+    id: validAssessmentResponse.id, status: "DRAFT", version: 0,
+    createdAt: validAssessmentResponse.createdAt, updatedAt: validAssessmentResponse.updatedAt,
+  };
+  assert.equal(validate({ items: [item], nextBeforeId: item.id }), true, validationMessage(validate));
+  assert.equal(validate({ items: [], nextBeforeId: null }), true, validationMessage(validate));
+  assert.equal(validate({ items: [{ ...item, profile: validAssessmentResponse.profile }], nextBeforeId: null }), false);
+  assert.equal(validate({ items: [item], nextBeforeId: "not-a-uuid" }), false);
+  assert.equal(validate({ items: Array(51).fill(item), nextBeforeId: null }), false);
+});
+
 test("AI proposals and profiles share the canonical criticality vocabulary", () => {
   for (const criticality of ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN"]) {
     const result = structuredClone(validResult);
