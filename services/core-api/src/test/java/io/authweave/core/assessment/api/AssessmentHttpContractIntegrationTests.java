@@ -1573,6 +1573,31 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isNotFound()).andReturn());
     }
 
+    @Test
+    void v5HardConstraintSummaryPreservesEveryFailureAndUnknownWithoutWriting() throws Exception {
+        var assessment = create();
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        var before = response("hard-constraint-profile", mvc.perform(put(assessment.path() + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var path = assessment.path().replace("/api/v1/", "/api/v5/") + "/hard-constraint-preflight";
+        var result = versionedSample("hard-constraint-summary", "hard-constraint-preflight",
+                mvc.perform(get(path)).andExpect(status().isOk())
+                        .andExpect(jsonPath("$.recommendationReady").value(false))
+                        .andExpect(jsonPath("$.candidates[1].verdict").value("EXCLUDED"))
+                        .andExpect(jsonPath("$.candidates[1].exclusionReasons[0].reasonCode").isNotEmpty())
+                        .andExpect(jsonPath("$.candidates[1].informationGaps").isArray()).andReturn());
+        assertEquals(result, mapper.readTree(mvc.perform(get(path)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()));
+        assertEquals(before, response("hard-constraint-state-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+        response("hard-constraint-foreign-workspace", mvc.perform(get(path.replace(assessment.workspaceId().value().toString(),
+                UUID.randomUUID().toString()))).andExpect(status().isNotFound()).andReturn());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CURRENT", "STALE", "FUTURE", "INCONSISTENT", "NO_FACTS", "UNICODE_LIMITS", "DATA_NOT_INSTRUCTIONS"})
     void catalogDraftValidationNeverPublishesOrChangesAssessments(String scenario) throws Exception {

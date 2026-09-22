@@ -459,6 +459,14 @@ The synthetic catalog remains v4 with unchanged facts and dates. V1/v2/v3 eligib
 keeps its earlier scope and shapes. This is a local backend step; the browser preview
 remains v1 and does not yet expose these controls or compliance-scope choices.
 
+The read-only v5 `/{assessmentId}/hard-constraint-preflight` summarizes those existing
+checks for each synthetic option. `EXCLUDED` lists all confirmed failures;
+`UNRESOLVED` lists missing, stale or unreviewed evidence and unclear inputs. A failure
+still takes precedence without hiding information gaps. `PASSES_CHECKED_REQUIREMENTS`
+means only that the currently checked constraints pass. Deferred dimensions remain
+explicit; the endpoint does not publish provider facts, score options, choose a winner
+or change assessment state. Its result is not yet a provider recommendation.
+
 ### Usage inputs and planning assumptions
 
 Profile API v5 adds `operations.usagePlanning` for the application being assessed,

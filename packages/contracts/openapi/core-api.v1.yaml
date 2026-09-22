@@ -1331,6 +1331,37 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/hard-constraint-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Summarize checked synthetic hard constraints with reason codes
+      description: >-
+        Read-only, workspace-scoped summary of the existing v4 eligibility checks.
+        EXCLUDED includes every failed checked constraint; UNRESOLVED includes missing,
+        stale or unreviewed evidence and unknown assessment inputs. A failed constraint
+        takes precedence without hiding remaining information gaps. A passing verdict
+        means only that checked requirements pass; deferred dimensions, real provider
+        evidence, scores and a final recommendation are not supplied. The synthetic
+        fixture is not a published provider catalog. This call changes no assessment.
+      operationId: getAssessmentHardConstraintPreflight
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Reason-coded synthetic preflight, not a provider recommendation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/hard-constraint-preflight.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   securitySchemes:
     BffServiceToken:

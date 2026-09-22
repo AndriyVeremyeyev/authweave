@@ -111,6 +111,31 @@ test("assessment list pages are bounded summaries with a valid cursor", () => {
   assert.equal(validate({ items: Array(51).fill(item), nextBeforeId: null }), false);
 });
 
+test("hard-constraint summary cannot claim a winner or hide its synthetic scope", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/hard-constraint-preflight.v1.schema.json");
+  const finding = {
+    dimension: "CAPABILITY", profilePath: "provisioning.scim",
+    reasonCode: "REQUIRED_CAPABILITY_UNAVAILABLE", explanation: "SCIM is unavailable in this fictional plan.",
+  };
+  const candidate = {
+    optionId: "fictional-plan", displayName: "Fictional Plan", plan: "Demo", region: "Synthetic region",
+    verdict: "EXCLUDED", exclusionReasons: [finding], informationGaps: [],
+  };
+  const payload = {
+    workspaceId: validAssessmentResponse.workspaceId, assessmentId: validAssessmentResponse.id,
+    assessmentVersion: 0, catalogVersion: "synthetic-test", catalogKind: "SYNTHETIC",
+    policyVersion: "hard-constraint-preflight-1", evaluatedAt: validAssessmentResponse.createdAt,
+    scope: "SYNTHETIC_HARD_CONSTRAINT_PREFLIGHT", recommendationReady: false,
+    deferredPaths: ["security.browserTokenExposureMinimization", "security.auditability",
+      "security.assurance", "security.complianceTargets", "operations"], candidates: [candidate],
+  };
+  assert.equal(validate(payload), true, validationMessage(validate));
+  assert.equal(validate({ ...payload, recommendationReady: true }), false);
+  assert.equal(validate({ ...payload, winnerId: candidate.optionId }), false);
+  assert.equal(validate({ ...payload, candidates: [{ ...candidate, score: 100 }] }), false);
+  assert.equal(validate({ ...payload, candidates: [{ ...candidate, exclusionReasons: [{ ...finding, reasonCode: "guess" }] }] }), false);
+});
+
 test("AI proposals and profiles share the canonical criticality vocabulary", () => {
   for (const criticality of ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN"]) {
     const result = structuredClone(validResult);

@@ -150,11 +150,23 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
                         .header("X-AuthWeave-Oidc-Issuer", issuer)
                         .header("X-AuthWeave-Oidc-Subject", alice))
                 .andExpect(status().isNoContent());
-        mvc.perform(post("/api/v1/workspaces/" + aliceWorkspace + "/assessments")
+        String created = mvc.perform(post("/api/v1/workspaces/" + aliceWorkspace + "/assessments")
                         .header("Authorization", TOKEN)
                         .header("X-AuthWeave-Oidc-Issuer", issuer)
                         .header("X-AuthWeave-Oidc-Subject", alice))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String summaryPath = "/api/v5/workspaces/" + aliceWorkspace + "/assessments/"
+                + mapper.readTree(created).get("id").asText() + "/hard-constraint-preflight";
+        mvc.perform(get(summaryPath)).andExpect(status().isUnauthorized());
+        mvc.perform(get(summaryPath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", bob))
+                .andExpect(status().isForbidden());
+        mvc.perform(get(summaryPath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recommendationReady").value(false));
     }
 
     @Test
