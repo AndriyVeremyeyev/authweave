@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
+import { NextRequest } from "next/server.js";
 
+import { POST as createAssessmentRoute } from "../src/app/api/assessments/route.ts";
 import { authDatabase, beginLogin, consumeLogin, createSession, revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
-import { opaqueHash, randomOpaqueValue } from "../src/lib/auth/session-policy.ts";
+import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
 
@@ -102,5 +104,68 @@ test("sessions created before workspace binding cannot gain workspace access", a
     assert.equal(await touchSession(id, pool), null);
   } finally {
     await revokeSession(id, pool);
+  }
+});
+
+test("assessment route requires same-origin session and never trusts a browser workspace ID", async () => {
+  const previous = {
+    issuer: process.env.AUTHWEAVE_OIDC_ISSUER,
+    clientId: process.env.AUTHWEAVE_OIDC_CLIENT_ID,
+    origin: process.env.AUTHWEAVE_PUBLIC_ORIGIN,
+    token: process.env.AUTHWEAVE_CORE_SERVICE_TOKEN,
+    fetch: globalThis.fetch,
+  };
+  process.env.AUTHWEAVE_OIDC_ISSUER = "http://localhost:8081";
+  process.env.AUTHWEAVE_OIDC_CLIENT_ID = "synthetic-client";
+  process.env.AUTHWEAVE_PUBLIC_ORIGIN = "http://localhost:3000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const identity = {
+    workspaceId: "70000000-0000-4000-8000-000000000001",
+    issuer: "http://localhost:8081",
+    subject: "synthetic-route-user",
+    email: null,
+    displayName: null,
+    authenticatedAt: new Date(),
+  };
+  const id = await createSession(identity, undefined);
+  let calls = 0;
+  globalThis.fetch = async (input, init) => {
+    calls++;
+    assert.equal(input, `http://127.0.0.1:8080/api/v5/workspaces/${identity.workspaceId}/assessments`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    return Response.json({
+      id: "80000000-0000-4000-8000-000000000001", workspaceId: identity.workspaceId,
+      status: "DRAFT", version: 0, profileSchemaVersion: 5, profile: {},
+    }, { status: 201 });
+  };
+  const request = (origin: string, cookie?: string) => new NextRequest(
+    "http://localhost:3000/api/assessments", {
+      method: "POST", headers: {
+        Origin: origin, ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}),
+      },
+      body: JSON.stringify({ workspaceId: "90000000-0000-4000-8000-000000000001" }),
+    },
+  );
+  try {
+    assert.equal((await createAssessmentRoute(request("https://other.example.test", id))).status, 403);
+    assert.equal((await createAssessmentRoute(request("http://localhost:3000"))).status, 401);
+    assert.equal(calls, 0);
+    const response = await createAssessmentRoute(request("http://localhost:3000", id));
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get("location"),
+      "http://localhost:3000/assessments/80000000-0000-4000-8000-000000000001");
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(calls, 1);
+  } finally {
+    await revokeSession(id);
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of [
+      ["AUTHWEAVE_OIDC_ISSUER", previous.issuer],
+      ["AUTHWEAVE_OIDC_CLIENT_ID", previous.clientId],
+      ["AUTHWEAVE_PUBLIC_ORIGIN", previous.origin],
+      ["AUTHWEAVE_CORE_SERVICE_TOKEN", previous.token],
+    ] as const) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
   }
 });

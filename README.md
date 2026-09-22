@@ -48,8 +48,9 @@ Run `make help` to see component-specific checks and development-server commands
 Local ZITADEL infrastructure, an AuthWeave OIDC project/application and two ordinary synthetic
 users support the local BFF sign-in flow. First login provisions a personal workspace;
 versioned workspace routes require the BFF's server-only credential and an OIDC identity
-that owns that workspace. This does not yet expose assessments through the BFF or grant a
-catalog-curator role. The public browser-only preview is unchanged. Browser sign-in still
+that owns that workspace. Signed-in users can create a private assessment draft and read
+its current profile through the BFF. Editing, listing and catalog-curator permissions are
+not enabled yet. The public browser-only preview is unchanged. Browser sign-in still
 needs a manual end-to-end check.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
@@ -117,7 +118,9 @@ to the ignored mode-600 `infra/.env` and leaves an existing credential unchanged
 `make dev-core` in one terminal so Flyway applies the Core ownership migration. In another
 terminal, run `make migrate-web-auth` to apply both replay-safe web migrations, then
 `make dev-web`. Open `http://localhost:3000/account` to try sign-in and sign-out with a
-synthetic user. The ignored `apps/web/.env.local` must already contain the issuer and client ID
+synthetic user. Once signed in, use **Create assessment draft** to open a private,
+read-only version-5 assessment page; keep its URL for later because listing is not yet
+implemented. The ignored `apps/web/.env.local` must already contain the issuer and client ID
 created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
 rotation/revocation and database role isolation.
 
@@ -126,9 +129,11 @@ server-only bearer credential. Versioned workspace routes additionally require
 `X-AuthWeave-Oidc-Issuer` and `X-AuthWeave-Oidc-Subject` headers from the validated
 BFF session; Core checks their immutable mapping against the path workspace ID.
 The browser must never supply these credentials or principal headers directly.
-Catalog routes remain unauthenticated and loopback-only. Assessment BFF routes,
-curator authorization and browser end-to-end verification are still pending. Do not
-expose the local HTTP lab or Core API.
+The BFF creates and reads assessments using only the workspace from its server-side
+session. Creation requires an exact same-origin request; anonymous sessions are denied.
+Catalog routes remain unauthenticated and loopback-only. Profile editing, assessment
+listing, curator authorization and browser end-to-end verification are still pending.
+Do not expose the local HTTP lab or Core API.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
 with its database: losing or changing it can make stored encrypted data unusable. Bootstrap
@@ -164,7 +169,8 @@ selections mean no choice was recorded, not that a topic is unnecessary.
 The Core API stores immutable assessment revisions and atomic state-change events,
 with workspace-scoped paginated history reads. Runtime database roles cannot update
 or delete history. Versioned workspace routes now enforce a local BFF credential and
-personal-workspace ownership; browser assessment access is not yet implemented.
+personal-workspace ownership; the BFF exposes authenticated draft creation and
+read-only assessment pages, but not editing or listing.
 The Core API also offers read-only capability and context preflights against explicitly
 fictional plans. Full provider evaluation, ADR export and authenticated workflows are still
 planned. The AI worker exposes health endpoints.
