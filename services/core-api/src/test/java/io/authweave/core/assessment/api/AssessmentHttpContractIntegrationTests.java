@@ -1598,6 +1598,42 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                 UUID.randomUUID().toString()))).andExpect(status().isNotFound()).andReturn());
     }
 
+    @Test
+    void v5SyntheticComparisonKeepsPreferencesSeparateFromHardExclusionsAndState() throws Exception {
+        var assessment = create();
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        var before = response("comparison-profile", mvc.perform(put(assessment.path() + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var root = assessment.path().replace("/api/v1/", "/api/v5/");
+        var hard = versionedSample("comparison-hard-baseline", "hard-constraint-preflight",
+                mvc.perform(get(root + "/hard-constraint-preflight")).andExpect(status().isOk()).andReturn());
+        var comparison = versionedSample("synthetic-comparison", "synthetic-comparison",
+                mvc.perform(get(root + "/comparison-preflight")).andExpect(status().isOk())
+                        .andExpect(jsonPath("$.recommendationReady").value(false))
+                        .andExpect(jsonPath("$.rankingPerformed").value(false))
+                        .andExpect(jsonPath("$.candidates[1].hardVerdict").value("EXCLUDED"))
+                        .andExpect(jsonPath("$.candidates[1].capabilityPreferences[0].outcome").value("AVAILABLE"))
+                        .andExpect(jsonPath("$.candidates[0].capabilityPreferences.length()").value(2))
+                        .andReturn());
+        for (int index = 0; index < hard.get("candidates").size(); index++) {
+            var expected = hard.get("candidates").get(index);
+            var actual = comparison.get("candidates").get(index);
+            assertEquals(expected.get("optionId"), actual.get("optionId"));
+            assertEquals(expected.get("verdict"), actual.get("hardVerdict"));
+            assertEquals(expected.get("exclusionReasons"), actual.get("exclusionReasons"));
+            assertEquals(expected.get("informationGaps"), actual.get("informationGaps"));
+            assertFalse(actual.has("score"));
+        }
+        assertEquals(before, response("comparison-state-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+        response("comparison-foreign-workspace", mvc.perform(get(root.replace(assessment.workspaceId().value().toString(),
+                UUID.randomUUID().toString()) + "/comparison-preflight")).andExpect(status().isNotFound()).andReturn());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CURRENT", "STALE", "FUTURE", "INCONSISTENT", "NO_FACTS", "UNICODE_LIMITS", "DATA_NOT_INSTRUCTIONS"})
     void catalogDraftValidationNeverPublishesOrChangesAssessments(String scenario) throws Exception {

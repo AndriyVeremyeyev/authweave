@@ -136,6 +136,37 @@ test("hard-constraint summary cannot claim a winner or hide its synthetic scope"
   assert.equal(validate({ ...payload, candidates: [{ ...candidate, exclusionReasons: [{ ...finding, reasonCode: "guess" }] }] }), false);
 });
 
+test("synthetic comparison keeps preferences unweighted and preserves excluded options", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/synthetic-comparison.v1.schema.json");
+  const candidate = {
+    optionId: "fictional-plan", displayName: "Fictional Plan", plan: "Demo", region: "Synthetic region",
+    hardVerdict: "EXCLUDED", exclusionReasons: [{
+      dimension: "CAPABILITY", profilePath: "provisioning.scim",
+      reasonCode: "REQUIRED_CAPABILITY_UNAVAILABLE", explanation: "SCIM is unavailable.",
+    }], informationGaps: [], capabilityPreferences: [{
+      capability: "SOCIAL_LOGIN", profilePath: "protocols.socialLogin", outcome: "AVAILABLE",
+      reasonCode: "PREFERRED_CAPABILITY_AVAILABLE", explanation: "The plan offers social login.",
+      evidence: { availability: "OPTIONAL", evidenceStatus: "REVIEWED",
+        sourceUrl: "https://example.invalid/social", observedAt: "2026-09-12T00:00:00Z" },
+    }],
+  };
+  const payload = {
+    workspaceId: validAssessmentResponse.workspaceId, assessmentId: validAssessmentResponse.id,
+    assessmentVersion: 0, catalogVersion: "synthetic-test", catalogKind: "SYNTHETIC",
+    policyVersion: "synthetic-comparison-1", hardConstraintPolicyVersion: "hard-constraint-preflight-1",
+    preferencePolicyVersion: "capability-preference-1", evaluatedAt: validAssessmentResponse.createdAt,
+    scope: "SYNTHETIC_UNRANKED_COMPARISON", recommendationReady: false, rankingPerformed: false,
+    deferredPaths: ["security.browserTokenExposureMinimization", "security.auditability",
+      "security.assurance", "security.complianceTargets", "operations"], candidates: [candidate],
+  };
+  assert.equal(validate(payload), true, validationMessage(validate));
+  assert.equal(validate({ ...payload, rankingPerformed: true }), false);
+  assert.equal(validate({ ...payload, winnerId: candidate.optionId }), false);
+  assert.equal(validate({ ...payload, candidates: [{ ...candidate, score: 1 }] }), false);
+  assert.equal(validate({ ...payload, candidates: [{ ...candidate,
+    capabilityPreferences: [{ ...candidate.capabilityPreferences[0], outcome: "WINNER" }] }] }), false);
+});
+
 test("AI proposals and profiles share the canonical criticality vocabulary", () => {
   for (const criticality of ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN"]) {
     const result = structuredClone(validResult);

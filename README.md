@@ -467,6 +467,14 @@ means only that the currently checked constraints pass. Deferred dimensions rema
 explicit; the endpoint does not publish provider facts, score options, choose a winner
 or change assessment state. Its result is not yet a provider recommendation.
 
+The v5 `/{assessmentId}/comparison-preflight` combines that hard-constraint verdict
+with availability evidence for capabilities explicitly marked `PREFERRED`. It shows
+an excluded option's preferences without letting them reverse its exclusion.
+Missing, stale, future or unreviewed preference facts remain `UNKNOWN`; an unavailable
+preference is not a hard failure. Only capability preferences are compared. There are
+no weights, scores, ranking or winner, and other preference dimensions remain deferred.
+The comparison uses the same fictional catalog and does not write assessment data.
+
 ### Usage inputs and planning assumptions
 
 Profile API v5 adds `operations.usagePlanning` for the application being assessed,

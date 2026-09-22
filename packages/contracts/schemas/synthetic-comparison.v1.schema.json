@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/synthetic-comparison.v1.schema.json",
+  "title": "Unranked synthetic comparison v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["workspaceId", "assessmentId", "assessmentVersion", "catalogVersion", "catalogKind", "policyVersion", "hardConstraintPolicyVersion", "preferencePolicyVersion", "evaluatedAt", "scope", "recommendationReady", "rankingPerformed", "deferredPaths", "candidates"],
+  "properties": {
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "assessmentId": { "type": "string", "format": "uuid" },
+    "assessmentVersion": { "type": "integer", "minimum": 0 },
+    "catalogVersion": { "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/identifier" },
+    "catalogKind": { "const": "SYNTHETIC" },
+    "policyVersion": { "const": "synthetic-comparison-1" },
+    "hardConstraintPolicyVersion": { "const": "hard-constraint-preflight-1" },
+    "preferencePolicyVersion": { "const": "capability-preference-1" },
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "scope": { "const": "SYNTHETIC_UNRANKED_COMPARISON" },
+    "recommendationReady": { "const": false },
+    "rankingPerformed": { "const": false },
+    "deferredPaths": { "$ref": "./hard-constraint-preflight.v1.schema.json#/properties/deferredPaths" },
+    "candidates": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/candidate" } }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["optionId", "displayName", "plan", "region", "hardVerdict", "exclusionReasons", "informationGaps", "capabilityPreferences"],
+      "properties": {
+        "optionId": { "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/identifier" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "plan": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "region": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "hardVerdict": { "$ref": "./hard-constraint-preflight.v1.schema.json#/$defs/candidate/properties/verdict" },
+        "exclusionReasons": { "$ref": "./hard-constraint-preflight.v1.schema.json#/$defs/candidate/properties/exclusionReasons" },
+        "informationGaps": { "$ref": "./hard-constraint-preflight.v1.schema.json#/$defs/candidate/properties/informationGaps" },
+        "capabilityPreferences": { "type": "array", "maxItems": 9, "items": { "$ref": "#/$defs/preference" } }
+      }
+    },
+    "preference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability", "profilePath", "outcome", "reasonCode", "explanation", "evidence"],
+      "properties": {
+        "capability": { "$ref": "./capability-preflight.v1.schema.json#/$defs/check/properties/capability" },
+        "profilePath": { "$ref": "./capability-preflight.v1.schema.json#/$defs/check/properties/profilePath" },
+        "outcome": { "enum": ["AVAILABLE", "UNAVAILABLE", "UNKNOWN"] },
+        "reasonCode": { "enum": ["PREFERRED_CAPABILITY_AVAILABLE", "PREFERRED_CAPABILITY_UNAVAILABLE", "CAPABILITY_UNKNOWN", "EVIDENCE_MISSING", "EVIDENCE_UNREVIEWED", "EVIDENCE_STALE", "EVIDENCE_FROM_FUTURE"] },
+        "explanation": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "evidence": { "$ref": "./capability-preflight.v1.schema.json#/$defs/check/properties/evidence" }
+      }
+    }
+  },
+  "description": "Only explicit PREFERRED capability evidence is compared. Excluded options remain excluded even when they support a preference. No weights, score, rank, winner or final recommendation is produced."
+}

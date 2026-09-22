@@ -1,5 +1,6 @@
 package io.authweave.core.assessment.api;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -155,18 +156,21 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
                         .header("X-AuthWeave-Oidc-Issuer", issuer)
                         .header("X-AuthWeave-Oidc-Subject", alice))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
-        String summaryPath = "/api/v5/workspaces/" + aliceWorkspace + "/assessments/"
-                + mapper.readTree(created).get("id").asText() + "/hard-constraint-preflight";
-        mvc.perform(get(summaryPath)).andExpect(status().isUnauthorized());
-        mvc.perform(get(summaryPath).header("Authorization", TOKEN)
-                        .header("X-AuthWeave-Oidc-Issuer", issuer)
-                        .header("X-AuthWeave-Oidc-Subject", bob))
-                .andExpect(status().isForbidden());
-        mvc.perform(get(summaryPath).header("Authorization", TOKEN)
-                        .header("X-AuthWeave-Oidc-Issuer", issuer)
-                        .header("X-AuthWeave-Oidc-Subject", alice))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.recommendationReady").value(false));
+        String preflightRoot = "/api/v5/workspaces/" + aliceWorkspace + "/assessments/"
+                + mapper.readTree(created).get("id").asText();
+        for (String suffix : List.of("/hard-constraint-preflight", "/comparison-preflight")) {
+            String path = preflightRoot + suffix;
+            mvc.perform(get(path)).andExpect(status().isUnauthorized());
+            mvc.perform(get(path).header("Authorization", TOKEN)
+                            .header("X-AuthWeave-Oidc-Issuer", issuer)
+                            .header("X-AuthWeave-Oidc-Subject", bob))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get(path).header("Authorization", TOKEN)
+                            .header("X-AuthWeave-Oidc-Issuer", issuer)
+                            .header("X-AuthWeave-Oidc-Subject", alice))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.recommendationReady").value(false));
+        }
     }
 
     @Test

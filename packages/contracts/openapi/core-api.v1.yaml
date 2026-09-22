@@ -1362,6 +1362,37 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/comparison-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Compare synthetic hard-constraint results and explicit capability preferences
+      description: >-
+        Read-only, workspace-scoped comparison using the same checked hard constraints
+        as the hard-constraint preflight. Only capabilities marked PREFERRED receive
+        separate availability checks. Missing, stale, future or unreviewed facts remain
+        UNKNOWN. An unavailable preference never excludes an option; a supported
+        preference never rescues one excluded by a hard constraint. Preference evidence
+        is from the fictional catalog. No weights, score, rank, winner or final
+        recommendation are produced. Other preference dimensions remain deferred.
+      operationId: getAssessmentSyntheticComparison
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Unranked synthetic comparison with explicit uncertainty.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/synthetic-comparison.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   securitySchemes:
     BffServiceToken:
