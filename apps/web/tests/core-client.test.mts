@@ -3,8 +3,9 @@ import { test } from "node:test";
 
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
-  readSyntheticComparison,
+  readSyntheticComparison, updatePersonalCapabilities,
 } from "../src/lib/auth/core-client.ts";
+import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/capabilities.ts";
 
 const identity = {
   issuer: "http://localhost:8081",
@@ -81,6 +82,80 @@ const coreAssessment = {
   id: assessmentId, workspaceId: session.workspaceId, status: "DRAFT", version: 0,
   profileSchemaVersion: 5, profile: { application: { type: "UNKNOWN" } },
 };
+const unknownCapabilities = Object.fromEntries(
+  capabilityFields.map(field => [field.capability, "UNKNOWN"]),
+) as CapabilityValues;
+const editableProfile = {
+  application: { type: "B2B_SAAS" },
+  protocols: { federation: {}, oauth2ProtectedApis: "UNKNOWN", socialLogin: "UNKNOWN",
+    enterpriseSingleSignOn: "UNKNOWN" },
+  provisioning: { scim: "UNKNOWN", justInTimeProvisioning: "UNKNOWN", groupSynchronization: "UNKNOWN" },
+  security: { multiFactorAuthentication: "UNKNOWN", assurance: "UNKNOWN" },
+  operations: { source: "keep" },
+};
+
+test("BFF updates only capabilities via a fresh Core profile and expected version", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const token = "synthetic-internal-token-000000000000000000000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token;
+  const values = { ...unknownCapabilities, OIDC: "REQUIRED", SCIM: "PREFERRED" } as CapabilityValues;
+  const calls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push(`${init?.method} ${input}`);
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers.Authorization, `Bearer ${token}`);
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], session.subject);
+    assert.equal(init?.cache, "no-store");
+    assert.equal(init?.redirect, "error");
+    if (init?.method === "GET") return Response.json({ ...coreAssessment, version: 3, profile: editableProfile });
+    assert.equal(init?.method, "PUT");
+    assert.equal(headers["Content-Type"], "application/json");
+    const request = JSON.parse(String(init?.body));
+    assert.equal(request.expectedVersion, 3);
+    assert.deepEqual(request.profile.protocols.federation, { OIDC: "REQUIRED" });
+    assert.equal(request.profile.provisioning.scim, "PREFERRED");
+    assert.deepEqual(request.profile.operations, editableProfile.operations);
+    return Response.json({ ...coreAssessment, version: 4, profile: request.profile });
+  };
+  try {
+    assert.equal(await updatePersonalCapabilities(session, assessmentId, 3, values), "saved");
+    assert.deepEqual(calls, [
+      `GET http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
+      `PUT http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/profile`,
+    ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF blocks stale and non-draft edits before PUT and reports Core conflicts", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let puts = 0;
+  globalThis.fetch = async (_input, init) => {
+    if (init?.method === "PUT") { puts++; return new Response(null, { status: 409 }); }
+    return Response.json({ ...coreAssessment, version: 2, profile: editableProfile });
+  };
+  try {
+    assert.equal(await updatePersonalCapabilities(session, assessmentId, 1, unknownCapabilities), "conflict");
+    assert.equal(puts, 0);
+    assert.equal(await updatePersonalCapabilities(session, assessmentId, 2, unknownCapabilities), "conflict");
+    assert.equal(puts, 1);
+    globalThis.fetch = async (_input, init) => {
+      if (init?.method === "PUT") throw new Error("Unexpected PUT");
+      return Response.json({ ...coreAssessment, status: "ARCHIVED", version: 2, profile: editableProfile });
+    };
+    assert.equal(await updatePersonalCapabilities(session, assessmentId, 2, unknownCapabilities), "not-editable");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
 
 test("BFF creates and reads only within the server-side session workspace", async () => {
   const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

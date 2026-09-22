@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
+import { capabilityFields, capabilityValues, criticalities, type CapabilityValues } from "@/lib/assessment/capabilities";
 import { authConfiguration } from "@/lib/auth/config";
 import { readPersonalAssessment, readSyntheticComparison, type ComparisonCandidate,
   type ComparisonFinding, type PersonalAssessment, type SyntheticComparisonSummary } from "@/lib/auth/core-client";
@@ -11,8 +12,13 @@ import { touchSession, type BrowserSession } from "@/lib/auth/store";
 export const runtime = "nodejs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const editErrors: Record<string, string> = {
+  stale: "This draft changed since you opened it. Review the current values and save again.",
+  invalid: "Core rejected this combination of requirements. Review the current profile before trying again.",
+  locked: "Only drafts can be edited here.",
+};
 
-export default async function AssessmentPage({ params }: PageProps<"/assessments/[id]">) {
+export default async function AssessmentPage({ params, searchParams }: PageProps<"/assessments/[id]">) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
 
@@ -34,6 +40,9 @@ export default async function AssessmentPage({ params }: PageProps<"/assessments
   }
   if (!assessment) notFound();
 
+  const editError = (await searchParams).editError;
+  const values = capabilityValues(assessment.profile);
+
   let comparison: SyntheticComparisonSummary | null = null;
   try {
     comparison = await readSyntheticComparison(session, id, assessment.version);
@@ -50,8 +59,19 @@ export default async function AssessmentPage({ params }: PageProps<"/assessments
         <div><dt className="text-sm text-slate-400">Version</dt><dd>{assessment.version}</dd></div>
         <div><dt className="text-sm text-slate-400">ID</dt><dd className="break-all text-sm">{assessment.id}</dd></div>
       </dl>
-      <p className="mt-6 text-slate-300">This is your private, read-only requirements draft. Profile editing is coming next.</p>
-      {comparison ? <ComparisonSection comparison={comparison} /> : (
+      <p className="mt-6 text-slate-300">This is your private assessment. You can edit capability requirements below; other profile fields remain read-only.</p>
+      {typeof editError === "string" && Object.hasOwn(editErrors, editError) && (
+        <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">
+          {editErrors[editError]}
+        </p>
+      )}
+      {assessment.status === "DRAFT" && values && <CapabilityEditor assessment={assessment} values={values} />}
+      {assessment.status === "DRAFT" && !values && (
+        <p className="mt-8 rounded-lg border border-amber-700 p-4 text-amber-100">
+          Capability editing is unavailable because this profile cannot be read safely.
+        </p>
+      )}
+      {comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values} /> : (
         <section className="mt-10 rounded-xl border border-amber-700 p-6" aria-labelledby="comparison-heading">
           <h2 id="comparison-heading" className="text-xl font-semibold">Synthetic comparison unavailable</h2>
           <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
@@ -67,14 +87,53 @@ export default async function AssessmentPage({ params }: PageProps<"/assessments
   );
 }
 
-function ComparisonSection({ comparison }: { comparison: SyntheticComparisonSummary }) {
+function CapabilityEditor({ assessment, values }: { assessment: PersonalAssessment; values: CapabilityValues }) {
+  const labels = {
+    UNKNOWN: "Unknown",
+    REQUIRED: "Required",
+    PREFERRED: "Preferred",
+    NOT_REQUIRED: "Not required",
+    FORBIDDEN: "Forbidden",
+  };
+  return (
+    <section className="mt-10 rounded-xl border border-slate-700 p-6" aria-labelledby="capabilities-heading">
+      <h2 id="capabilities-heading" className="text-2xl font-semibold">Capability requirements</h2>
+      <p className="mt-3 text-slate-300">Set what the application needs. Required and forbidden are hard constraints; preferred is shown as a preference in the synthetic comparison, not as a score or recommendation.</p>
+      <p className="mt-2 text-sm text-slate-400">Unknown means you have not decided. Not required means the capability does not affect this decision. Only these nine fields will change.</p>
+      <form action={`/api/assessments/${assessment.id}/capabilities`} method="post" className="mt-6">
+        <input type="hidden" name="expectedVersion" value={assessment.version} />
+        <div className="grid gap-4 sm:grid-cols-2">
+          {capabilityFields.map(field => (
+            <div key={field.capability}>
+              <label htmlFor={`capability-${field.capability}`} className="mb-2 block text-sm font-medium">
+                {field.label}
+              </label>
+              <select id={`capability-${field.capability}`} name={field.capability}
+                defaultValue={values[field.capability]}
+                className="w-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-slate-100">
+                {criticalities.map(value => <option key={value} value={value}>{labels[value]}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+        <button type="submit" className="mt-6 rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200">
+          Save capability requirements
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function ComparisonSection({ comparison, editable }: { comparison: SyntheticComparisonSummary; editable: boolean }) {
   const preferences = comparison.candidates[0]?.capabilityPreferences.length ?? 0;
   return (
     <section className="mt-10" aria-labelledby="comparison-heading">
       <h2 id="comparison-heading" className="text-2xl font-semibold">Synthetic option comparison</h2>
       <p className="mt-3 text-slate-300">These are fictional plans for learning and testing the decision rules, not real provider recommendations. The checks below do not cover every requirement or establish a winner.</p>
       <p className="mt-2 text-sm text-slate-400">Assessment version {comparison.assessmentVersion} · Catalog {comparison.catalogVersion} · Checked {new Date(comparison.evaluatedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</p>
-      {preferences === 0 && <p className="mt-5 rounded-lg border border-slate-700 p-4 text-slate-300">No capability preferences are recorded in this draft. Weighted scoring is unavailable until preferences can be saved. Profile editing is not enabled yet.</p>}
+      {preferences === 0 && <p className="mt-5 rounded-lg border border-slate-700 p-4 text-slate-300">
+        No capability preferences are recorded in this draft. {editable && "Choose Preferred above and save to see how the fictional plans compare. "}Weighted scoring is not available yet.
+      </p>}
       <ul className="mt-6 space-y-5">
         {comparison.candidates.map(candidate => <ComparisonCard key={candidate.optionId} candidate={candidate} />)}
       </ul>

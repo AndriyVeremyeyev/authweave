@@ -3,6 +3,8 @@ import { after, test } from "node:test";
 import { NextRequest } from "next/server.js";
 
 import { POST as createAssessmentRoute } from "../src/app/api/assessments/route.ts";
+import { POST as updateCapabilitiesRoute } from "../src/app/api/assessments/[id]/capabilities/route.ts";
+import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { authDatabase, beginLogin, consumeLogin, createSession, revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
@@ -158,6 +160,95 @@ test("assessment route requires same-origin session and never trusts a browser w
     assert.equal(calls, 1);
   } finally {
     await revokeSession(id);
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of [
+      ["AUTHWEAVE_OIDC_ISSUER", previous.issuer],
+      ["AUTHWEAVE_OIDC_CLIENT_ID", previous.clientId],
+      ["AUTHWEAVE_PUBLIC_ORIGIN", previous.origin],
+      ["AUTHWEAVE_CORE_SERVICE_TOKEN", previous.token],
+    ] as const) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("capability route enforces session, origin, form scope and optimistic version", async () => {
+  const previous = {
+    issuer: process.env.AUTHWEAVE_OIDC_ISSUER,
+    clientId: process.env.AUTHWEAVE_OIDC_CLIENT_ID,
+    origin: process.env.AUTHWEAVE_PUBLIC_ORIGIN,
+    token: process.env.AUTHWEAVE_CORE_SERVICE_TOKEN,
+    fetch: globalThis.fetch,
+  };
+  process.env.AUTHWEAVE_OIDC_ISSUER = "http://localhost:8081";
+  process.env.AUTHWEAVE_OIDC_CLIENT_ID = "synthetic-client";
+  process.env.AUTHWEAVE_PUBLIC_ORIGIN = "http://localhost:3000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const workspaceId = "70000000-0000-4000-8000-000000000001";
+  const assessmentId = "80000000-0000-4000-8000-000000000001";
+  const identity = {
+    workspaceId, issuer: "http://localhost:8081", subject: "synthetic-capability-user",
+    email: null, displayName: null, authenticatedAt: new Date(),
+  };
+  const sessionId = await createSession(identity, undefined);
+  const profile = {
+    application: { type: "B2B_SAAS" },
+    protocols: { federation: {}, oauth2ProtectedApis: "UNKNOWN", socialLogin: "UNKNOWN",
+      enterpriseSingleSignOn: "UNKNOWN" },
+    provisioning: { scim: "UNKNOWN", justInTimeProvisioning: "UNKNOWN", groupSynchronization: "UNKNOWN" },
+    security: { multiFactorAuthentication: "UNKNOWN" },
+    operations: { retained: true },
+  };
+  const form = new URLSearchParams({ expectedVersion: "2" });
+  for (const field of capabilityFields) form.set(field.capability, "UNKNOWN");
+  form.set("SCIM", "PREFERRED");
+  const context = { params: Promise.resolve({ id: assessmentId }) };
+  const request = (origin: string | null, cookie: string | null, body = form.toString(),
+    contentType = "application/x-www-form-urlencoded") => new NextRequest(
+    `http://localhost:3000/api/assessments/${assessmentId}/capabilities`, {
+      method: "POST", headers: {
+        ...(origin ? { Origin: origin } : {}),
+        ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}),
+        "Content-Type": contentType,
+      }, body,
+    },
+  );
+  const calls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push(`${init?.method} ${input}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
+      status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+    const update = JSON.parse(String(init?.body));
+    assert.equal(update.expectedVersion, 2);
+    assert.equal(update.profile.provisioning.scim, "PREFERRED");
+    assert.deepEqual(update.profile.operations, profile.operations);
+    return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
+      profileSchemaVersion: 5, profile: update.profile });
+  };
+  try {
+    assert.equal((await updateCapabilitiesRoute(request("https://other.example.test", sessionId), context)).status, 403);
+    assert.equal((await updateCapabilitiesRoute(request("http://localhost:3000", null), context)).status, 401);
+    assert.equal((await updateCapabilitiesRoute(request("http://localhost:3000", sessionId,
+      form.toString(), "application/json"), context)).status, 415);
+    assert.equal((await updateCapabilitiesRoute(request("http://localhost:3000", sessionId,
+      "expectedVersion=2"), context)).status, 400);
+    assert.equal(calls.length, 0);
+    const saved = await updateCapabilitiesRoute(request("http://localhost:3000", sessionId), context);
+    assert.equal(saved.status, 303);
+    assert.equal(saved.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}`);
+    assert.equal(saved.headers.get("cache-control"), "no-store");
+    assert.equal(calls.length, 2);
+    const stale = new URLSearchParams(form);
+    stale.set("expectedVersion", "1");
+    const conflict = await updateCapabilitiesRoute(
+      request("http://localhost:3000", sessionId, stale.toString()), context);
+    assert.equal(conflict.status, 303);
+    assert.equal(conflict.headers.get("location"),
+      `http://localhost:3000/assessments/${assessmentId}?editError=stale`);
+    assert.equal(calls.length, 3);
+  } finally {
+    await revokeSession(sessionId);
     globalThis.fetch = previous.fetch;
     for (const [key, value] of [
       ["AUTHWEAVE_OIDC_ISSUER", previous.issuer],

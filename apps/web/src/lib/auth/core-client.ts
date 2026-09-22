@@ -1,5 +1,6 @@
 // This local-only server-to-server call never exposes its credential to the browser.
 import type { BrowserSession } from "./store.ts";
+import { capabilityValues, withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 
 const CORE_ORIGIN = "http://127.0.0.1:8080";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -133,6 +134,38 @@ export async function readPersonalAssessment(session: BrowserSession, id: string
   if (response.status === 404) return null;
   if (response.status !== 200) throw new Error("Core assessment read failed");
   return assessmentFromCore(await response.json(), session, id);
+}
+
+export type CapabilityUpdateResult = "saved" | "conflict" | "invalid" | "not-found" | "not-editable";
+
+export async function updatePersonalCapabilities(
+  session: BrowserSession, id: string, expectedVersion: number, values: CapabilityValues,
+): Promise<CapabilityUpdateResult> {
+  if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) {
+    throw new Error("Capability update request is invalid");
+  }
+  const current = await readPersonalAssessment(session, id);
+  if (!current) return "not-found";
+  if (current.status !== "DRAFT") return "not-editable";
+  if (current.version !== expectedVersion) return "conflict";
+  if (!capabilityValues(current.profile)) throw new Error("Core profile cannot be edited safely");
+  const profile = withCapabilityValues(current.profile, values);
+  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/profile`, {
+    method: "PUT",
+    headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
+    body: JSON.stringify({ expectedVersion, profile }),
+    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status === 409) return "conflict";
+  if (response.status === 400 || response.status === 422) return "invalid";
+  if (response.status === 404) return "not-found";
+  if (response.status !== 200) throw new Error("Core capability update failed");
+  const saved = assessmentFromCore(await response.json(), session, id);
+  if (saved.status !== "DRAFT" || saved.version < expectedVersion ||
+      saved.version > expectedVersion + 1) {
+    throw new Error("Core capability update response is invalid");
+  }
+  return "saved";
 }
 
 export async function listPersonalAssessments(
