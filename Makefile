@@ -4,7 +4,7 @@ AI_WORKER_PYTHON ?= .venv/bin/python
 PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
-	check check-policy check-core check-web check-ai check-contracts \
+	check check-policy check-core check-web check-web-auth-db check-ai check-contracts \
 	setup-auth check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
 	generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact dev-core dev-web dev-ai
 
@@ -16,6 +16,7 @@ help:
 		'  make check-policy    Check public files for Cyrillic text' \
 		'  make check-core      Run Core API tests with Testcontainers' \
 		'  make check-web       Lint, test and build the web application' \
+		'  make check-web-auth-db  Run isolated web session integration tests against local PostgreSQL' \
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make generate-jooq   Migrate local PostgreSQL and regenerate jOOQ types' \
@@ -95,6 +96,10 @@ check-core:
 check-web:
 	cd apps/web && npm run lint && npm test && npm run build
 
+check-web-auth-db:
+	@. ./infra/.env; export AUTHWEAVE_WEB_DB_PASSWORD AUTHWEAVE_POSTGRES_DB AUTHWEAVE_POSTGRES_PORT; \
+		cd apps/web; exec npm run test:auth-db
+
 check-ai:
 	cd services/ai-worker && $(AI_WORKER_PYTHON) -m ruff check . && $(AI_WORKER_PYTHON) -m pytest
 
@@ -137,7 +142,8 @@ dev-core:
 	@set -a; . ./infra/.env; set +a; cd services/core-api; exec ./mvnw spring-boot:run
 
 dev-web:
-	cd apps/web && npm run dev
+	@. ./infra/.env; export AUTHWEAVE_WEB_DB_PASSWORD AUTHWEAVE_POSTGRES_DB AUTHWEAVE_POSTGRES_PORT; \
+		cd apps/web; exec npm run dev
 
 dev-ai:
 	cd services/ai-worker && $(AI_WORKER_PYTHON) -m uvicorn authweave_ai_worker.main:app --reload

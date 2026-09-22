@@ -46,11 +46,10 @@ Run `make help` to see component-specific checks and development-server commands
 ### Optional local identity lab
 
 Local ZITADEL infrastructure, an AuthWeave OIDC project/application and two ordinary synthetic
-users are prepared for the upcoming BFF/session and curator-authorization work. This does not
-yet authenticate AuthWeave, provision application workspaces or grant a catalog-curator role.
-The existing browser-only preview and loopback-only Core API are unchanged. Discovery and
-all three synthetic password factors have been verified locally; this is IdP registration
-evidence, not an AuthWeave login or application authorization.
+users support the local BFF sign-in flow. This does not provision application workspaces,
+protect the Core API or grant a catalog-curator role. The public browser-only preview and
+loopback-only Core API are unchanged. Discovery and synthetic password factors have been
+verified locally; browser sign-in still needs a manual end-to-end check.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -95,22 +94,26 @@ distinct passwords in ignored `infra/zitadel/synthetic-users.env.local` and writ
 and non-secret client ID to ignored `apps/web/.env.local`; both files have mode 600. It never
 prints credentials or tokens. `auth-registration-check` verifies the existing registration
 and both password factors without creating persistent resources or files. Both commands create
-short-lived verification sessions and delete them. The callback is reserved for the next BFF
-implementation step; it does not work yet.
+short-lived verification sessions and delete them.
 
 Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
 `admin@authweave.localhost` using `AUTHWEAVE_ZITADEL_ADMIN_PASSWORD` from the ignored file,
 opened privately in your editor. This synthetic account administers only the local IdP;
 it is not an AuthWeave curator. Test an incorrect password once, then the correct password.
-BFF login, application sessions and authorization remain subsequent steps. Neither ordinary
-synthetic user is an IdP administrator or an AuthWeave curator. No cloud account, SMTP service
-or paid subscription is needed for this lab.
+Neither ordinary synthetic user is an IdP administrator or an AuthWeave curator. No cloud
+account, SMTP service or paid subscription is needed for this lab.
 
-The BFF session foundation has a separate, replay-safe migration for one-use OIDC login
-transactions and opaque application sessions in the `web` PostgreSQL schema. With the
-application PostgreSQL container running and the ignored `infra/.env` restricted to mode 600,
-run `make migrate-web-auth` to apply it. This creates no Core API tables and does not enable
-browser login on its own.
+The BFF uses Authorization Code with PKCE, a one-use browser-bound login transaction and an
+opaque, HttpOnly application cookie. Session state is held in the isolated `web` PostgreSQL
+schema, with a 30-minute idle and eight-hour absolute limit. Provider tokens are not sent to
+the browser or retained in the application database. With the application PostgreSQL container
+running and ignored `infra/.env` restricted to mode 600, run `make migrate-web-auth` to apply
+the replay-safe migration. Then run `make dev-web` and open `http://localhost:3000/account` to
+try local sign-in and sign-out with a synthetic user. Start the separate identity lab first
+with `make auth-up`; `apps/web/.env.local` must already contain the ignored issuer and client ID
+created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
+rotation/revocation and database role isolation. This local sign-in is not yet an authenticated
+personal workspace or curator authorization. Do not expose the local HTTP lab or Core API.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
 with its database: losing or changing it can make stored encrypted data unusable. Bootstrap

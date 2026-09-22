@@ -107,6 +107,19 @@ jobs:
       - name: Validate actual HTTP payloads against JSON Schema
         working-directory: ${{ github.workspace }}
         run: node packages/contracts/scripts/validate-core-http.mjs services/core-api/target/core-http-contract-samples.json
+      - name: Apply and replay isolated web authentication migration
+        working-directory: ${{ github.workspace }}
+        run: |
+          for pass in 1 2; do
+            docker compose --file infra/compose.yaml exec -T postgres \
+              psql --no-psqlrc --set=ON_ERROR_STOP=1 \
+              --username "$AUTHWEAVE_POSTGRES_ADMIN_USER" \
+              --dbname "$AUTHWEAVE_POSTGRES_DB" \
+              < apps/web/db/migrations/001_auth_sessions.sql
+          done
+      - name: Run web authentication database integration tests
+        working-directory: apps/web
+        run: npm ci && npm run test:auth-db
       - name: Stop jOOQ code generation database
         if: always()
         working-directory: ${{ github.workspace }}
