@@ -74,6 +74,60 @@ class WeightedComparisonPreviewTests {
                         new WeightedComparisonRequest(Map.of(ProviderCatalog.Capability.JIT, 100))));
     }
 
+    @Test
+    void whatIfDeltasUseOneEvidenceSnapshotAndCannotRescueExcludedOrUnknownOptions() {
+        var comparison = comparison(List.of(
+                candidate("social", HardConstraintPreflight.Verdict.PASSES_CHECKED_REQUIREMENTS,
+                        CapabilityPreferenceEvaluator.Outcome.AVAILABLE, CapabilityPreferenceEvaluator.Outcome.UNAVAILABLE),
+                candidate("jit", HardConstraintPreflight.Verdict.PASSES_CHECKED_REQUIREMENTS,
+                        CapabilityPreferenceEvaluator.Outcome.UNAVAILABLE, CapabilityPreferenceEvaluator.Outcome.AVAILABLE),
+                candidate("excluded", HardConstraintPreflight.Verdict.EXCLUDED,
+                        CapabilityPreferenceEvaluator.Outcome.AVAILABLE, CapabilityPreferenceEvaluator.Outcome.AVAILABLE),
+                candidate("unresolved", HardConstraintPreflight.Verdict.UNRESOLVED,
+                        CapabilityPreferenceEvaluator.Outcome.AVAILABLE, CapabilityPreferenceEvaluator.Outcome.AVAILABLE),
+                candidate("unknown", HardConstraintPreflight.Verdict.PASSES_CHECKED_REQUIREMENTS,
+                        CapabilityPreferenceEvaluator.Outcome.UNKNOWN, CapabilityPreferenceEvaluator.Outcome.AVAILABLE)));
+        var request = new WeightedSensitivityRequest(
+                Map.of(ProviderCatalog.Capability.SOCIAL_LOGIN, 60, ProviderCatalog.Capability.JIT, 40),
+                Map.of(ProviderCatalog.Capability.SOCIAL_LOGIN, 20, ProviderCatalog.Capability.JIT, 80));
+        var preview = WeightedSensitivityPreview.from(comparison, request);
+
+        assertSame(comparison, preview.comparison());
+        assertEquals(java.util.Arrays.asList(60, 40, null, null, null), preview.baseline().scores().stream()
+                .map(WeightedComparisonPreview.CandidateScore::score).toList());
+        assertEquals(java.util.Arrays.asList(20, 80, null, null, null), preview.alternative().scores().stream()
+                .map(WeightedComparisonPreview.CandidateScore::score).toList());
+        assertEquals(-40, preview.deltas().get(0).scoreDelta());
+        assertEquals(List.of(-40, 0), preview.deltas().get(0).capabilityDeltas().stream()
+                .map(WeightedSensitivityPreview.CapabilityDelta::pointChange).toList());
+        assertEquals(40, preview.deltas().get(1).scoreDelta());
+        assertEquals(List.of(0, 40), preview.deltas().get(1).capabilityDeltas().stream()
+                .map(WeightedSensitivityPreview.CapabilityDelta::pointChange).toList());
+        for (var withheld : preview.deltas().subList(2, 5)) {
+            assertNull(withheld.scoreDelta());
+            assertTrue(withheld.capabilityDeltas().isEmpty());
+        }
+        assertFalse(preview.rankingPerformed());
+        assertFalse(preview.recommendationReady());
+    }
+
+    @Test
+    void sensitivityRejectsEitherIncompleteWeightSetWithItsOwnFieldPath() {
+        var comparison = comparison(List.of(candidate("passing", HardConstraintPreflight.Verdict.PASSES_CHECKED_REQUIREMENTS,
+                CapabilityPreferenceEvaluator.Outcome.AVAILABLE, CapabilityPreferenceEvaluator.Outcome.AVAILABLE)));
+        var complete = Map.of(ProviderCatalog.Capability.SOCIAL_LOGIN, 60, ProviderCatalog.Capability.JIT, 40);
+        var incomplete = Map.of(ProviderCatalog.Capability.SOCIAL_LOGIN, 100);
+        assertEquals("baselineWeights", assertThrows(InvalidWeightedComparisonRequestException.class,
+                () -> WeightedSensitivityPreview.from(comparison,
+                        new WeightedSensitivityRequest(incomplete, complete))).path());
+        assertEquals("alternativeWeights", assertThrows(InvalidWeightedComparisonRequestException.class,
+                () -> WeightedSensitivityPreview.from(comparison,
+                        new WeightedSensitivityRequest(complete, incomplete))).path());
+        assertEquals("alternativeWeights", assertThrows(InvalidWeightedComparisonRequestException.class,
+                () -> WeightedSensitivityPreview.from(comparison,
+                        new WeightedSensitivityRequest(complete, null))).path());
+    }
+
     private static SyntheticComparison comparison(List<SyntheticComparison.Candidate> candidates) {
         return new SyntheticComparison(UUID.randomUUID(), UUID.randomUUID(), 1, "synthetic-test",
                 ProviderCatalog.Kind.SYNTHETIC, SyntheticComparison.POLICY_VERSION,

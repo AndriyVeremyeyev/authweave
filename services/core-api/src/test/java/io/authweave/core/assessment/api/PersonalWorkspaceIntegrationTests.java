@@ -203,6 +203,22 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON).content(weightedBody))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.recommendationReady").value(false));
+        String sensitivityPath = preflightRoot + "/weight-sensitivity-preview";
+        String sensitivityBody = "{\"baselineWeights\":{\"SOCIAL_LOGIN\":60,\"JIT\":40},"
+                + "\"alternativeWeights\":{\"SOCIAL_LOGIN\":20,\"JIT\":80}}";
+        mvc.perform(post(sensitivityPath).contentType(MediaType.APPLICATION_JSON).content(sensitivityBody))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(sensitivityPath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", bob)
+                        .contentType(MediaType.APPLICATION_JSON).content(sensitivityBody))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(sensitivityPath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice)
+                        .contentType(MediaType.APPLICATION_JSON).content(sensitivityBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.rankingPerformed").value(false));
     }
 
     @Test

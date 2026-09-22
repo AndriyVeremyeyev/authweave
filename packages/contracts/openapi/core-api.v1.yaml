@@ -1431,6 +1431,43 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/weight-sensitivity-preview:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    post:
+      tags: [Assessments]
+      summary: Show point changes between two explicit synthetic preference weight sets
+      description: >-
+        Read-only what-if preview over one assessment and catalog evidence snapshot.
+        Both baseline and alternative must independently supply positive integer
+        weights totaling 100 for exactly the capabilities marked PREFERRED. Neither
+        set is a default. The response shows both diagnostic scores and per-capability
+        point changes. Hard exclusions, unresolved checks and unknown preference
+        evidence continue to withhold scores and deltas. It neither ranks nor chooses
+        options, and it does not evaluate deferred dimensions or real provider facts.
+      operationId: previewAssessmentWeightSensitivity
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/weight-sensitivity-request.v1.schema.json
+      responses:
+        "200":
+          description: Paired synthetic scores and point changes without ranking.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/weight-sensitivity-preview.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   securitySchemes:
     BffServiceToken:

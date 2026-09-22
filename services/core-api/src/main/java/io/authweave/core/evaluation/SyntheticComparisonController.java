@@ -32,4 +32,12 @@ public class SyntheticComparisonController {
                 new WorkspaceId(workspaceId), new AssessmentId(assessmentId)));
         return WeightedComparisonPreview.from(comparison, request);
     }
+
+    @PostMapping("/api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/weight-sensitivity-preview")
+    public WeightedSensitivityPreview sensitivityPreview(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId,
+            @RequestBody WeightedSensitivityRequest request) {
+        var comparison = SyntheticComparison.from(eligibility.previewWithComplianceScope(
+                new WorkspaceId(workspaceId), new AssessmentId(assessmentId)));
+        return WeightedSensitivityPreview.from(comparison, request);
+    }
 }

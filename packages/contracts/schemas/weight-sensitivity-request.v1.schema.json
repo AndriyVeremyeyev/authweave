@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/weight-sensitivity-request.v1.schema.json",
+  "title": "Two explicit capability weight sets v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["baselineWeights", "alternativeWeights"],
+  "properties": {
+    "baselineWeights": { "$ref": "./weighted-comparison-request.v1.schema.json#/$defs/weights" },
+    "alternativeWeights": { "$ref": "./weighted-comparison-request.v1.schema.json#/$defs/weights" }
+  },
+  "description": "Both sets must cover exactly the assessment's PREFERRED capabilities and each sum to 100. No defaults are inferred; Core API validates the assessment-dependent rules."
+}

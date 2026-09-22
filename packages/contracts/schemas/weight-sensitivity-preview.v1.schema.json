@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/weight-sensitivity-preview.v1.schema.json",
+  "title": "Synthetic explicit-weight sensitivity preview v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["comparison", "scoringPolicyVersion", "sensitivityPolicyVersion", "baseline", "alternative", "deltas", "rankingPerformed", "recommendationReady"],
+  "properties": {
+    "comparison": { "$ref": "./synthetic-comparison.v1.schema.json" },
+    "scoringPolicyVersion": { "const": "explicit-capability-weights-1" },
+    "sensitivityPolicyVersion": { "const": "explicit-weight-sensitivity-1" },
+    "baseline": { "$ref": "#/$defs/scenario" },
+    "alternative": { "$ref": "#/$defs/scenario" },
+    "deltas": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/candidateDelta" } },
+    "rankingPerformed": { "const": false },
+    "recommendationReady": { "const": false }
+  },
+  "$defs": {
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["weights", "scores"],
+      "properties": {
+        "weights": { "$ref": "./weighted-comparison-request.v1.schema.json#/$defs/weights" },
+        "scores": { "$ref": "./weighted-comparison-preview.v1.schema.json#/properties/scores" }
+      }
+    },
+    "candidateDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["optionId", "status", "scoreDelta", "capabilityDeltas"],
+      "properties": {
+        "optionId": { "$ref": "./synthetic-provider-catalog.v1.schema.json#/$defs/identifier" },
+        "status": { "enum": ["SCORED", "EXCLUDED", "UNRESOLVED_HARD_CONSTRAINTS", "UNKNOWN_PREFERENCE_EVIDENCE"] },
+        "scoreDelta": { "type": ["integer", "null"], "minimum": -100, "maximum": 100 },
+        "capabilityDeltas": { "type": "array", "maxItems": 9, "items": { "$ref": "#/$defs/capabilityDelta" } }
+      },
+      "if": { "properties": { "status": { "const": "SCORED" } }, "required": ["status"] },
+      "then": { "properties": { "scoreDelta": { "type": "integer" }, "capabilityDeltas": { "type": "array", "minItems": 1 } } },
+      "else": { "properties": { "scoreDelta": { "type": "null" }, "capabilityDeltas": { "type": "array", "maxItems": 0 } } }
+    },
+    "capabilityDelta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability", "baselineWeight", "alternativeWeight", "outcome", "pointChange"],
+      "properties": {
+        "capability": { "$ref": "./capability-preflight.v1.schema.json#/$defs/check/properties/capability" },
+        "baselineWeight": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "alternativeWeight": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "outcome": { "enum": ["AVAILABLE", "UNAVAILABLE"] },
+        "pointChange": { "type": "integer", "minimum": -100, "maximum": 100 }
+      }
+    }
+  },
+  "description": "Paired scores and point changes use one synthetic evidence snapshot. Withheld scores have no delta. This is a what-if diagnostic for explicit capability weights, not a ranking, winner, or final recommendation."
+}

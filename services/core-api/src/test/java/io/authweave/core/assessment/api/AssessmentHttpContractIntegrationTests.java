@@ -1675,6 +1675,83 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertHistorySize(assessment, 2);
     }
 
+    @Test
+    void v5WeightSensitivityComparesOneSnapshotWithoutRankingOrWrites() throws Exception {
+        var assessment = create();
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        var before = response("sensitivity-profile", mvc.perform(put(assessment.path() + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var path = assessment.path().replace("/api/v1/", "/api/v5/") + "/weight-sensitivity-preview";
+        var body = "{\"baselineWeights\":{\"SOCIAL_LOGIN\":60,\"JIT\":40},"
+                + "\"alternativeWeights\":{\"SOCIAL_LOGIN\":20,\"JIT\":80}}";
+        sample("sensitivity-request", "weight-sensitivity-request", true, mapper.readTree(body));
+        var preview = versionedSample("sensitivity-preview", "weight-sensitivity-preview",
+                mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.recommendationReady").value(false))
+                        .andExpect(jsonPath("$.rankingPerformed").value(false))
+                        .andExpect(jsonPath("$.deltas[1].status").value("EXCLUDED"))
+                        .andExpect(jsonPath("$.deltas[1].scoreDelta").value(org.hamcrest.Matchers.nullValue()))
+                        .andReturn());
+        assertEquals(preview.get("comparison").get("candidates").size(), preview.get("deltas").size());
+        assertEquals(preview.get("comparison").get("candidates").size(), preview.get("baseline").get("scores").size());
+        assertEquals(preview.get("comparison").get("candidates").size(), preview.get("alternative").get("scores").size());
+        assertEquals(preview, mapper.readTree(mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                .content(body)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        assertEquals(before, response("sensitivity-state-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+        response("sensitivity-foreign-workspace", mvc.perform(post(path.replace(assessment.workspaceId().value().toString(),
+                UUID.randomUUID().toString())).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNotFound()).andReturn());
+        response("sensitivity-incomplete-alternative", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"baselineWeights\":{\"SOCIAL_LOGIN\":60,\"JIT\":40},"
+                        + "\"alternativeWeights\":{\"SOCIAL_LOGIN\":100}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations[0].path").value("alternativeWeights")).andReturn());
+        response("sensitivity-missing-baseline", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"alternativeWeights\":{\"SOCIAL_LOGIN\":20,\"JIT\":80}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations[0].path").value("baselineWeights")).andReturn());
+        assertEquals(before, response("sensitivity-invalid-state-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+    }
+
+    @Test
+    void v5WeightSensitivityShowsComparableScoresWhenCheckedEvidenceIsComplete() throws Exception {
+        var assessment = create();
+        var path = assessment.path().replace("/api/v1/", "/api/v4/");
+        var update = residencyRequest("NOT_REQUIRED");
+        var security = (ObjectNode) update.at("/profile/security");
+        var controls = security.putObject("authenticationControls");
+        for (String field : List.of("phishingResistance", "nonExportableKeys", "stepUpAuthentication")) {
+            controls.put(field, "NOT_REQUIRED");
+        }
+        security.put("complianceScopeStatus", "NONE_IDENTIFIED");
+        var before = saveV4("sensitivity-comparable-profile", path, update);
+        var history = v4History("sensitivity-comparable-history-before", path);
+        var endpoint = path.replace("/api/v4/", "/api/v5/") + "/weight-sensitivity-preview";
+        var body = "{\"baselineWeights\":{\"SOCIAL_LOGIN\":60,\"JIT\":40},"
+                + "\"alternativeWeights\":{\"SOCIAL_LOGIN\":20,\"JIT\":80}}";
+        var preview = versionedSample("sensitivity-comparable-preview", "weight-sensitivity-preview",
+                mvc.perform(post(endpoint).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.deltas[0].status").value("SCORED"))
+                        .andExpect(jsonPath("$.deltas[0].scoreDelta").value(0))
+                        .andExpect(jsonPath("$.deltas[1].scoreDelta").value(org.hamcrest.Matchers.nullValue()))
+                        .andExpect(jsonPath("$.rankingPerformed").value(false)).andReturn());
+        assertEquals(100, preview.at("/baseline/scores/0/score").asInt());
+        assertEquals(100, preview.at("/alternative/scores/0/score").asInt());
+        assertEquals(2, preview.at("/deltas/0/capabilityDeltas").size());
+        assertEquals(before, versionedSample("sensitivity-comparable-state-unchanged", "assessment-response.v4",
+                mvc.perform(get(path)).andReturn()));
+        assertEquals(2, history.get("items").size());
+        assertEquals(history, v4History("sensitivity-comparable-history-after", path));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CURRENT", "STALE", "FUTURE", "INCONSISTENT", "NO_FACTS", "UNICODE_LIMITS", "DATA_NOT_INSTRUCTIONS"})
     void catalogDraftValidationNeverPublishesOrChangesAssessments(String scenario) throws Exception {

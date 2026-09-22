@@ -31,7 +31,7 @@ public class AssessmentProblemDetailsHandler {
 
     @ExceptionHandler(InvalidWeightedComparisonRequestException.class)
     ProblemDetail invalidWeights(InvalidWeightedComparisonRequestException exception, HttpServletRequest request) {
-        return invalidRequest(List.of(new RequestViolation("weights", exception.getMessage())), request);
+        return invalidRequest(List.of(new RequestViolation(exception.path(), exception.getMessage())), request);
     }
 
     @ExceptionHandler(io.authweave.core.catalog.impact.CatalogImpactReportException.class)

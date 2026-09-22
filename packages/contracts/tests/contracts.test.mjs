@@ -167,15 +167,8 @@ test("synthetic comparison keeps preferences unweighted and preserves excluded o
     capabilityPreferences: [{ ...candidate.capabilityPreferences[0], outcome: "WINNER" }] }] }), false);
 });
 
-test("weighted preview requires explicit dimensions and cannot turn withheld scores into recommendations", () => {
-  const validateRequest = ajv.getSchema("https://authweave.dev/contracts/weighted-comparison-request.v1.schema.json");
-  const validatePreview = ajv.getSchema("https://authweave.dev/contracts/weighted-comparison-preview.v1.schema.json");
+function scoredSyntheticFixture() {
   const request = { weights: { SOCIAL_LOGIN: 60, JIT: 40 } };
-  assert.equal(validateRequest(request), true, validationMessage(validateRequest));
-  assert.equal(validateRequest({ weights: { SOCIAL_LOGIN: -1 } }), false);
-  assert.equal(validateRequest({ weights: { INVENTED: 100 } }), false);
-  assert.equal(validateRequest({ ...request, defaultWeight: 50 }), false);
-
   const preference = {
     capability: "SOCIAL_LOGIN", profilePath: "protocols.socialLogin", outcome: "AVAILABLE",
     reasonCode: "PREFERRED_CAPABILITY_AVAILABLE", explanation: "The fictional plan offers social login.",
@@ -205,6 +198,18 @@ test("weighted preview requires explicit dimensions and cannot turn withheld sco
       ],
     }],
   };
+  return scored;
+}
+
+test("weighted preview requires explicit dimensions and cannot turn withheld scores into recommendations", () => {
+  const validateRequest = ajv.getSchema("https://authweave.dev/contracts/weighted-comparison-request.v1.schema.json");
+  const validatePreview = ajv.getSchema("https://authweave.dev/contracts/weighted-comparison-preview.v1.schema.json");
+  const request = { weights: { SOCIAL_LOGIN: 60, JIT: 40 } };
+  assert.equal(validateRequest(request), true, validationMessage(validateRequest));
+  assert.equal(validateRequest({ weights: { SOCIAL_LOGIN: -1 } }), false);
+  assert.equal(validateRequest({ weights: { INVENTED: 100 } }), false);
+  assert.equal(validateRequest({ ...request, defaultWeight: 50 }), false);
+  const scored = scoredSyntheticFixture();
   assert.equal(validatePreview(scored), true, validationMessage(validatePreview));
   assert.equal(validatePreview({ ...scored, recommendationReady: true }), false);
   assert.equal(validatePreview({ ...scored, winnerId: "fictional-plan" }), false);
@@ -213,6 +218,42 @@ test("weighted preview requires explicit dimensions and cannot turn withheld sco
     score: null, contributions: [] }] };
   assert.equal(validatePreview(withheld), true, validationMessage(validatePreview));
   assert.equal(validatePreview({ ...withheld, scores: [{ ...withheld.scores[0], score: 100 }] }), false);
+});
+
+test("sensitivity preview keeps paired what-if deltas bounded and never claims a winner", () => {
+  const validateRequest = ajv.getSchema("https://authweave.dev/contracts/weight-sensitivity-request.v1.schema.json");
+  const validatePreview = ajv.getSchema("https://authweave.dev/contracts/weight-sensitivity-preview.v1.schema.json");
+  const baseline = scoredSyntheticFixture();
+  const alternative = {
+    weights: { SOCIAL_LOGIN: 20, JIT: 80 },
+    scores: [{ optionId: "fictional-plan", status: "SCORED", score: 100, contributions: [
+      { capability: "SOCIAL_LOGIN", weight: 20, outcome: "AVAILABLE", earnedPoints: 20 },
+      { capability: "JIT", weight: 80, outcome: "AVAILABLE", earnedPoints: 80 },
+    ] }],
+  };
+  const request = { baselineWeights: baseline.weights, alternativeWeights: alternative.weights };
+  assert.equal(validateRequest(request), true, validationMessage(validateRequest));
+  assert.equal(validateRequest({ ...request, selectedWinner: "fictional-plan" }), false);
+  assert.equal(validateRequest({ ...request, alternativeWeights: { INVENTED: 100 } }), false);
+  const preview = {
+    comparison: baseline.comparison, scoringPolicyVersion: "explicit-capability-weights-1",
+    sensitivityPolicyVersion: "explicit-weight-sensitivity-1",
+    baseline: { weights: baseline.weights, scores: baseline.scores }, alternative,
+    deltas: [{ optionId: "fictional-plan", status: "SCORED", scoreDelta: 0, capabilityDeltas: [
+      { capability: "SOCIAL_LOGIN", baselineWeight: 60, alternativeWeight: 20,
+        outcome: "AVAILABLE", pointChange: -40 },
+      { capability: "JIT", baselineWeight: 40, alternativeWeight: 80,
+        outcome: "AVAILABLE", pointChange: 40 },
+    ] }], rankingPerformed: false, recommendationReady: false,
+  };
+  assert.equal(validatePreview(preview), true, validationMessage(validatePreview));
+  assert.equal(validatePreview({ ...preview, rankingPerformed: true }), false);
+  assert.equal(validatePreview({ ...preview, winnerId: "fictional-plan" }), false);
+  assert.equal(validatePreview({ ...preview, deltas: [{ ...preview.deltas[0], scoreDelta: null }] }), false);
+  const withheld = { ...preview, deltas: [{ optionId: "fictional-plan", status: "EXCLUDED",
+    scoreDelta: null, capabilityDeltas: [] }] };
+  assert.equal(validatePreview(withheld), true, validationMessage(validatePreview));
+  assert.equal(validatePreview({ ...withheld, deltas: [{ ...withheld.deltas[0], scoreDelta: 10 }] }), false);
 });
 
 test("AI proposals and profiles share the canonical criticality vocabulary", () => {
