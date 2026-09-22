@@ -111,11 +111,13 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           for pass in 1 2; do
-            docker compose --file infra/compose.yaml exec -T postgres \
-              psql --no-psqlrc --set=ON_ERROR_STOP=1 \
-              --username "$AUTHWEAVE_POSTGRES_ADMIN_USER" \
-              --dbname "$AUTHWEAVE_POSTGRES_DB" \
-              < apps/web/db/migrations/001_auth_sessions.sql
+            for migration in apps/web/db/migrations/001_auth_sessions.sql apps/web/db/migrations/002_session_workspace.sql; do
+              docker compose --file infra/compose.yaml exec -T postgres \
+                psql --no-psqlrc --set=ON_ERROR_STOP=1 \
+                --username "$AUTHWEAVE_POSTGRES_ADMIN_USER" \
+                --dbname "$AUTHWEAVE_POSTGRES_DB" \
+                < "$migration"
+            done
           done
       - name: Run web authentication database integration tests
         working-directory: apps/web

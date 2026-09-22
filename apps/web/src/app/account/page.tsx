@@ -27,7 +27,7 @@ export default async function AccountPage() {
       ) : session ? (
         <div className="mt-6 space-y-5">
           <p>Signed in as {session.displayName ?? session.email ?? session.subject}.</p>
-          <p className="text-sm text-slate-400">A personal workspace and curator permissions are not enabled yet.</p>
+          <p className="text-sm text-slate-400">A personal workspace record is reserved. Assessment access and curator permissions are not enabled yet.</p>
           <form method="post" action="/api/auth/logout">
             <button className="rounded-lg bg-white px-4 py-2 font-medium text-slate-950">Sign out</button>
           </form>

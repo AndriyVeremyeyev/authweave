@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server";
 
 import { authConfiguration, sameOriginRequest } from "@/lib/auth/config";
+import { provisionPersonalWorkspace } from "@/lib/auth/core-client";
 import { identityFromCallback } from "@/lib/auth/oidc";
 import { consumeLogin, createSession } from "@/lib/auth/store";
 import {
@@ -30,7 +31,14 @@ export async function GET(request: NextRequest) {
     }
     const identity = await identityFromCallback(config, url, states[0], transaction.nonce,
       transaction.codeVerifier);
-    const id = await createSession(identity, request.cookies.get(sessionCookieName(secure))?.value);
+    let workspaceId: string;
+    try {
+      workspaceId = await provisionPersonalWorkspace(identity);
+    } catch {
+      return failure(503, secure);
+    }
+    const id = await createSession({ ...identity, workspaceId },
+      request.cookies.get(sessionCookieName(secure))?.value);
     const response = NextResponse.redirect(new URL("/account", config.origin), { status: 303 });
     response.cookies.set(loginCookieName(secure), "", cookieOptions(secure, 0));
     response.cookies.set(sessionCookieName(secure), id,

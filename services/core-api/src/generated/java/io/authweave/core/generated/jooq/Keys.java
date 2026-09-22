@@ -9,12 +9,14 @@ import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
+import io.authweave.core.generated.jooq.tables.PersonalWorkspaces;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 import io.authweave.core.generated.jooq.tables.records.AssessmentRevisionsRecord;
 import io.authweave.core.generated.jooq.tables.records.AssessmentsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogImpactReportsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogProposalRevisionsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogProposalsRecord;
+import io.authweave.core.generated.jooq.tables.records.PersonalWorkspacesRecord;
 import io.authweave.core.generated.jooq.tables.records.WorkspacesRecord;
 
 import javax.annotation.processing.Generated;
@@ -53,6 +55,8 @@ public class Keys {
     public static final UniqueKey<CatalogProposalRevisionsRecord> CATALOG_PROPOSAL_REVISION_DIGEST_UK = Internal.createUniqueKey(CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS, DSL.name("catalog_proposal_revision_digest_uk"), new TableField[] { CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.PROPOSAL_ID, CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.VERSION, CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.PROPOSAL_SHA256 }, true);
     public static final UniqueKey<CatalogProposalRevisionsRecord> CATALOG_PROPOSAL_REVISIONS_PK = Internal.createUniqueKey(CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS, DSL.name("catalog_proposal_revisions_pk"), new TableField[] { CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.PROPOSAL_ID, CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.VERSION }, true);
     public static final UniqueKey<CatalogProposalsRecord> CATALOG_PROPOSALS_PKEY = Internal.createUniqueKey(CatalogProposals.CATALOG_PROPOSALS, DSL.name("catalog_proposals_pkey"), new TableField[] { CatalogProposals.CATALOG_PROPOSALS.ID }, true);
+    public static final UniqueKey<PersonalWorkspacesRecord> PERSONAL_WORKSPACES_PK = Internal.createUniqueKey(PersonalWorkspaces.PERSONAL_WORKSPACES, DSL.name("personal_workspaces_pk"), new TableField[] { PersonalWorkspaces.PERSONAL_WORKSPACES.ISSUER, PersonalWorkspaces.PERSONAL_WORKSPACES.SUBJECT }, true);
+    public static final UniqueKey<PersonalWorkspacesRecord> PERSONAL_WORKSPACES_WORKSPACE_ID_KEY = Internal.createUniqueKey(PersonalWorkspaces.PERSONAL_WORKSPACES, DSL.name("personal_workspaces_workspace_id_key"), new TableField[] { PersonalWorkspaces.PERSONAL_WORKSPACES.WORKSPACE_ID }, true);
     public static final UniqueKey<WorkspacesRecord> WORKSPACES_PKEY = Internal.createUniqueKey(Workspaces.WORKSPACES, DSL.name("workspaces_pkey"), new TableField[] { Workspaces.WORKSPACES.ID }, true);
 
     // -------------------------------------------------------------------------
@@ -64,4 +68,5 @@ public class Keys {
     public static final ForeignKey<CatalogImpactReportsRecord, CatalogProposalRevisionsRecord> CATALOG_IMPACT_REPORTS__CATALOG_IMPACT_REVISION_FK = Internal.createForeignKey(CatalogImpactReports.CATALOG_IMPACT_REPORTS, DSL.name("catalog_impact_revision_fk"), new TableField[] { CatalogImpactReports.CATALOG_IMPACT_REPORTS.PROPOSAL_ID, CatalogImpactReports.CATALOG_IMPACT_REPORTS.PROPOSAL_VERSION, CatalogImpactReports.CATALOG_IMPACT_REPORTS.PROPOSAL_SHA256 }, Keys.CATALOG_PROPOSAL_REVISION_DIGEST_UK, new TableField[] { CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.PROPOSAL_ID, CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.VERSION, CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.PROPOSAL_SHA256 }, true, ForeignKeyRule.RESTRICT, ForeignKeyRule.NO_ACTION);
     public static final ForeignKey<CatalogProposalRevisionsRecord, CatalogProposalsRecord> CATALOG_PROPOSAL_REVISIONS__CATALOG_PROPOSAL_REVISIONS_PROPOSAL_ID_FKEY = Internal.createForeignKey(CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS, DSL.name("catalog_proposal_revisions_proposal_id_fkey"), new TableField[] { CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.PROPOSAL_ID }, Keys.CATALOG_PROPOSALS_PKEY, new TableField[] { CatalogProposals.CATALOG_PROPOSALS.ID }, true, ForeignKeyRule.RESTRICT, ForeignKeyRule.NO_ACTION);
     public static final ForeignKey<CatalogProposalsRecord, CatalogProposalRevisionsRecord> CATALOG_PROPOSALS__CATALOG_PROPOSALS_CURRENT_REVISION_FK = Internal.createForeignKey(CatalogProposals.CATALOG_PROPOSALS, DSL.name("catalog_proposals_current_revision_fk"), new TableField[] { CatalogProposals.CATALOG_PROPOSALS.ID, CatalogProposals.CATALOG_PROPOSALS.VERSION }, Keys.CATALOG_PROPOSAL_REVISIONS_PK, new TableField[] { CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.PROPOSAL_ID, CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS.VERSION }, true, ForeignKeyRule.NO_ACTION, ForeignKeyRule.NO_ACTION);
+    public static final ForeignKey<PersonalWorkspacesRecord, WorkspacesRecord> PERSONAL_WORKSPACES__PERSONAL_WORKSPACES_WORKSPACE_ID_FKEY = Internal.createForeignKey(PersonalWorkspaces.PERSONAL_WORKSPACES, DSL.name("personal_workspaces_workspace_id_fkey"), new TableField[] { PersonalWorkspaces.PERSONAL_WORKSPACES.WORKSPACE_ID }, Keys.WORKSPACES_PKEY, new TableField[] { Workspaces.WORKSPACES.ID }, true, ForeignKeyRule.RESTRICT, ForeignKeyRule.NO_ACTION);
 }

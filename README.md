@@ -106,14 +106,24 @@ account, SMTP service or paid subscription is needed for this lab.
 The BFF uses Authorization Code with PKCE, a one-use browser-bound login transaction and an
 opaque, HttpOnly application cookie. Session state is held in the isolated `web` PostgreSQL
 schema, with a 30-minute idle and eight-hour absolute limit. Provider tokens are not sent to
-the browser or retained in the application database. With the application PostgreSQL container
-running and ignored `infra/.env` restricted to mode 600, run `make migrate-web-auth` to apply
-the replay-safe migration. Then run `make dev-web` and open `http://localhost:3000/account` to
-try local sign-in and sign-out with a synthetic user. Start the separate identity lab first
-with `make auth-up`; `apps/web/.env.local` must already contain the ignored issuer and client ID
+the browser or retained in the application database. After validating an OIDC identity, the
+BFF calls a credential-protected Core API endpoint that idempotently binds its issuer and
+subject to a personal workspace record; the workspace ID is stored in the server-side session.
+
+For an existing local installation, with Docker Desktop running, use `make infra-up`,
+`make auth-up` and `make setup-core-service-token`. The last command adds one random credential
+to the ignored mode-600 `infra/.env` and leaves an existing credential unchanged. Start
+`make dev-core` in one terminal so Flyway applies the Core ownership migration. In another
+terminal, run `make migrate-web-auth` to apply both replay-safe web migrations, then
+`make dev-web`. Open `http://localhost:3000/account` to try sign-in and sign-out with a
+synthetic user. The ignored `apps/web/.env.local` must already contain the issuer and client ID
 created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
-rotation/revocation and database role isolation. This local sign-in is not yet an authenticated
-personal workspace or curator authorization. Do not expose the local HTTP lab or Core API.
+rotation/revocation and database role isolation.
+
+The new internal provisioning route requires the server-only credential, but the other Core API
+routes remain unauthenticated and loopback-only. A workspace record is not yet authenticated
+assessment access or curator authorization. Browser sign-in still needs a manual end-to-end
+check. Do not expose the local HTTP lab or Core API.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
 with its database: losing or changing it can make stored encrypted data unusable. Bootstrap
@@ -129,8 +139,9 @@ profile replacement in PostgreSQL. It validates profile structure and domain
 contradictions, returns structured problem details and detects stale updates.
 Saving an unchanged profile preserves its status, version and update timestamp.
 
-The API is currently unauthenticated. It binds to `127.0.0.1` by default and refuses
-to start with a non-loopback `server.address`. Keep it local; do not expose it through
+The assessment and catalog API routes are currently unauthenticated. Core binds to
+`127.0.0.1` by default and refuses to start with a non-loopback `server.address`.
+Keep it local; do not expose it through
 a reverse proxy or tunnel. Workspace IDs scope data queries but do not authenticate
 callers. Shared deployment requires authentication and workspace authorization.
 

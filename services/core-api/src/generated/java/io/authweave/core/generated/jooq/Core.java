@@ -9,6 +9,7 @@ import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
+import io.authweave.core.generated.jooq.tables.PersonalWorkspaces;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 
 import java.util.Arrays;
@@ -73,6 +74,12 @@ public class Core extends SchemaImpl {
     public final CatalogProposals CATALOG_PROPOSALS = CatalogProposals.CATALOG_PROPOSALS;
 
     /**
+     * Immutable OIDC issuer/subject ownership binding. Other Core API routes
+     * still require future workspace authorization.
+     */
+    public final PersonalWorkspaces PERSONAL_WORKSPACES = PersonalWorkspaces.PERSONAL_WORKSPACES;
+
+    /**
      * Personal AuthWeave workspace boundary; authentication ownership is added
      * later.
      */
@@ -99,6 +106,7 @@ public class Core extends SchemaImpl {
             CatalogImpactReports.CATALOG_IMPACT_REPORTS,
             CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS,
             CatalogProposals.CATALOG_PROPOSALS,
+            PersonalWorkspaces.PERSONAL_WORKSPACES,
             Workspaces.WORKSPACES
         );
     }

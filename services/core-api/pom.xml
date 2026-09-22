@@ -203,7 +203,7 @@
 								<database>
 									<name>org.jooq.meta.postgres.PostgresDatabase</name>
 									<inputSchema>core</inputSchema>
-									<includes>workspaces|assessments|assessment_revisions|catalog_proposals|catalog_proposal_revisions|catalog_impact_reports</includes>
+									<includes>workspaces|personal_workspaces|assessments|assessment_revisions|catalog_proposals|catalog_proposal_revisions|catalog_impact_reports</includes>
 								</database>
 								<generate>
 									<deprecated>false</deprecated>

@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 
 import { authDatabase, beginLogin, consumeLogin, createSession, revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
 import { opaqueHash, randomOpaqueValue } from "../src/lib/auth/session-policy.ts";
+
+after(async () => { await authDatabase().end(); });
 
 test("login state is browser-bound, expires in the database and can be consumed only once", async () => {
   const pool = authDatabase();
@@ -36,6 +38,7 @@ test("login state is browser-bound, expires in the database and can be consumed 
 test("opaque session rotates, idle expiry rejects access, and logout revokes locally", async () => {
   const pool = authDatabase();
   const identity = {
+    workspaceId: "70000000-0000-4000-8000-000000000001",
     issuer: "https://synthetic.example.test",
     subject: "synthetic-subject",
     email: "synthetic@example.test",
@@ -51,6 +54,7 @@ test("opaque session rotates, idle expiry rejects access, and logout revokes loc
     ids.push(second);
     assert.equal(await touchSession(first, pool), null);
     assert.equal((await touchSession(second, pool))?.email, identity.email);
+    assert.equal((await touchSession(second, pool))?.workspaceId, identity.workspaceId);
 
     await pool.query(
       `UPDATE web.sessions SET created_at = CURRENT_TIMESTAMP - INTERVAL '1 hour',
@@ -77,9 +81,26 @@ test("opaque session rotates, idle expiry rejects access, and logout revokes loc
 
 test("web runtime cannot inspect core data or migration history", async () => {
   const pool = authDatabase();
-  for (const table of ["core.assessments", "web.schema_migrations"]) {
+  for (const table of ["core.assessments", "core.personal_workspaces", "web.schema_migrations"]) {
     await assert.rejects(pool.query(`SELECT 1 FROM ${table} LIMIT 1`), (failure: unknown) =>
       typeof failure === "object" && failure !== null && "code" in failure && failure.code === "42501");
   }
   assert.equal(await touchSession(undefined, pool), null);
+});
+
+test("sessions created before workspace binding cannot gain workspace access", async () => {
+  const pool = authDatabase();
+  const id = randomOpaqueValue();
+  await pool.query(
+    `INSERT INTO web.sessions
+       (session_hash, issuer, subject, authenticated_at, idle_expires_at, absolute_expires_at)
+     VALUES ($1, 'https://synthetic.example.test', 'legacy-subject', CURRENT_TIMESTAMP,
+             CURRENT_TIMESTAMP + INTERVAL '30 minutes', CURRENT_TIMESTAMP + INTERVAL '8 hours')`,
+    [opaqueHash(id)],
+  );
+  try {
+    assert.equal(await touchSession(id, pool), null);
+  } finally {
+    await revokeSession(id, pool);
+  }
 });

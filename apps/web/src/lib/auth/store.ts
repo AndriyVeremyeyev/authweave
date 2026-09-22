@@ -8,6 +8,7 @@ import {
 
 export type LoginTransaction = { codeVerifier: string; nonce: string };
 export type BrowserSession = {
+  workspaceId: string;
   subject: string;
   issuer: string;
   email: string | null;
@@ -71,12 +72,12 @@ export async function createSession(identity: BrowserSession, existingId: string
     }
     await client.query(
       `INSERT INTO web.sessions
-         (session_hash, issuer, subject, email, display_name, authenticated_at,
+         (session_hash, workspace_id, issuer, subject, email, display_name, authenticated_at,
           idle_expires_at, absolute_expires_at)
-       VALUES ($1, $2, $3, $4, $5, $6,
-               CURRENT_TIMESTAMP + ($7 * INTERVAL '1 second'),
-               CURRENT_TIMESTAMP + ($8 * INTERVAL '1 second'))`,
-      [opaqueHash(id), identity.issuer, identity.subject, identity.email, identity.displayName,
+       VALUES ($1, $2, $3, $4, $5, $6, $7,
+               CURRENT_TIMESTAMP + ($8 * INTERVAL '1 second'),
+               CURRENT_TIMESTAMP + ($9 * INTERVAL '1 second'))`,
+      [opaqueHash(id), identity.workspaceId, identity.issuer, identity.subject, identity.email, identity.displayName,
         identity.authenticatedAt, IDLE_SESSION_SECONDS, ABSOLUTE_SESSION_SECONDS],
     );
     await client.query("COMMIT");
@@ -93,20 +94,21 @@ export async function touchSession(id: string | undefined,
                                    pool?: Pool): Promise<BrowserSession | null> {
   if (!validOpaqueValue(id)) return null;
   const result = await (pool ?? authDatabase()).query<{
-    issuer: string; subject: string; email: string | null; display_name: string | null;
+    workspace_id: string; issuer: string; subject: string; email: string | null; display_name: string | null;
     authenticated_at: Date;
   }>(
     `UPDATE web.sessions
      SET last_seen_at = CURRENT_TIMESTAMP,
          idle_expires_at = LEAST(CURRENT_TIMESTAMP + ($2 * INTERVAL '1 second'), absolute_expires_at)
      WHERE session_hash = $1
+       AND workspace_id IS NOT NULL
        AND idle_expires_at > CURRENT_TIMESTAMP AND absolute_expires_at > CURRENT_TIMESTAMP
-     RETURNING issuer, subject, email, display_name, authenticated_at`,
+     RETURNING workspace_id, issuer, subject, email, display_name, authenticated_at`,
     [opaqueHash(id), IDLE_SESSION_SECONDS],
   );
   const row = result.rows[0];
   return row ? {
-    issuer: row.issuer, subject: row.subject, email: row.email,
+    workspaceId: row.workspace_id, issuer: row.issuer, subject: row.subject, email: row.email,
     displayName: row.display_name, authenticatedAt: row.authenticated_at,
   } : null;
 }

@@ -53,7 +53,7 @@ export async function authorizationUrl(config: AuthConfiguration, state: string,
 
 export async function identityFromCallback(config: AuthConfiguration, currentUrl: URL,
                                            state: string, nonce: string,
-                                           codeVerifier: string): Promise<BrowserSession> {
+                                           codeVerifier: string): Promise<Omit<BrowserSession, "workspaceId">> {
   const client = await oidcClient(config);
   const tokens = await oidc.authorizationCodeGrant(client, currentUrl, {
     expectedState: state,

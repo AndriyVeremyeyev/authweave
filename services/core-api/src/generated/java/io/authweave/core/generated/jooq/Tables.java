@@ -9,6 +9,7 @@ import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
+import io.authweave.core.generated.jooq.tables.PersonalWorkspaces;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 
 import javax.annotation.processing.Generated;
@@ -56,6 +57,12 @@ public class Tables {
      * authenticated ownership.
      */
     public static final CatalogProposals CATALOG_PROPOSALS = CatalogProposals.CATALOG_PROPOSALS;
+
+    /**
+     * Immutable OIDC issuer/subject ownership binding. Other Core API routes
+     * still require future workspace authorization.
+     */
+    public static final PersonalWorkspaces PERSONAL_WORKSPACES = PersonalWorkspaces.PERSONAL_WORKSPACES;
 
     /**
      * Personal AuthWeave workspace boundary; authentication ownership is added

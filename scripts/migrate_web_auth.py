@@ -13,7 +13,10 @@ import sys
 ROOT = Path(__file__).resolve().parent.parent
 ENV = ROOT / "infra" / ".env"
 COMPOSE = ROOT / "infra" / "compose.yaml"
-MIGRATION = ROOT / "apps" / "web" / "db" / "migrations" / "001_auth_sessions.sql"
+MIGRATIONS = (
+    ROOT / "apps" / "web" / "db" / "migrations" / "001_auth_sessions.sql",
+    ROOT / "apps" / "web" / "db" / "migrations" / "002_session_workspace.sql",
+)
 
 
 def config() -> tuple[str, str]:
@@ -42,8 +45,9 @@ def migrate() -> None:
     command = ["docker", "compose", "--project-name", "authweave", "--file", str(COMPOSE),
                "--env-file", str(ENV), "exec", "-T", "postgres", "psql", "--no-psqlrc",
                "--set=ON_ERROR_STOP=1", "--username", user, "--dbname", database]
-    subprocess.run(command, input=MIGRATION.read_text(encoding="utf-8"), text=True,
-                   env=environment, check=True, capture_output=True)
+    for sql_file in MIGRATIONS:
+        subprocess.run(command, input=sql_file.read_text(encoding="utf-8"), text=True,
+                       env=environment, check=True, capture_output=True)
     print("Web authentication migration applied or already current; no credentials printed.")
 
 

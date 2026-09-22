@@ -5,7 +5,7 @@ PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
 	check check-policy check-core check-web check-web-auth-db check-ai check-contracts \
-	setup-auth check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
+	setup-auth setup-core-service-token check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
 	generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact dev-core dev-web dev-ai
 
 help:
@@ -21,6 +21,7 @@ help:
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make generate-jooq   Migrate local PostgreSQL and regenerate jOOQ types' \
 		'  make migrate-web-auth  Apply isolated web authentication tables to local PostgreSQL' \
+		'  make setup-core-service-token  Add a private BFF-to-Core token to existing local infra/.env' \
 		'  make seed-core       Add synthetic assessments without replacing existing data' \
 		'  make store-catalog-proposal  Store an unreviewed proposal from an explicit local JSON file' \
 		'  make store-catalog-impact    Save a conditional scenario report for an exact proposal revision' \
@@ -60,9 +61,13 @@ check: check-policy check-auth-config check-core check-web check-ai check-contra
 setup-auth:
 	$(PYTHON) scripts/local_identity.py setup
 
+setup-core-service-token:
+	python3 scripts/create_local_env.py --add-core-service-token
+
 check-auth-config:
 	$(PYTHON) -m unittest discover -s scripts/tests -p 'test_local_identity*.py'
 	$(PYTHON) -m unittest discover -s scripts/tests -p 'test_web_auth_migration.py'
+	$(PYTHON) -m unittest discover -s scripts/tests -p 'test_core_service_token.py'
 	$(PYTHON) scripts/local_identity.py config-check
 
 auth-up:
@@ -142,7 +147,7 @@ dev-core:
 	@set -a; . ./infra/.env; set +a; cd services/core-api; exec ./mvnw spring-boot:run
 
 dev-web:
-	@. ./infra/.env; export AUTHWEAVE_WEB_DB_PASSWORD AUTHWEAVE_POSTGRES_DB AUTHWEAVE_POSTGRES_PORT; \
+	@. ./infra/.env; export AUTHWEAVE_WEB_DB_PASSWORD AUTHWEAVE_POSTGRES_DB AUTHWEAVE_POSTGRES_PORT AUTHWEAVE_CORE_SERVICE_TOKEN; \
 		cd apps/web; exec npm run dev
 
 dev-ai:
