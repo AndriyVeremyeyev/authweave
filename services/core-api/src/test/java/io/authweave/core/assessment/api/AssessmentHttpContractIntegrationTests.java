@@ -46,7 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Exports actual MVC requests/responses for independent AJV checks in make check-core and CI. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@AutoConfigureMockMvc
+@AutoConfigureMockMvc(addFilters = false)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Import(AssessmentHttpContractIntegrationTests.PreflightClock.class)
 class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {

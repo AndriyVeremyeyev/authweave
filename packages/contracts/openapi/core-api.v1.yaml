@@ -5,10 +5,11 @@ info:
   version: 1.0.0
   description: >-
     Workspace-scoped assessments and stateless catalog draft validation owned by the deterministic AuthWeave core.
-    The local development API is intentionally unauthenticated and refuses to start with a
-    non-loopback server address. Workspace provisioning and every assessment operation
-    require authenticated authorization before a non-local deployment. Do not expose
-    this local service through a proxy or tunnel.
+    The local development API refuses to start with a non-loopback server address.
+    Every versioned workspace route requires a server-only BFF bearer credential and
+    a validated OIDC issuer/subject pair mapped to the requested personal workspace.
+    Catalog draft routes remain unauthenticated and local-only. Do not expose this
+    service through a proxy or tunnel; this is not a hosted authentication boundary.
 servers:
   - url: http://127.0.0.1:8080
     description: Local Core API
@@ -398,14 +399,19 @@ paths:
   /api/v1/workspaces/{workspaceId}:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
     put:
       tags:
         - Workspaces
       summary: Provision a workspace
       description: >-
-        Idempotently provisions a workspace for the local Phase 2 flow. Authentication
-        provisioning will own this action in a later phase.
+        Legacy idempotent provisioning operation. The ownership guard now restricts
+        it to an already mapped personal workspace, so first-login creation uses
+        the credential-protected internal BFF route.
       operationId: provisionWorkspaceV1
+      security:
+        - BffServiceToken: []
       responses:
         "201":
           description: Workspace created.
@@ -419,11 +425,15 @@ paths:
   /api/v1/workspaces/{workspaceId}/assessments:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
     post:
       tags:
         - Assessments
       summary: Create a draft assessment
       operationId: createAssessmentV1
+      security:
+        - BffServiceToken: []
       responses:
         "201":
           description: Draft assessment created.
@@ -441,12 +451,16 @@ paths:
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags:
         - Assessments
       summary: Read an assessment
       operationId: getAssessmentV1
+      security:
+        - BffServiceToken: []
       responses:
         "409":
           $ref: "#/components/responses/ProfileUpgradeRequired"
@@ -463,6 +477,8 @@ paths:
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     put:
       tags:
@@ -475,6 +491,8 @@ paths:
         A successful change atomically appends a revision and a state-change event.
         Unchanged or rejected requests append neither.
       operationId: updateAssessmentProfileV1
+      security:
+        - BffServiceToken: []
       requestBody:
         required: true
         content:
@@ -499,6 +517,8 @@ paths:
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
       - $ref: "#/components/parameters/AfterVersion"
       - $ref: "#/components/parameters/HistoryLimit"
@@ -511,6 +531,8 @@ paths:
         Pagination is forward-only, not a frozen snapshot across requests. This endpoint
         shares the local-only restriction of the rest of this API.
       operationId: getAssessmentRevisionsV1
+      security:
+        - BffServiceToken: []
       responses:
         "409":
           $ref: "#/components/responses/ProfileUpgradeRequired"
@@ -527,6 +549,8 @@ paths:
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/events:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
       - $ref: "#/components/parameters/AfterVersion"
       - $ref: "#/components/parameters/HistoryLimit"
@@ -540,6 +564,8 @@ paths:
         is implemented; migration baselines use MIGRATION/flyway-v3. Pagination is
         forward-only, not a frozen snapshot across requests.
       operationId: getAssessmentEventsV1
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Event page; nextAfterVersion is null when no more rows were found.
@@ -554,6 +580,8 @@ paths:
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/capability-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -571,6 +599,8 @@ paths:
         returned for reproducibility. Evidence URLs use reserved .invalid hosts and
         are never fetched. All data and evidence are synthetic.
       operationId: getCapabilityPreflightV1
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Partial synthetic result with checks, reason codes and explicit scope limits.
@@ -585,6 +615,8 @@ paths:
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -606,6 +638,8 @@ paths:
         source is synthetic; reserved .invalid evidence URLs are never fetched.
         The existing capability-preflight response shape remains unchanged.
       operationId: getEligibilityPreflightV1
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Partial synthetic capability and context checks with explicit scope limits.
@@ -620,6 +654,8 @@ paths:
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-pattern-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -642,6 +678,8 @@ paths:
         compliance and operations remain deferred. No recommendation, scoring or
         change to assessment state/history. Local-only access restrictions still apply.
       operationId: getArchitecturePatternPreflightV1
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Partial per-client pattern comparison with unverified prerequisites and explicit scope.
@@ -656,6 +694,8 @@ paths:
   /api/v2/workspaces/{workspaceId}/assessments:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
     post:
       tags: [Assessments]
       summary: Create a draft with a profile v2 representation
@@ -664,6 +704,8 @@ paths:
         Empty residency details mean unrecorded. The database uses the smallest lossless
         profile format; the response always projects profile v2. This API is local-only.
       operationId: createAssessmentV2
+      security:
+        - BffServiceToken: []
       responses:
         "201":
           description: Created assessment with empty residency details.
@@ -681,6 +723,8 @@ paths:
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -692,6 +736,8 @@ paths:
         409 profile-upgrade-required when residency details cannot be represented.
         V2 reads return the same code when recorded v3 authentication controls require v3.
       operationId: getAssessmentV2
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Current assessment with an explicit v2 profile.
@@ -708,6 +754,8 @@ paths:
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     put:
       tags: [Assessments]
@@ -725,6 +773,8 @@ paths:
         current profile contains residency details, preventing accidental data loss.
         V2 writes likewise reject recorded authentication controls; use v3 to preserve them.
       operationId: updateAssessmentProfileV2
+      security:
+        - BffServiceToken: []
       requestBody:
         required: true
         content:
@@ -749,6 +799,8 @@ paths:
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
       - $ref: "#/components/parameters/AfterVersion"
       - $ref: "#/components/parameters/HistoryLimit"
@@ -762,6 +814,8 @@ paths:
         if its page contains a v2/v3 snapshot; v2 history returns 409 for pages containing v3.
         State-change events keep their existing v1 endpoint.
       operationId: getAssessmentRevisionsV2
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: A page containing original versioned snapshots.
@@ -778,6 +832,8 @@ paths:
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -800,6 +856,8 @@ paths:
         Catalog and all three rule policies are identified, but no result is persisted.
         GET does not change the profile, lifecycle, version, timestamps or history.
       operationId: getAssessmentEligibilityPreflightV2
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Versioned partial eligibility result with scoped residency reasons and evidence.
@@ -814,12 +872,16 @@ paths:
   /api/v3/workspaces/{workspaceId}/assessments:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
     post:
       tags: [Assessments]
       summary: Create a draft with a profile v3 representation
       description: >-
         Provision the workspace through the existing v1 endpoint first. Projects empty residency details and UNKNOWN authentication controls. The stored profile uses the smallest lossless format; this local-only response always projects v3.
       operationId: createAssessmentV3
+      security:
+        - BffServiceToken: []
       responses:
         "201":
           description: Created assessment with unrecorded residency and authentication controls.
@@ -837,6 +899,8 @@ paths:
   /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -844,6 +908,8 @@ paths:
       description: >-
         Projects v1/v2 profiles without rewriting data, timestamps, versions or history. UNKNOWN controls do not follow from assurance labels. profileSchemaVersion identifies the response representation. Older current-profile endpoints return 409 if they cannot preserve recorded requirements. This v3 endpoint also returns 409 for a recorded v4 compliance scope.
       operationId: getAssessmentV3
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Current assessment with an explicit v3 profile.
@@ -860,6 +926,8 @@ paths:
   /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     put:
       tags: [Assessments]
@@ -867,6 +935,8 @@ paths:
       description: >-
         Replace the complete profile with expectedVersion. Authentication controls apply independently to all selected human clients and populations; no automatic assurance-level or NIST AAL mapping. REQUIRED needs enforceability, not mere availability. Step-up means stronger authentication, not repeating the same method. PREFERRED is not yet scored; FORBIDDEN needs intent clarification. Residency rules remain unchanged. No-op saves preserve storage; real changes append an atomic snapshot and security-section event. Older v1/v2 writes cannot silently erase recorded controls. V3 writes reject recorded v4 compliance scope.
       operationId: updateAssessmentProfileV3
+      security:
+        - BffServiceToken: []
       requestBody:
         required: true
         content:
@@ -891,6 +961,8 @@ paths:
   /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
       - $ref: "#/components/parameters/AfterVersion"
       - $ref: "#/components/parameters/HistoryLimit"
@@ -900,6 +972,8 @@ paths:
       description: >-
         Return exact mixed v1/v2/v3 snapshots and original schema versions, with the existing exclusive version cursor. No history upcasting or rewriting. Older history endpoints reject a page containing a newer unsupported format, including v4 scope snapshots. Events keep their v1 endpoint.
       operationId: getAssessmentRevisionsV3
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: A page containing original versioned snapshots.
@@ -916,6 +990,8 @@ paths:
   /api/v3/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -923,6 +999,8 @@ paths:
       description: >-
         Read-only local-only synthetic eligibility: v2 capability, context and residency checks plus independent human-authentication controls for each selected client and population. Never reuse evidence across scopes; machine-only profiles mark human controls NOT_APPLIED. REQUIRED passes only with reviewed fresh evidence of both availability and enforceability. Unavailable or unenforceable controls fail; missing, unreviewed, future or stale evidence remains unknown. Broad assurance labels are context only. Sensitive-action wiring, deployed configuration, weaker recovery paths, enrollment and complete assurance are not verified. No certification, score, winner or recommendation; recommendationReady remains false. Catalog and all rule policies are identified. No profile, history, timestamp, lifecycle or version changes.
       operationId: getAssessmentEligibilityPreflightV3
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Versioned partial eligibility with scoped control reasons and evidence.
@@ -937,12 +1015,16 @@ paths:
   /api/v4/workspaces/{workspaceId}/assessments:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
     post:
       tags: [Assessments]
       summary: Create a draft with a profile v4 representation
       description: >-
         Provision the workspace through the existing v1 endpoint first. A new draft has UNKNOWN complianceScopeStatus, empty target labels, empty residency details and UNKNOWN authentication controls. This local-only response projects profile v4; storage uses the smallest lossless format.
       operationId: createAssessmentV4
+      security:
+        - BffServiceToken: []
       responses:
         "201":
           description: Created assessment with unrecorded requirements scope.
@@ -960,6 +1042,8 @@ paths:
   /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -967,6 +1051,8 @@ paths:
       description: >-
         Projects legacy profiles with UNKNOWN complianceScopeStatus without changing targets, timestamps, versions or history. Empty legacy target lists do not imply NONE_IDENTIFIED. Existing target labels do not confirm scope or provider compliance. The response profileSchemaVersion describes the representation. Recorded v5 usage inputs require the v5 endpoint.
       operationId: getAssessmentV4
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Current assessment with an explicit v4 profile.
@@ -983,6 +1069,8 @@ paths:
   /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     put:
       tags: [Assessments]
@@ -990,6 +1078,8 @@ paths:
       description: >-
         Replace the complete profile with expectedVersion. UNKNOWN preserves an unrecorded or incomplete requirements scope, including existing target lists. NONE_IDENTIFIED requires an empty target list; TARGETS_IDENTIFIED requires at least one label. Contradictions return 422, malformed fields return 400. These are owner-recorded inputs, not legal applicability or compliance findings. No-op saves do not rewrite storage. Real changes append an atomic security-section event and snapshot. V4 writes reject recorded v5 usage inputs. V1/v2/v3 writes cannot silently clear recorded scope; an intentional v4 clear to UNKNOWN can restore older current-profile compatibility without altering history.
       operationId: updateAssessmentProfileV4
+      security:
+        - BffServiceToken: []
       requestBody:
         required: true
         content:
@@ -1014,6 +1104,8 @@ paths:
   /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
       - $ref: "#/components/parameters/AfterVersion"
       - $ref: "#/components/parameters/HistoryLimit"
@@ -1023,6 +1115,8 @@ paths:
       description: >-
         Return exact mixed v1/v2/v3/v4 snapshots and their original schema versions, using the existing exclusive version cursor. No history projection, rewriting or current-domain revalidation. Older APIs reject pages containing unsupported formats. Events remain on the v1 endpoint.
       operationId: getAssessmentRevisionsV4
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: A page containing original versioned snapshots.
@@ -1039,6 +1133,8 @@ paths:
   /api/v4/workspaces/{workspaceId}/assessments/{assessmentId}/eligibility-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -1046,6 +1142,8 @@ paths:
       description: >-
         Read-only local-only synthetic eligibility extending v3 with one shared complianceScopeCheck. UNKNOWN scope needs information even when some target labels exist. NONE_IDENTIFIED imposes no target check but proves neither legal exemption nor compliance. TARGETS_IDENTIFIED remains unknown because detailed obligations, service scope and supporting evidence are not evaluated. OTHER also needs a concrete definition. No label alone verifies or rejects a provider. An unresolved shared check yields NEEDS_INFORMATION unless an existing capability/context/residency/authentication failure already determines DOES_NOT_MATCH; all reasons remain visible. Catalog v4 and earlier fact policies are unchanged. No certification, scores, winner or final recommendation; recommendationReady and verificationPerformed remain false. This request does not write to the database.
       operationId: getAssessmentEligibilityPreflightV4
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Partial eligibility with shared requirements-scope reasoning, not a compliance verdict.
@@ -1060,12 +1158,16 @@ paths:
   /api/v5/workspaces/{workspaceId}/assessments:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
     post:
       tags: [Assessments]
       summary: Create a draft with a profile v5 representation
       description: >-
         Provision the workspace through the existing v1 endpoint. A new draft has empty usagePlanning inputs; no traffic values or costs are inferred. This response projects profile v5 while storage uses the smallest lossless format. This API is local-only.
       operationId: createAssessmentV5
+      security:
+        - BffServiceToken: []
       responses:
         "201":
           description: Created assessment with unrecorded usage planning.
@@ -1083,6 +1185,8 @@ paths:
   /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -1090,6 +1194,8 @@ paths:
       description: >-
         Projects older profiles with an empty usagePlanning object without changing records, timestamps, lock versions or history. Empty metric maps mean unknown, not zero. The response profileSchemaVersion describes this representation, not a storage migration.
       operationId: getAssessmentV5
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Current assessment with an explicit v5 profile.
@@ -1104,6 +1210,8 @@ paths:
   /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     put:
       tags: [Assessments]
@@ -1111,6 +1219,8 @@ paths:
       description: >-
         Replace the complete profile with expectedVersion. Usage counts require an explicit ASSUMED or OBSERVED basis and a non-negative JavaScript-safe integer. Missing metric keys remain unknown; zero must be supplied explicitly. Scope and assumptions are bounded owner-supplied text, never executable instructions. Incomplete planning inputs are allowed in drafts. No-op saves preserve data; changes append an atomic operations-section event and versioned snapshot. Older API writes cannot silently erase recorded planning inputs. Explicit v5 clearing restores the smallest lossless stored format without changing older history. No cost estimate or provider ranking is produced.
       operationId: updateAssessmentProfileV5
+      security:
+        - BffServiceToken: []
       requestBody:
         required: true
         content:
@@ -1135,6 +1245,8 @@ paths:
   /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
       - $ref: "#/components/parameters/AfterVersion"
       - $ref: "#/components/parameters/HistoryLimit"
@@ -1144,6 +1256,8 @@ paths:
       description: >-
         Return exact mixed v1/v2/v3/v4/v5 snapshots with their original schema versions. No history projection, rewriting or current-domain validation. Older history APIs reject pages containing unsupported formats; events keep the v1 endpoint.
       operationId: getAssessmentRevisionsV5
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: A page containing original versioned snapshots.
@@ -1158,6 +1272,8 @@ paths:
   /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/usage-planning-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
       - $ref: "#/components/parameters/AssessmentId"
     get:
       tags: [Assessments]
@@ -1174,6 +1290,8 @@ paths:
         does not change candidate eligibility or any assessment data. Earlier eligibility
         endpoints retain their scope and defer operational cost evaluation.
       operationId: getAssessmentUsagePlanningPreflight
+      security:
+        - BffServiceToken: []
       responses:
         "200":
           description: Versioned usage input inventory, not a cost quote.
@@ -1186,6 +1304,11 @@ paths:
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
 components:
+  securitySchemes:
+    BffServiceToken:
+      type: http
+      scheme: bearer
+      description: Server-only credential shared by the local BFF and Core API; never sent by the browser.
   parameters:
     CatalogProposalId:
       name: proposalId
@@ -1224,10 +1347,26 @@ components:
       name: workspaceId
       in: path
       required: true
-      description: Workspace boundary for every assessment query.
+      description: Personal workspace identifier checked against the authenticated OIDC principal.
       schema:
         type: string
         format: uuid
+    OidcIssuer:
+      name: X-AuthWeave-Oidc-Issuer
+      in: header
+      required: true
+      description: Issuer from the BFF-validated ID token; server-to-server only.
+      schema:
+        type: string
+        maxLength: 2048
+    OidcSubject:
+      name: X-AuthWeave-Oidc-Subject
+      in: header
+      required: true
+      description: Subject from the BFF-validated ID token; server-to-server only.
+      schema:
+        type: string
+        maxLength: 256
     AssessmentId:
       name: assessmentId
       in: path

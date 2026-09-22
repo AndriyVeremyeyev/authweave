@@ -24,6 +24,8 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -100,6 +102,80 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
                         .where(PERSONAL_WORKSPACES.WORKSPACE_ID.eq(workspaceId)).execute());
         assertEquals(1, dsl.fetchCount(PERSONAL_WORKSPACES,
                 PERSONAL_WORKSPACES.WORKSPACE_ID.eq(workspaceId)));
+    }
+
+    @Test
+    void protectsEveryVersionedWorkspaceRouteBeforeControllerDispatch() throws Exception {
+        String issuer = "http://localhost:8081";
+        String alice = "alice-" + UUID.randomUUID();
+        String bob = "bob-" + UUID.randomUUID();
+        UUID aliceWorkspace = provision(issuer, alice);
+        UUID bobWorkspace = provision(issuer, bob);
+
+        for (int version = 1; version <= 5; version++) {
+            String alicePath = "/api/v" + version + "/workspaces/" + aliceWorkspace;
+            mvc.perform(post(alicePath + "/assessments"))
+                    .andExpect(status().isUnauthorized());
+            mvc.perform(post(alicePath + "/assessments").header("Authorization", TOKEN))
+                    .andExpect(status().isUnauthorized());
+            mvc.perform(post(alicePath + "/assessments")
+                            .header("Authorization", TOKEN)
+                            .header("X-AuthWeave-Oidc-Issuer", issuer)
+                            .header("X-AuthWeave-Oidc-Subject", bob))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get(alicePath + "/assessments/" + UUID.randomUUID())
+                            .header("Authorization", TOKEN)
+                            .header("X-AuthWeave-Oidc-Issuer", issuer)
+                            .header("X-AuthWeave-Oidc-Subject", bob))
+                    .andExpect(status().isForbidden());
+            mvc.perform(put(alicePath + "/assessments/" + UUID.randomUUID() + "/profile")
+                            .header("Authorization", TOKEN)
+                            .header("X-AuthWeave-Oidc-Issuer", issuer)
+                            .header("X-AuthWeave-Oidc-Subject", bob))
+                    .andExpect(status().isForbidden());
+            mvc.perform(get(alicePath + "/assessments/" + UUID.randomUUID() + "/revisions")
+                            .header("Authorization", TOKEN)
+                            .header("X-AuthWeave-Oidc-Issuer", issuer)
+                            .header("X-AuthWeave-Oidc-Subject", bob))
+                    .andExpect(status().isForbidden());
+        }
+
+        mvc.perform(put("/api/v1/workspaces/" + bobWorkspace)
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isForbidden());
+        mvc.perform(put("/api/v1/workspaces/" + aliceWorkspace)
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/api/v1/workspaces/" + aliceWorkspace + "/assessments")
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void rejectsAmbiguousPrincipalHeadersAndMalformedWorkspacePaths() throws Exception {
+        String issuer = "http://localhost:8081";
+        String subject = "alice-" + UUID.randomUUID();
+        UUID workspaceId = provision(issuer, subject);
+        String path = "/api/v1/workspaces/" + workspaceId + "/assessments";
+        mvc.perform(post(path).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", subject, subject))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(path).header("Authorization", TOKEN, TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", subject))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/v1/workspaces/not-a-uuid/assessments/" + UUID.randomUUID())
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", subject))
+                .andExpect(status().isBadRequest());
     }
 
     private UUID provision(String issuer, String subject) throws Exception {

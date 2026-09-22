@@ -16,7 +16,8 @@ class InternalServiceCredentialFilterTests {
         var request = request();
         request.addHeader("Authorization", "Bearer " + TOKEN);
         var response = new MockHttpServletResponse();
-        new InternalServiceCredentialFilter("").doFilter(request, response, new MockFilterChain());
+        new InternalServiceCredentialFilter("", null)
+                .doFilter(request, response, new MockFilterChain());
         assertEquals(503, response.getStatus());
     }
 
@@ -26,8 +27,20 @@ class InternalServiceCredentialFilterTests {
         request.addHeader("Authorization", "Bearer " + TOKEN);
         request.addHeader("Authorization", "Bearer " + TOKEN);
         var response = new MockHttpServletResponse();
-        new InternalServiceCredentialFilter(TOKEN).doFilter(request, response, new MockFilterChain());
+        new InternalServiceCredentialFilter(TOKEN, null)
+                .doFilter(request, response, new MockFilterChain());
         assertEquals(401, response.getStatus());
+    }
+
+    @Test
+    void refusesWorkspaceRoutesWhenNoServiceCredentialIsConfigured() throws Exception {
+        var request = new MockHttpServletRequest("GET",
+                "/api/v6/workspaces/60000000-0000-4000-8000-000000000001/assessments");
+        request.addHeader("Authorization", "Bearer " + TOKEN);
+        var response = new MockHttpServletResponse();
+        new InternalServiceCredentialFilter("", null)
+                .doFilter(request, response, new MockFilterChain());
+        assertEquals(503, response.getStatus());
     }
 
     private static MockHttpServletRequest request() {

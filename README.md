@@ -46,10 +46,11 @@ Run `make help` to see component-specific checks and development-server commands
 ### Optional local identity lab
 
 Local ZITADEL infrastructure, an AuthWeave OIDC project/application and two ordinary synthetic
-users support the local BFF sign-in flow. This does not provision application workspaces,
-protect the Core API or grant a catalog-curator role. The public browser-only preview and
-loopback-only Core API are unchanged. Discovery and synthetic password factors have been
-verified locally; browser sign-in still needs a manual end-to-end check.
+users support the local BFF sign-in flow. First login provisions a personal workspace;
+versioned workspace routes require the BFF's server-only credential and an OIDC identity
+that owns that workspace. This does not yet expose assessments through the BFF or grant a
+catalog-curator role. The public browser-only preview is unchanged. Browser sign-in still
+needs a manual end-to-end check.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -120,10 +121,14 @@ synthetic user. The ignored `apps/web/.env.local` must already contain the issue
 created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
 rotation/revocation and database role isolation.
 
-The new internal provisioning route requires the server-only credential, but the other Core API
-routes remain unauthenticated and loopback-only. A workspace record is not yet authenticated
-assessment access or curator authorization. Browser sign-in still needs a manual end-to-end
-check. Do not expose the local HTTP lab or Core API.
+The internal provisioning route and every `/api/vN/workspaces/...` route require the
+server-only bearer credential. Versioned workspace routes additionally require
+`X-AuthWeave-Oidc-Issuer` and `X-AuthWeave-Oidc-Subject` headers from the validated
+BFF session; Core checks their immutable mapping against the path workspace ID.
+The browser must never supply these credentials or principal headers directly.
+Catalog routes remain unauthenticated and loopback-only. Assessment BFF routes,
+curator authorization and browser end-to-end verification are still pending. Do not
+expose the local HTTP lab or Core API.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
 with its database: losing or changing it can make stored encrypted data unusable. Bootstrap
@@ -139,11 +144,12 @@ profile replacement in PostgreSQL. It validates profile structure and domain
 contradictions, returns structured problem details and detects stale updates.
 Saving an unchanged profile preserves its status, version and update timestamp.
 
-The assessment and catalog API routes are currently unauthenticated. Core binds to
-`127.0.0.1` by default and refuses to start with a non-loopback `server.address`.
-Keep it local; do not expose it through
-a reverse proxy or tunnel. Workspace IDs scope data queries but do not authenticate
-callers. Shared deployment requires authentication and workspace authorization.
+Versioned assessment routes require the local BFF service credential and a mapped
+OIDC issuer/subject; a workspace ID alone does not authenticate a caller. Catalog
+routes remain unauthenticated. Core binds to `127.0.0.1` by default and refuses to
+start with a non-loopback `server.address`. Keep it local; do not expose it through
+a reverse proxy or tunnel. This server-to-server boundary is not a complete hosted
+authentication and authorization design.
 
 The web application includes a browser-only requirements preview at `/preview`.
 Start with a fictional B2B SaaS profile or a blank draft, edit six sections, review
@@ -157,7 +163,8 @@ selections mean no choice was recorded, not that a topic is unnecessary.
 
 The Core API stores immutable assessment revisions and atomic state-change events,
 with workspace-scoped paginated history reads. Runtime database roles cannot update
-or delete history. The API remains local-only, without authenticated workspace access.
+or delete history. Versioned workspace routes now enforce a local BFF credential and
+personal-workspace ownership; browser assessment access is not yet implemented.
 The Core API also offers read-only capability and context preflights against explicitly
 fictional plans. Full provider evaluation, ADR export and authenticated workflows are still
 planned. The AI worker exposes health endpoints.
@@ -191,12 +198,15 @@ are not provider evidence, compliance claims or computed recommendations.
 
 ### Synthetic capability preflight
 
-After seeding and starting the local Core API, inspect the B2B example:
+The historical B2B fixture path is:
 
-```shell
-curl --fail --silent --show-error \
-  http://127.0.0.1:8080/api/v1/workspaces/60000000-0000-4000-8000-000000000001/assessments/60000000-0000-4000-8000-000000000101/capability-preflight
+```text
+GET /api/v1/workspaces/60000000-0000-4000-8000-000000000001/assessments/60000000-0000-4000-8000-000000000101/capability-preflight
 ```
+
+This seeded workspace has no personal OIDC owner and is not directly readable over
+HTTP after the workspace authorization boundary. It remains available for local
+contract tests; an authorized fixture-viewing workflow is pending.
 
 This GET does not change assessment state or history. It checks nine protocol,
 provisioning and MFA capabilities against three fictional plan/region options.
@@ -218,9 +228,8 @@ Use the same assessment URL with `/eligibility-preflight` to combine the nine
 capability checks with application type, clients, user populations, tenancy and
 organization membership:
 
-```shell
-curl --fail --silent --show-error \
-  http://127.0.0.1:8080/api/v1/workspaces/60000000-0000-4000-8000-000000000001/assessments/60000000-0000-4000-8000-000000000101/eligibility-preflight
+```text
+GET /api/v1/workspaces/60000000-0000-4000-8000-000000000001/assessments/60000000-0000-4000-8000-000000000101/eligibility-preflight
 ```
 
 Each selected context value is checked against its own plan/region evidence. Missing

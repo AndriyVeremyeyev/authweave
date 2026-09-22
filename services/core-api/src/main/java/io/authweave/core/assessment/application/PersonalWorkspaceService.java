@@ -45,6 +45,14 @@ public class PersonalWorkspaceService {
         return workspaceId;
     }
 
+    @Transactional(readOnly = true)
+    public boolean owns(String issuer, String subject, UUID workspaceId) {
+        return dsl.fetchExists(dsl.selectOne().from(PERSONAL_WORKSPACES)
+                .where(PERSONAL_WORKSPACES.ISSUER.eq(issuer)
+                        .and(PERSONAL_WORKSPACES.SUBJECT.eq(subject))
+                        .and(PERSONAL_WORKSPACES.WORKSPACE_ID.eq(workspaceId))));
+    }
+
     private static long principalLock(String issuer, String subject) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
