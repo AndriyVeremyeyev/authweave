@@ -190,5 +190,94 @@ class DiscoveryTests(unittest.TestCase):
         self.assertIsNone(identity.NoRedirect().redirect_request(None, None, 302, "", {}, "http://remote.example"))
 
 
+class PasswordCheckTests(unittest.TestCase):
+    PASSWORD = "Aa1!" + "p" * 32
+    PAT = "pat_" + "a" * 32
+    FIRST_TOKEN = "b" * 16 + "." + "b" * 16
+    SECOND_TOKEN = "c" * 16 + "." + "c" * 16
+    SESSION_ID = "391919241646833667"
+
+    def successful_call(self, calls):
+        def call(_opener, method, path, authorization, payload=None):
+            calls.append((method, path, authorization, payload))
+            if method == "POST":
+                return {"sessionId": self.SESSION_ID, "sessionToken": self.FIRST_TOKEN}
+            if method == "PATCH":
+                return {"sessionToken": self.SECOND_TOKEN}
+            if method == "GET":
+                return {"session": {"factors": {"user": {"loginName": "admin@authweave.localhost"},
+                                                   "password": {"verifiedAt": "2026-09-22T12:00:00Z"}}}}
+            if method == "DELETE":
+                return {}
+            self.fail(method)
+        return call
+
+    def test_password_factor_is_verified_and_temporary_session_deleted(self):
+        calls = []
+        identity.verify_password(self.PASSWORD, self.PAT, self.successful_call(calls))
+        self.assertEqual([call[0] for call in calls], ["POST", "PATCH", "GET", "DELETE"])
+        self.assertEqual(calls[1][3]["checks"]["password"]["password"], self.PASSWORD)
+        self.assertNotIn(self.PASSWORD, calls[1][1])
+        self.assertEqual(calls[-1][3], {"sessionToken": self.SECOND_TOKEN})
+
+    def test_failed_password_check_still_deletes_created_session(self):
+        calls = []
+        success = self.successful_call(calls)
+        def call(*arguments):
+            if arguments[1] == "PATCH":
+                calls.append(arguments[1:])
+                raise RuntimeError("rejected")
+            return success(*arguments)
+        with self.assertRaisesRegex(RuntimeError, "rejected"):
+            identity.verify_password(self.PASSWORD, self.PAT, call)
+        self.assertEqual(calls[-1][0], "DELETE")
+        self.assertEqual(calls[-1][3], {"sessionToken": self.FIRST_TOKEN})
+
+    def test_missing_verified_factor_is_failure_and_session_is_deleted(self):
+        calls = []
+        success = self.successful_call(calls)
+        def call(*arguments):
+            if arguments[1] == "GET":
+                calls.append(arguments[1:])
+                return {"session": {"factors": {"user": {"loginName": "admin@authweave.localhost"}}}}
+            return success(*arguments)
+        with self.assertRaisesRegex(ValueError, "password was not verified"):
+            identity.verify_password(self.PASSWORD, self.PAT, call)
+        self.assertEqual(calls[-1][0], "DELETE")
+
+    def test_invalid_updated_token_cleans_up_with_last_valid_token(self):
+        calls = []
+        success = self.successful_call(calls)
+        def call(*arguments):
+            if arguments[1] == "PATCH":
+                calls.append(arguments[1:])
+                return {"sessionToken": "invalid token"}
+            return success(*arguments)
+        with self.assertRaisesRegex(ValueError, "invalid updated token"):
+            identity.verify_password(self.PASSWORD, self.PAT, call)
+        self.assertEqual(calls[-1][0], "DELETE")
+        self.assertEqual(calls[-1][3], {"sessionToken": self.FIRST_TOKEN})
+
+    def test_cleanup_failure_never_reports_success(self):
+        calls = []
+        success = self.successful_call(calls)
+        def call(*arguments):
+            if arguments[1] == "DELETE":
+                calls.append(arguments[1:])
+                raise RuntimeError("private-token-must-not-leak")
+            return success(*arguments)
+        with self.assertRaisesRegex(RuntimeError, "cleanup was not confirmed") as failure:
+            identity.verify_password(self.PASSWORD, self.PAT, call)
+        self.assertNotIn("private-token", str(failure.exception))
+
+    def test_login_client_pat_is_read_without_shell_or_output(self):
+        completed = type("Result", (), {"stdout": self.PAT + "\n"})()
+        with patch.object(identity, "compose", return_value=completed) as compose:
+            self.assertEqual(identity.load_login_client_pat({"ignored": "values"}), self.PAT)
+        self.assertEqual(compose.call_args.args[0],
+                         ["exec", "-T", "zitadel-login", "cat", "/zitadel/bootstrap/login-client.pat"])
+        self.assertTrue(compose.call_args.kwargs["capture"])
+
+
 if __name__ == "__main__":
     unittest.main()

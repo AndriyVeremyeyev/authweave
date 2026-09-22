@@ -48,8 +48,8 @@ Run `make help` to see component-specific checks and development-server commands
 Local ZITADEL infrastructure is prepared for the upcoming BFF/session and curator-authorization
 work. It does not yet authenticate AuthWeave, provision application workspaces or grant a
 catalog-curator role. The existing browser-only preview and loopback-only Core API are unchanged.
-Container startup and a real Console login still require the manual checks below; configuration
-tests alone are not login evidence.
+The isolated stack, discovery and synthetic administrator password have been verified locally;
+this is infrastructure evidence, not an AuthWeave login or application authorization.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -73,6 +73,7 @@ make check-auth-config
 make auth-up
 make auth-status
 make auth-check
+make auth-password-check
 ```
 
 `setup-auth` creates ignored `infra/zitadel/.env` with mode 600, a random 32-character master
@@ -81,6 +82,9 @@ It never overwrites existing credentials or starts services. `auth-up` explicitl
 missing images and waits for four healthy services; normal `setup`/`infra-up` do not include
 this lab. `auth-check` verifies the exact issuer `http://localhost:8081`, same-origin OIDC
 endpoints, Code/PKCE S256 support and Login UI readiness, without logging in or following redirects.
+`auth-password-check` uses the local Login UI service identity and ZITADEL Session API to verify
+the synthetic administrator's username/password factors, then deletes its temporary session. It
+does not print credentials, establish a browser session or prove AuthWeave login/authorization.
 
 Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
 `admin@authweave.localhost` using `AUTHWEAVE_ZITADEL_ADMIN_PASSWORD` from the ignored file,

@@ -5,7 +5,7 @@ PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
 	check check-policy check-core check-web check-ai check-contracts \
-	setup-auth check-auth-config auth-up auth-status auth-check auth-down \
+	setup-auth check-auth-config auth-up auth-status auth-check auth-password-check auth-down \
 	generate-jooq infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact dev-core dev-web dev-ai
 
 help:
@@ -30,6 +30,7 @@ help:
 		'  make auth-up         Download/start the optional loopback-only ZITADEL lab' \
 		'  make auth-status     Show only identity lab containers' \
 		'  make auth-check      Check local OIDC discovery and Login UI readiness; no login' \
+		'  make auth-password-check  Verify the synthetic admin password; delete the temporary session' \
 		'  make auth-down       Stop identity lab; preserve its database and bootstrap volumes' \
 		'  make dev-core        Start the Core API using infra/.env' \
 		'  make dev-web         Start the Next.js development server' \
@@ -67,6 +68,9 @@ auth-status:
 
 auth-check:
 	$(PYTHON) scripts/local_identity.py check
+
+auth-password-check:
+	$(PYTHON) scripts/local_identity.py password-check
 
 auth-down:
 	$(PYTHON) scripts/local_identity.py down

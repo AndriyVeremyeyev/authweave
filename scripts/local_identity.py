@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tomllib
 from urllib import error, request
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 IDENTITY = ROOT / "infra" / "zitadel"
@@ -181,9 +181,95 @@ def check_discovery() -> None:
     print(f"OIDC discovery and Login UI reachable at {ISSUER}. This does not verify application login or curator authorization.")
 
 
+def load_login_client_pat(values: dict[str, str]) -> str:
+    result = compose(["exec", "-T", "zitadel-login", "cat", "/zitadel/bootstrap/login-client.pat"],
+                     values, capture=True)
+    token = result.stdout.strip()
+    require(re.fullmatch(r"[A-Za-z0-9._~-]{20,4096}", token) is not None,
+            "Invalid local Login UI token; do not print or replace it.")
+    return token
+
+
+def session_request(opener, method: str, path: str, authorization: str, payload: dict | None = None) -> dict:
+    target = urlsplit(path)
+    require(not target.scheme and not target.netloc and path.startswith("/v2/sessions"),
+            "Session verification is restricted to the local session API.")
+    body = None if payload is None else json.dumps(payload, separators=(",", ":")).encode()
+    headers = {"Accept": "application/json", "Authorization": f"Bearer {authorization}"}
+    if body is not None:
+        headers["Content-Type"] = "application/json"
+    call = request.Request(ISSUER + path, data=body, headers=headers, method=method)
+    try:
+        with opener.open(call, timeout=15) as response:
+            raw = response.read(1_048_577)
+            require(200 <= response.status < 300, "Local session API did not return success.")
+            require(len(raw) <= 1_048_576, "Local session response is too large.")
+            require(response.headers.get_content_type() == "application/json", "Local session response is not JSON.")
+            document = json.loads(raw) if raw else {}
+            require(isinstance(document, dict), "Local session response must be an object.")
+            return document
+    except error.HTTPError as failure:
+        failure.read(1_048_577)
+        raise RuntimeError("Local session API rejected the verification request.") from None
+
+
+def verify_password(password: str, authorization: str, call=session_request) -> None:
+    opener = request.build_opener(request.ProxyHandler({}), NoRedirect())
+    session_id: str | None = None
+    session_token: str | None = None
+    verification_failure: Exception | None = None
+    try:
+        created = call(opener, "POST", "/v2/sessions", authorization,
+                       {"checks": {"user": {"loginName": "admin@authweave.localhost"}}})
+        session_id = created.get("sessionId")
+        created_token = created.get("sessionToken")
+        require(isinstance(session_id, str) and re.fullmatch(r"[0-9]{1,40}", session_id) is not None,
+                "Local session API returned an invalid session ID.")
+        require(isinstance(created_token, str)
+                and re.fullmatch(r"[A-Za-z0-9._~-]{20,4096}", created_token) is not None,
+                "Local session API returned an invalid session token.")
+        session_token = created_token
+        updated = call(opener, "PATCH", f"/v2/sessions/{session_id}", authorization,
+                       {"sessionToken": session_token, "checks": {"password": {"password": password}}})
+        updated_token = updated.get("sessionToken")
+        require(isinstance(updated_token, str)
+                and re.fullmatch(r"[A-Za-z0-9._~-]{20,4096}", updated_token) is not None,
+                "Local session API returned an invalid updated token.")
+        session_token = updated_token
+        state = call(opener, "GET", f"/v2/sessions/{session_id}?{urlencode({'sessionToken': session_token})}",
+                     authorization)
+        session = state.get("session")
+        require(isinstance(session, dict), "Local session API returned an invalid session.")
+        factors = session.get("factors")
+        require(isinstance(factors, dict), "Local session API returned invalid factors.")
+        require(factors.get("user", {}).get("loginName") == "admin@authweave.localhost"
+                and isinstance(factors.get("password", {}).get("verifiedAt"), str),
+                "Local administrator password was not verified.")
+    except Exception as failure:
+        verification_failure = failure
+    cleanup_failure: Exception | None = None
+    if session_id is not None:
+        try:
+            deletion = {"sessionToken": session_token} if session_token is not None else {}
+            call(opener, "DELETE", f"/v2/sessions/{session_id}", authorization, deletion)
+        except Exception as failure:
+            cleanup_failure = failure
+    if verification_failure is not None:
+        if cleanup_failure is not None:
+            raise RuntimeError("Credential verification failed and temporary session cleanup was not confirmed.") from None
+        raise verification_failure
+    if cleanup_failure is not None:
+        raise RuntimeError("Credential verification succeeded but temporary session cleanup was not confirmed.") from None
+
+
+def check_password(values: dict[str, str]) -> None:
+    verify_password(values["AUTHWEAVE_ZITADEL_ADMIN_PASSWORD"], load_login_client_pat(values))
+    print("Local ZITADEL username/password factors verified; temporary session deleted. This is not AuthWeave login or curator authorization.")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("setup", "config-check", "up", "status", "down", "check"))
+    parser.add_argument("action", choices=("setup", "config-check", "up", "status", "down", "check", "password-check"))
     action = parser.parse_args().action
     try:
         if action == "setup":
@@ -194,6 +280,8 @@ def main() -> int:
             config_check()
         elif action == "check":
             check_discovery()
+        elif action == "password-check":
+            check_password(read_environment(IDENTITY))
         else:
             values = read_environment(IDENTITY)
             if action == "up":
@@ -202,7 +290,7 @@ def main() -> int:
             arguments = {"up": ["up", "--detach", "--wait", "--wait-timeout", "240"], "status": ["ps"], "down": ["down"]}[action]
             compose(arguments, values)
         return 0
-    except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError, error.URLError) as failure:
+    except (ValueError, KeyError, TypeError, OSError, RuntimeError, subprocess.CalledProcessError, error.URLError) as failure:
         # Subprocess diagnostics/config and HTTP errors may contain sensitive values or URLs.
         print(f"Identity {action} failed ({type(failure).__name__}). Check local configuration and the README; no success is claimed.", file=sys.stderr)
         if isinstance(failure, ValueError) and not isinstance(failure, json.JSONDecodeError):
