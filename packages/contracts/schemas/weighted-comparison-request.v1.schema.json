@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/weighted-comparison-request.v1.schema.json",
+  "title": "Explicit capability weights request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["weights"],
+  "properties": {
+    "weights": { "$ref": "#/$defs/weights" }
+  },
+  "$defs": {
+    "weights": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 9,
+      "propertyNames": { "enum": ["OIDC", "SAML", "OAUTH2_APIS", "SOCIAL_LOGIN", "ENTERPRISE_SSO", "SCIM", "JIT", "GROUP_SYNC", "MFA"] },
+      "additionalProperties": { "type": "integer", "minimum": 1, "maximum": 100 }
+    }
+  },
+  "description": "Provide exactly the capabilities explicitly marked PREFERRED in the assessment. The positive integer weights must sum to 100; Core API validates these assessment-dependent rules. No defaults are inferred."
+}

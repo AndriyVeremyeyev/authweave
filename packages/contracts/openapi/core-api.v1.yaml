@@ -1393,6 +1393,44 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/weighted-comparison-preview:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    post:
+      tags: [Assessments]
+      summary: Preview explicitly weighted synthetic capability preferences
+      description: >-
+        Read-only calculation; POST carries caller-provided weights and changes no state.
+        Provide exactly one positive integer weight for each capability marked PREFERRED
+        in this assessment, no other capabilities, and a total of 100. There are no
+        default weights. A score is withheld if a hard requirement excludes the option,
+        a checked hard requirement is unresolved, or any preferred capability has
+        unknown or unusable evidence. Scores measure only these explicit capability
+        preferences, not provider suitability. The fictional catalog and deferred
+        dimensions cannot support a rank, winner, or final recommendation.
+      operationId: previewAssessmentWeightedComparison
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/weighted-comparison-request.v1.schema.json
+      responses:
+        "200":
+          description: Diagnostic score preview without ranking or recommendation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/weighted-comparison-preview.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   securitySchemes:
     BffServiceToken:

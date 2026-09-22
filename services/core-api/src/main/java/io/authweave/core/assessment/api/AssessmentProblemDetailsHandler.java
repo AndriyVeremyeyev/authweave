@@ -22,11 +22,17 @@ import io.authweave.core.assessment.domain.InvalidAssessmentTransitionException;
 import io.authweave.core.assessment.domain.profile.InvalidApplicationIdentityProfileException;
 import io.authweave.core.assessment.persistence.AssessmentNotFoundException;
 import io.authweave.core.assessment.persistence.AssessmentVersionConflictException;
+import io.authweave.core.evaluation.InvalidWeightedComparisonRequestException;
 import tools.jackson.core.JacksonException;
 
 @RestControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
+
+    @ExceptionHandler(InvalidWeightedComparisonRequestException.class)
+    ProblemDetail invalidWeights(InvalidWeightedComparisonRequestException exception, HttpServletRequest request) {
+        return invalidRequest(List.of(new RequestViolation("weights", exception.getMessage())), request);
+    }
 
     @ExceptionHandler(io.authweave.core.catalog.impact.CatalogImpactReportException.class)
     ProblemDetail catalogImpactMissing(io.authweave.core.catalog.impact.CatalogImpactReportException exception, HttpServletRequest request) {

@@ -167,6 +167,54 @@ test("synthetic comparison keeps preferences unweighted and preserves excluded o
     capabilityPreferences: [{ ...candidate.capabilityPreferences[0], outcome: "WINNER" }] }] }), false);
 });
 
+test("weighted preview requires explicit dimensions and cannot turn withheld scores into recommendations", () => {
+  const validateRequest = ajv.getSchema("https://authweave.dev/contracts/weighted-comparison-request.v1.schema.json");
+  const validatePreview = ajv.getSchema("https://authweave.dev/contracts/weighted-comparison-preview.v1.schema.json");
+  const request = { weights: { SOCIAL_LOGIN: 60, JIT: 40 } };
+  assert.equal(validateRequest(request), true, validationMessage(validateRequest));
+  assert.equal(validateRequest({ weights: { SOCIAL_LOGIN: -1 } }), false);
+  assert.equal(validateRequest({ weights: { INVENTED: 100 } }), false);
+  assert.equal(validateRequest({ ...request, defaultWeight: 50 }), false);
+
+  const preference = {
+    capability: "SOCIAL_LOGIN", profilePath: "protocols.socialLogin", outcome: "AVAILABLE",
+    reasonCode: "PREFERRED_CAPABILITY_AVAILABLE", explanation: "The fictional plan offers social login.",
+    evidence: { availability: "OPTIONAL", evidenceStatus: "REVIEWED",
+      sourceUrl: "https://example.invalid/social", observedAt: "2026-09-12T00:00:00Z" },
+  };
+  const comparison = {
+    workspaceId: validAssessmentResponse.workspaceId, assessmentId: validAssessmentResponse.id,
+    assessmentVersion: 0, catalogVersion: "synthetic-test", catalogKind: "SYNTHETIC",
+    policyVersion: "synthetic-comparison-1", hardConstraintPolicyVersion: "hard-constraint-preflight-1",
+    preferencePolicyVersion: "capability-preference-1", evaluatedAt: validAssessmentResponse.createdAt,
+    scope: "SYNTHETIC_UNRANKED_COMPARISON", recommendationReady: false, rankingPerformed: false,
+    deferredPaths: ["security.browserTokenExposureMinimization", "security.auditability",
+      "security.assurance", "security.complianceTargets", "operations"], candidates: [{
+      optionId: "fictional-plan", displayName: "Fictional Plan", plan: "Demo", region: "Synthetic region",
+      hardVerdict: "PASSES_CHECKED_REQUIREMENTS", exclusionReasons: [], informationGaps: [],
+      capabilityPreferences: [preference, { ...preference, capability: "JIT", profilePath: "provisioning.justInTimeProvisioning" }],
+    }],
+  };
+  const scored = {
+    comparison, scoringPolicyVersion: "explicit-capability-weights-1", weights: request.weights,
+    rankingPerformed: false, recommendationReady: false, scores: [{
+      optionId: "fictional-plan", status: "SCORED", score: 100,
+      contributions: [
+        { capability: "SOCIAL_LOGIN", weight: 60, outcome: "AVAILABLE", earnedPoints: 60 },
+        { capability: "JIT", weight: 40, outcome: "AVAILABLE", earnedPoints: 40 },
+      ],
+    }],
+  };
+  assert.equal(validatePreview(scored), true, validationMessage(validatePreview));
+  assert.equal(validatePreview({ ...scored, recommendationReady: true }), false);
+  assert.equal(validatePreview({ ...scored, winnerId: "fictional-plan" }), false);
+  assert.equal(validatePreview({ ...scored, scores: [{ ...scored.scores[0], score: null }] }), false);
+  const withheld = { ...scored, scores: [{ optionId: "fictional-plan", status: "UNRESOLVED_HARD_CONSTRAINTS",
+    score: null, contributions: [] }] };
+  assert.equal(validatePreview(withheld), true, validationMessage(validatePreview));
+  assert.equal(validatePreview({ ...withheld, scores: [{ ...withheld.scores[0], score: 100 }] }), false);
+});
+
 test("AI proposals and profiles share the canonical criticality vocabulary", () => {
   for (const criticality of ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN"]) {
     const result = structuredClone(validResult);

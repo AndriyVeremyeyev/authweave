@@ -11,6 +11,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -171,6 +172,37 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.recommendationReady").value(false));
         }
+        String weightedPath = preflightRoot + "/weighted-comparison-preview";
+        String weightedBody = "{\"weights\":{\"SOCIAL_LOGIN\":60,\"JIT\":40}}";
+        mvc.perform(post(weightedPath).contentType(MediaType.APPLICATION_JSON).content(weightedBody))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post(weightedPath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", bob)
+                        .contentType(MediaType.APPLICATION_JSON).content(weightedBody))
+                .andExpect(status().isForbidden());
+        mvc.perform(post(weightedPath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice)
+                        .contentType(MediaType.APPLICATION_JSON).content(weightedBody))
+                .andExpect(status().isBadRequest());
+        var update = mapper.createObjectNode();
+        update.put("expectedVersion", 0);
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        mvc.perform(put(preflightRoot.replace("/api/v5/", "/api/v1/") + "/profile")
+                        .header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice)
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk());
+        mvc.perform(post(weightedPath).header("Authorization", TOKEN)
+                        .header("X-AuthWeave-Oidc-Issuer", issuer)
+                        .header("X-AuthWeave-Oidc-Subject", alice)
+                        .contentType(MediaType.APPLICATION_JSON).content(weightedBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.recommendationReady").value(false));
     }
 
     @Test

@@ -1634,6 +1634,47 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                 UUID.randomUUID().toString()) + "/comparison-preflight")).andExpect(status().isNotFound()).andReturn());
     }
 
+    @Test
+    void v5ExplicitWeightedPreviewWithholdsUnresolvedScoresAndDoesNotMutateAssessment() throws Exception {
+        var assessment = create();
+        var update = request();
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            update.set("profile", mapper.readTree(input).get(0).get("profile"));
+        }
+        var before = response("weighted-comparison-profile", mvc.perform(put(assessment.path() + "/profile")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                .andExpect(status().isOk()).andReturn());
+        var path = assessment.path().replace("/api/v1/", "/api/v5/") + "/weighted-comparison-preview";
+        var body = "{\"weights\":{\"SOCIAL_LOGIN\":60,\"JIT\":40}}";
+        sample("weighted-request", "weighted-comparison-request", true, mapper.readTree(body));
+        var preview = versionedSample("weighted-preview", "weighted-comparison-preview",
+                mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body))
+                        .andExpect(status().isOk())
+                        .andExpect(jsonPath("$.recommendationReady").value(false))
+                        .andExpect(jsonPath("$.rankingPerformed").value(false))
+                        .andExpect(jsonPath("$.scores[1].status").value("EXCLUDED"))
+                        .andExpect(jsonPath("$.scores[1].score").value(org.hamcrest.Matchers.nullValue()))
+                        .andReturn());
+        assertEquals(3, preview.get("scores").size());
+        assertEquals(before, response("weighted-comparison-state-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+        response("weighted-foreign-workspace", mvc.perform(post(path.replace(assessment.workspaceId().value().toString(),
+                UUID.randomUUID().toString())).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isNotFound()).andReturn());
+        response("weighted-incomplete", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"weights\":{\"SOCIAL_LOGIN\":100}}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.violations[0].path").value("weights")).andReturn());
+        response("weighted-wrong-total", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"weights\":{\"SOCIAL_LOGIN\":30,\"JIT\":30}}"))
+                .andExpect(status().isBadRequest()).andReturn());
+        response("weighted-unknown-capability", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"weights\":{\"SOCIAL_LOGIN\":50,\"INVENTED\":50}}"))
+                .andExpect(status().isBadRequest()).andReturn());
+        assertEquals(before, response("weighted-invalid-state-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 2);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CURRENT", "STALE", "FUTURE", "INCONSISTENT", "NO_FACTS", "UNICODE_LIMITS", "DATA_NOT_INSTRUCTIONS"})
     void catalogDraftValidationNeverPublishesOrChangesAssessments(String scenario) throws Exception {
