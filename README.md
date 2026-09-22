@@ -106,6 +106,12 @@ BFF login, application sessions and authorization remain subsequent steps. Neith
 synthetic user is an IdP administrator or an AuthWeave curator. No cloud account, SMTP service
 or paid subscription is needed for this lab.
 
+The BFF session foundation has a separate, replay-safe migration for one-use OIDC login
+transactions and opaque application sessions in the `web` PostgreSQL schema. With the
+application PostgreSQL container running and the ignored `infra/.env` restricted to mode 600,
+run `make migrate-web-auth` to apply it. This creates no Core API tables and does not enable
+browser login on its own.
+
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
 with its database: losing or changing it can make stored encrypted data unusable. Bootstrap
 password/expiry settings apply at first initialization; editing `.env` does not rotate an

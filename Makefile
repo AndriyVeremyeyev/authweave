@@ -6,7 +6,7 @@ PYTHON ?= python3.13
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
 	check check-policy check-core check-web check-ai check-contracts \
 	setup-auth check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
-	generate-jooq infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact dev-core dev-web dev-ai
+	generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact dev-core dev-web dev-ai
 
 help:
 	@printf '%s\n' \
@@ -19,6 +19,7 @@ help:
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make generate-jooq   Migrate local PostgreSQL and regenerate jOOQ types' \
+		'  make migrate-web-auth  Apply isolated web authentication tables to local PostgreSQL' \
 		'  make seed-core       Add synthetic assessments without replacing existing data' \
 		'  make store-catalog-proposal  Store an unreviewed proposal from an explicit local JSON file' \
 		'  make store-catalog-impact    Save a conditional scenario report for an exact proposal revision' \
@@ -60,6 +61,7 @@ setup-auth:
 
 check-auth-config:
 	$(PYTHON) -m unittest discover -s scripts/tests -p 'test_local_identity*.py'
+	$(PYTHON) -m unittest discover -s scripts/tests -p 'test_web_auth_migration.py'
 	$(PYTHON) scripts/local_identity.py config-check
 
 auth-up:
@@ -103,6 +105,9 @@ check-contracts:
 generate-jooq:
 	@set -a; . ./infra/.env; set +a; cd services/core-api; \
 		exec ./mvnw --batch-mode --no-transfer-progress -Pjooq-codegen generate-sources
+
+migrate-web-auth:
+	$(PYTHON) scripts/migrate_web_auth.py
 
 infra-up:
 	cd infra && docker compose up --detach
