@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
+  readSyntheticComparison,
 } from "../src/lib/auth/core-client.ts";
 
 const identity = {
@@ -171,6 +172,91 @@ test("BFF lists bounded assessment summaries using only its session workspace", 
     await assert.rejects(listPersonalAssessments(session), /response is invalid/);
     globalThis.fetch = async () => new Response(null, { status: 403 });
     await assert.rejects(listPersonalAssessments(session), /list failed/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+const coreComparison = {
+  workspaceId: session.workspaceId, assessmentId, assessmentVersion: 2,
+  catalogVersion: "synthetic-test", catalogKind: "SYNTHETIC",
+  policyVersion: "synthetic-comparison-1",
+  hardConstraintPolicyVersion: "hard-constraint-preflight-1",
+  preferencePolicyVersion: "capability-preference-1",
+  evaluatedAt: "2026-09-22T12:00:00Z", scope: "SYNTHETIC_UNRANKED_COMPARISON",
+  recommendationReady: false, rankingPerformed: false,
+  deferredPaths: ["operations"],
+  candidates: [{
+    optionId: "fictional-plan", displayName: "Fictional Plan", plan: "Demo",
+    region: "Synthetic region", hardVerdict: "UNRESOLVED", exclusionReasons: [],
+    informationGaps: [{ dimension: "COVERAGE", profilePath: "assessment",
+      reasonCode: "NO_AFFIRMATIVE_CHECKS", explanation: "Clarify the requirements." }],
+    capabilityPreferences: [{ capability: "SOCIAL_LOGIN", profilePath: "protocols.socialLogin",
+      outcome: "UNKNOWN", reasonCode: "EVIDENCE_MISSING", explanation: "Evidence is missing.",
+      evidence: null }],
+  }],
+};
+
+test("BFF reads synthetic comparison only for the session workspace and assessment version", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const token = "synthetic-internal-token-000000000000000000000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token;
+  let calls = 0;
+  globalThis.fetch = async (input, init) => {
+    calls++;
+    assert.equal(input,
+      `http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/comparison-preflight`);
+    assert.equal(init?.method, "GET");
+    assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
+    assert.equal(init?.cache, "no-store");
+    assert.equal(init?.redirect, "error");
+    return Response.json(coreComparison);
+  };
+  try {
+    const result = await readSyntheticComparison(session, assessmentId, 2);
+    assert.equal(result.assessmentVersion, 2);
+    assert.equal(result.candidates[0].hardVerdict, "UNRESOLVED");
+    assert.equal(result.candidates[0].informationGaps[0].reasonCode, "NO_AFFIRMATIVE_CHECKS");
+    assert.equal(result.candidates[0].capabilityPreferences[0].outcome, "UNKNOWN");
+    assert.equal("winnerId" in result, false);
+    assert.equal("evidence" in result.candidates[0].capabilityPreferences[0], false);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF rejects forged ranking, stale or cross-workspace comparisons before rendering", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json(coreComparison); };
+  try {
+    await assert.rejects(readSyntheticComparison(session, "../other", 2), /request is invalid/);
+    await assert.rejects(readSyntheticComparison(session, assessmentId, -1), /request is invalid/);
+    await assert.rejects(readSyntheticComparison({ ...session, workspaceId: "../other" }, assessmentId, 2), /session is invalid/);
+    assert.equal(calls, 0);
+    for (const invalid of [
+      { ...coreComparison, workspaceId: "70000000-0000-4000-8000-000000000002" },
+      { ...coreComparison, assessmentId: "80000000-0000-4000-8000-000000000002" },
+      { ...coreComparison, assessmentVersion: 1 },
+      { ...coreComparison, rankingPerformed: true },
+      { ...coreComparison, winnerId: "fictional-plan" },
+      { ...coreComparison, candidates: [{ ...coreComparison.candidates[0],
+        hardVerdict: "PASSES_CHECKED_REQUIREMENTS" }] },
+    ]) {
+      globalThis.fetch = async () => Response.json(invalid);
+      await assert.rejects(readSyntheticComparison(session, assessmentId, 2), /response is invalid/);
+    }
+    globalThis.fetch = async () => new Response(null, { status: 403 });
+    await assert.rejects(readSyntheticComparison(session, assessmentId, 2), /read failed/);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
