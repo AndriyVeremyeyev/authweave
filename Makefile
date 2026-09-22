@@ -5,7 +5,7 @@ PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
 	check check-policy check-core check-web check-ai check-contracts \
-	setup-auth check-auth-config auth-up auth-status auth-check auth-password-check auth-down \
+	setup-auth check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
 	generate-jooq infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact dev-core dev-web dev-ai
 
 help:
@@ -31,6 +31,8 @@ help:
 		'  make auth-status     Show only identity lab containers' \
 		'  make auth-check      Check local OIDC discovery and Login UI readiness; no login' \
 		'  make auth-password-check  Verify the synthetic admin password; delete the temporary session' \
+		'  make auth-register   Register the local OIDC client and two synthetic users' \
+		'  make auth-registration-check  Verify local OIDC registration without changing it' \
 		'  make auth-down       Stop identity lab; preserve its database and bootstrap volumes' \
 		'  make dev-core        Start the Core API using infra/.env' \
 		'  make dev-web         Start the Next.js development server' \
@@ -57,7 +59,7 @@ setup-auth:
 	$(PYTHON) scripts/local_identity.py setup
 
 check-auth-config:
-	$(PYTHON) -m unittest discover -s scripts/tests -p 'test_local_identity.py'
+	$(PYTHON) -m unittest discover -s scripts/tests -p 'test_local_identity*.py'
 	$(PYTHON) scripts/local_identity.py config-check
 
 auth-up:
@@ -71,6 +73,12 @@ auth-check:
 
 auth-password-check:
 	$(PYTHON) scripts/local_identity.py password-check
+
+auth-register:
+	$(PYTHON) scripts/local_identity_registration.py register
+
+auth-registration-check:
+	$(PYTHON) scripts/local_identity_registration.py check
 
 auth-down:
 	$(PYTHON) scripts/local_identity.py down

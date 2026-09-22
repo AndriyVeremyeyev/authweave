@@ -220,6 +220,20 @@ class PasswordCheckTests(unittest.TestCase):
         self.assertNotIn(self.PASSWORD, calls[1][1])
         self.assertEqual(calls[-1][3], {"sessionToken": self.SECOND_TOKEN})
 
+    def test_synthetic_user_login_is_checked_by_exact_login_name(self):
+        calls = []
+        login = "alice@authweave.localhost"
+        success = self.successful_call(calls)
+        def call(*arguments):
+            if arguments[1] == "GET":
+                calls.append(arguments[1:])
+                return {"session": {"factors": {"user": {"loginName": login},
+                                                  "password": {"verifiedAt": "2026-09-22T12:00:00Z"}}}}
+            return success(*arguments)
+        identity.verify_password(self.PASSWORD, self.PAT, call, login_name=login)
+        self.assertEqual(calls[0][3]["checks"]["user"]["loginName"], login)
+        self.assertEqual(calls[-1][0], "DELETE")
+
     def test_failed_password_check_still_deletes_created_session(self):
         calls = []
         success = self.successful_call(calls)
@@ -241,7 +255,7 @@ class PasswordCheckTests(unittest.TestCase):
                 calls.append(arguments[1:])
                 return {"session": {"factors": {"user": {"loginName": "admin@authweave.localhost"}}}}
             return success(*arguments)
-        with self.assertRaisesRegex(ValueError, "password was not verified"):
+        with self.assertRaisesRegex(ValueError, "password factor was not verified"):
             identity.verify_password(self.PASSWORD, self.PAT, call)
         self.assertEqual(calls[-1][0], "DELETE")
 

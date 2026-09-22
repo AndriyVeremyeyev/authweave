@@ -45,11 +45,12 @@ Run `make help` to see component-specific checks and development-server commands
 
 ### Optional local identity lab
 
-Local ZITADEL infrastructure is prepared for the upcoming BFF/session and curator-authorization
-work. It does not yet authenticate AuthWeave, provision application workspaces or grant a
-catalog-curator role. The existing browser-only preview and loopback-only Core API are unchanged.
-The isolated stack, discovery and synthetic administrator password have been verified locally;
-this is infrastructure evidence, not an AuthWeave login or application authorization.
+Local ZITADEL infrastructure, an AuthWeave OIDC project/application and two ordinary synthetic
+users are prepared for the upcoming BFF/session and curator-authorization work. This does not
+yet authenticate AuthWeave, provision application workspaces or grant a catalog-curator role.
+The existing browser-only preview and loopback-only Core API are unchanged. Discovery and
+all three synthetic password factors have been verified locally; this is IdP registration
+evidence, not an AuthWeave login or application authorization.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -74,6 +75,8 @@ make auth-up
 make auth-status
 make auth-check
 make auth-password-check
+make auth-register
+make auth-registration-check
 ```
 
 `setup-auth` creates ignored `infra/zitadel/.env` with mode 600, a random 32-character master
@@ -85,13 +88,23 @@ endpoints, Code/PKCE S256 support and Login UI readiness, without logging in or 
 `auth-password-check` uses the local Login UI service identity and ZITADEL Session API to verify
 the synthetic administrator's username/password factors, then deletes its temporary session. It
 does not print credentials, establish a browser session or prove AuthWeave login/authorization.
+`auth-register` idempotently creates the `AuthWeave Local` project, a Web OIDC application with
+Authorization Code, PKCE-compatible public-client settings and exact localhost callbacks, plus
+ordinary `alice@authweave.localhost` and `bob@authweave.localhost` users. It generates their
+distinct passwords in ignored `infra/zitadel/synthetic-users.env.local` and writes the issuer
+and non-secret client ID to ignored `apps/web/.env.local`; both files have mode 600. It never
+prints credentials or tokens. `auth-registration-check` verifies the existing registration
+and both password factors without creating persistent resources or files. Both commands create
+short-lived verification sessions and delete them. The callback is reserved for the next BFF
+implementation step; it does not work yet.
 
 Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
 `admin@authweave.localhost` using `AUTHWEAVE_ZITADEL_ADMIN_PASSWORD` from the ignored file,
 opened privately in your editor. This synthetic account administers only the local IdP;
 it is not an AuthWeave curator. Test an incorrect password once, then the correct password.
-Application/project registration, ordinary synthetic users, BFF login, sessions and authorization
-remain subsequent steps. No cloud account, SMTP service or paid subscription is needed for this lab.
+BFF login, application sessions and authorization remain subsequent steps. Neither ordinary
+synthetic user is an IdP administrator or an AuthWeave curator. No cloud account, SMTP service
+or paid subscription is needed for this lab.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
 with its database: losing or changing it can make stored encrypted data unusable. Bootstrap

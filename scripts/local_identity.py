@@ -213,14 +213,15 @@ def session_request(opener, method: str, path: str, authorization: str, payload:
         raise RuntimeError("Local session API rejected the verification request.") from None
 
 
-def verify_password(password: str, authorization: str, call=session_request) -> None:
+def verify_password(password: str, authorization: str, call=session_request,
+                    *, login_name: str = "admin@authweave.localhost") -> None:
     opener = request.build_opener(request.ProxyHandler({}), NoRedirect())
     session_id: str | None = None
     session_token: str | None = None
     verification_failure: Exception | None = None
     try:
         created = call(opener, "POST", "/v2/sessions", authorization,
-                       {"checks": {"user": {"loginName": "admin@authweave.localhost"}}})
+                       {"checks": {"user": {"loginName": login_name}}})
         session_id = created.get("sessionId")
         created_token = created.get("sessionToken")
         require(isinstance(session_id, str) and re.fullmatch(r"[0-9]{1,40}", session_id) is not None,
@@ -242,9 +243,9 @@ def verify_password(password: str, authorization: str, call=session_request) -> 
         require(isinstance(session, dict), "Local session API returned an invalid session.")
         factors = session.get("factors")
         require(isinstance(factors, dict), "Local session API returned invalid factors.")
-        require(factors.get("user", {}).get("loginName") == "admin@authweave.localhost"
+        require(factors.get("user", {}).get("loginName") == login_name
                 and isinstance(factors.get("password", {}).get("verifiedAt"), str),
-                "Local administrator password was not verified.")
+                "Local password factor was not verified.")
     except Exception as failure:
         verification_failure = failure
     cleanup_failure: Exception | None = None
