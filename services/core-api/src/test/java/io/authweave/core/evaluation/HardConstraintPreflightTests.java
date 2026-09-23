@@ -6,7 +6,10 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 
+import io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType;
+import io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation;
 import io.authweave.core.assessment.domain.profile.ComplianceScopeStatus;
+import io.authweave.core.assessment.domain.profile.DataResidencyDetails.DataCategory;
 import io.authweave.core.assessment.domain.profile.RequirementCriticality;
 import io.authweave.core.assessment.domain.profile.SecurityRequirements.AssuranceLevel;
 import io.authweave.core.catalog.ProviderCatalog;
@@ -32,6 +35,7 @@ class HardConstraintPreflightTests {
         assertEquals(HardConstraintPreflight.Verdict.EXCLUDED, result.verdict());
         assertEquals(List.of("REQUIRED_CAPABILITY_UNAVAILABLE"),
                 result.exclusionReasons().stream().map(HardConstraintPreflight.Finding::reasonCode).toList());
+        assertEquals("SCIM: The plan does not offer SCIM.", result.exclusionReasons().getFirst().explanation());
         assertEquals(List.of("EVIDENCE_MISSING", "COMPLIANCE_SCOPE_UNKNOWN"),
                 result.informationGaps().stream().map(HardConstraintPreflight.Finding::reasonCode).toList());
         assertThrows(UnsupportedOperationException.class, () -> result.informationGaps().clear());
@@ -68,6 +72,38 @@ class HardConstraintPreflightTests {
                 new ComplianceScopeCheck("security.complianceScopeStatus", ComplianceScopeStatus.NONE_IDENTIFIED,
                         List.of(), NOT_APPLIED, ComplianceScopeCheck.Reason.NO_COMPLIANCE_TARGETS_IDENTIFIED,
                         "No targets were identified.", false))));
+    }
+
+    @Test
+    void findingsIdentifyTheCheckedScopeWithoutChangingReasonCodes() {
+        var context = new EligibilityPreflight.ContextCheck(EligibilityPreflight.Dimension.CLIENT_TYPE,
+                "application.clients", "BROWSER", FAIL, EligibilityPreflight.Reason.CONTEXT_UNSUPPORTED,
+                "This client type is unsupported.", null);
+        var residency = new ResidencyCheck("security.dataResidency", RequirementCriticality.REQUIRED,
+                DataCategory.BACKUPS, List.of("DE"), List.of("US"), FAIL,
+                ResidencyCheck.Reason.STORAGE_OUTSIDE_ALLOWED_COUNTRIES,
+                "Reviewed storage is outside the allowlist.", null);
+        var authentication = new AuthenticationControlCheck(
+                "security.authenticationControls.phishingResistance", RequirementCriticality.REQUIRED,
+                ProviderCatalog.AuthenticationControl.PHISHING_RESISTANCE, ClientType.BROWSER,
+                UserPopulation.EMPLOYEES, UNKNOWN, AuthenticationControlCheck.Reason.EVIDENCE_MISSING,
+                "Reviewed evidence is missing.", null);
+        var candidate = new EligibilityPreflightV3.Candidate("fictional-plan", "Fictional Plan", "Demo",
+                "Synthetic region", DOES_NOT_MATCH, List.of(), List.of(context), List.of(residency),
+                List.of(authentication));
+
+        var result = HardConstraintPreflight.from(source(candidate, unknownCompliance())).candidates().getFirst();
+
+        assertEquals(HardConstraintPreflight.Verdict.EXCLUDED, result.verdict());
+        assertEquals(List.of("CONTEXT_UNSUPPORTED", "STORAGE_OUTSIDE_ALLOWED_COUNTRIES"),
+                result.exclusionReasons().stream().map(HardConstraintPreflight.Finding::reasonCode).toList());
+        assertEquals("BROWSER: This client type is unsupported.",
+                result.exclusionReasons().getFirst().explanation());
+        assertEquals("BACKUPS (observed outside allowlist: US): Reviewed storage is outside the allowlist.",
+                result.exclusionReasons().get(1).explanation());
+        assertEquals("PHISHING_RESISTANCE / BROWSER / EMPLOYEES: Reviewed evidence is missing.",
+                result.informationGaps().getFirst().explanation());
+        assertEquals("EVIDENCE_MISSING", result.informationGaps().getFirst().reasonCode());
     }
 
     private static EligibilityPreflightV4 source(EligibilityPreflightV3.Candidate candidate, ComplianceScopeCheck compliance) {

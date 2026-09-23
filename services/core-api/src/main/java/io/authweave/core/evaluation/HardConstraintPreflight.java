@@ -47,19 +47,34 @@ public record HardConstraintPreflight(UUID workspaceId, UUID assessmentId, long 
         var unknown = new ArrayList<Finding>();
         for (var check : candidate.capabilityChecks()) {
             add(excluded, unknown, check.outcome(), new Finding(Dimension.CAPABILITY,
-                    check.profilePath(), check.reasonCode().name(), check.explanation()));
+                    check.profilePath(), check.reasonCode().name(),
+                    scoped(check.capability().name(), check.explanation())));
         }
         for (var check : candidate.contextChecks()) {
             add(excluded, unknown, check.outcome(), new Finding(Dimension.CONTEXT,
-                    check.profilePath(), check.reasonCode().name(), check.explanation()));
+                    check.profilePath(), check.reasonCode().name(),
+                    check.requestedValue() == null ? check.explanation()
+                            : scoped(check.requestedValue(), check.explanation())));
         }
         for (var check : candidate.residencyChecks()) {
+            String scope = check.dataCategory() == null ? null : check.dataCategory().name();
+            if (scope != null && !check.outsideAllowedCountries().isEmpty()) {
+                scope += " (observed outside allowlist: " + String.join(", ", check.outsideAllowedCountries()) + ")";
+            }
             add(excluded, unknown, check.outcome(), new Finding(Dimension.RESIDENCY,
-                    check.profilePath(), check.reasonCode().name(), check.explanation()));
+                    check.profilePath(), check.reasonCode().name(),
+                    scope == null ? check.explanation() : scoped(scope, check.explanation())));
         }
         for (var check : candidate.authenticationControlChecks()) {
+            String scope = check.control().name();
+            if (check.client() != null) {
+                scope += " / " + check.client().name();
+            }
+            if (check.population() != null) {
+                scope += " / " + check.population().name();
+            }
             add(excluded, unknown, check.outcome(), new Finding(Dimension.AUTHENTICATION_CONTROL,
-                    check.profilePath(), check.reasonCode().name(), check.explanation()));
+                    check.profilePath(), check.reasonCode().name(), scoped(scope, check.explanation())));
         }
         add(excluded, unknown, compliance.outcome(), new Finding(Dimension.COMPLIANCE_SCOPE,
                 compliance.profilePath(), compliance.reasonCode().name(), compliance.explanation()));
@@ -86,5 +101,9 @@ public record HardConstraintPreflight(UUID workspaceId, UUID assessmentId, long 
             CapabilityPreflight.Outcome outcome, Finding finding) {
         if (outcome == FAIL) excluded.add(finding);
         if (outcome == UNKNOWN) unknown.add(finding);
+    }
+
+    private static String scoped(String scope, String explanation) {
+        return scope + ": " + explanation;
     }
 }

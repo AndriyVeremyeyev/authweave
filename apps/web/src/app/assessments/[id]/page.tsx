@@ -236,6 +236,9 @@ function FindingList({ title, findings }: { title: string; findings: ComparisonF
       <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-slate-300">
         {findings.map((finding, index) => (
           <li key={`${finding.dimension}-${finding.profilePath}-${finding.reasonCode}-${index}`}>
+            <span className="font-medium text-slate-200">
+              {finding.dimension.toLowerCase().replaceAll("_", " ")}: {" "}
+            </span>
             {finding.explanation}
             <span className="ml-1 text-slate-400">({finding.reasonCode})</span>
           </li>
