@@ -533,6 +533,9 @@ nonblank scope and all four quantities; if any is `ASSUMED`, at least one assump
 is required. Otherwise `NEEDS_INFORMATION` includes exact `missingPaths`. All-observed
 inputs need no invented assumptions. Recorded inputs are not necessarily correct or
 sufficient for a vendor-specific estimate.
+The private assessment page shows this check next to the usage editor. Its BFF verifies
+the response against the current assessment version and saved inputs before displaying
+missing fields; an unavailable check does not make the assessment itself unavailable.
 
 `pricingEvaluated` and `recommendationReady` are always false. No tariff lookup,
 cost quote, free-tier promise, affordability check, score or provider elimination is

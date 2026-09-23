@@ -3,13 +3,15 @@ import { test } from "node:test";
 
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
-  readPersonalArchitecturePatterns, readSyntheticComparison, updatePersonalCapabilities,
+  readPersonalArchitecturePatterns, readPersonalUsagePlanning, readSyntheticComparison,
+  updatePersonalCapabilities,
   previewPersonalWeightedComparison,
   previewPersonalWeightSensitivity,
   updatePersonalEvaluationContext,
   updatePersonalUsagePlanning,
 } from "../src/lib/auth/core-client.ts";
 import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/capabilities.ts";
+import { usageMetrics, type UsagePlanningValues } from "../src/lib/assessment/usage-planning.ts";
 
 const identity = {
   issuer: "http://localhost:8081",
@@ -532,6 +534,131 @@ test("BFF rejects forged or cross-workspace architecture claims", async () => {
     }
     globalThis.fetch = async () => new Response(null, { status: 403 });
     await assert.rejects(readPersonalArchitecturePatterns(session, assessmentId, 2, patternContext), /read failed/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+const usageValues: UsagePlanningValues = {
+  scopeDescription: "First production month", assumptions: ["Initial forecast"],
+  volumes: {
+    MONTHLY_ACTIVE_USERS: { basis: "ASSUMED", value: 500 },
+    MONTHLY_M2M_TOKEN_ISSUANCES: { basis: "OBSERVED", value: 0 },
+  },
+};
+const coreUsagePreflight = {
+  workspaceId: session.workspaceId, assessmentId, assessmentVersion: 2,
+  policyVersion: "usage-planning-preflight-1", evaluatedAt: "2026-09-22T12:00:00Z",
+  scope: "USAGE_PLANNING_PREFLIGHT", pricingEvaluated: false, recommendationReady: false,
+  status: "NEEDS_INFORMATION", scopeDescription: usageValues.scopeDescription,
+  assumptions: usageValues.assumptions,
+  missingPaths: ["operations.usagePlanning.volumes.ENTERPRISE_SSO_CONNECTIONS",
+    "operations.usagePlanning.volumes.PEAK_HUMAN_LOGINS_PER_SECOND"],
+  quantityChecks: usageMetrics.map(metric => {
+    const input = usageValues.volumes[metric.key];
+    return { metric: metric.key, unit: metric.unit, definition: metric.help,
+      status: input?.basis ?? "UNKNOWN", input: input ?? null };
+  }),
+  explanation: "Owner-supplied inputs only; no price or recommendation is calculated.",
+};
+
+test("BFF projects only a version-matched personal usage input check", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const token = "synthetic-internal-token-000000000000000000000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token;
+  let calls = 0;
+  globalThis.fetch = async (input, init) => {
+    calls++;
+    assert.equal(input,
+      `http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/usage-planning-preflight`);
+    assert.equal(init?.method, "GET");
+    assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
+    assert.equal(init?.cache, "no-store");
+    assert.equal(init?.redirect, "error");
+    return Response.json({ ...coreUsagePreflight, explanation: "Everything is free and verified",
+      quantityChecks: coreUsagePreflight.quantityChecks.map(check => ({ ...check,
+        definition: "This is a verified billing unit" })) });
+  };
+  try {
+    const result = await readPersonalUsagePlanning(session, assessmentId, 2, usageValues);
+    assert.equal(result.status, "NEEDS_INFORMATION");
+    assert.deepEqual(result.missingPaths, coreUsagePreflight.missingPaths);
+    assert.equal(result.quantityChecks[0].value, 500);
+    assert.equal(result.quantityChecks[2].value, 0);
+    assert.equal(result.quantityChecks[1].value, null);
+    assert.equal("pricingEvaluated" in result, false);
+    assert.equal("scopeDescription" in result, false);
+    assert.equal("explanation" in result, false);
+    assert.equal("definition" in result.quantityChecks[0], false);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF rejects forged, stale or contradictory usage input claims", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json(coreUsagePreflight); };
+  try {
+    await assert.rejects(readPersonalUsagePlanning(session, "../other", 2, usageValues), /request is invalid/);
+    await assert.rejects(readPersonalUsagePlanning(session, assessmentId, -1, usageValues), /request is invalid/);
+    assert.equal(calls, 0);
+    for (const invalid of [
+      { ...coreUsagePreflight, workspaceId: "70000000-0000-4000-8000-000000000002" },
+      { ...coreUsagePreflight, assessmentVersion: 1 },
+      { ...coreUsagePreflight, pricingEvaluated: true },
+      { ...coreUsagePreflight, recommendationReady: true },
+      { ...coreUsagePreflight, status: "INPUTS_RECORDED" },
+      { ...coreUsagePreflight, missingPaths: [] },
+      { ...coreUsagePreflight, assumptions: [] },
+      { ...coreUsagePreflight, estimatedMonthlyCost: 0 },
+      { ...coreUsagePreflight, quantityChecks: [{ ...coreUsagePreflight.quantityChecks[0], input: null },
+        ...coreUsagePreflight.quantityChecks.slice(1)] },
+      { ...coreUsagePreflight, quantityChecks: [{ ...coreUsagePreflight.quantityChecks[0],
+        status: "OBSERVED" }, ...coreUsagePreflight.quantityChecks.slice(1)] },
+    ]) {
+      globalThis.fetch = async () => Response.json(invalid);
+      await assert.rejects(readPersonalUsagePlanning(session, assessmentId, 2, usageValues), /invalid/);
+    }
+    globalThis.fetch = async () => new Response(null, { status: 403 });
+    await assert.rejects(readPersonalUsagePlanning(session, assessmentId, 2, usageValues), /read failed/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF accepts a fully recorded all-observed input inventory without an assumption", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const planning: UsagePlanningValues = {
+    scopeDescription: "Observed pilot month", assumptions: [],
+    volumes: Object.fromEntries(usageMetrics.map((metric, index) =>
+      [metric.key, { basis: "OBSERVED", value: index === 0 ? 0 : index }])) as UsagePlanningValues["volumes"],
+  };
+  globalThis.fetch = async () => Response.json({ ...coreUsagePreflight,
+    status: "INPUTS_RECORDED", scopeDescription: planning.scopeDescription,
+    assumptions: [], missingPaths: [],
+    quantityChecks: usageMetrics.map(metric => ({ metric: metric.key, unit: metric.unit,
+      definition: metric.help, status: "OBSERVED", input: planning.volumes[metric.key] })),
+  });
+  try {
+    const result = await readPersonalUsagePlanning(session, assessmentId, 2, planning);
+    assert.equal(result.status, "INPUTS_RECORDED");
+    assert.deepEqual(result.missingPaths, []);
+    assert.equal(result.quantityChecks[0].value, 0);
+    assert.equal("cost" in result, false);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

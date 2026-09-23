@@ -1,21 +1,25 @@
 export const usageMetrics = [
   {
     key: "MONTHLY_ACTIVE_USERS",
+    unit: "USERS_PER_MONTH",
     label: "Monthly active users",
     help: "Distinct humans authenticating in one month, not registered accounts or login count.",
   },
   {
     key: "ENTERPRISE_SSO_CONNECTIONS",
+    unit: "CONFIGURED_CONNECTIONS",
     label: "Enterprise SSO connections",
     help: "Configured upstream enterprise IdP connections, not the number of organizations.",
   },
   {
     key: "MONTHLY_M2M_TOKEN_ISSUANCES",
+    unit: "TOKEN_ISSUANCES_PER_MONTH",
     label: "Monthly M2M token issuances",
     help: "Machine-to-machine access tokens issued in one month, not downstream API requests.",
   },
   {
     key: "PEAK_HUMAN_LOGINS_PER_SECOND",
+    unit: "LOGINS_PER_SECOND",
     label: "Peak human logins per second",
     help: "Successful human logins during the busiest one-second interval.",
   },

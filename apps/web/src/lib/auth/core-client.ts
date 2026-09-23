@@ -2,7 +2,8 @@
 import type { BrowserSession } from "./store.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 import { withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
-import { withUsagePlanningValues, type UsagePlanningValues } from "../assessment/usage-planning.ts";
+import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
+  type UsageMetric, type UsagePlanningValues } from "../assessment/usage-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
   type SensitivityCapabilityDelta, type SensitivityCandidate, type SensitivityPreview,
   type WeightedCandidate, type WeightedContribution, type WeightedPreview } from "../assessment/weights.ts";
@@ -83,6 +84,22 @@ export type ArchitecturePatternPreflightSummary = {
   checkedPaths: string[];
   deferredPaths: string[];
   patterns: ArchitecturePatternSummary[];
+};
+
+export type UsageMissingPath = "operations.usagePlanning.scopeDescription" |
+  "operations.usagePlanning.assumptions" | `operations.usagePlanning.volumes.${UsageMetric}`;
+
+export type UsagePlanningPreflightSummary = {
+  assessmentVersion: number;
+  evaluatedAt: string;
+  status: "NEEDS_INFORMATION" | "INPUTS_RECORDED";
+  missingPaths: UsageMissingPath[];
+  quantityChecks: {
+    metric: UsageMetric;
+    unit: (typeof usageMetrics)[number]["unit"];
+    status: "UNKNOWN" | "ASSUMED" | "OBSERVED";
+    value: number | null;
+  }[];
 };
 
 function serviceToken(): string {
@@ -511,6 +528,77 @@ export async function readPersonalArchitecturePatterns(session: BrowserSession, 
   });
   if (response.status !== 200) throw new Error("Core architecture pattern read failed");
   return architecturePatternsFromCore(await response.json(), session, id, expectedVersion, context);
+}
+
+function usagePlanningFromCore(value: unknown, session: BrowserSession, id: string,
+  expectedVersion: number, planning: UsagePlanningValues): UsagePlanningPreflightSummary {
+  const body = object(value);
+  exactKeys(body, ["workspaceId", "assessmentId", "assessmentVersion", "policyVersion", "evaluatedAt",
+    "scope", "pricingEvaluated", "recommendationReady", "status", "scopeDescription", "assumptions",
+    "missingPaths", "quantityChecks", "explanation"]);
+  const missing: UsageMissingPath[] = [];
+  if (planning.scopeDescription.trim() === "") missing.push("operations.usagePlanning.scopeDescription");
+  for (const metric of usageMetrics) {
+    if (!planning.volumes[metric.key]) missing.push(`operations.usagePlanning.volumes.${metric.key}`);
+  }
+  if (planning.assumptions.length === 0 &&
+      Object.values(planning.volumes).some(input => input?.basis === "ASSUMED")) {
+    missing.push("operations.usagePlanning.assumptions");
+  }
+  const expectedStatus = missing.length === 0 ? "INPUTS_RECORDED" : "NEEDS_INFORMATION";
+  if (body.workspaceId !== session.workspaceId || body.assessmentId !== id ||
+      body.assessmentVersion !== expectedVersion || body.policyVersion !== "usage-planning-preflight-1" ||
+      body.scope !== "USAGE_PLANNING_PREFLIGHT" || body.pricingEvaluated !== false ||
+      body.recommendationReady !== false || body.status !== expectedStatus ||
+      body.scopeDescription !== planning.scopeDescription ||
+      JSON.stringify(body.assumptions) !== JSON.stringify(planning.assumptions) ||
+      JSON.stringify(body.missingPaths) !== JSON.stringify(missing) ||
+      !Array.isArray(body.quantityChecks) || body.quantityChecks.length !== usageMetrics.length) {
+    throw new Error("Core usage planning response is invalid");
+  }
+  const evaluatedAt = boundedText(body.evaluatedAt, 100);
+  if (Number.isNaN(Date.parse(evaluatedAt))) throw new Error("Core usage planning response is invalid");
+  boundedText(body.explanation, 350);
+  const quantityChecks = body.quantityChecks.map((item: unknown, index: number) => {
+    const raw = object(item);
+    exactKeys(raw, ["metric", "unit", "definition", "status", "input"]);
+    const metric = usageMetrics[index];
+    const expected = planning.volumes[metric.key];
+    if (raw.metric !== metric.key || raw.unit !== metric.unit ||
+        raw.status !== (expected?.basis ?? "UNKNOWN")) {
+      throw new Error("Core usage planning response is invalid");
+    }
+    boundedText(raw.definition, 200);
+    let input: number | null = null;
+    if (expected) {
+      const quantity = object(raw.input);
+      exactKeys(quantity, ["basis", "value"]);
+      if (quantity.basis !== expected.basis || quantity.value !== expected.value) {
+        throw new Error("Core usage planning response is invalid");
+      }
+      input = expected.value;
+    } else if (raw.input !== null) {
+      throw new Error("Core usage planning response is invalid");
+    }
+    return { metric: metric.key, unit: metric.unit,
+      status: raw.status as UsagePlanningPreflightSummary["quantityChecks"][number]["status"], value: input };
+  });
+  return { assessmentVersion: expectedVersion, evaluatedAt, status: expectedStatus,
+    missingPaths: missing, quantityChecks };
+}
+
+export async function readPersonalUsagePlanning(session: BrowserSession, id: string,
+  expectedVersion: number, planning: UsagePlanningValues): Promise<UsagePlanningPreflightSummary> {
+  const checkedPlanning = usagePlanningValues({ operations: { usagePlanning: planning } });
+  if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0 || !checkedPlanning) {
+    throw new Error("Usage planning request is invalid");
+  }
+  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/usage-planning-preflight`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error",
+    signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status !== 200) throw new Error("Core usage planning read failed");
+  return usagePlanningFromCore(await response.json(), session, id, expectedVersion, checkedPlanning);
 }
 
 function weightedPreviewFromCore(value: unknown, session: BrowserSession, id: string,

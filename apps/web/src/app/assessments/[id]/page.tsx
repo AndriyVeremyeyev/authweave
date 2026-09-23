@@ -6,15 +6,18 @@ import { capabilityFields, capabilityValues, criticalities, type Capability, typ
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
 import { authConfiguration } from "@/lib/auth/config";
-import { readPersonalArchitecturePatterns, readPersonalAssessment, readSyntheticComparison,
+import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning,
+  readSyntheticComparison,
   type ArchitecturePatternPreflightSummary, type ComparisonCandidate, type ComparisonFinding,
-  type PersonalAssessment, type SyntheticComparisonSummary } from "@/lib/auth/core-client";
+  type PersonalAssessment, type SyntheticComparisonSummary,
+  type UsagePlanningPreflightSummary } from "@/lib/auth/core-client";
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession, type BrowserSession } from "@/lib/auth/store";
 import { WeightedPreviewForm } from "./weighted-preview";
 import { EvaluationContextEditor } from "./evaluation-context-editor";
 import { ArchitecturePatterns } from "./architecture-patterns";
 import { UsagePlanningEditor } from "./usage-planning-editor";
+import { UsagePlanningPreflight } from "./usage-planning-preflight";
 
 export const runtime = "nodejs";
 
@@ -83,6 +86,15 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
     }
   }
 
+  let usagePreview: UsagePlanningPreflightSummary | null = null;
+  if (usageValues) {
+    try {
+      usagePreview = await readPersonalUsagePlanning(session, id, assessment.version, usageValues);
+    } catch {
+      // Keep the assessment and other independent previews readable if this input check is unavailable.
+    }
+  }
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-20 text-slate-100">
       <Link href="/assessments" className="text-sm text-cyan-200 hover:underline">← Your assessments</Link>
@@ -127,6 +139,12 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
         <p className="mt-8 rounded-lg border border-amber-700 p-4 text-amber-100">
           Usage editing is unavailable because this profile cannot be read safely.
         </p>
+      )}
+      {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : (
+        <section className="mt-6 rounded-xl border border-amber-700 p-6" aria-labelledby="usage-preflight-heading">
+          <h2 id="usage-preflight-heading" className="text-xl font-semibold">Usage input check unavailable</h2>
+          <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
+        </section>
       )}
       {comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values}
         assessmentId={assessment.id} preferred={preferred} /> : (
