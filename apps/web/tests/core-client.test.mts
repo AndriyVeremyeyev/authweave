@@ -4,6 +4,8 @@ import { test } from "node:test";
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
   readSyntheticComparison, updatePersonalCapabilities,
+  previewPersonalWeightedComparison,
+  updatePersonalEvaluationContext,
 } from "../src/lib/auth/core-client.ts";
 import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/capabilities.ts";
 
@@ -93,6 +95,54 @@ const editableProfile = {
   security: { multiFactorAuthentication: "UNKNOWN", assurance: "UNKNOWN" },
   operations: { source: "keep" },
 };
+const contextProfile = {
+  ...editableProfile,
+  application: { type: "UNKNOWN", clients: [] },
+  audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
+  security: { ...editableProfile.security, dataResidency: "UNKNOWN", complianceScopeStatus: "UNKNOWN",
+    complianceTargets: [],
+    authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
+      stepUpAuthentication: "UNKNOWN" } },
+};
+
+test("BFF context update preserves capabilities and uses the existing optimistic Core write", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let puts = 0;
+  globalThis.fetch = async (_input, init) => {
+    if (init?.method === "GET") return Response.json({ ...coreAssessment, version: 3, profile: contextProfile });
+    puts++;
+    assert.equal(init?.method, "PUT");
+    const update = JSON.parse(String(init?.body));
+    assert.equal(update.expectedVersion, 3);
+    assert.equal(update.profile.application.type, "B2B_SAAS");
+    assert.deepEqual(update.profile.application.clients, ["BROWSER"]);
+    assert.deepEqual(update.profile.protocols, contextProfile.protocols);
+    assert.deepEqual(update.profile.operations, contextProfile.operations);
+    return Response.json({ ...coreAssessment, version: 4, profile: update.profile });
+  };
+  const values = {
+    applicationType: "B2B_SAAS" as const, clients: ["BROWSER" as const],
+    selectedPopulations: ["EXTERNAL_CUSTOMERS" as const],
+    tenancy: "MULTI_TENANT_ORGANIZATIONS" as const,
+    membership: "MULTIPLE_ORGANIZATIONS_PER_USER" as const,
+    dataResidency: "NOT_REQUIRED" as const, phishingResistance: "NOT_REQUIRED" as const,
+    nonExportableKeys: "NOT_REQUIRED" as const, stepUpAuthentication: "NOT_REQUIRED" as const,
+    complianceScopeStatus: "NONE_IDENTIFIED" as const,
+    selectedComplianceTargets: [] as ("SOC_2" | "ISO_27001")[],
+  };
+  try {
+    assert.equal(await updatePersonalEvaluationContext(session, assessmentId, 2, values), "conflict");
+    assert.equal(puts, 0);
+    assert.equal(await updatePersonalEvaluationContext(session, assessmentId, 3, values), "saved");
+    assert.equal(puts, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
 
 test("BFF updates only capabilities via a fresh Core profile and expected version", async () => {
   const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
@@ -332,6 +382,133 @@ test("BFF rejects forged ranking, stale or cross-workspace comparisons before re
     }
     globalThis.fetch = async () => new Response(null, { status: 403 });
     await assert.rejects(readSyntheticComparison(session, assessmentId, 2), /read failed/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+const preferredProfile = {
+  ...editableProfile,
+  protocols: { ...editableProfile.protocols, socialLogin: "PREFERRED" },
+};
+const scoredComparison = {
+  ...coreComparison,
+  candidates: [{ ...coreComparison.candidates[0], hardVerdict: "PASSES_CHECKED_REQUIREMENTS",
+    informationGaps: [], capabilityPreferences: [{ ...coreComparison.candidates[0].capabilityPreferences[0],
+      outcome: "AVAILABLE", reasonCode: "PREFERRED_CAPABILITY_AVAILABLE" }] }],
+};
+const coreWeightedPreview = {
+  comparison: scoredComparison, scoringPolicyVersion: "explicit-capability-weights-1",
+  weights: { SOCIAL_LOGIN: 100 }, rankingPerformed: false, recommendationReady: false,
+  scores: [{ optionId: "fictional-plan", status: "SCORED", score: 100,
+    contributions: [{ capability: "SOCIAL_LOGIN", weight: 100,
+      outcome: "AVAILABLE", earnedPoints: 100 }] }],
+};
+
+test("BFF previews explicit weights through the session workspace and projects safe score data", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const token = "synthetic-internal-token-000000000000000000000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token;
+  const calls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push(`${init?.method} ${input}`);
+    assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
+    assert.equal(init?.cache, "no-store");
+    if (init?.method === "GET") return Response.json({ ...coreAssessment, version: 2, profile: preferredProfile });
+    assert.equal(init?.method, "POST");
+    assert.deepEqual(JSON.parse(String(init?.body)), { weights: { SOCIAL_LOGIN: 100 } });
+    return Response.json(coreWeightedPreview);
+  };
+  try {
+    const result = await previewPersonalWeightedComparison(session, assessmentId, 2, { SOCIAL_LOGIN: 100 });
+    assert.equal(result.kind, "preview");
+    if (result.kind !== "preview") return;
+    assert.deepEqual(result.preview.candidates, [{
+      optionId: "fictional-plan", displayName: "Fictional Plan", plan: "Demo",
+      region: "Synthetic region", status: "SCORED", score: 100,
+      contributions: [{ capability: "SOCIAL_LOGIN", weight: 100,
+        outcome: "AVAILABLE", earnedPoints: 100 }],
+    }]);
+    assert.equal("evidence" in result.preview.candidates[0], false);
+    assert.equal("winnerId" in result.preview, false);
+    assert.deepEqual(calls, [
+      `GET http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
+      `POST http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/weighted-comparison-preview`,
+    ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF keeps points withheld when preferred evidence is unknown", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const unknownComparison = { ...scoredComparison, candidates: [{ ...scoredComparison.candidates[0],
+    capabilityPreferences: [{ ...scoredComparison.candidates[0].capabilityPreferences[0],
+      outcome: "UNKNOWN", reasonCode: "EVIDENCE_MISSING" }] }] };
+  globalThis.fetch = async (_input, init) => init?.method === "GET" ?
+    Response.json({ ...coreAssessment, version: 2, profile: preferredProfile }) :
+    Response.json({ ...coreWeightedPreview, comparison: unknownComparison,
+      scores: [{ optionId: "fictional-plan", status: "UNKNOWN_PREFERENCE_EVIDENCE",
+        score: null, contributions: [] }] });
+  try {
+    const result = await previewPersonalWeightedComparison(session, assessmentId, 2, { SOCIAL_LOGIN: 100 });
+    assert.equal(result.kind, "preview");
+    if (result.kind === "preview") {
+      assert.equal(result.preview.candidates[0].status, "UNKNOWN_PREFERENCE_EVIDENCE");
+      assert.equal(result.preview.candidates[0].score, null);
+      assert.deepEqual(result.preview.candidates[0].contributions, []);
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF rejects stale or mismatched weights and forged score responses", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let posts = 0;
+  globalThis.fetch = async (_input, init) => {
+    if (init?.method === "POST") { posts++; return Response.json(coreWeightedPreview); }
+    return Response.json({ ...coreAssessment, version: 2, profile: preferredProfile });
+  };
+  try {
+    assert.deepEqual(await previewPersonalWeightedComparison(session, assessmentId, 1,
+      { SOCIAL_LOGIN: 100 }), { kind: "conflict" });
+    assert.deepEqual(await previewPersonalWeightedComparison(session, assessmentId, 2,
+      { SCIM: 100 }), { kind: "invalid" });
+    assert.equal(posts, 0);
+    for (const invalid of [
+      { ...coreWeightedPreview, rankingPerformed: true },
+      { ...coreWeightedPreview, winnerId: "fictional-plan" },
+      { ...coreWeightedPreview, weights: { SOCIAL_LOGIN: 99 } },
+      { ...coreWeightedPreview, comparison: { ...scoredComparison,
+        workspaceId: "70000000-0000-4000-8000-000000000002" } },
+      { ...coreWeightedPreview, scores: [{ ...coreWeightedPreview.scores[0], score: 99 }] },
+      { ...coreWeightedPreview, scores: [{ ...coreWeightedPreview.scores[0],
+        contributions: [{ ...coreWeightedPreview.scores[0].contributions[0], earnedPoints: 99 }] }] },
+    ]) {
+      globalThis.fetch = async (_input, init) => init?.method === "GET" ?
+        Response.json({ ...coreAssessment, version: 2, profile: preferredProfile }) : Response.json(invalid);
+      await assert.rejects(previewPersonalWeightedComparison(session, assessmentId, 2,
+        { SOCIAL_LOGIN: 100 }), /response is invalid/);
+    }
+    globalThis.fetch = async (_input, init) => init?.method === "GET" ?
+      Response.json({ ...coreAssessment, version: 2, profile: preferredProfile }) :
+      Response.json({ ...coreWeightedPreview,
+        comparison: { ...scoredComparison, assessmentVersion: 3 } });
+    assert.deepEqual(await previewPersonalWeightedComparison(session, assessmentId, 2,
+      { SOCIAL_LOGIN: 100 }), { kind: "conflict" });
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

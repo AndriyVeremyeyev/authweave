@@ -3,11 +3,14 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { capabilityFields, capabilityValues, criticalities, type CapabilityValues } from "@/lib/assessment/capabilities";
+import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { authConfiguration } from "@/lib/auth/config";
 import { readPersonalAssessment, readSyntheticComparison, type ComparisonCandidate,
   type ComparisonFinding, type PersonalAssessment, type SyntheticComparisonSummary } from "@/lib/auth/core-client";
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession, type BrowserSession } from "@/lib/auth/store";
+import { WeightedPreviewForm } from "./weighted-preview";
+import { EvaluationContextEditor } from "./evaluation-context-editor";
 
 export const runtime = "nodejs";
 
@@ -15,6 +18,11 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const editErrors: Record<string, string> = {
   stale: "This draft changed since you opened it. Review the current values and save again.",
   invalid: "Core rejected this combination of requirements. Review the current profile before trying again.",
+  locked: "Only drafts can be edited here.",
+};
+const contextErrors: Record<string, string> = {
+  stale: "This draft changed since you opened it. Review the current context and save again.",
+  invalid: "Core rejected this combination of context and security requirements. Review the profile before trying again.",
   locked: "Only drafts can be edited here.",
 };
 
@@ -40,8 +48,13 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
   }
   if (!assessment) notFound();
 
-  const editError = (await searchParams).editError;
+  const query = await searchParams;
+  const editError = query.editError;
+  const contextError = query.contextError;
   const values = capabilityValues(assessment.profile);
+  const contextValues = evaluationContextValues(assessment.profile);
+  const preferred = values ? capabilityFields.filter(field => values[field.capability] === "PREFERRED")
+    .map(field => ({ capability: field.capability, label: field.label })) : [];
 
   let comparison: SyntheticComparisonSummary | null = null;
   try {
@@ -53,16 +66,28 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
   return (
     <main className="mx-auto max-w-4xl px-6 py-20 text-slate-100">
       <Link href="/assessments" className="text-sm text-cyan-200 hover:underline">← Your assessments</Link>
-      <h1 className="mt-8 text-4xl font-semibold">Assessment draft</h1>
+      <h1 className="mt-8 text-4xl font-semibold">Assessment</h1>
       <dl className="mt-8 grid gap-4 rounded-xl border border-slate-700 p-6 sm:grid-cols-3">
         <div><dt className="text-sm text-slate-400">Status</dt><dd>{assessment.status}</dd></div>
         <div><dt className="text-sm text-slate-400">Version</dt><dd>{assessment.version}</dd></div>
         <div><dt className="text-sm text-slate-400">ID</dt><dd className="break-all text-sm">{assessment.id}</dd></div>
       </dl>
-      <p className="mt-6 text-slate-300">This is your private assessment. You can edit capability requirements below; other profile fields remain read-only.</p>
+      <p className="mt-6 text-slate-300">This is your private assessment. You can record application context and selected requirements below; other profile details remain read-only.</p>
       {typeof editError === "string" && Object.hasOwn(editErrors, editError) && (
         <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">
           {editErrors[editError]}
+        </p>
+      )}
+      {typeof contextError === "string" && Object.hasOwn(contextErrors, contextError) && (
+        <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">
+          {contextErrors[contextError]}
+        </p>
+      )}
+      {assessment.status === "DRAFT" && contextValues &&
+        <EvaluationContextEditor assessmentId={assessment.id} version={assessment.version} values={contextValues} />}
+      {assessment.status === "DRAFT" && !contextValues && (
+        <p className="mt-8 rounded-lg border border-amber-700 p-4 text-amber-100">
+          Context editing is unavailable because this profile cannot be read safely.
         </p>
       )}
       {assessment.status === "DRAFT" && values && <CapabilityEditor assessment={assessment} values={values} />}
@@ -71,7 +96,8 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           Capability editing is unavailable because this profile cannot be read safely.
         </p>
       )}
-      {comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values} /> : (
+      {comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values}
+        assessmentId={assessment.id} preferred={preferred} /> : (
         <section className="mt-10 rounded-xl border border-amber-700 p-6" aria-labelledby="comparison-heading">
           <h2 id="comparison-heading" className="text-xl font-semibold">Synthetic comparison unavailable</h2>
           <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
@@ -124,7 +150,10 @@ function CapabilityEditor({ assessment, values }: { assessment: PersonalAssessme
   );
 }
 
-function ComparisonSection({ comparison, editable }: { comparison: SyntheticComparisonSummary; editable: boolean }) {
+function ComparisonSection({ comparison, editable, assessmentId, preferred }: {
+  comparison: SyntheticComparisonSummary; editable: boolean; assessmentId: string;
+  preferred: { capability: string; label: string }[];
+}) {
   const preferences = comparison.candidates[0]?.capabilityPreferences.length ?? 0;
   return (
     <section className="mt-10" aria-labelledby="comparison-heading">
@@ -132,11 +161,13 @@ function ComparisonSection({ comparison, editable }: { comparison: SyntheticComp
       <p className="mt-3 text-slate-300">These are fictional plans for learning and testing the decision rules, not real provider recommendations. The checks below do not cover every requirement or establish a winner.</p>
       <p className="mt-2 text-sm text-slate-400">Assessment version {comparison.assessmentVersion} · Catalog {comparison.catalogVersion} · Checked {new Date(comparison.evaluatedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</p>
       {preferences === 0 && <p className="mt-5 rounded-lg border border-slate-700 p-4 text-slate-300">
-        No capability preferences are recorded in this draft. {editable && "Choose Preferred above and save to see how the fictional plans compare. "}Weighted scoring is not available yet.
+        No capability preferences are recorded in this draft. {editable && "Choose Preferred above and save to see how the fictional plans compare. "}The optional weight preview requires at least one saved preference.
       </p>}
       <ul className="mt-6 space-y-5">
         {comparison.candidates.map(candidate => <ComparisonCard key={candidate.optionId} candidate={candidate} />)}
       </ul>
+      {preferred.length > 0 && <WeightedPreviewForm key={`${assessmentId}-${comparison.assessmentVersion}`}
+        assessmentId={assessmentId} version={comparison.assessmentVersion} preferred={preferred} />}
       <details className="mt-6 rounded-xl border border-slate-700 p-5 text-sm text-slate-300">
         <summary className="cursor-pointer font-medium">Checks not included in this comparison</summary>
         <p className="mt-3">A passing result applies only to checked constraints. Cost, operations and other listed topics still need review.</p>

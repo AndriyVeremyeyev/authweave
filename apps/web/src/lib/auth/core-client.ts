@@ -1,6 +1,9 @@
 // This local-only server-to-server call never exposes its credential to the browser.
 import type { BrowserSession } from "./store.ts";
-import { capabilityValues, withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
+import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
+import { withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
+import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
+  type WeightedCandidate, type WeightedContribution, type WeightedPreview } from "../assessment/weights.ts";
 
 const CORE_ORIGIN = "http://127.0.0.1:8080";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -136,20 +139,18 @@ export async function readPersonalAssessment(session: BrowserSession, id: string
   return assessmentFromCore(await response.json(), session, id);
 }
 
-export type CapabilityUpdateResult = "saved" | "conflict" | "invalid" | "not-found" | "not-editable";
+export type ProfileUpdateResult = "saved" | "conflict" | "invalid" | "not-found" | "not-editable";
 
-export async function updatePersonalCapabilities(
-  session: BrowserSession, id: string, expectedVersion: number, values: CapabilityValues,
-): Promise<CapabilityUpdateResult> {
+async function updatePersonalProfile(session: BrowserSession, id: string, expectedVersion: number,
+  patch: (profile: Record<string, unknown>) => Record<string, unknown>): Promise<ProfileUpdateResult> {
   if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) {
-    throw new Error("Capability update request is invalid");
+    throw new Error("Profile update request is invalid");
   }
   const current = await readPersonalAssessment(session, id);
   if (!current) return "not-found";
   if (current.status !== "DRAFT") return "not-editable";
   if (current.version !== expectedVersion) return "conflict";
-  if (!capabilityValues(current.profile)) throw new Error("Core profile cannot be edited safely");
-  const profile = withCapabilityValues(current.profile, values);
+  const profile = patch(current.profile);
   const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/profile`, {
     method: "PUT",
     headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
@@ -159,13 +160,27 @@ export async function updatePersonalCapabilities(
   if (response.status === 409) return "conflict";
   if (response.status === 400 || response.status === 422) return "invalid";
   if (response.status === 404) return "not-found";
-  if (response.status !== 200) throw new Error("Core capability update failed");
+  if (response.status !== 200) throw new Error("Core profile update failed");
   const saved = assessmentFromCore(await response.json(), session, id);
   if (saved.status !== "DRAFT" || saved.version < expectedVersion ||
       saved.version > expectedVersion + 1) {
-    throw new Error("Core capability update response is invalid");
+    throw new Error("Core profile update response is invalid");
   }
   return "saved";
+}
+
+export async function updatePersonalCapabilities(
+  session: BrowserSession, id: string, expectedVersion: number, values: CapabilityValues,
+): Promise<ProfileUpdateResult> {
+  return updatePersonalProfile(session, id, expectedVersion,
+    profile => withCapabilityValues(profile, values));
+}
+
+export async function updatePersonalEvaluationContext(
+  session: BrowserSession, id: string, expectedVersion: number, values: EvaluationContextValues,
+): Promise<ProfileUpdateResult> {
+  return updatePersonalProfile(session, id, expectedVersion,
+    profile => withEvaluationContextValues(profile, values));
 }
 
 export async function listPersonalAssessments(
@@ -348,4 +363,116 @@ export async function readSyntheticComparison(session: BrowserSession, id: strin
   });
   if (response.status !== 200) throw new Error("Core comparison read failed");
   return comparisonFromCore(await response.json(), session, id, expectedVersion);
+}
+
+function weightedPreviewFromCore(value: unknown, session: BrowserSession, id: string,
+  expectedVersion: number, weights: CapabilityWeights): WeightedPreview {
+  const body = object(value);
+  exactKeys(body, ["comparison", "scoringPolicyVersion", "weights", "rankingPerformed", "recommendationReady", "scores"]);
+  const comparison = comparisonFromCore(body.comparison, session, id, expectedVersion);
+  const echoedWeights = object(body.weights);
+  const expectedKeys = Object.keys(weights);
+  if (body.scoringPolicyVersion !== "explicit-capability-weights-1" ||
+      body.rankingPerformed !== false || body.recommendationReady !== false ||
+      Object.keys(echoedWeights).length !== expectedKeys.length ||
+      expectedKeys.some(key => echoedWeights[key] !== weights[key as keyof CapabilityWeights]) ||
+      !Array.isArray(body.scores) || body.scores.length !== comparison.candidates.length) {
+    throw new Error("Core weighted preview response is invalid");
+  }
+  const scoreById = new Map<string, WeightedCandidate>();
+  for (const item of body.scores) {
+    const raw = object(item);
+    exactKeys(raw, ["optionId", "status", "score", "contributions"]);
+    const candidate = comparison.candidates.find(entry => entry.optionId === raw.optionId);
+    if (!candidate || scoreById.has(candidate.optionId) ||
+        candidate.capabilityPreferences.length !== expectedKeys.length ||
+        candidate.capabilityPreferences.some(preference => !expectedKeys.includes(preference.capability)) ||
+        !["SCORED", "EXCLUDED", "UNRESOLVED_HARD_CONSTRAINTS", "UNKNOWN_PREFERENCE_EVIDENCE"].includes(String(raw.status)) ||
+        !Array.isArray(raw.contributions)) {
+      throw new Error("Core weighted preview response is invalid");
+    }
+    const status = raw.status as WeightedCandidate["status"];
+    const expectedStatus = candidate.hardVerdict === "EXCLUDED" ? "EXCLUDED" :
+      candidate.hardVerdict === "UNRESOLVED" ? "UNRESOLVED_HARD_CONSTRAINTS" :
+        candidate.capabilityPreferences.some(preference => preference.outcome === "UNKNOWN") ?
+          "UNKNOWN_PREFERENCE_EVIDENCE" : "SCORED";
+    if (status !== expectedStatus) throw new Error("Core weighted preview response is invalid");
+    let contributions: WeightedContribution[] = [];
+    if (status === "SCORED") {
+      if (!Number.isSafeInteger(raw.score) || Number(raw.score) < 0 || Number(raw.score) > 100 ||
+          raw.contributions.length !== expectedKeys.length) {
+        throw new Error("Core weighted preview response is invalid");
+      }
+      const seen = new Set<string>();
+      contributions = raw.contributions.map((entry: unknown): WeightedContribution => {
+        const contribution = object(entry);
+        exactKeys(contribution, ["capability", "weight", "outcome", "earnedPoints"]);
+        const preference = candidate.capabilityPreferences.find(p => p.capability === contribution.capability);
+        const capability = String(contribution.capability);
+        const weight = weights[capability as keyof CapabilityWeights];
+        if (!preference || seen.has(capability) || weight === undefined || contribution.weight !== weight ||
+            contribution.outcome !== preference.outcome ||
+            contribution.earnedPoints !== (preference.outcome === "AVAILABLE" ? weight : 0)) {
+          throw new Error("Core weighted preview response is invalid");
+        }
+        seen.add(capability);
+        return {
+          capability, weight, outcome: contribution.outcome as WeightedContribution["outcome"],
+          earnedPoints: contribution.earnedPoints as number,
+        };
+      });
+      if (contributions.reduce((sum, entry) => sum + entry.earnedPoints, 0) !== raw.score) {
+        throw new Error("Core weighted preview response is invalid");
+      }
+    } else if (raw.score !== null || raw.contributions.length !== 0) {
+      throw new Error("Core weighted preview response is invalid");
+    }
+    scoreById.set(candidate.optionId, {
+      optionId: candidate.optionId, displayName: candidate.displayName, plan: candidate.plan,
+      region: candidate.region, status, score: raw.score as number | null, contributions,
+    });
+  }
+  if (scoreById.size !== comparison.candidates.length) throw new Error("Core weighted preview response is invalid");
+  return {
+    assessmentVersion: comparison.assessmentVersion,
+    catalogVersion: comparison.catalogVersion,
+    scoringPolicyVersion: body.scoringPolicyVersion as string,
+    candidates: comparison.candidates.map(candidate => scoreById.get(candidate.optionId)!),
+  };
+}
+
+export type WeightedPreviewResult =
+  | { kind: "preview"; preview: WeightedPreview }
+  | { kind: "conflict" }
+  | { kind: "invalid" }
+  | { kind: "not-found" };
+
+export async function previewPersonalWeightedComparison(
+  session: BrowserSession, id: string, expectedVersion: number, weights: CapabilityWeights,
+): Promise<WeightedPreviewResult> {
+  if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) {
+    throw new Error("Weighted preview request is invalid");
+  }
+  const current = await readPersonalAssessment(session, id);
+  if (!current) return { kind: "not-found" };
+  if (current.version !== expectedVersion) return { kind: "conflict" };
+  const preferred = preferredCapabilities(current.profile);
+  if (!preferred) throw new Error("Core profile cannot be read safely");
+  if (!weightsMatchPreferences(weights, preferred)) return { kind: "invalid" };
+  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/weighted-comparison-preview`, {
+    method: "POST",
+    headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
+    body: JSON.stringify({ weights }),
+    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status === 400) return { kind: "conflict" };
+  if (response.status === 404) return { kind: "not-found" };
+  if (response.status !== 200) throw new Error("Core weighted preview failed");
+  const body: unknown = await response.json();
+  const comparison = object(object(body).comparison);
+  if (comparison.workspaceId === session.workspaceId && comparison.assessmentId === id &&
+      Number.isSafeInteger(comparison.assessmentVersion) &&
+      comparison.assessmentVersion !== expectedVersion) return { kind: "conflict" };
+  return { kind: "preview", preview: weightedPreviewFromCore(body, session, id,
+    expectedVersion, weights) };
 }

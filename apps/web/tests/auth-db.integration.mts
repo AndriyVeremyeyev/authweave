@@ -4,6 +4,8 @@ import { NextRequest } from "next/server.js";
 
 import { POST as createAssessmentRoute } from "../src/app/api/assessments/route.ts";
 import { POST as updateCapabilitiesRoute } from "../src/app/api/assessments/[id]/capabilities/route.ts";
+import { POST as weightedPreviewRoute } from "../src/app/api/assessments/[id]/weighted-preview/route.ts";
+import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { authDatabase, beginLogin, consumeLogin, createSession, revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
@@ -246,6 +248,189 @@ test("capability route enforces session, origin, form scope and optimistic versi
     assert.equal(conflict.status, 303);
     assert.equal(conflict.headers.get("location"),
       `http://localhost:3000/assessments/${assessmentId}?editError=stale`);
+    assert.equal(calls.length, 3);
+  } finally {
+    await revokeSession(sessionId);
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of [
+      ["AUTHWEAVE_OIDC_ISSUER", previous.issuer],
+      ["AUTHWEAVE_OIDC_CLIENT_ID", previous.clientId],
+      ["AUTHWEAVE_PUBLIC_ORIGIN", previous.origin],
+      ["AUTHWEAVE_CORE_SERVICE_TOKEN", previous.token],
+    ] as const) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("weighted preview route enforces origin and session without saving an assessment", async () => {
+  const previous = {
+    issuer: process.env.AUTHWEAVE_OIDC_ISSUER,
+    clientId: process.env.AUTHWEAVE_OIDC_CLIENT_ID,
+    origin: process.env.AUTHWEAVE_PUBLIC_ORIGIN,
+    token: process.env.AUTHWEAVE_CORE_SERVICE_TOKEN,
+    fetch: globalThis.fetch,
+  };
+  process.env.AUTHWEAVE_OIDC_ISSUER = "http://localhost:8081";
+  process.env.AUTHWEAVE_OIDC_CLIENT_ID = "synthetic-client";
+  process.env.AUTHWEAVE_PUBLIC_ORIGIN = "http://localhost:3000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const workspaceId = "70000000-0000-4000-8000-000000000001";
+  const assessmentId = "80000000-0000-4000-8000-000000000001";
+  const identity = {
+    workspaceId, issuer: "http://localhost:8081", subject: "synthetic-weight-user",
+    email: null, displayName: null, authenticatedAt: new Date(),
+  };
+  const sessionId = await createSession(identity, undefined);
+  const profile = {
+    protocols: { federation: { OIDC: "PREFERRED" }, oauth2ProtectedApis: "UNKNOWN",
+      socialLogin: "UNKNOWN", enterpriseSingleSignOn: "UNKNOWN" },
+    provisioning: { scim: "UNKNOWN", justInTimeProvisioning: "UNKNOWN", groupSynchronization: "UNKNOWN" },
+    security: { multiFactorAuthentication: "UNKNOWN" },
+  };
+  const comparison = {
+    workspaceId, assessmentId, assessmentVersion: 2, catalogVersion: "synthetic-test",
+    catalogKind: "SYNTHETIC", policyVersion: "synthetic-comparison-1",
+    hardConstraintPolicyVersion: "hard-constraint-preflight-1",
+    preferencePolicyVersion: "capability-preference-1",
+    evaluatedAt: "2026-09-22T12:00:00Z", scope: "SYNTHETIC_UNRANKED_COMPARISON",
+    recommendationReady: false, rankingPerformed: false, deferredPaths: ["operations"],
+    candidates: [{ optionId: "fictional-plan", displayName: "Fictional Plan", plan: "Demo",
+      region: "Synthetic region", hardVerdict: "UNRESOLVED", exclusionReasons: [],
+      informationGaps: [{ dimension: "COVERAGE", profilePath: "assessment",
+        reasonCode: "NO_AFFIRMATIVE_CHECKS", explanation: "Clarify the requirements." }],
+      capabilityPreferences: [{ capability: "OIDC", profilePath: "protocols.federation.OIDC",
+        outcome: "UNKNOWN", reasonCode: "EVIDENCE_MISSING", explanation: "Evidence is missing.",
+        evidence: null }],
+    }],
+  };
+  const context = { params: Promise.resolve({ id: assessmentId }) };
+  const request = (origin: string, cookie: string | null, body = "expectedVersion=2&OIDC=100") => new NextRequest(
+    `http://localhost:3000/api/assessments/${assessmentId}/weighted-preview`, {
+      method: "POST", headers: {
+        Origin: origin, "Content-Type": "application/x-www-form-urlencoded",
+        ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}),
+      }, body,
+    },
+  );
+  const calls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push(`${init?.method} ${input}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
+      status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+    assert.deepEqual(JSON.parse(String(init?.body)), { weights: { OIDC: 100 } });
+    return Response.json({ comparison, scoringPolicyVersion: "explicit-capability-weights-1",
+      weights: { OIDC: 100 }, rankingPerformed: false, recommendationReady: false,
+      scores: [{ optionId: "fictional-plan", status: "UNRESOLVED_HARD_CONSTRAINTS",
+        score: null, contributions: [] }] });
+  };
+  try {
+    assert.equal((await weightedPreviewRoute(request("https://other.example.test", sessionId), context)).status, 403);
+    assert.equal((await weightedPreviewRoute(request("http://localhost:3000", null), context)).status, 401);
+    assert.equal((await weightedPreviewRoute(request("http://localhost:3000", sessionId,
+      "expectedVersion=2&OIDC=99"), context)).status, 400);
+    assert.equal(calls.length, 0);
+    const response = await weightedPreviewRoute(request("http://localhost:3000", sessionId), context);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    const preview = await response.json();
+    assert.equal(preview.candidates[0].score, null);
+    assert.equal(preview.candidates[0].status, "UNRESOLVED_HARD_CONSTRAINTS");
+    assert.equal("evidence" in preview.candidates[0], false);
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "POST"]);
+    const stale = await weightedPreviewRoute(request("http://localhost:3000", sessionId,
+      "expectedVersion=1&OIDC=100"), context);
+    assert.equal(stale.status, 409);
+    assert.equal(calls.length, 3);
+  } finally {
+    await revokeSession(sessionId);
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of [
+      ["AUTHWEAVE_OIDC_ISSUER", previous.issuer],
+      ["AUTHWEAVE_OIDC_CLIENT_ID", previous.clientId],
+      ["AUTHWEAVE_PUBLIC_ORIGIN", previous.origin],
+      ["AUTHWEAVE_CORE_SERVICE_TOKEN", previous.token],
+    ] as const) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("evaluation context route accepts only a scoped form from the personal session", async () => {
+  const previous = {
+    issuer: process.env.AUTHWEAVE_OIDC_ISSUER,
+    clientId: process.env.AUTHWEAVE_OIDC_CLIENT_ID,
+    origin: process.env.AUTHWEAVE_PUBLIC_ORIGIN,
+    token: process.env.AUTHWEAVE_CORE_SERVICE_TOKEN,
+    fetch: globalThis.fetch,
+  };
+  process.env.AUTHWEAVE_OIDC_ISSUER = "http://localhost:8081";
+  process.env.AUTHWEAVE_OIDC_CLIENT_ID = "synthetic-client";
+  process.env.AUTHWEAVE_PUBLIC_ORIGIN = "http://localhost:3000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const workspaceId = "70000000-0000-4000-8000-000000000001";
+  const assessmentId = "80000000-0000-4000-8000-000000000001";
+  const identity = {
+    workspaceId, issuer: "http://localhost:8081", subject: "synthetic-context-user",
+    email: null, displayName: null, authenticatedAt: new Date(),
+  };
+  const sessionId = await createSession(identity, undefined);
+  const profile = {
+    application: { type: "UNKNOWN", clients: [] },
+    audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
+    protocols: { federation: { OIDC: "PREFERRED" } },
+    security: { dataResidency: "UNKNOWN", complianceScopeStatus: "UNKNOWN",
+      complianceTargets: [],
+      authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
+        stepUpAuthentication: "UNKNOWN" } },
+  };
+  const form = new URLSearchParams({
+    expectedVersion: "2", applicationType: "B2B_SAAS", tenancy: "SINGLE_ORGANIZATION",
+    membership: "SINGLE_ORGANIZATION_PER_USER", dataResidency: "NOT_REQUIRED",
+    phishingResistance: "NOT_REQUIRED", nonExportableKeys: "NOT_REQUIRED",
+    stepUpAuthentication: "NOT_REQUIRED", complianceScopeStatus: "NONE_IDENTIFIED",
+  });
+  form.append("clients", "BROWSER");
+  form.append("selectedPopulations", "EMPLOYEES");
+  const context = { params: Promise.resolve({ id: assessmentId }) };
+  const request = (origin: string, cookie: string | null, body = form.toString()) => new NextRequest(
+    `http://localhost:3000/api/assessments/${assessmentId}/evaluation-context`, {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/x-www-form-urlencoded",
+        ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}) }, body,
+    },
+  );
+  const calls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push(`${init?.method} ${input}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
+      status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+    const update = JSON.parse(String(init?.body));
+    assert.equal(update.expectedVersion, 2);
+    assert.equal(update.profile.application.type, "B2B_SAAS");
+    assert.deepEqual(update.profile.protocols, profile.protocols);
+    return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
+      profileSchemaVersion: 5, profile: update.profile });
+  };
+  try {
+    assert.equal((await evaluationContextRoute(request("https://other.example.test", sessionId), context)).status, 403);
+    assert.equal((await evaluationContextRoute(request("http://localhost:3000", null), context)).status, 401);
+    const forged = new URLSearchParams(form);
+    forged.append("workspaceId", "90000000-0000-4000-8000-000000000001");
+    assert.equal((await evaluationContextRoute(request("http://localhost:3000", sessionId,
+      forged.toString()), context)).status, 400);
+    assert.equal(calls.length, 0);
+    const response = await evaluationContextRoute(request("http://localhost:3000", sessionId), context);
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}`);
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT"]);
+    const stale = new URLSearchParams(form);
+    stale.set("expectedVersion", "1");
+    const conflict = await evaluationContextRoute(request("http://localhost:3000", sessionId,
+      stale.toString()), context);
+    assert.equal(conflict.headers.get("location"),
+      `http://localhost:3000/assessments/${assessmentId}?contextError=stale`);
     assert.equal(calls.length, 3);
   } finally {
     await revokeSession(sessionId);
