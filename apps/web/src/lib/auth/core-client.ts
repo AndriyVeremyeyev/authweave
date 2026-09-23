@@ -1,5 +1,7 @@
 // This local-only server-to-server call never exposes its credential to the browser.
 import type { BrowserSession } from "./store.ts";
+import type { AuthConfiguration } from "./config.ts";
+import { freshCuratorGrant } from "./curator.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 import { withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
@@ -9,6 +11,9 @@ import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
   type WeightedCandidate, type WeightedContribution, type WeightedPreview } from "../assessment/weights.ts";
 
 const CORE_ORIGIN = "http://127.0.0.1:8080";
+
+export type CuratorProbeStatus = "not-configured" | "not-granted" | "reauth-required" |
+  "core-rejected" | "core-unavailable" | "ready";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type PersonalAssessment = {
@@ -108,6 +113,41 @@ function serviceToken(): string {
     throw new Error("Core service credential is not configured");
   }
   return token;
+}
+
+// Only the BFF may assert a login-time role from its server-side session to Core.
+export async function readCuratorAuthorization(
+  session: BrowserSession, config: Pick<AuthConfiguration, "issuer" | "curatorScope">,
+  now: Date = new Date(),
+): Promise<CuratorProbeStatus> {
+  const scope = config.curatorScope;
+  if (!scope) return "not-configured";
+  if (session.issuer !== config.issuer.href.replace(/\/$/, "") || !session.curatorScope ||
+      session.curatorScope.projectId !== scope.projectId ||
+      session.curatorScope.organizationId !== scope.organizationId) return "not-granted";
+  if (!freshCuratorGrant(session.curatorScope, scope, session.authenticatedAt, now)) {
+    return "reauth-required";
+  }
+  if (!session.issuer || !session.subject) return "core-rejected";
+  try {
+    const response = await fetch(`${CORE_ORIGIN}/internal/v1/catalog-curator/authorization`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${serviceToken()}`,
+        "X-AuthWeave-Oidc-Issuer": session.issuer,
+        "X-AuthWeave-Oidc-Subject": session.subject,
+        "X-AuthWeave-Curator-Role": "catalog_curator",
+        "X-AuthWeave-Curator-Project-Id": scope.projectId,
+        "X-AuthWeave-Curator-Org-Id": scope.organizationId,
+        "X-AuthWeave-Authenticated-At": session.authenticatedAt.toISOString(),
+      },
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    });
+    if (response.status === 204) return "ready";
+    return response.status === 401 || response.status === 403 ? "core-rejected" : "core-unavailable";
+  } catch {
+    return "core-unavailable";
+  }
 }
 
 export async function provisionPersonalWorkspace(

@@ -144,7 +144,11 @@ store-catalog-impact:
 		-Dspring-boot.run.arguments="--store-catalog-impact --spring.main.web-application-type=none"
 
 dev-core:
-	@set -a; . ./infra/.env; set +a; cd services/core-api; exec ./mvnw spring-boot:run
+	@set -a; . ./infra/.env; set +a; \
+		if [ -f ./apps/web/.env.local ]; then \
+			. ./apps/web/.env.local; export AUTHWEAVE_OIDC_PROJECT_ID AUTHWEAVE_OIDC_ORG_ID; \
+		fi; \
+		cd services/core-api; exec ./mvnw spring-boot:run
 
 dev-web:
 	@. ./infra/.env; export AUTHWEAVE_WEB_DB_PASSWORD AUTHWEAVE_POSTGRES_DB AUTHWEAVE_POSTGRES_PORT AUTHWEAVE_CORE_SERVICE_TOKEN; \

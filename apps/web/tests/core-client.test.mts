@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
+  readCuratorAuthorization,
   readPersonalArchitecturePatterns, readPersonalUsagePlanning, readSyntheticComparison,
   updatePersonalCapabilities,
   previewPersonalWeightedComparison,
@@ -83,6 +84,87 @@ const session = {
   ...identity,
   workspaceId: "70000000-0000-4000-8000-000000000001",
 };
+const curatorScope = { projectId: "123456789012345678", organizationId: "987654321098765432" };
+const curatorNow = new Date("2026-09-22T12:10:00Z");
+const curatorIssuer = "http://localhost:8081";
+const curatorConfig = { issuer: new URL(curatorIssuer), curatorScope };
+
+test("BFF never calls Core for an absent, mismatched or stale curator grant", async () => {
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; throw new Error("Unexpected Core call"); };
+  try {
+    const eligible = { ...session, curatorScope, authenticatedAt: new Date("2026-09-22T12:00:00Z") };
+    assert.equal(await readCuratorAuthorization(eligible,
+      { ...curatorConfig, curatorScope: null }, curatorNow), "not-configured");
+    assert.equal(await readCuratorAuthorization(session, curatorConfig, curatorNow), "not-granted");
+    assert.equal(await readCuratorAuthorization(eligible, {
+      ...curatorConfig, issuer: new URL("https://different-idp.example.test"),
+    }, curatorNow), "not-granted");
+    assert.equal(await readCuratorAuthorization({ ...eligible, subject: "" },
+      curatorConfig, curatorNow), "core-rejected");
+    assert.equal(await readCuratorAuthorization({ ...eligible, curatorScope: {
+      ...curatorScope, projectId: "111111111111111111",
+    } }, curatorConfig, curatorNow), "not-granted");
+    assert.equal(await readCuratorAuthorization({ ...eligible, curatorScope: {
+      ...curatorScope, organizationId: "111111111111111111",
+    } }, curatorConfig, curatorNow), "not-granted");
+    assert.equal(await readCuratorAuthorization({ ...eligible,
+      authenticatedAt: new Date("2026-09-22T11:54:59Z"),
+    }, curatorConfig, curatorNow), "reauth-required");
+    assert.equal(await readCuratorAuthorization({ ...eligible,
+      authenticatedAt: new Date("2026-09-22T12:10:01Z"),
+    }, curatorConfig, curatorNow), "reauth-required");
+    assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});
+
+test("BFF sends only server-session curator assertions to fixed Core probe", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const token = "synthetic-internal-token-000000000000000000000";
+  const eligible = { ...session, curatorScope, authenticatedAt: new Date("2026-09-22T12:00:00Z") };
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token;
+  let calls = 0;
+  globalThis.fetch = async (input, init) => {
+    calls++;
+    assert.equal(input, "http://127.0.0.1:8080/internal/v1/catalog-curator/authorization");
+    assert.equal(init?.method, "GET");
+    assert.equal(init?.cache, "no-store");
+    assert.equal(init?.redirect, "error");
+    assert.equal(init?.body, undefined);
+    assert.ok(init?.signal instanceof AbortSignal);
+    assert.deepEqual(init?.headers, {
+      Authorization: `Bearer ${token}`,
+      "X-AuthWeave-Oidc-Issuer": eligible.issuer,
+      "X-AuthWeave-Oidc-Subject": eligible.subject,
+      "X-AuthWeave-Curator-Role": "catalog_curator",
+      "X-AuthWeave-Curator-Project-Id": curatorScope.projectId,
+      "X-AuthWeave-Curator-Org-Id": curatorScope.organizationId,
+      "X-AuthWeave-Authenticated-At": eligible.authenticatedAt.toISOString(),
+    });
+    return new Response(null, { status: 204 });
+  };
+  try {
+    assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "ready");
+    assert.equal(calls, 1);
+    globalThis.fetch = async () => new Response(null, { status: 403 });
+    assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "core-rejected");
+    globalThis.fetch = async () => new Response(null, { status: 503 });
+    assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "core-unavailable");
+    globalThis.fetch = async () => { throw new Error("Core is offline"); };
+    assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "core-unavailable");
+    delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "core-unavailable");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
 const assessmentId = "80000000-0000-4000-8000-000000000001";
 const coreAssessment = {
   id: assessmentId, workspaceId: session.workspaceId, status: "DRAFT", version: 0,
