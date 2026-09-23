@@ -13,14 +13,15 @@ const profile = {
     complianceScopeStatus: "UNKNOWN", complianceTargets: [],
     authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
       stepUpAuthentication: "UNKNOWN" },
-    dataResidencyDetails: { allowedCountries: ["US"] },
+    dataResidencyDetails: { allowedCountries: ["US"], dataCategories: ["USER_PROFILES"] },
   },
   operations: { source: "keep" },
 };
 
 const valid = new URLSearchParams({
   expectedVersion: "3", applicationType: "B2B_SAAS", tenancy: "MULTI_TENANT_ORGANIZATIONS",
-  membership: "MULTIPLE_ORGANIZATIONS_PER_USER", dataResidency: "NOT_REQUIRED",
+  membership: "MULTIPLE_ORGANIZATIONS_PER_USER", dataResidency: "REQUIRED",
+  allowedCountries: "CA, US",
   browserTokenExposureMinimization: "REQUIRED",
   phishingResistance: "NOT_REQUIRED", nonExportableKeys: "NOT_REQUIRED",
   stepUpAuthentication: "NOT_REQUIRED", complianceScopeStatus: "NONE_IDENTIFIED",
@@ -28,6 +29,8 @@ const valid = new URLSearchParams({
 valid.append("clients", "BROWSER");
 valid.append("selectedPopulations", "EXTERNAL_CUSTOMERS");
 valid.append("selectedPopulations", "PARTNERS");
+valid.append("selectedDataCategories", "USER_PROFILES");
+valid.append("selectedDataCategories", "BACKUPS");
 
 test("context form changes only its selected fields and preserves unrelated v5 profile details", () => {
   const before = evaluationContextValues(profile);
@@ -38,13 +41,15 @@ test("context form changes only its selected fields and preserves unrelated v5 p
   assert.equal((changed.application as Record<string, unknown>).type, "B2B_SAAS");
   assert.deepEqual((changed.audience as Record<string, unknown>).populations,
     ["EXTERNAL_CUSTOMERS", "PARTNERS"]);
-  assert.equal((changed.security as Record<string, unknown>).dataResidency, "NOT_REQUIRED");
+  assert.equal((changed.security as Record<string, unknown>).dataResidency, "REQUIRED");
   assert.equal((changed.security as Record<string, unknown>).browserTokenExposureMinimization, "REQUIRED");
   assert.deepEqual((changed.security as Record<string, unknown>).complianceTargets, []);
   assert.deepEqual(changed.protocols, profile.protocols);
   assert.deepEqual(changed.operations, profile.operations);
   assert.deepEqual((changed.security as Record<string, unknown>).dataResidencyDetails,
-    profile.security.dataResidencyDetails);
+    { allowedCountries: ["CA", "US"], dataCategories: ["USER_PROFILES", "BACKUPS"] });
+  assert.deepEqual(profile.security.dataResidencyDetails,
+    { allowedCountries: ["US"], dataCategories: ["USER_PROFILES"] });
   assert.equal(profile.application.type, "UNKNOWN");
   const targeted = new URLSearchParams(valid);
   targeted.set("complianceScopeStatus", "TARGETS_IDENTIFIED");
@@ -58,6 +63,8 @@ test("context form rejects unknown, duplicate or malformed choices", () => {
   for (const [key, value] of [
     ["applicationType", "PERSONAL_APP"], ["dataResidency", "MAYBE"],
     ["browserTokenExposureMinimization", "MAYBE"],
+    ["allowedCountries", "us, CA"], ["allowedCountries", "US, US"],
+    ["allowedCountries", "US,"], ["allowedCountries", "USA"],
     ["expectedVersion", "03"], ["expectedVersion", "9007199254740992"],
   ]) {
     const invalid = new URLSearchParams(valid);
@@ -66,6 +73,8 @@ test("context form rejects unknown, duplicate or malformed choices", () => {
   }
   for (const [key, value] of [
     ["clients", "BROWSER"], ["selectedPopulations", "PARTNERS"], ["tenancy", "UNKNOWN"],
+    ["selectedDataCategories", "BACKUPS"], ["selectedDataCategories", "OTHER"],
+    ["allowedCountries", "US"],
     ["forged", "true"],
   ]) {
     const invalid = new URLSearchParams(valid);
@@ -78,10 +87,20 @@ test("context form rejects unknown, duplicate or malformed choices", () => {
   const missingTokenCriterion = new URLSearchParams(valid);
   missingTokenCriterion.delete("browserTokenExposureMinimization");
   assert.throws(() => parseEvaluationContextForm(missingTokenCriterion), InvalidEvaluationContextForm);
+  const missingCountries = new URLSearchParams(valid);
+  missingCountries.delete("allowedCountries");
+  assert.throws(() => parseEvaluationContextForm(missingCountries), InvalidEvaluationContextForm);
   const duplicateTargets = new URLSearchParams(valid);
   duplicateTargets.append("selectedComplianceTargets", "SOC_2");
   duplicateTargets.append("selectedComplianceTargets", "SOC_2");
   assert.throws(() => parseEvaluationContextForm(duplicateTargets), InvalidEvaluationContextForm);
   assert.equal(evaluationContextValues({ ...profile, security: { ...profile.security,
     authenticationControls: { phishingResistance: null } } }), null);
+  assert.equal(evaluationContextValues({ ...profile, security: { ...profile.security,
+    dataResidencyDetails: { allowedCountries: ["US", "US"], dataCategories: [] } } }), null);
+  const unknownDetails = new URLSearchParams(valid);
+  unknownDetails.set("allowedCountries", " ");
+  unknownDetails.delete("selectedDataCategories");
+  assert.deepEqual(parseEvaluationContextForm(unknownDetails).values.allowedCountries, []);
+  assert.deepEqual(parseEvaluationContextForm(unknownDetails).values.selectedDataCategories, []);
 });

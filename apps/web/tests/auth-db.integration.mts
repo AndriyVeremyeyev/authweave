@@ -419,6 +419,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
     audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
     protocols: { federation: { OIDC: "PREFERRED" } },
     security: { dataResidency: "UNKNOWN", browserTokenExposureMinimization: "UNKNOWN",
+      dataResidencyDetails: { allowedCountries: [], dataCategories: [] },
       complianceScopeStatus: "UNKNOWN",
       complianceTargets: [],
       authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
@@ -426,13 +427,16 @@ test("evaluation context route accepts only a scoped form from the personal sess
   };
   const form = new URLSearchParams({
     expectedVersion: "2", applicationType: "B2B_SAAS", tenancy: "SINGLE_ORGANIZATION",
-    membership: "SINGLE_ORGANIZATION_PER_USER", dataResidency: "NOT_REQUIRED",
+    membership: "SINGLE_ORGANIZATION_PER_USER", dataResidency: "REQUIRED",
+    allowedCountries: "US, CA",
     browserTokenExposureMinimization: "REQUIRED",
     phishingResistance: "NOT_REQUIRED", nonExportableKeys: "NOT_REQUIRED",
     stepUpAuthentication: "NOT_REQUIRED", complianceScopeStatus: "NONE_IDENTIFIED",
   });
   form.append("clients", "BROWSER");
   form.append("selectedPopulations", "EMPLOYEES");
+  form.append("selectedDataCategories", "USER_PROFILES");
+  form.append("selectedDataCategories", "BACKUPS");
   const context = { params: Promise.resolve({ id: assessmentId }) };
   const request = (origin: string, cookie: string | null, body = form.toString()) => new NextRequest(
     `http://localhost:3000/api/assessments/${assessmentId}/evaluation-context`, {
@@ -450,6 +454,11 @@ test("evaluation context route accepts only a scoped form from the personal sess
     assert.equal(update.expectedVersion, 2);
     assert.equal(update.profile.application.type, "B2B_SAAS");
     assert.equal(update.profile.security.browserTokenExposureMinimization, "REQUIRED");
+    if (update.profile.security.dataResidencyDetails.allowedCountries.includes("ZZ")) {
+      return new Response(null, { status: 422 });
+    }
+    assert.deepEqual(update.profile.security.dataResidencyDetails,
+      { allowedCountries: ["CA", "US"], dataCategories: ["USER_PROFILES", "BACKUPS"] });
     assert.deepEqual(update.profile.protocols, profile.protocols);
     return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
       profileSchemaVersion: 5, profile: update.profile });
@@ -462,17 +471,29 @@ test("evaluation context route accepts only a scoped form from the personal sess
     assert.equal((await evaluationContextRoute(request("http://localhost:3000", sessionId,
       forged.toString()), context)).status, 400);
     assert.equal(calls.length, 0);
+    const malformedResidency = new URLSearchParams(form);
+    malformedResidency.set("allowedCountries", "us, CA");
+    assert.equal((await evaluationContextRoute(request("http://localhost:3000", sessionId,
+      malformedResidency.toString()), context)).status, 400);
+    assert.equal(calls.length, 0);
     const response = await evaluationContextRoute(request("http://localhost:3000", sessionId), context);
     assert.equal(response.status, 303);
     assert.equal(response.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}`);
     assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT"]);
+    const invalidCountry = new URLSearchParams(form);
+    invalidCountry.set("allowedCountries", "ZZ");
+    const rejected = await evaluationContextRoute(request("http://localhost:3000", sessionId,
+      invalidCountry.toString()), context);
+    assert.equal(rejected.headers.get("location"),
+      `http://localhost:3000/assessments/${assessmentId}?contextError=invalid`);
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT", "GET", "PUT"]);
     const stale = new URLSearchParams(form);
     stale.set("expectedVersion", "1");
     const conflict = await evaluationContextRoute(request("http://localhost:3000", sessionId,
       stale.toString()), context);
     assert.equal(conflict.headers.get("location"),
       `http://localhost:3000/assessments/${assessmentId}?contextError=stale`);
-    assert.equal(calls.length, 3);
+    assert.equal(calls.length, 5);
   } finally {
     await revokeSession(sessionId);
     globalThis.fetch = previous.fetch;

@@ -11,6 +11,7 @@ export const membershipModels = ["UNKNOWN", "SINGLE_ORGANIZATION_PER_USER",
   "MULTIPLE_ORGANIZATIONS_PER_USER", "NOT_APPLICABLE"] as const;
 export const complianceScopeStatuses = ["UNKNOWN", "NONE_IDENTIFIED", "TARGETS_IDENTIFIED"] as const;
 export const complianceTargets = ["SOC_2", "ISO_27001", "HIPAA", "FEDRAMP", "GDPR", "OTHER"] as const;
+export const dataCategories = ["USER_PROFILES", "CREDENTIALS", "AUDIT_LOGS", "BACKUPS"] as const;
 
 export type EvaluationContextValues = {
   applicationType: (typeof applicationTypes)[number];
@@ -19,6 +20,8 @@ export type EvaluationContextValues = {
   tenancy: (typeof tenancyModels)[number];
   membership: (typeof membershipModels)[number];
   dataResidency: Criticality;
+  allowedCountries: string[];
+  selectedDataCategories: (typeof dataCategories)[number][];
   browserTokenExposureMinimization: Criticality;
   phishingResistance: Criticality;
   nonExportableKeys: Criticality;
@@ -44,17 +47,27 @@ function selected<T extends string>(value: unknown, choices: readonly T[]): T[] 
   return value as T[];
 }
 
+function countries(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length > 249 ||
+      value.some(item => typeof item !== "string" || !/^[A-Z]{2}$/.test(item)) ||
+      new Set(value).size !== value.length) return null;
+  return [...value].sort();
+}
+
 export function evaluationContextValues(profile: Record<string, unknown>): EvaluationContextValues | null {
   const application = record(profile.application);
   const audience = record(profile.audience);
   const security = record(profile.security);
   const controls = record(security?.authenticationControls);
-  if (!application || !audience || !security || !controls) return null;
+  const residency = record(security?.dataResidencyDetails);
+  if (!application || !audience || !security || !controls || !residency) return null;
   const clients = selected(application.clients, clientTypes);
   const selectedPopulations = selected(audience.populations, populations);
   const selectedComplianceTargets = selected(security.complianceTargets, complianceTargets);
+  const selectedDataCategories = selected(residency.dataCategories, dataCategories);
+  const allowedCountries = countries(residency.allowedCountries);
   if (!option(application.type, applicationTypes) || !clients || !selectedPopulations ||
-      !selectedComplianceTargets ||
+      !selectedComplianceTargets || !selectedDataCategories || !allowedCountries ||
       !option(audience.tenancy, tenancyModels) || !option(audience.membership, membershipModels) ||
       !option(security.dataResidency, criticalities) ||
       !option(security.browserTokenExposureMinimization, criticalities) ||
@@ -66,6 +79,7 @@ export function evaluationContextValues(profile: Record<string, unknown>): Evalu
     applicationType: application.type, clients, selectedPopulations,
     tenancy: audience.tenancy, membership: audience.membership,
     dataResidency: security.dataResidency,
+    allowedCountries, selectedDataCategories,
     browserTokenExposureMinimization: security.browserTokenExposureMinimization,
     phishingResistance: controls.phishingResistance,
     nonExportableKeys: controls.nonExportableKeys,
@@ -89,11 +103,21 @@ function many(params: URLSearchParams, key: string, choices: readonly string[]):
   return entries;
 }
 
+function countryList(params: URLSearchParams): string[] {
+  const values = params.getAll("allowedCountries");
+  if (values.length !== 1 || values[0].length > 1024) throw new InvalidEvaluationContextForm();
+  const parsed = values[0].trim() === "" ? [] : values[0].split(",").map(code => code.trim());
+  const checked = countries(parsed);
+  if (!checked) throw new InvalidEvaluationContextForm();
+  return checked;
+}
+
 export function parseEvaluationContextForm(params: URLSearchParams): {
   expectedVersion: number; values: EvaluationContextValues;
 } {
   const allowed = ["expectedVersion", "applicationType", "clients", "selectedPopulations", "tenancy",
-    "membership", "dataResidency", "browserTokenExposureMinimization", "phishingResistance", "nonExportableKeys",
+    "membership", "dataResidency", "allowedCountries", "selectedDataCategories",
+    "browserTokenExposureMinimization", "phishingResistance", "nonExportableKeys",
     "stepUpAuthentication", "complianceScopeStatus", "selectedComplianceTargets"];
   if ([...params.keys()].some(key => !allowed.includes(key))) throw new InvalidEvaluationContextForm();
   const versions = params.getAll("expectedVersion");
@@ -109,6 +133,8 @@ export function parseEvaluationContextForm(params: URLSearchParams): {
     tenancy: single(params, "tenancy", tenancyModels) as EvaluationContextValues["tenancy"],
     membership: single(params, "membership", membershipModels) as EvaluationContextValues["membership"],
     dataResidency: single(params, "dataResidency", criticalities) as Criticality,
+    allowedCountries: countryList(params),
+    selectedDataCategories: many(params, "selectedDataCategories", dataCategories) as EvaluationContextValues["selectedDataCategories"],
     browserTokenExposureMinimization: single(params, "browserTokenExposureMinimization", criticalities) as Criticality,
     phishingResistance: single(params, "phishingResistance", criticalities) as Criticality,
     nonExportableKeys: single(params, "nonExportableKeys", criticalities) as Criticality,
@@ -127,12 +153,15 @@ export function withEvaluationContextValues(profile: Record<string, unknown>,
   const audience = copy.audience as Record<string, unknown>;
   const security = copy.security as Record<string, unknown>;
   const controls = security.authenticationControls as Record<string, unknown>;
+  const residency = security.dataResidencyDetails as Record<string, unknown>;
   application.type = values.applicationType;
   application.clients = [...values.clients];
   audience.populations = [...values.selectedPopulations];
   audience.tenancy = values.tenancy;
   audience.membership = values.membership;
   security.dataResidency = values.dataResidency;
+  residency.allowedCountries = [...values.allowedCountries];
+  residency.dataCategories = [...values.selectedDataCategories];
   security.browserTokenExposureMinimization = values.browserTokenExposureMinimization;
   security.complianceScopeStatus = values.complianceScopeStatus;
   security.complianceTargets = [...values.selectedComplianceTargets];

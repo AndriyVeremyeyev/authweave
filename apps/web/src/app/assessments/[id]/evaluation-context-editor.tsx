@@ -1,5 +1,5 @@
 import { criticalities } from "@/lib/assessment/capabilities";
-import { applicationTypes, clientTypes, complianceScopeStatuses, complianceTargets, membershipModels,
+import { applicationTypes, clientTypes, complianceScopeStatuses, complianceTargets, dataCategories, membershipModels,
   populations, tenancyModels, type EvaluationContextValues } from "@/lib/assessment/evaluation-context";
 
 const labels: Record<string, string> = {
@@ -20,6 +20,8 @@ const labels: Record<string, string> = {
   TARGETS_IDENTIFIED: "Compliance targets identified (not yet evaluated)",
   SOC_2: "SOC 2", ISO_27001: "ISO 27001", HIPAA: "HIPAA", FEDRAMP: "FedRAMP",
   GDPR: "GDPR",
+  USER_PROFILES: "User profiles", CREDENTIALS: "Credentials", AUDIT_LOGS: "Audit logs",
+  BACKUPS: "Backups and recovery copies",
 };
 
 export function EvaluationContextEditor({ assessmentId, version, values }: {
@@ -45,6 +47,22 @@ export function EvaluationContextEditor({ assessmentId, version, values }: {
           </div>
           <SelectField name="dataResidency" label="At-rest data residency requirement"
             value={values.dataResidency} choices={criticalities} />
+          <div className="sm:col-span-2 grid gap-5 sm:grid-cols-2">
+            <CheckboxGroup name="selectedDataCategories" label="Data categories covered by at-rest residency"
+              choices={dataCategories} selected={values.selectedDataCategories} />
+            <div>
+              <label htmlFor="context-allowedCountries" className="mb-2 block text-sm font-medium">
+                Allowed storage countries (ISO two-letter codes)
+              </label>
+              <input id="context-allowedCountries" name="allowedCountries" type="text" maxLength={1024}
+                pattern="[ ]*(?:[A-Z]{2}(?:[ ]*,[ ]*[A-Z]{2})*)?[ ]*"
+                title="Use uppercase two-letter country codes separated by commas, for example US, CA."
+                autoCapitalize="characters" spellCheck={false}
+                defaultValue={values.allowedCountries.join(", ")} placeholder="US, CA"
+                className="w-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-slate-100" />
+              <p className="mt-2 text-sm text-slate-400">Use uppercase country codes separated by commas. The same allowlist applies to each selected category. Empty means not recorded, not worldwide permission.</p>
+            </div>
+          </div>
           <SelectField name="browserTokenExposureMinimization" label="Minimize OAuth token exposure in browser code"
             value={values.browserTokenExposureMinimization} choices={criticalities} />
           <SelectField name="complianceScopeStatus" label="Compliance target scope"
@@ -58,7 +76,7 @@ export function EvaluationContextEditor({ assessmentId, version, values }: {
           <SelectField name="stepUpAuthentication" label="Stronger authentication for sensitive actions"
             value={values.stepUpAuthentication} choices={criticalities} />
         </div>
-        <p className="mt-5 text-sm text-slate-400">Browser token minimization helps compare BFF/session and SPA patterns; even “Required” does not automatically prohibit all browser tokens. “Not required” removes that particular constraint; it does not prove safety or compliance. Choose “No compliance targets identified” only after checking the scope; choose “Targets identified” with at least one label. Labels are not evidence of compliance. Other profile details are preserved.</p>
+        <p className="mt-5 text-sm text-slate-400">At-rest residency checks do not cover processing locations, support access or international transfers. Browser token minimization helps compare BFF/session and SPA patterns; even “Required” does not automatically prohibit all browser tokens. “Not required” removes that particular constraint; it does not prove safety or compliance. Choose “No compliance targets identified” only after checking the scope; choose “Targets identified” with at least one label. Labels are not evidence of compliance. Other profile details are preserved.</p>
         <button type="submit" className="mt-5 rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200">
           Save application context
         </button>

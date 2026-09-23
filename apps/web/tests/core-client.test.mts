@@ -102,6 +102,7 @@ const contextProfile = {
   audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
   security: { ...editableProfile.security, dataResidency: "UNKNOWN",
     browserTokenExposureMinimization: "UNKNOWN", complianceScopeStatus: "UNKNOWN",
+    dataResidencyDetails: { allowedCountries: [], dataCategories: [] },
     complianceTargets: [],
     authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
       stepUpAuthentication: "UNKNOWN" } },
@@ -120,6 +121,8 @@ test("BFF context update preserves capabilities and uses the existing optimistic
     assert.equal(update.expectedVersion, 3);
     assert.equal(update.profile.application.type, "B2B_SAAS");
     assert.deepEqual(update.profile.application.clients, ["BROWSER"]);
+    assert.deepEqual(update.profile.security.dataResidencyDetails,
+      { allowedCountries: ["CA", "US"], dataCategories: ["USER_PROFILES", "BACKUPS"] });
     assert.deepEqual(update.profile.protocols, contextProfile.protocols);
     assert.deepEqual(update.profile.operations, contextProfile.operations);
     return Response.json({ ...coreAssessment, version: 4, profile: update.profile });
@@ -129,7 +132,9 @@ test("BFF context update preserves capabilities and uses the existing optimistic
     selectedPopulations: ["EXTERNAL_CUSTOMERS" as const],
     tenancy: "MULTI_TENANT_ORGANIZATIONS" as const,
     membership: "MULTIPLE_ORGANIZATIONS_PER_USER" as const,
-    dataResidency: "NOT_REQUIRED" as const,
+    dataResidency: "REQUIRED" as const,
+    allowedCountries: ["CA", "US"],
+    selectedDataCategories: ["USER_PROFILES" as const, "BACKUPS" as const],
     browserTokenExposureMinimization: "REQUIRED" as const,
     phishingResistance: "NOT_REQUIRED" as const,
     nonExportableKeys: "NOT_REQUIRED" as const, stepUpAuthentication: "NOT_REQUIRED" as const,
