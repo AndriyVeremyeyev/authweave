@@ -7,6 +7,7 @@ package io.authweave.core.generated.jooq;
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
+import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
 import io.authweave.core.generated.jooq.tables.PersonalWorkspaces;
@@ -62,6 +63,12 @@ public class Core extends SchemaImpl {
     public final CatalogImpactReports CATALOG_IMPACT_REPORTS = CatalogImpactReports.CATALOG_IMPACT_REPORTS;
 
     /**
+     * Immutable rejection of one exact proposal revision; not approval or
+     * active catalog state.
+     */
+    public final CatalogProposalDecisions CATALOG_PROPOSAL_DECISIONS = CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
+
+    /**
      * Immutable request and preview snapshots. Freshness is historical, never
      * recomputed when reading.
      */
@@ -104,6 +111,7 @@ public class Core extends SchemaImpl {
             AssessmentRevisions.ASSESSMENT_REVISIONS,
             Assessments.ASSESSMENTS,
             CatalogImpactReports.CATALOG_IMPACT_REPORTS,
+            CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS,
             CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS,
             CatalogProposals.CATALOG_PROPOSALS,
             PersonalWorkspaces.PERSONAL_WORKSPACES,

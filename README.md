@@ -748,6 +748,18 @@ Flyway V8 adds the proposal head, revision and event tables without rewriting as
 data. jOOQ types are generated from the migration. No dependencies, accounts or paid
 services are added; the command exits without leaving a development server running.
 
+Flyway V12 reserves separate append-only storage for a human `REJECTED` decision and
+its audit event, bound to one exact proposal revision and digest. Both rows must commit
+together. The database rejects `APPROVED`, unknown reason codes, stale authentication
+times, service actors and duplicate decisions for the same revision. Core runtime may
+insert only the required fields; database-generated timestamps cannot be overridden,
+history cannot be updated or deleted, and the web database role has no access. The
+audit row contains actor identifiers and scope IDs, but no free-text rationale, source
+content, tokens or cookies. Database constraints alone cannot verify that a human
+actually authenticated: this is a storage boundary, not an enabled curator workflow.
+There is still no decision write API, role grant, approval, active catalog change or
+published state; existing proposal reads continue to report `PROPOSED`.
+
 ### Conditional catalog impact
 
 `POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview

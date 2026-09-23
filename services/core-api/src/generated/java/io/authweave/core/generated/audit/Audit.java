@@ -6,6 +6,7 @@ package io.authweave.core.generated.audit;
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
+import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 
 import java.util.Arrays;
@@ -52,6 +53,12 @@ public class Audit extends SchemaImpl {
     public final CatalogImpactReportEvents CATALOG_IMPACT_REPORT_EVENTS = CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS;
 
     /**
+     * Atomic verified-curator rejection event. No rationale, source text, token
+     * or cookie.
+     */
+    public final CatalogProposalDecisionEvents CATALOG_PROPOSAL_DECISION_EVENTS = CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS;
+
+    /**
      * Atomic proposal-write events attributed to the local service, not a
      * verified human curator. No raw proposal text.
      */
@@ -75,6 +82,7 @@ public class Audit extends SchemaImpl {
         return Arrays.asList(
             AssessmentEvents.ASSESSMENT_EVENTS,
             CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS,
+            CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS,
             CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS
         );
     }

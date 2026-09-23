@@ -7,6 +7,7 @@ package io.authweave.core.generated.jooq;
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
+import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
 import io.authweave.core.generated.jooq.tables.PersonalWorkspaces;
@@ -45,6 +46,12 @@ public class Tables {
      * revision. Not approval or active catalog evidence.
      */
     public static final CatalogImpactReports CATALOG_IMPACT_REPORTS = CatalogImpactReports.CATALOG_IMPACT_REPORTS;
+
+    /**
+     * Immutable rejection of one exact proposal revision; not approval or
+     * active catalog state.
+     */
+    public static final CatalogProposalDecisions CATALOG_PROPOSAL_DECISIONS = CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
 
     /**
      * Immutable request and preview snapshots. Freshness is historical, never

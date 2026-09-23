@@ -6,6 +6,7 @@ package io.authweave.core.generated.audit;
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
+import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 
 import javax.annotation.processing.Generated;
@@ -35,6 +36,12 @@ public class Tables {
      * human. No raw source or profile text.
      */
     public static final CatalogImpactReportEvents CATALOG_IMPACT_REPORT_EVENTS = CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS;
+
+    /**
+     * Atomic verified-curator rejection event. No rationale, source text, token
+     * or cookie.
+     */
+    public static final CatalogProposalDecisionEvents CATALOG_PROPOSAL_DECISION_EVENTS = CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS;
 
     /**
      * Atomic proposal-write events attributed to the local service, not a
