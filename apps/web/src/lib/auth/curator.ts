@@ -24,3 +24,24 @@ export function freshCuratorGrant(grant: CuratorScope | null | undefined, scope:
   const age = now.getTime() - authenticatedAt.getTime();
   return Number.isFinite(age) && age >= 0 && age <= SENSITIVE_ACTION_REAUTH_SECONDS * 1000;
 }
+
+export function reauthenticationProven(authenticatedAt: Date, startedAt: Date,
+                                       now: Date = new Date()): boolean {
+  const authenticated = authenticatedAt.getTime();
+  const started = startedAt.getTime();
+  const current = now.getTime();
+  const clockSkew = 30_000;
+  return Number.isFinite(authenticated) && Number.isFinite(started) && Number.isFinite(current) &&
+    started <= current + clockSkew && authenticated >= started - clockSkew &&
+    authenticated <= current + clockSkew &&
+    current - authenticated <= SENSITIVE_ACTION_REAUTH_SECONDS * 1000;
+}
+
+export function samePrincipalReauthentication(
+  existing: { issuer: string; subject: string },
+  current: { issuer: string; subject: string; authenticatedAt: Date },
+  startedAt: Date, now: Date = new Date(),
+): boolean {
+  return existing.issuer === current.issuer && existing.subject === current.subject &&
+    reauthenticationProven(current.authenticatedAt, startedAt, now);
+}

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { authConfiguration, sameOriginMutation, sameOriginRequest } from "../src/lib/auth/config.ts";
-import { oidcScopes } from "../src/lib/auth/oidc.ts";
+import { authenticationRequestParameters, oidcScopes } from "../src/lib/auth/oidc.ts";
 import {
   ABSOLUTE_SESSION_SECONDS, IDLE_SESSION_SECONDS, LOGIN_TRANSACTION_SECONDS,
   cookieOptions, loginCookieName, opaqueHash, randomOpaqueValue,
@@ -99,4 +99,9 @@ test("idle lifetime is capped by the eight-hour absolute deadline", () => {
   assert.equal(initial.absolute.toISOString(), "2026-09-22T08:00:00.000Z");
   const late = sessionExpiry(created, new Date("2026-09-22T07:50:00.000Z"));
   assert.equal(late.idle.toISOString(), late.absolute.toISOString());
+});
+
+test("step-up requests force interactive login while ordinary sign-in keeps its existing limit", () => {
+  assert.deepEqual(authenticationRequestParameters(false), { max_age: "28800" });
+  assert.deepEqual(authenticationRequestParameters(true), { max_age: "0", prompt: "login" });
 });

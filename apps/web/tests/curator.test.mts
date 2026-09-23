@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { curatorGrant, freshCuratorGrant, SENSITIVE_ACTION_REAUTH_SECONDS } from
+import { curatorGrant, freshCuratorGrant, samePrincipalReauthentication,
+  SENSITIVE_ACTION_REAUTH_SECONDS } from
   "../src/lib/auth/curator.ts";
 
 const scope = { projectId: "123456789012345678", organizationId: "987654321012345678" };
@@ -35,4 +36,22 @@ test("sensitive curator grant expires 15 minutes after authentication", () => {
   assert.equal(freshCuratorGrant(scope, scope, new Date("invalid"), now), false);
   assert.equal(freshCuratorGrant(null, scope, now, now), false);
   assert.equal(freshCuratorGrant(scope, { ...scope, projectId: "111" }, now, now), false);
+});
+
+test("step-up proves a recent authentication of the same issuer and subject", () => {
+  const started = new Date("2026-09-23T12:00:00.000Z");
+  const now = new Date("2026-09-23T12:02:00.000Z");
+  const existing = { issuer: "https://identity.example.test", subject: "alice" };
+  const current = { ...existing, authenticatedAt: new Date("2026-09-23T12:01:00.000Z") };
+  assert.equal(samePrincipalReauthentication(existing, current, started, now), true);
+  assert.equal(samePrincipalReauthentication(existing, { ...current, subject: "bob" }, started, now), false);
+  assert.equal(samePrincipalReauthentication(existing,
+    { ...current, issuer: "https://other.example.test" }, started, now), false);
+  assert.equal(samePrincipalReauthentication(existing,
+    { ...current, authenticatedAt: new Date("2026-09-23T11:00:00.000Z") }, started, now), false);
+  assert.equal(samePrincipalReauthentication(existing,
+    { ...current, authenticatedAt: new Date("2026-09-23T12:03:00.000Z") }, started, now), false);
+  assert.equal(samePrincipalReauthentication(existing,
+    { ...current, authenticatedAt: new Date("2026-09-23T10:00:00.000Z") },
+    new Date("2026-09-23T10:00:00.000Z"), now), false);
 });

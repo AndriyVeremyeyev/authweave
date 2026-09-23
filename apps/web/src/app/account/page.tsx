@@ -28,6 +28,11 @@ export default async function AccountPage() {
         <div className="mt-6 space-y-5">
           <p>Signed in as {session.displayName ?? session.email ?? session.subject}.</p>
           <p className="text-sm text-slate-400">Your personal workspace is ready. Create and edit a private assessment draft to begin. Catalog curator permissions are not enabled yet.</p>
+          <p className="text-sm text-slate-400">Last identity verification: <time dateTime={session.authenticatedAt.toISOString()}>{session.authenticatedAt.toISOString()}</time></p>
+          <form method="post" action="/api/auth/reauth">
+            <button className="rounded-lg border border-slate-500 px-4 py-2 font-medium text-slate-100">Verify this account again</button>
+          </form>
+          <p className="text-xs text-slate-400">This checks the same account again and rotates your session. It does not grant catalog access.</p>
           <form method="post" action="/api/assessments">
             <button className="rounded-lg bg-cyan-300 px-4 py-2 font-medium text-slate-950">Create assessment draft</button>
           </form>

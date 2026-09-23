@@ -17,6 +17,7 @@ MIGRATIONS = (
     ROOT / "apps" / "web" / "db" / "migrations" / "001_auth_sessions.sql",
     ROOT / "apps" / "web" / "db" / "migrations" / "002_session_workspace.sql",
     ROOT / "apps" / "web" / "db" / "migrations" / "003_session_curator_scope.sql",
+    ROOT / "apps" / "web" / "db" / "migrations" / "004_reauthentication_transactions.sql",
 )
 
 

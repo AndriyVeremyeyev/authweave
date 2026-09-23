@@ -106,9 +106,12 @@ With the project and organization IDs configured, the BFF requests a project-sco
 claim through ZITADEL UserInfo at sign-in. Only the exact `catalog_curator` assignment for
 both IDs is recorded in the server-side session; a failed lookup grants no curator access.
 The sensitive-action policy requires authentication within the preceding 15 minutes.
-No catalog write route uses this policy yet, and no reauthentication flow or positive
-browser role-assignment test has been completed. Do not treat role storage as catalog
-authorization or publication readiness.
+The account page offers a same-account reauthentication action using `prompt=login` and
+`max_age=0`. Its one-use transaction is bound to the existing session; the callback
+checks a recent `auth_time`, rejects a different issuer or subject, and rotates the
+session ID only after success. No catalog write route uses this policy yet, and neither
+the browser step-up flow nor a positive role-assignment case has been manually verified.
+Do not treat role storage as catalog authorization or publication readiness.
 
 Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
 `admin@authweave.localhost` using `AUTHWEAVE_ZITADEL_ADMIN_PASSWORD` from the ignored file,
@@ -128,12 +131,13 @@ For an existing local installation, with Docker Desktop running, use `make infra
 `make auth-up` and `make setup-core-service-token`. The last command adds one random credential
 to the ignored mode-600 `infra/.env` and leaves an existing credential unchanged. Start
 `make dev-core` in one terminal so Flyway applies the Core ownership migration. In another
-terminal, run `make migrate-web-auth` to apply both replay-safe web migrations, then
-`make dev-web`. Open `http://localhost:3000/account` to try sign-in and sign-out with a
-synthetic user. Once signed in, use **Create assessment draft** to open a private
+terminal, run `make migrate-web-auth` to apply the replay-safe web migrations, then
+`make dev-web`. Open `http://localhost:3000/account` to try sign-in, same-account
+reauthentication and sign-out with a synthetic user. Once signed in, use
+**Create assessment draft** to open a private
 version-5 assessment page with selected draft editors. **View your assessments**
 lists up to 20 recent summaries per page, with an Older link for earlier drafts. The ignored
-`apps/web/.env.local` must already contain the issuer and client ID
+`apps/web/.env.local` must already contain the issuer, client ID, project ID and organization ID
 created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
 rotation/revocation and database role isolation.
 

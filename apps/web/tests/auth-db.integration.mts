@@ -3,13 +3,15 @@ import { after, test } from "node:test";
 import { NextRequest } from "next/server.js";
 
 import { POST as createAssessmentRoute } from "../src/app/api/assessments/route.ts";
+import { POST as reauthenticateRoute } from "../src/app/api/auth/reauth/route.ts";
 import { POST as updateCapabilitiesRoute } from "../src/app/api/assessments/[id]/capabilities/route.ts";
 import { POST as weightedPreviewRoute } from "../src/app/api/assessments/[id]/weighted-preview/route.ts";
 import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
-import { authDatabase, beginLogin, consumeLogin, createSession, revokeSession, touchSession } from
+import { authDatabase, beginLogin, beginReauthentication, consumeLogin, createSession,
+  revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
 import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
@@ -22,9 +24,11 @@ test("login state is browser-bound, expires in the database and can be consumed 
   const binding = randomOpaqueValue();
   await beginLogin(state, binding, "synthetic-code-verifier", "synthetic-nonce", pool);
   assert.equal(await consumeLogin(state, randomOpaqueValue(), pool), null);
-  assert.deepEqual(await consumeLogin(state, binding, pool), {
-    codeVerifier: "synthetic-code-verifier", nonce: "synthetic-nonce",
-  });
+  const consumed = await consumeLogin(state, binding, pool);
+  assert.equal(consumed?.codeVerifier, "synthetic-code-verifier");
+  assert.equal(consumed?.nonce, "synthetic-nonce");
+  assert.equal(consumed?.purpose, "LOGIN");
+  assert.ok(consumed?.startedAt instanceof Date);
   assert.equal(await consumeLogin(state, binding, pool), null);
 
   const expiredState = randomOpaqueValue();
@@ -41,6 +45,43 @@ test("login state is browser-bound, expires in the database and can be consumed 
   } finally {
     await pool.query("DELETE FROM web.oidc_login_transactions WHERE state_hash = $1",
       [opaqueHash(expiredState)]);
+  }
+});
+
+test("step-up transaction is one-use and bound to the existing session cookie", async () => {
+  const pool = authDatabase();
+  const identity = {
+    workspaceId: "70000000-0000-4000-8000-000000000001",
+    issuer: "https://synthetic.example.test", subject: "step-up-subject",
+    email: null, displayName: null, authenticatedAt: new Date(),
+  };
+  const currentId = await createSession(identity, undefined, pool);
+  const state = randomOpaqueValue();
+  const binding = randomOpaqueValue();
+  try {
+    await beginReauthentication(state, binding, "step-up-verifier", "step-up-nonce", currentId, pool);
+    assert.equal(await consumeLogin(state, randomOpaqueValue(), pool, currentId), null);
+    assert.equal(await consumeLogin(state, binding, pool), null);
+    assert.equal(await consumeLogin(state, binding, pool, randomOpaqueValue()), null);
+    const consumed = await consumeLogin(state, binding, pool, currentId);
+    assert.equal(consumed?.purpose, "REAUTH");
+    assert.equal(consumed?.codeVerifier, "step-up-verifier");
+    assert.ok(consumed?.startedAt instanceof Date);
+    assert.equal(await consumeLogin(state, binding, pool, currentId), null);
+
+    await assert.rejects(createSession({ ...identity, subject: "another-user" }, currentId,
+      pool, true), /Could not establish web session/);
+    assert.equal((await touchSession(currentId, pool))?.subject, identity.subject);
+    const rotatedId = await createSession(identity, currentId, pool, true);
+    try {
+      assert.equal(await touchSession(currentId, pool), null);
+      assert.equal((await touchSession(rotatedId, pool))?.subject, identity.subject);
+      await assert.rejects(createSession(identity, currentId, pool, true), /Could not establish web session/);
+    } finally {
+      await revokeSession(rotatedId, pool);
+    }
+  } finally {
+    await revokeSession(currentId, pool);
   }
 });
 
@@ -123,6 +164,27 @@ test("web runtime cannot inspect core data or migration history", async () => {
       typeof failure === "object" && failure !== null && "code" in failure && failure.code === "42501");
   }
   assert.equal(await touchSession(undefined, pool), null);
+});
+
+test("reauthentication route rejects cross-origin and anonymous requests before OIDC", async () => {
+  const previousIssuer = process.env.AUTHWEAVE_OIDC_ISSUER;
+  const previousClient = process.env.AUTHWEAVE_OIDC_CLIENT_ID;
+  process.env.AUTHWEAVE_OIDC_ISSUER = "http://localhost:8081";
+  process.env.AUTHWEAVE_OIDC_CLIENT_ID = "synthetic-client";
+  const request = (origin: string) => new NextRequest("http://localhost:3000/api/auth/reauth", {
+    method: "POST", headers: { Origin: origin },
+  });
+  try {
+    assert.equal((await reauthenticateRoute(request("https://evil.example.test"))).status, 403);
+    const anonymous = await reauthenticateRoute(request("http://localhost:3000"));
+    assert.equal(anonymous.status, 401);
+    assert.equal(anonymous.headers.get("cache-control"), "no-store");
+  } finally {
+    if (previousIssuer === undefined) delete process.env.AUTHWEAVE_OIDC_ISSUER;
+    else process.env.AUTHWEAVE_OIDC_ISSUER = previousIssuer;
+    if (previousClient === undefined) delete process.env.AUTHWEAVE_OIDC_CLIENT_ID;
+    else process.env.AUTHWEAVE_OIDC_CLIENT_ID = previousClient;
+  }
 });
 
 test("sessions created before workspace binding cannot gain workspace access", async () => {

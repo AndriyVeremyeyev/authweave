@@ -4,7 +4,7 @@ import * as oidc from "openid-client";
 import type { AuthConfiguration } from "./config.ts";
 import type { BrowserSession } from "./store.ts";
 import { ABSOLUTE_SESSION_SECONDS } from "./session-policy.ts";
-import { curatorGrant } from "./curator.ts";
+import { curatorGrant, SENSITIVE_ACTION_REAUTH_SECONDS } from "./curator.ts";
 
 let cached: { key: string; promise: Promise<oidc.Configuration> } | undefined;
 
@@ -42,7 +42,8 @@ export async function oidcClient(config: AuthConfiguration): Promise<oidc.Config
 }
 
 export async function authorizationUrl(config: AuthConfiguration, state: string,
-                                       nonce: string, codeVerifier: string): Promise<URL> {
+                                       nonce: string, codeVerifier: string,
+                                       reauthenticate = false): Promise<URL> {
   const client = await oidcClient(config);
   const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
   return oidc.buildAuthorizationUrl(client, {
@@ -52,8 +53,15 @@ export async function authorizationUrl(config: AuthConfiguration, state: string,
     nonce,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
-    max_age: String(ABSOLUTE_SESSION_SECONDS),
+    ...authenticationRequestParameters(reauthenticate),
   });
+}
+
+export function authenticationRequestParameters(reauthenticate: boolean): {
+  max_age: string; prompt?: string;
+} {
+  return reauthenticate ? { max_age: "0", prompt: "login" }
+    : { max_age: String(ABSOLUTE_SESSION_SECONDS) };
 }
 
 export function oidcScopes(config: AuthConfiguration): string {
@@ -64,13 +72,14 @@ export function oidcScopes(config: AuthConfiguration): string {
 
 export async function identityFromCallback(config: AuthConfiguration, currentUrl: URL,
                                            state: string, nonce: string,
-                                           codeVerifier: string): Promise<Omit<BrowserSession, "workspaceId">> {
+                                           codeVerifier: string,
+                                           reauthenticate = false): Promise<Omit<BrowserSession, "workspaceId">> {
   const client = await oidcClient(config);
   const tokens = await oidc.authorizationCodeGrant(client, currentUrl, {
     expectedState: state,
     expectedNonce: nonce,
     pkceCodeVerifier: codeVerifier,
-    maxAge: ABSOLUTE_SESSION_SECONDS,
+    maxAge: reauthenticate ? SENSITIVE_ACTION_REAUTH_SECONDS : ABSOLUTE_SESSION_SECONDS,
     idTokenExpected: true,
   });
   const claims = tokens.claims();

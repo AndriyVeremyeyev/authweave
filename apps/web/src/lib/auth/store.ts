@@ -8,7 +8,9 @@ import {
   opaqueHash, randomOpaqueValue, validOpaqueValue,
 } from "./session-policy.ts";
 
-export type LoginTransaction = { codeVerifier: string; nonce: string };
+export type LoginTransaction = {
+  codeVerifier: string; nonce: string; purpose: "LOGIN" | "REAUTH"; startedAt: Date;
+};
 export type BrowserSession = {
   workspaceId: string;
   subject: string;
@@ -44,35 +46,66 @@ export function authDatabase(): Pool {
 
 export async function beginLogin(state: string, binding: string, codeVerifier: string, nonce: string,
                                  pool: Pool = authDatabase()): Promise<void> {
+  await insertLoginTransaction(state, binding, codeVerifier, nonce, null, pool);
+}
+
+export async function beginReauthentication(state: string, binding: string, codeVerifier: string,
+                                            nonce: string, sessionId: string,
+                                            pool: Pool = authDatabase()): Promise<void> {
+  if (!validOpaqueValue(sessionId)) throw new Error("A current session is required for reauthentication");
+  await insertLoginTransaction(state, binding, codeVerifier, nonce, opaqueHash(sessionId), pool);
+}
+
+async function insertLoginTransaction(state: string, binding: string, codeVerifier: string,
+                                      nonce: string, sessionHash: Buffer | null, pool: Pool): Promise<void> {
   await pool.query("DELETE FROM web.oidc_login_transactions WHERE expires_at <= CURRENT_TIMESTAMP");
   await pool.query(
     `INSERT INTO web.oidc_login_transactions
-       (state_hash, browser_binding_hash, code_verifier, nonce, expires_at)
-     VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP + ($5 * INTERVAL '1 second'))`,
-    [opaqueHash(state), opaqueHash(binding), codeVerifier, nonce, LOGIN_TRANSACTION_SECONDS],
+       (state_hash, browser_binding_hash, code_verifier, nonce, purpose, session_hash, expires_at)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP + ($7 * INTERVAL '1 second'))`,
+    [opaqueHash(state), opaqueHash(binding), codeVerifier, nonce,
+      sessionHash ? "REAUTH" : "LOGIN", sessionHash, LOGIN_TRANSACTION_SECONDS],
   );
 }
 
 export async function consumeLogin(state: string, binding: string,
-                                   pool: Pool = authDatabase()): Promise<LoginTransaction | null> {
-  const result = await pool.query<{ code_verifier: string; nonce: string }>(
+                                   pool: Pool = authDatabase(), sessionId?: string): Promise<LoginTransaction | null> {
+  const result = await pool.query<{
+    code_verifier: string; nonce: string; purpose: "LOGIN" | "REAUTH"; created_at: Date;
+  }>(
     `DELETE FROM web.oidc_login_transactions
      WHERE state_hash = $1 AND browser_binding_hash = $2 AND expires_at > CURRENT_TIMESTAMP
-     RETURNING code_verifier, nonce`,
-    [opaqueHash(state), opaqueHash(binding)],
+       AND (purpose = 'LOGIN' OR session_hash = $3)
+     RETURNING code_verifier, nonce, purpose, created_at`,
+    [opaqueHash(state), opaqueHash(binding), validOpaqueValue(sessionId) ? opaqueHash(sessionId) : null],
   );
   const row = result.rows[0];
-  return row ? { codeVerifier: row.code_verifier, nonce: row.nonce } : null;
+  return row ? { codeVerifier: row.code_verifier, nonce: row.nonce,
+    purpose: row.purpose, startedAt: row.created_at } : null;
 }
 
 export async function createSession(identity: BrowserSession, existingId: string | undefined,
-                                    pool: Pool = authDatabase()): Promise<string> {
+                                    pool: Pool = authDatabase(), requireExisting = false): Promise<string> {
+  if (requireExisting && !validOpaqueValue(existingId)) {
+    throw new Error("Could not establish web session");
+  }
   const id = randomOpaqueValue();
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
     if (validOpaqueValue(existingId)) {
-      await client.query("DELETE FROM web.sessions WHERE session_hash = $1", [opaqueHash(existingId)]);
+      if (requireExisting) {
+        const previous = await client.query(
+          `DELETE FROM web.sessions
+           WHERE session_hash = $1 AND issuer = $2 AND subject = $3 AND workspace_id = $4
+             AND idle_expires_at > CURRENT_TIMESTAMP AND absolute_expires_at > CURRENT_TIMESTAMP
+           RETURNING session_hash`,
+          [opaqueHash(existingId), identity.issuer, identity.subject, identity.workspaceId],
+        );
+        if (previous.rowCount !== 1) throw new Error("Previous session changed during reauthentication");
+      } else {
+        await client.query("DELETE FROM web.sessions WHERE session_hash = $1", [opaqueHash(existingId)]);
+      }
     }
     await client.query(
       `INSERT INTO web.sessions
