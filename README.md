@@ -113,6 +113,17 @@ session ID only after success. No catalog write route uses this policy yet, and 
 the browser step-up flow nor a positive role-assignment case has been manually verified.
 Do not treat role storage as catalog authorization or publication readiness.
 
+Core now reserves a separate curator boundary for future proposal decisions and exposes
+`GET /internal/v1/catalog-curator/authorization` as a read-only, server-to-server probe.
+It requires the BFF service credential, an asserted OIDC issuer/subject, the exact
+`catalog_curator` role and configured project/organization IDs, plus an authentication
+time no older than 15 minutes (with 30 seconds of clock skew). Both Core IDs must be
+configured as `AUTHWEAVE_OIDC_PROJECT_ID` and `AUTHWEAVE_OIDC_ORG_ID`; otherwise the
+probe fails closed. Core trusts only the credentialed BFF assertion here; it does not
+query ZITADEL or grant a role itself. The BFF does not call this probe yet, and no
+catalog decision endpoint exists. A positive synthetic test proves only this local
+boundary, not a real curator grant, browser flow, approval or publication.
+
 Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
 `admin@authweave.localhost` using `AUTHWEAVE_ZITADEL_ADMIN_PASSWORD` from the ignored file,
 opened privately in your editor. This synthetic account administers only the local IdP;
