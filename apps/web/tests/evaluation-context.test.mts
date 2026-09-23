@@ -9,7 +9,8 @@ const profile = {
   audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
   protocols: { federation: { OIDC: "PREFERRED" } },
   security: {
-    dataResidency: "UNKNOWN", complianceScopeStatus: "UNKNOWN", complianceTargets: [],
+    dataResidency: "UNKNOWN", browserTokenExposureMinimization: "UNKNOWN",
+    complianceScopeStatus: "UNKNOWN", complianceTargets: [],
     authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
       stepUpAuthentication: "UNKNOWN" },
     dataResidencyDetails: { allowedCountries: ["US"] },
@@ -20,6 +21,7 @@ const profile = {
 const valid = new URLSearchParams({
   expectedVersion: "3", applicationType: "B2B_SAAS", tenancy: "MULTI_TENANT_ORGANIZATIONS",
   membership: "MULTIPLE_ORGANIZATIONS_PER_USER", dataResidency: "NOT_REQUIRED",
+  browserTokenExposureMinimization: "REQUIRED",
   phishingResistance: "NOT_REQUIRED", nonExportableKeys: "NOT_REQUIRED",
   stepUpAuthentication: "NOT_REQUIRED", complianceScopeStatus: "NONE_IDENTIFIED",
 });
@@ -37,6 +39,7 @@ test("context form changes only its selected fields and preserves unrelated v5 p
   assert.deepEqual((changed.audience as Record<string, unknown>).populations,
     ["EXTERNAL_CUSTOMERS", "PARTNERS"]);
   assert.equal((changed.security as Record<string, unknown>).dataResidency, "NOT_REQUIRED");
+  assert.equal((changed.security as Record<string, unknown>).browserTokenExposureMinimization, "REQUIRED");
   assert.deepEqual((changed.security as Record<string, unknown>).complianceTargets, []);
   assert.deepEqual(changed.protocols, profile.protocols);
   assert.deepEqual(changed.operations, profile.operations);
@@ -54,6 +57,7 @@ test("context form changes only its selected fields and preserves unrelated v5 p
 test("context form rejects unknown, duplicate or malformed choices", () => {
   for (const [key, value] of [
     ["applicationType", "PERSONAL_APP"], ["dataResidency", "MAYBE"],
+    ["browserTokenExposureMinimization", "MAYBE"],
     ["expectedVersion", "03"], ["expectedVersion", "9007199254740992"],
   ]) {
     const invalid = new URLSearchParams(valid);
@@ -71,6 +75,9 @@ test("context form rejects unknown, duplicate or malformed choices", () => {
   const missing = new URLSearchParams(valid);
   missing.delete("complianceScopeStatus");
   assert.throws(() => parseEvaluationContextForm(missing), InvalidEvaluationContextForm);
+  const missingTokenCriterion = new URLSearchParams(valid);
+  missingTokenCriterion.delete("browserTokenExposureMinimization");
+  assert.throws(() => parseEvaluationContextForm(missingTokenCriterion), InvalidEvaluationContextForm);
   const duplicateTargets = new URLSearchParams(valid);
   duplicateTargets.append("selectedComplianceTargets", "SOC_2");
   duplicateTargets.append("selectedComplianceTargets", "SOC_2");

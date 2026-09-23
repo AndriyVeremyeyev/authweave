@@ -45,6 +45,8 @@ export function EvaluationContextEditor({ assessmentId, version, values }: {
           </div>
           <SelectField name="dataResidency" label="At-rest data residency requirement"
             value={values.dataResidency} choices={criticalities} />
+          <SelectField name="browserTokenExposureMinimization" label="Minimize OAuth token exposure in browser code"
+            value={values.browserTokenExposureMinimization} choices={criticalities} />
           <SelectField name="complianceScopeStatus" label="Compliance target scope"
             value={values.complianceScopeStatus} choices={complianceScopeStatuses} />
           <CheckboxGroup name="selectedComplianceTargets" label="Identified target labels"
@@ -56,7 +58,7 @@ export function EvaluationContextEditor({ assessmentId, version, values }: {
           <SelectField name="stepUpAuthentication" label="Stronger authentication for sensitive actions"
             value={values.stepUpAuthentication} choices={criticalities} />
         </div>
-        <p className="mt-5 text-sm text-slate-400">“Not required” removes that particular constraint; it does not prove safety or compliance. Choose “No compliance targets identified” only after checking the scope; choose “Targets identified” with at least one label. Labels are not evidence of compliance. Other profile details are preserved.</p>
+        <p className="mt-5 text-sm text-slate-400">Browser token minimization helps compare BFF/session and SPA patterns; even “Required” does not automatically prohibit all browser tokens. “Not required” removes that particular constraint; it does not prove safety or compliance. Choose “No compliance targets identified” only after checking the scope; choose “Targets identified” with at least one label. Labels are not evidence of compliance. Other profile details are preserved.</p>
         <button type="submit" className="mt-5 rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200">
           Save application context
         </button>

@@ -19,6 +19,7 @@ export type EvaluationContextValues = {
   tenancy: (typeof tenancyModels)[number];
   membership: (typeof membershipModels)[number];
   dataResidency: Criticality;
+  browserTokenExposureMinimization: Criticality;
   phishingResistance: Criticality;
   nonExportableKeys: Criticality;
   stepUpAuthentication: Criticality;
@@ -56,6 +57,7 @@ export function evaluationContextValues(profile: Record<string, unknown>): Evalu
       !selectedComplianceTargets ||
       !option(audience.tenancy, tenancyModels) || !option(audience.membership, membershipModels) ||
       !option(security.dataResidency, criticalities) ||
+      !option(security.browserTokenExposureMinimization, criticalities) ||
       !option(controls.phishingResistance, criticalities) ||
       !option(controls.nonExportableKeys, criticalities) ||
       !option(controls.stepUpAuthentication, criticalities) ||
@@ -64,6 +66,7 @@ export function evaluationContextValues(profile: Record<string, unknown>): Evalu
     applicationType: application.type, clients, selectedPopulations,
     tenancy: audience.tenancy, membership: audience.membership,
     dataResidency: security.dataResidency,
+    browserTokenExposureMinimization: security.browserTokenExposureMinimization,
     phishingResistance: controls.phishingResistance,
     nonExportableKeys: controls.nonExportableKeys,
     stepUpAuthentication: controls.stepUpAuthentication,
@@ -90,7 +93,7 @@ export function parseEvaluationContextForm(params: URLSearchParams): {
   expectedVersion: number; values: EvaluationContextValues;
 } {
   const allowed = ["expectedVersion", "applicationType", "clients", "selectedPopulations", "tenancy",
-    "membership", "dataResidency", "phishingResistance", "nonExportableKeys",
+    "membership", "dataResidency", "browserTokenExposureMinimization", "phishingResistance", "nonExportableKeys",
     "stepUpAuthentication", "complianceScopeStatus", "selectedComplianceTargets"];
   if ([...params.keys()].some(key => !allowed.includes(key))) throw new InvalidEvaluationContextForm();
   const versions = params.getAll("expectedVersion");
@@ -106,6 +109,7 @@ export function parseEvaluationContextForm(params: URLSearchParams): {
     tenancy: single(params, "tenancy", tenancyModels) as EvaluationContextValues["tenancy"],
     membership: single(params, "membership", membershipModels) as EvaluationContextValues["membership"],
     dataResidency: single(params, "dataResidency", criticalities) as Criticality,
+    browserTokenExposureMinimization: single(params, "browserTokenExposureMinimization", criticalities) as Criticality,
     phishingResistance: single(params, "phishingResistance", criticalities) as Criticality,
     nonExportableKeys: single(params, "nonExportableKeys", criticalities) as Criticality,
     stepUpAuthentication: single(params, "stepUpAuthentication", criticalities) as Criticality,
@@ -129,6 +133,7 @@ export function withEvaluationContextValues(profile: Record<string, unknown>,
   audience.tenancy = values.tenancy;
   audience.membership = values.membership;
   security.dataResidency = values.dataResidency;
+  security.browserTokenExposureMinimization = values.browserTokenExposureMinimization;
   security.complianceScopeStatus = values.complianceScopeStatus;
   security.complianceTargets = [...values.selectedComplianceTargets];
   controls.phishingResistance = values.phishingResistance;

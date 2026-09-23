@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
-  readSyntheticComparison, updatePersonalCapabilities,
+  readPersonalArchitecturePatterns, readSyntheticComparison, updatePersonalCapabilities,
   previewPersonalWeightedComparison,
   previewPersonalWeightSensitivity,
   updatePersonalEvaluationContext,
@@ -100,7 +100,8 @@ const contextProfile = {
   ...editableProfile,
   application: { type: "UNKNOWN", clients: [] },
   audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
-  security: { ...editableProfile.security, dataResidency: "UNKNOWN", complianceScopeStatus: "UNKNOWN",
+  security: { ...editableProfile.security, dataResidency: "UNKNOWN",
+    browserTokenExposureMinimization: "UNKNOWN", complianceScopeStatus: "UNKNOWN",
     complianceTargets: [],
     authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
       stepUpAuthentication: "UNKNOWN" } },
@@ -128,7 +129,9 @@ test("BFF context update preserves capabilities and uses the existing optimistic
     selectedPopulations: ["EXTERNAL_CUSTOMERS" as const],
     tenancy: "MULTI_TENANT_ORGANIZATIONS" as const,
     membership: "MULTIPLE_ORGANIZATIONS_PER_USER" as const,
-    dataResidency: "NOT_REQUIRED" as const, phishingResistance: "NOT_REQUIRED" as const,
+    dataResidency: "NOT_REQUIRED" as const,
+    browserTokenExposureMinimization: "REQUIRED" as const,
+    phishingResistance: "NOT_REQUIRED" as const,
     nonExportableKeys: "NOT_REQUIRED" as const, stepUpAuthentication: "NOT_REQUIRED" as const,
     complianceScopeStatus: "NONE_IDENTIFIED" as const,
     selectedComplianceTargets: [] as ("SOC_2" | "ISO_27001")[],
@@ -383,6 +386,112 @@ test("BFF rejects forged ranking, stale or cross-workspace comparisons before re
     }
     globalThis.fetch = async () => new Response(null, { status: 403 });
     await assert.rejects(readSyntheticComparison(session, assessmentId, 2), /read failed/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+const patternContext = { clients: ["BROWSER" as const],
+  browserTokenExposureMinimization: "REQUIRED" as const };
+const patternDefinitions = [
+  ["BFF_SESSION", "BROWSER", "SERVER_SIDE", "MATCHES_CHECKED_REQUIREMENTS"],
+  ["SERVER_SIDE_SESSION", "BROWSER", "SERVER_SIDE", "MATCHES_CHECKED_REQUIREMENTS"],
+  ["SPA_CODE_PKCE", "BROWSER", "BROWSER", "NEEDS_INFORMATION"],
+  ["NATIVE_CODE_PKCE", "NATIVE_MOBILE", "NATIVE_APP", "NOT_APPLICABLE"],
+  ["M2M_CLIENT_CREDENTIALS", "MACHINE_TO_MACHINE", "WORKLOAD", "NOT_APPLICABLE"],
+] as const;
+const corePatternPreflight = {
+  workspaceId: session.workspaceId, assessmentId, assessmentVersion: 2,
+  policyVersion: "architecture-pattern-preflight-1", evaluatedAt: "2026-09-22T12:00:00Z",
+  scope: "ARCHITECTURE_PATTERN_PREFLIGHT", recommendationReady: false,
+  selectedClients: ["BROWSER"], browserTokenExposureRequirement: "REQUIRED",
+  checkedPaths: ["application.clients", "security.browserTokenExposureMinimization"],
+  deferredPaths: ["application.type", "audience", "protocols", "provisioning",
+    "security.multiFactorAuthentication", "security.auditability", "security.dataResidency",
+    "security.assurance", "security.complianceTargets", "operations"],
+  patterns: patternDefinitions.map(([patternId, clientType, tokenHandling, status]) => ({
+    patternId, displayName: `${patternId} pattern`, clientType, tokenHandling, status,
+    checks: [{ profilePath: "application.clients", outcome: clientType === "BROWSER" ? "PASS" : "NOT_APPLIED",
+      reasonCode: clientType === "BROWSER" ? "CLIENT_SELECTED" : "CLIENT_NOT_SELECTED",
+      explanation: "Client selection was checked." },
+    { profilePath: "security.browserTokenExposureMinimization",
+      outcome: clientType !== "BROWSER" ? "NOT_APPLIED" : tokenHandling === "BROWSER" ? "UNKNOWN" : "PASS",
+      reasonCode: clientType !== "BROWSER" ? "PATTERN_NOT_APPLICABLE" :
+        tokenHandling === "BROWSER" ? "ACCEPTABLE_EXPOSURE_UNDEFINED" : "TOKENS_HELD_SERVER_SIDE",
+      explanation: "Token handling was checked." }],
+    advantages: ["One advantage."], tradeoffs: ["One trade-off."],
+    prerequisites: ["One prerequisite to verify."],
+    references: ["https://www.rfc-editor.org/rfc/rfc8252.html#section-4"],
+  })),
+};
+
+test("BFF reads only a version-matched personal architecture preflight and projects trade-offs", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const token = "synthetic-internal-token-000000000000000000000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token;
+  let calls = 0;
+  globalThis.fetch = async (input, init) => {
+    calls++;
+    assert.equal(input,
+      `http://127.0.0.1:8080/api/v1/workspaces/${session.workspaceId}/assessments/${assessmentId}/architecture-pattern-preflight`);
+    assert.equal(init?.method, "GET");
+    assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
+    assert.equal(init?.cache, "no-store");
+    return Response.json(corePatternPreflight);
+  };
+  try {
+    const result = await readPersonalArchitecturePatterns(session, assessmentId, 2, patternContext);
+    assert.equal(result.assessmentVersion, 2);
+    assert.deepEqual(result.selectedClients, ["BROWSER"]);
+    assert.deepEqual(result.patterns.map(pattern => pattern.status), [
+      "MATCHES_CHECKED_REQUIREMENTS", "MATCHES_CHECKED_REQUIREMENTS", "NEEDS_INFORMATION",
+      "NOT_APPLICABLE", "NOT_APPLICABLE",
+    ]);
+    assert.equal(result.patterns[0].advantages[0], "One advantage.");
+    assert.equal(result.patterns[2].checks[1].reasonCode, "ACCEPTABLE_EXPOSURE_UNDEFINED");
+    assert.equal("recommendationReady" in result, false);
+    assert.equal("winnerId" in result, false);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF rejects forged or cross-workspace architecture claims", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json(corePatternPreflight); };
+  try {
+    await assert.rejects(readPersonalArchitecturePatterns(session, "../other", 2, patternContext), /request is invalid/);
+    assert.equal(calls, 0);
+    const first = corePatternPreflight.patterns[0];
+    for (const invalid of [
+      { ...corePatternPreflight, recommendationReady: true },
+      { ...corePatternPreflight, winnerId: "BFF_SESSION" },
+      { ...corePatternPreflight, workspaceId: "70000000-0000-4000-8000-000000000002" },
+      { ...corePatternPreflight, assessmentVersion: 3 },
+      { ...corePatternPreflight, selectedClients: ["NATIVE_MOBILE"] },
+      { ...corePatternPreflight, browserTokenExposureRequirement: "NOT_REQUIRED" },
+      { ...corePatternPreflight, patterns: [first, first, ...corePatternPreflight.patterns.slice(2)] },
+      { ...corePatternPreflight, patterns: [{ ...first, status: "NOT_APPLICABLE" },
+        ...corePatternPreflight.patterns.slice(1)] },
+      { ...corePatternPreflight, patterns: [{ ...first,
+        references: ["https://untrusted.example.test/claim"] }, ...corePatternPreflight.patterns.slice(1)] },
+    ]) {
+      globalThis.fetch = async () => Response.json(invalid);
+      await assert.rejects(readPersonalArchitecturePatterns(session, assessmentId, 2, patternContext),
+        /response is invalid/);
+    }
+    globalThis.fetch = async () => new Response(null, { status: 403 });
+    await assert.rejects(readPersonalArchitecturePatterns(session, assessmentId, 2, patternContext), /read failed/);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

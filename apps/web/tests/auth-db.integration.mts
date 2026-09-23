@@ -418,7 +418,8 @@ test("evaluation context route accepts only a scoped form from the personal sess
     application: { type: "UNKNOWN", clients: [] },
     audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
     protocols: { federation: { OIDC: "PREFERRED" } },
-    security: { dataResidency: "UNKNOWN", complianceScopeStatus: "UNKNOWN",
+    security: { dataResidency: "UNKNOWN", browserTokenExposureMinimization: "UNKNOWN",
+      complianceScopeStatus: "UNKNOWN",
       complianceTargets: [],
       authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
         stepUpAuthentication: "UNKNOWN" } },
@@ -426,6 +427,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
   const form = new URLSearchParams({
     expectedVersion: "2", applicationType: "B2B_SAAS", tenancy: "SINGLE_ORGANIZATION",
     membership: "SINGLE_ORGANIZATION_PER_USER", dataResidency: "NOT_REQUIRED",
+    browserTokenExposureMinimization: "REQUIRED",
     phishingResistance: "NOT_REQUIRED", nonExportableKeys: "NOT_REQUIRED",
     stepUpAuthentication: "NOT_REQUIRED", complianceScopeStatus: "NONE_IDENTIFIED",
   });
@@ -447,6 +449,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
     const update = JSON.parse(String(init?.body));
     assert.equal(update.expectedVersion, 2);
     assert.equal(update.profile.application.type, "B2B_SAAS");
+    assert.equal(update.profile.security.browserTokenExposureMinimization, "REQUIRED");
     assert.deepEqual(update.profile.protocols, profile.protocols);
     return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
       profileSchemaVersion: 5, profile: update.profile });

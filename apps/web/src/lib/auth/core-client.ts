@@ -60,6 +60,30 @@ export type SyntheticComparisonSummary = {
   candidates: ComparisonCandidate[];
 };
 
+export type ArchitecturePatternSummary = {
+  patternId: "BFF_SESSION" | "SERVER_SIDE_SESSION" | "SPA_CODE_PKCE" |
+    "NATIVE_CODE_PKCE" | "M2M_CLIENT_CREDENTIALS";
+  displayName: string;
+  clientType: "BROWSER" | "NATIVE_MOBILE" | "MACHINE_TO_MACHINE";
+  tokenHandling: "SERVER_SIDE" | "BROWSER" | "NATIVE_APP" | "WORKLOAD";
+  status: "MATCHES_CHECKED_REQUIREMENTS" | "NEEDS_INFORMATION" | "NOT_APPLICABLE";
+  checks: { profilePath: string; outcome: "PASS" | "UNKNOWN" | "NOT_APPLIED";
+    reasonCode: string; explanation: string }[];
+  advantages: string[];
+  tradeoffs: string[];
+  prerequisites: string[];
+  references: string[];
+};
+
+export type ArchitecturePatternPreflightSummary = {
+  assessmentVersion: number;
+  selectedClients: EvaluationContextValues["clients"];
+  browserTokenExposureRequirement: EvaluationContextValues["browserTokenExposureMinimization"];
+  checkedPaths: string[];
+  deferredPaths: string[];
+  patterns: ArchitecturePatternSummary[];
+};
+
 function serviceToken(): string {
   const token = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
   if (!token || token.length < 32) {
@@ -364,6 +388,121 @@ export async function readSyntheticComparison(session: BrowserSession, id: strin
   });
   if (response.status !== 200) throw new Error("Core comparison read failed");
   return comparisonFromCore(await response.json(), session, id, expectedVersion);
+}
+
+const patternMetadata = {
+  BFF_SESSION: ["BROWSER", "SERVER_SIDE"],
+  SERVER_SIDE_SESSION: ["BROWSER", "SERVER_SIDE"],
+  SPA_CODE_PKCE: ["BROWSER", "BROWSER"],
+  NATIVE_CODE_PKCE: ["NATIVE_MOBILE", "NATIVE_APP"],
+  M2M_CLIENT_CREDENTIALS: ["MACHINE_TO_MACHINE", "WORKLOAD"],
+} as const;
+const patternChecks = ["application.clients", "security.browserTokenExposureMinimization"];
+const patternDeferred = ["application.type", "audience", "protocols", "provisioning",
+  "security.multiFactorAuthentication", "security.auditability", "security.dataResidency",
+  "security.assurance", "security.complianceTargets", "operations"];
+const patternReasons = ["CLIENT_SELECTED", "CLIENT_NOT_SELECTED", "CLIENT_CONTEXT_UNKNOWN",
+  "PATTERN_NOT_APPLICABLE", "BROWSER_CRITERION_NOT_APPLICABLE", "TOKENS_HELD_SERVER_SIDE",
+  "ACCEPTABLE_EXPOSURE_UNDEFINED", "MINIMIZATION_PROHIBITION_UNDEFINED", "REQUIREMENT_UNKNOWN",
+  "PREFERENCE_NOT_SCORED", "NO_REQUIREMENT"];
+
+function architecturePatternsFromCore(value: unknown, session: BrowserSession, id: string,
+  expectedVersion: number, context: Pick<EvaluationContextValues,
+    "clients" | "browserTokenExposureMinimization">): ArchitecturePatternPreflightSummary {
+  const body = object(value);
+  exactKeys(body, ["workspaceId", "assessmentId", "assessmentVersion", "policyVersion", "evaluatedAt",
+    "scope", "recommendationReady", "selectedClients", "browserTokenExposureRequirement",
+    "checkedPaths", "deferredPaths", "patterns"]);
+  const expectedClients = [...context.clients].sort();
+  const checked = body.checkedPaths;
+  const deferred = body.deferredPaths;
+  if (body.workspaceId !== session.workspaceId || body.assessmentId !== id ||
+      body.assessmentVersion !== expectedVersion || body.policyVersion !== "architecture-pattern-preflight-1" ||
+      body.scope !== "ARCHITECTURE_PATTERN_PREFLIGHT" || body.recommendationReady !== false ||
+      body.browserTokenExposureRequirement !== context.browserTokenExposureMinimization ||
+      !Array.isArray(body.selectedClients) ||
+      JSON.stringify([...body.selectedClients].sort()) !== JSON.stringify(expectedClients) ||
+      !Array.isArray(checked) || JSON.stringify(checked) !== JSON.stringify(patternChecks) ||
+      !Array.isArray(deferred) || JSON.stringify(deferred) !== JSON.stringify(patternDeferred) ||
+      !Array.isArray(body.patterns) || body.patterns.length !== 5 ||
+      Number.isNaN(Date.parse(boundedText(body.evaluatedAt, 100)))) {
+    throw new Error("Core architecture pattern response is invalid");
+  }
+  const seen = new Set<string>();
+  const textList = (value: unknown): string[] => {
+    if (!Array.isArray(value) || value.length < 1 || value.length > 4 ||
+        new Set(value).size !== value.length) throw new Error("Core architecture pattern response is invalid");
+    return value.map(item => boundedText(item, 400));
+  };
+  const patterns = body.patterns.map((entry: unknown): ArchitecturePatternSummary => {
+    const raw = object(entry);
+    exactKeys(raw, ["patternId", "displayName", "clientType", "tokenHandling", "status",
+      "checks", "advantages", "tradeoffs", "prerequisites", "references"]);
+    const id = String(raw.patternId);
+    const meta = patternMetadata[id as keyof typeof patternMetadata];
+    if (!meta || seen.has(id) || raw.clientType !== meta[0] || raw.tokenHandling !== meta[1] ||
+        !Array.isArray(raw.checks) || raw.checks.length !== 2 ||
+        !Array.isArray(raw.references) || raw.references.length < 1 || raw.references.length > 2) {
+      throw new Error("Core architecture pattern response is invalid");
+    }
+    seen.add(id);
+    const applicable = context.clients.includes(meta[0]);
+    if (!["MATCHES_CHECKED_REQUIREMENTS", "NEEDS_INFORMATION",
+      "NOT_APPLICABLE"].includes(String(raw.status))) {
+      throw new Error("Core architecture pattern response is invalid");
+    }
+    const checks = raw.checks.map((item: unknown, index: number) => {
+      const check = object(item);
+      exactKeys(check, ["profilePath", "outcome", "reasonCode", "explanation"]);
+      if (check.profilePath !== patternChecks[index] ||
+          !["PASS", "UNKNOWN", "NOT_APPLIED"].includes(String(check.outcome)) ||
+          !patternReasons.includes(String(check.reasonCode))) {
+        throw new Error("Core architecture pattern response is invalid");
+      }
+      return { profilePath: check.profilePath as string,
+        outcome: check.outcome as ArchitecturePatternSummary["checks"][number]["outcome"],
+        reasonCode: check.reasonCode as string, explanation: boundedText(check.explanation, 400) };
+    });
+    const expectedStatus = context.clients.length === 0 ? "NEEDS_INFORMATION" :
+      !applicable ? "NOT_APPLICABLE" :
+        checks.some(check => check.outcome === "UNKNOWN") ? "NEEDS_INFORMATION" :
+          "MATCHES_CHECKED_REQUIREMENTS";
+    if (raw.status !== expectedStatus) {
+      throw new Error("Core architecture pattern response is invalid");
+    }
+    const references = raw.references.map((item: unknown) => {
+      const url = new URL(boundedText(item, 2048));
+      if (url.protocol !== "https:" || url.username || url.password ||
+          !["www.ietf.org", "www.rfc-editor.org"].includes(url.hostname)) {
+        throw new Error("Core architecture pattern response is invalid");
+      }
+      return url.toString();
+    });
+    return { patternId: id as ArchitecturePatternSummary["patternId"],
+      displayName: boundedText(raw.displayName, 400), clientType: meta[0], tokenHandling: meta[1],
+      status: raw.status as ArchitecturePatternSummary["status"], checks,
+      advantages: textList(raw.advantages), tradeoffs: textList(raw.tradeoffs),
+      prerequisites: textList(raw.prerequisites), references };
+  });
+  if (seen.size !== 5) throw new Error("Core architecture pattern response is invalid");
+  return { assessmentVersion: expectedVersion, selectedClients: [...context.clients],
+    browserTokenExposureRequirement: context.browserTokenExposureMinimization,
+    checkedPaths: [...patternChecks], deferredPaths: [...patternDeferred], patterns };
+}
+
+export async function readPersonalArchitecturePatterns(session: BrowserSession, id: string,
+  expectedVersion: number, context: Pick<EvaluationContextValues,
+    "clients" | "browserTokenExposureMinimization">): Promise<ArchitecturePatternPreflightSummary> {
+  if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0 ||
+      !Array.isArray(context.clients) || !context.browserTokenExposureMinimization) {
+    throw new Error("Architecture pattern request is invalid");
+  }
+  const response = await fetch(`${CORE_ORIGIN}/api/v1/workspaces/${session.workspaceId}/assessments/${id}/architecture-pattern-preflight`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error",
+    signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status !== 200) throw new Error("Core architecture pattern read failed");
+  return architecturePatternsFromCore(await response.json(), session, id, expectedVersion, context);
 }
 
 function weightedPreviewFromCore(value: unknown, session: BrowserSession, id: string,

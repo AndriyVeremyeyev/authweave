@@ -5,12 +5,14 @@ import { notFound, redirect } from "next/navigation";
 import { capabilityFields, capabilityValues, criticalities, type Capability, type CapabilityValues } from "@/lib/assessment/capabilities";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { authConfiguration } from "@/lib/auth/config";
-import { readPersonalAssessment, readSyntheticComparison, type ComparisonCandidate,
-  type ComparisonFinding, type PersonalAssessment, type SyntheticComparisonSummary } from "@/lib/auth/core-client";
+import { readPersonalArchitecturePatterns, readPersonalAssessment, readSyntheticComparison,
+  type ArchitecturePatternPreflightSummary, type ComparisonCandidate, type ComparisonFinding,
+  type PersonalAssessment, type SyntheticComparisonSummary } from "@/lib/auth/core-client";
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession, type BrowserSession } from "@/lib/auth/store";
 import { WeightedPreviewForm } from "./weighted-preview";
 import { EvaluationContextEditor } from "./evaluation-context-editor";
+import { ArchitecturePatterns } from "./architecture-patterns";
 
 export const runtime = "nodejs";
 
@@ -63,6 +65,15 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
     // Keep the private assessment readable if the diagnostic comparison is unavailable.
   }
 
+  let patterns: ArchitecturePatternPreflightSummary | null = null;
+  if (contextValues) {
+    try {
+      patterns = await readPersonalArchitecturePatterns(session, id, assessment.version, contextValues);
+    } catch {
+      // Keep the assessment and provider comparison readable if this separate preflight is unavailable.
+    }
+  }
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-20 text-slate-100">
       <Link href="/assessments" className="text-sm text-cyan-200 hover:underline">← Your assessments</Link>
@@ -100,6 +111,12 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
         assessmentId={assessment.id} preferred={preferred} /> : (
         <section className="mt-10 rounded-xl border border-amber-700 p-6" aria-labelledby="comparison-heading">
           <h2 id="comparison-heading" className="text-xl font-semibold">Synthetic comparison unavailable</h2>
+          <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
+        </section>
+      )}
+      {patterns ? <ArchitecturePatterns preview={patterns} /> : (
+        <section className="mt-10 rounded-xl border border-amber-700 p-6" aria-labelledby="patterns-heading">
+          <h2 id="patterns-heading" className="text-xl font-semibold">Architecture pattern preflight unavailable</h2>
           <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
         </section>
       )}
