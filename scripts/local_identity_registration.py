@@ -17,6 +17,8 @@ import local_identity as identity
 
 PROJECT_NAME = "AuthWeave Local"
 APPLICATION_NAME = "AuthWeave Local Web"
+CURATOR_ROLE_KEY = "catalog_curator"
+CURATOR_ROLE_NAME = "Catalog Curator"
 REDIRECT_URI = "http://localhost:3000/api/auth/callback"
 LOGOUT_URI = "http://localhost:3000/"
 WEB_ENV = identity.ROOT / "apps" / "web" / ".env.local"
@@ -31,6 +33,8 @@ def api(opener, path: str, token: str, payload: dict) -> dict:
     identity.require(path in {
         "/zitadel.project.v2.ProjectService/ListProjects",
         "/zitadel.project.v2.ProjectService/CreateProject",
+        "/zitadel.project.v2.ProjectService/ListProjectRoles",
+        "/zitadel.project.v2.ProjectService/AddProjectRole",
         "/zitadel.application.v2.ApplicationService/ListApplications",
         "/zitadel.application.v2.ApplicationService/CreateApplication",
         "/v2/users", "/v2/users/new",
@@ -171,6 +175,28 @@ def get_project(opener, token: str, *, create: bool) -> tuple[str, str]:
     return org_id, project_id
 
 
+def get_curator_role(opener, token: str, project_id: str, *, create: bool) -> None:
+    def listed_role() -> dict | None:
+        listing = api(opener, "/zitadel.project.v2.ProjectService/ListProjectRoles", token,
+                      {"projectId": project_id, "pagination": {"limit": 100}})
+        roles = listing.get("projectRoles", [])
+        identity.require(isinstance(roles, list) and len(roles) < 100,
+                         "Local project role list is incomplete.")
+        matches = [role for role in roles if isinstance(role, dict) and role.get("key") == CURATOR_ROLE_KEY]
+        identity.require(len(matches) <= 1, "Duplicate local curator role; inspect it manually.")
+        return matches[0] if matches else None
+
+    role = listed_role()
+    if role is None:
+        identity.require(create, "Local curator role is missing; run make auth-register.")
+        api(opener, "/zitadel.project.v2.ProjectService/AddProjectRole", token,
+            {"projectId": project_id, "roleKey": CURATOR_ROLE_KEY, "displayName": CURATOR_ROLE_NAME})
+        role = listed_role()
+    identity.require(role is not None and role.get("projectId") == project_id
+                     and role.get("displayName") == CURATOR_ROLE_NAME and role.get("group") in (None, ""),
+                     "Existing local curator role differs from the approved configuration.")
+
+
 def verify_application(app: dict, project_id: str) -> str:
     config = app.get("oidcConfiguration", {})
     expected = {
@@ -246,12 +272,13 @@ def register() -> None:
     passwords = user_passwords(create=True)
     def action(opener, token, _pat):
         org_id, project_id = get_project(opener, token, create=True)
+        get_curator_role(opener, token, project_id, create=True)
         client_id = get_application(opener, token, project_id, create=True)
         get_users(opener, token, org_id, passwords, create=True)
         web_configuration(client_id, create=True)
     admin_action(values, action)
     verify_user_passwords(values, passwords)
-    print("Local OIDC project/application and two synthetic users registered; password factors verified; configuration files remain private.")
+    print("Local OIDC project/application, curator role and two synthetic users registered; no curator grant issued; password factors verified; configuration files remain private.")
 
 
 def check() -> None:
@@ -259,12 +286,13 @@ def check() -> None:
     passwords = user_passwords(create=False)
     def action(opener, token, _pat):
         org_id, project_id = get_project(opener, token, create=False)
+        get_curator_role(opener, token, project_id, create=False)
         client_id = get_application(opener, token, project_id, create=False)
         get_users(opener, token, org_id, passwords, create=False)
         web_configuration(client_id, create=False)
     admin_action(values, action)
     verify_user_passwords(values, passwords)
-    print("Local OIDC project/application, two synthetic password factors and private web configuration verified.")
+    print("Local OIDC project/application, curator role, two synthetic password factors and private web configuration verified; role grants are not checked.")
 
 
 def verify_user_passwords(values: dict[str, str], passwords: dict[str, str]) -> None:

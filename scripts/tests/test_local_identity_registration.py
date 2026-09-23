@@ -119,6 +119,50 @@ class RegistrationContractTests(unittest.TestCase):
         self.assertEqual(api.call_count, 1)
         self.assertEqual(api.call_args.args[1], "/zitadel.application.v2.ApplicationService/ListApplications")
 
+    def test_curator_role_is_created_without_assigning_it_to_a_user(self):
+        role = {"projectId": self.PROJECT_ID, "key": registration.CURATOR_ROLE_KEY,
+                "displayName": registration.CURATOR_ROLE_NAME}
+        with patch.object(registration, "api", side_effect=[
+            {"projectRoles": []}, {}, {"projectRoles": [role]},
+        ]) as api:
+            registration.get_curator_role(None, "synthetic-token", self.PROJECT_ID, create=True)
+        self.assertEqual([call.args[1] for call in api.call_args_list], [
+            "/zitadel.project.v2.ProjectService/ListProjectRoles",
+            "/zitadel.project.v2.ProjectService/AddProjectRole",
+            "/zitadel.project.v2.ProjectService/ListProjectRoles",
+        ])
+        self.assertEqual(api.call_args_list[1].args[3], {
+            "projectId": self.PROJECT_ID, "roleKey": registration.CURATOR_ROLE_KEY,
+            "displayName": registration.CURATOR_ROLE_NAME,
+        })
+
+    def test_curator_role_check_is_read_only_and_rejects_missing_or_drifted_role(self):
+        role = {"projectId": self.PROJECT_ID, "key": registration.CURATOR_ROLE_KEY,
+                "displayName": registration.CURATOR_ROLE_NAME}
+        with patch.object(registration, "api", return_value={"projectRoles": [role]}) as api:
+            registration.get_curator_role(None, "synthetic-token", self.PROJECT_ID, create=False)
+        self.assertEqual(api.call_count, 1)
+        with patch.object(registration, "api", return_value={"projectRoles": []}) as api:
+            with self.assertRaisesRegex(ValueError, "missing"):
+                registration.get_curator_role(None, "synthetic-token", self.PROJECT_ID, create=False)
+        self.assertEqual(api.call_count, 1)
+        for invalid in ({**role, "projectId": "another-project"},
+                        {**role, "displayName": "Administrator"},
+                        {**role, "group": "unexpected"}):
+            with self.subTest(invalid=invalid), patch.object(
+                    registration, "api", return_value={"projectRoles": [invalid]}):
+                with self.assertRaisesRegex(ValueError, "differs"):
+                    registration.get_curator_role(None, "synthetic-token", self.PROJECT_ID, create=False)
+
+    def test_curator_role_check_rejects_duplicate_or_incomplete_listing(self):
+        role = {"projectId": self.PROJECT_ID, "key": registration.CURATOR_ROLE_KEY,
+                "displayName": registration.CURATOR_ROLE_NAME}
+        for roles, message in (([role, role], "Duplicate"), ([role] * 100, "incomplete")):
+            with self.subTest(message=message), patch.object(
+                    registration, "api", return_value={"projectRoles": roles}):
+                with self.assertRaisesRegex(ValueError, message):
+                    registration.get_curator_role(None, "synthetic-token", self.PROJECT_ID, create=False)
+
     def test_admin_session_is_deleted_after_success_or_action_failure(self):
         for should_fail in (False, True):
             with self.subTest(should_fail=should_fail):

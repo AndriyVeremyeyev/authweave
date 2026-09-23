@@ -89,13 +89,17 @@ endpoints, Code/PKCE S256 support and Login UI readiness, without logging in or 
 `auth-password-check` uses the local Login UI service identity and ZITADEL Session API to verify
 the synthetic administrator's username/password factors, then deletes its temporary session. It
 does not print credentials, establish a browser session or prove AuthWeave login/authorization.
-`auth-register` idempotently creates the `AuthWeave Local` project, a Web OIDC application with
-Authorization Code, PKCE-compatible public-client settings and exact localhost callbacks, plus
-ordinary `alice@authweave.localhost` and `bob@authweave.localhost` users. It generates their
-distinct passwords in ignored `infra/zitadel/synthetic-users.env.local` and writes the issuer
-and non-secret client ID to ignored `apps/web/.env.local`; both files have mode 600. It never
+`auth-register` idempotently creates the `AuthWeave Local` project, its closed
+`catalog_curator` project-role definition, a Web OIDC application with Authorization Code,
+PKCE-compatible public-client settings and exact localhost callbacks, plus ordinary
+`alice@authweave.localhost` and `bob@authweave.localhost` users. It does not grant the role to
+any user. Role existence is not curator authorization; catalog writes remain disabled.
+The command generates distinct user passwords in ignored `infra/zitadel/synthetic-users.env.local`
+and writes the issuer and non-secret client ID to ignored `apps/web/.env.local`; both files have
+mode 600. It never
 prints credentials or tokens. `auth-registration-check` verifies the existing registration
-and both password factors without creating persistent resources or files. Both commands create
+the role definition and both password factors without creating persistent resources or files.
+The check does not audit out-of-band role grants. Both commands create
 short-lived verification sessions and delete them.
 
 Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
