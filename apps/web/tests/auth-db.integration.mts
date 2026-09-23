@@ -11,6 +11,7 @@ import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usag
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { authDatabase, beginLogin, consumeLogin, createSession, revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
+import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
@@ -58,6 +59,7 @@ test("opaque session rotates, idle expiry rejects access, and logout revokes loc
     const first = await createSession(identity, undefined, pool);
     ids.push(first);
     assert.equal((await touchSession(first, pool))?.subject, identity.subject);
+    assert.equal((await touchSession(first, pool))?.curatorScope, null);
     const second = await createSession(identity, first, pool);
     ids.push(second);
     assert.equal(await touchSession(first, pool), null);
@@ -85,6 +87,33 @@ test("opaque session rotates, idle expiry rejects access, and logout revokes loc
   } finally {
     for (const id of ids) await revokeSession(id, pool);
   }
+});
+
+test("curator grant is persisted only with its project and organization scope", async () => {
+  const pool = authDatabase();
+  const curatorScope = { projectId: "123456789012345678", organizationId: "987654321012345678" };
+  const authenticatedAt = new Date();
+  const id = await createSession({
+    workspaceId: "70000000-0000-4000-8000-000000000001",
+    issuer: "https://synthetic.example.test", subject: "synthetic-curator",
+    email: null, displayName: null, authenticatedAt, curatorScope,
+  }, undefined, pool);
+  try {
+    const session = await touchSession(id, pool);
+    assert.deepEqual(session?.curatorScope, curatorScope);
+    assert.equal(freshCuratorGrant(session?.curatorScope, curatorScope,
+      session?.authenticatedAt ?? new Date("invalid")), true);
+    assert.equal(freshCuratorGrant(session?.curatorScope, { ...curatorScope, projectId: "111" },
+      session?.authenticatedAt ?? new Date("invalid")), false);
+  } finally {
+    await revokeSession(id, pool);
+  }
+  await assert.rejects(createSession({
+    workspaceId: "70000000-0000-4000-8000-000000000001",
+    issuer: "https://synthetic.example.test", subject: "malformed-curator-scope",
+    email: null, displayName: null, authenticatedAt: new Date(),
+    curatorScope: { projectId: "123", organizationId: "not-numeric" },
+  }, undefined, pool), /Could not establish web session/);
 });
 
 test("web runtime cannot inspect core data or migration history", async () => {

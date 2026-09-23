@@ -61,15 +61,32 @@ class PrivateConfigurationTests(unittest.TestCase):
 
     def test_web_oidc_settings_allow_unrelated_future_settings_without_rewriting(self):
         with patch.object(registration, "WEB_ENV", self.path):
-            registration.web_configuration("local-client", create=True)
+            registration.web_configuration("local-client", "123", "456", create=True)
             original = self.path.read_text()
             self.path.write_text(original + "UNRELATED_FUTURE_SETTING=local\n")
             preserved = self.path.read_bytes()
-            registration.web_configuration("local-client", create=False)
+            registration.web_configuration("local-client", "123", "456", create=False)
             self.assertEqual(self.path.read_bytes(), preserved)
             with self.assertRaisesRegex(ValueError, "differs"):
-                registration.web_configuration("other-client", create=False)
+                registration.web_configuration("other-client", "123", "456", create=False)
             self.assertEqual(self.path.read_bytes(), preserved)
+
+    def test_existing_private_web_config_gains_only_exact_project_scope_on_register(self):
+        with patch.object(registration, "WEB_ENV", self.path):
+            registration.private_file(self.path, [
+                f"AUTHWEAVE_OIDC_ISSUER={registration.identity.ISSUER}",
+                "AUTHWEAVE_OIDC_CLIENT_ID=local-client", "UNRELATED=preserved",
+            ], create=True)
+            before = self.path.read_bytes()
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                registration.web_configuration("local-client", "123", "456", create=False)
+            self.assertEqual(self.path.read_bytes(), before)
+            registration.web_configuration("local-client", "123", "456", create=True)
+            upgraded = self.path.read_bytes()
+            self.assertEqual(upgraded, before + b"AUTHWEAVE_OIDC_PROJECT_ID=123\nAUTHWEAVE_OIDC_ORG_ID=456\n")
+            registration.web_configuration("local-client", "123", "456", create=True)
+            self.assertEqual(self.path.read_bytes(), upgraded)
+            self.assertEqual(stat.S_IMODE(self.path.stat().st_mode), 0o600)
 
 
 class RegistrationContractTests(unittest.TestCase):

@@ -111,7 +111,7 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           for pass in 1 2; do
-            for migration in apps/web/db/migrations/001_auth_sessions.sql apps/web/db/migrations/002_session_workspace.sql; do
+            for migration in apps/web/db/migrations/001_auth_sessions.sql apps/web/db/migrations/002_session_workspace.sql apps/web/db/migrations/003_session_curator_scope.sql; do
               docker compose --file infra/compose.yaml exec -T postgres \
                 psql --no-psqlrc --set=ON_ERROR_STOP=1 \
                 --username "$AUTHWEAVE_POSTGRES_ADMIN_USER" \

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { authConfiguration, sameOriginMutation, sameOriginRequest } from "../src/lib/auth/config.ts";
+import { oidcScopes } from "../src/lib/auth/oidc.ts";
 import {
   ABSOLUTE_SESSION_SECONDS, IDLE_SESSION_SECONDS, LOGIN_TRANSACTION_SECONDS,
   cookieOptions, loginCookieName, opaqueHash, randomOpaqueValue,
@@ -18,6 +19,25 @@ test("local BFF config uses exact registered callback and development-only HTTP 
   assert.equal(config.callbackUrl.href, "http://localhost:3000/api/auth/callback");
   assert.equal(config.secureCookies, false);
   assert.equal(config.issuer.href, "http://localhost:8081/");
+  assert.equal(config.curatorScope, null);
+  assert.equal(oidcScopes(config), "openid profile email");
+});
+
+test("curator scope is explicit and project/organization bound", () => {
+  const config = authConfiguration({ ...local, AUTHWEAVE_OIDC_PROJECT_ID: "123456789012345678",
+    AUTHWEAVE_OIDC_ORG_ID: "987654321012345678" });
+  assert.deepEqual(config.curatorScope, {
+    projectId: "123456789012345678", organizationId: "987654321012345678",
+  });
+  assert.equal(oidcScopes(config),
+    "openid profile email urn:zitadel:iam:org:project:id:123456789012345678:aud " +
+    "urn:zitadel:iam:org:projects:roles");
+  for (const overrides of [
+    { AUTHWEAVE_OIDC_PROJECT_ID: "123" },
+    { AUTHWEAVE_OIDC_ORG_ID: "456" },
+    { AUTHWEAVE_OIDC_PROJECT_ID: "not-an-id", AUTHWEAVE_OIDC_ORG_ID: "456" },
+    { AUTHWEAVE_OIDC_PROJECT_ID: "123", AUTHWEAVE_OIDC_ORG_ID: "not-an-id" },
+  ]) assert.throws(() => authConfiguration({ ...local, ...overrides }));
 });
 
 test("remote BFF config requires HTTPS and host-only secure cookies", () => {

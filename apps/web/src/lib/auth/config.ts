@@ -1,11 +1,14 @@
 // Fail-closed browser and OIDC origins for the server-side BFF.
 
+import type { CuratorScope } from "./curator.ts";
+
 export type AuthConfiguration = {
   origin: URL;
   issuer: URL;
   clientId: string;
   callbackUrl: URL;
   secureCookies: boolean;
+  curatorScope: CuratorScope | null;
 };
 
 function endpoint(value: string | undefined, label: string): URL {
@@ -38,12 +41,21 @@ export function authConfiguration(env: Record<string, string | undefined> = proc
     throw new Error("OIDC client ID is missing or invalid");
   }
 
+  const projectId = env.AUTHWEAVE_OIDC_PROJECT_ID;
+  const organizationId = env.AUTHWEAVE_OIDC_ORG_ID;
+  if (Boolean(projectId) !== Boolean(organizationId) ||
+      (projectId !== undefined && !/^[0-9]{1,40}$/.test(projectId)) ||
+      (organizationId !== undefined && !/^[0-9]{1,40}$/.test(organizationId))) {
+    throw new Error("OIDC curator project and organization IDs must be configured together");
+  }
+
   return {
     origin,
     issuer,
     clientId,
     callbackUrl: new URL("/api/auth/callback", origin),
     secureCookies: origin.protocol === "https:",
+    curatorScope: projectId && organizationId ? { projectId, organizationId } : null,
   };
 }
 

@@ -95,12 +95,20 @@ PKCE-compatible public-client settings and exact localhost callbacks, plus ordin
 `alice@authweave.localhost` and `bob@authweave.localhost` users. It does not grant the role to
 any user. Role existence is not curator authorization; catalog writes remain disabled.
 The command generates distinct user passwords in ignored `infra/zitadel/synthetic-users.env.local`
-and writes the issuer and non-secret client ID to ignored `apps/web/.env.local`; both files have
-mode 600. It never
-prints credentials or tokens. `auth-registration-check` verifies the existing registration
-the role definition and both password factors without creating persistent resources or files.
+and writes the issuer, non-secret client ID, project ID and organization ID to ignored
+`apps/web/.env.local`; both files have mode 600. It never prints credentials or tokens.
+`auth-registration-check` verifies the existing registration, role definition and both
+password factors without creating persistent resources or files.
 The check does not audit out-of-band role grants. Both commands create
 short-lived verification sessions and delete them.
+
+With the project and organization IDs configured, the BFF requests a project-scoped role
+claim through ZITADEL UserInfo at sign-in. Only the exact `catalog_curator` assignment for
+both IDs is recorded in the server-side session; a failed lookup grants no curator access.
+The sensitive-action policy requires authentication within the preceding 15 minutes.
+No catalog write route uses this policy yet, and no reauthentication flow or positive
+browser role-assignment test has been completed. Do not treat role storage as catalog
+authorization or publication readiness.
 
 Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
 `admin@authweave.localhost` using `AUTHWEAVE_ZITADEL_ADMIN_PASSWORD` from the ignored file,

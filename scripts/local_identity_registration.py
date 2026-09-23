@@ -95,19 +95,33 @@ def user_passwords(*, create: bool) -> dict[str, str]:
     return values
 
 
-def web_configuration(client_id: str, *, create: bool) -> None:
+def web_configuration(client_id: str, project_id: str, org_id: str, *, create: bool) -> None:
     expected = [f"AUTHWEAVE_OIDC_ISSUER={identity.ISSUER}",
-                f"AUTHWEAVE_OIDC_CLIENT_ID={client_id}"]
+                f"AUTHWEAVE_OIDC_CLIENT_ID={client_id}",
+                f"AUTHWEAVE_OIDC_PROJECT_ID={project_id}",
+                f"AUTHWEAVE_OIDC_ORG_ID={org_id}"]
     if not WEB_ENV.exists() or WEB_ENV.is_symlink():
         private_file(WEB_ENV, expected, create=create)
         return
     identity.require(WEB_ENV.is_file() and stat.S_IMODE(WEB_ENV.stat().st_mode) == 0o600,
                      "Existing local web configuration must have mode 600.")
-    lines = WEB_ENV.read_text(encoding="utf-8").splitlines()
+    original = WEB_ENV.read_bytes()
+    identity.require(original.endswith(b"\n"), "Existing local web configuration must end with a newline.")
+    lines = original.decode("utf-8").splitlines()
+    missing = []
     for entry in expected:
         key = entry.split("=", 1)[0]
-        identity.require(sum(line.startswith(f"{key}=") for line in lines) == 1 and entry in lines,
+        matching = [line for line in lines if line.startswith(f"{key}=")]
+        identity.require(len(matching) <= 1 and (not matching or matching[0] == entry),
                          "Existing local web OIDC configuration differs; left unchanged.")
+        if not matching:
+            identity.require(create and key in {"AUTHWEAVE_OIDC_PROJECT_ID", "AUTHWEAVE_OIDC_ORG_ID"},
+                             "Existing local web OIDC configuration is incomplete; run make auth-register.")
+            missing.append(entry)
+    if missing:
+        descriptor = os.open(WEB_ENV, os.O_WRONLY | os.O_APPEND | os.O_NOFOLLOW)
+        with os.fdopen(descriptor, "wb") as output:
+            output.write(("\n".join(missing) + "\n").encode("utf-8"))
 
 
 def admin_action(values: dict[str, str], action) -> None:
@@ -275,7 +289,7 @@ def register() -> None:
         get_curator_role(opener, token, project_id, create=True)
         client_id = get_application(opener, token, project_id, create=True)
         get_users(opener, token, org_id, passwords, create=True)
-        web_configuration(client_id, create=True)
+        web_configuration(client_id, project_id, org_id, create=True)
     admin_action(values, action)
     verify_user_passwords(values, passwords)
     print("Local OIDC project/application, curator role and two synthetic users registered; no curator grant issued; password factors verified; configuration files remain private.")
@@ -289,7 +303,7 @@ def check() -> None:
         get_curator_role(opener, token, project_id, create=False)
         client_id = get_application(opener, token, project_id, create=False)
         get_users(opener, token, org_id, passwords, create=False)
-        web_configuration(client_id, create=False)
+        web_configuration(client_id, project_id, org_id, create=False)
     admin_action(values, action)
     verify_user_passwords(values, passwords)
     print("Local OIDC project/application, curator role, two synthetic password factors and private web configuration verified; role grants are not checked.")

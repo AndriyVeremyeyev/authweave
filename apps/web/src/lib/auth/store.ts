@@ -1,6 +1,8 @@
 // The only runtime database identity here is authweave_web_runtime.
 import { Pool } from "pg";
 
+import type { CuratorScope } from "./curator.ts";
+
 import {
   ABSOLUTE_SESSION_SECONDS, IDLE_SESSION_SECONDS, LOGIN_TRANSACTION_SECONDS,
   opaqueHash, randomOpaqueValue, validOpaqueValue,
@@ -14,6 +16,8 @@ export type BrowserSession = {
   email: string | null;
   displayName: string | null;
   authenticatedAt: Date;
+  // Login-time evidence only; never authorize a write from this field alone.
+  curatorScope?: CuratorScope | null;
 };
 
 let connectionPool: Pool | undefined;
@@ -73,12 +77,13 @@ export async function createSession(identity: BrowserSession, existingId: string
     await client.query(
       `INSERT INTO web.sessions
          (session_hash, workspace_id, issuer, subject, email, display_name, authenticated_at,
-          idle_expires_at, absolute_expires_at)
+          curator_project_id, curator_org_id, idle_expires_at, absolute_expires_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7,
-               CURRENT_TIMESTAMP + ($8 * INTERVAL '1 second'),
-               CURRENT_TIMESTAMP + ($9 * INTERVAL '1 second'))`,
+               $8, $9, CURRENT_TIMESTAMP + ($10 * INTERVAL '1 second'),
+               CURRENT_TIMESTAMP + ($11 * INTERVAL '1 second'))`,
       [opaqueHash(id), identity.workspaceId, identity.issuer, identity.subject, identity.email, identity.displayName,
-        identity.authenticatedAt, IDLE_SESSION_SECONDS, ABSOLUTE_SESSION_SECONDS],
+        identity.authenticatedAt, identity.curatorScope?.projectId ?? null,
+        identity.curatorScope?.organizationId ?? null, IDLE_SESSION_SECONDS, ABSOLUTE_SESSION_SECONDS],
     );
     await client.query("COMMIT");
     return id;
@@ -95,7 +100,7 @@ export async function touchSession(id: string | undefined,
   if (!validOpaqueValue(id)) return null;
   const result = await (pool ?? authDatabase()).query<{
     workspace_id: string; issuer: string; subject: string; email: string | null; display_name: string | null;
-    authenticated_at: Date;
+    authenticated_at: Date; curator_project_id: string | null; curator_org_id: string | null;
   }>(
     `UPDATE web.sessions
      SET last_seen_at = CURRENT_TIMESTAMP,
@@ -103,13 +108,17 @@ export async function touchSession(id: string | undefined,
      WHERE session_hash = $1
        AND workspace_id IS NOT NULL
        AND idle_expires_at > CURRENT_TIMESTAMP AND absolute_expires_at > CURRENT_TIMESTAMP
-     RETURNING workspace_id, issuer, subject, email, display_name, authenticated_at`,
+     RETURNING workspace_id, issuer, subject, email, display_name, authenticated_at,
+               curator_project_id, curator_org_id`,
     [opaqueHash(id), IDLE_SESSION_SECONDS],
   );
   const row = result.rows[0];
   return row ? {
     workspaceId: row.workspace_id, issuer: row.issuer, subject: row.subject, email: row.email,
     displayName: row.display_name, authenticatedAt: row.authenticated_at,
+    curatorScope: row.curator_project_id && row.curator_org_id ? {
+      projectId: row.curator_project_id, organizationId: row.curator_org_id,
+    } : null,
   } : null;
 }
 

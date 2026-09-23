@@ -4,11 +4,12 @@ import * as oidc from "openid-client";
 import type { AuthConfiguration } from "./config.ts";
 import type { BrowserSession } from "./store.ts";
 import { ABSOLUTE_SESSION_SECONDS } from "./session-policy.ts";
+import { curatorGrant } from "./curator.ts";
 
 let cached: { key: string; promise: Promise<oidc.Configuration> } | undefined;
 
 export async function oidcClient(config: AuthConfiguration): Promise<oidc.Configuration> {
-  const key = `${config.issuer.href}|${config.clientId}`;
+  const key = `${config.issuer.href}|${config.clientId}|${config.curatorScope?.projectId ?? ""}`;
   if (cached?.key === key) return cached.promise;
   const promise = oidc.discovery(config.issuer, config.clientId,
     { token_endpoint_auth_method: "none" }, oidc.None(), {
@@ -21,6 +22,10 @@ export async function oidcClient(config: AuthConfiguration): Promise<oidc.Config
         if (!endpoint || new URL(endpoint).origin !== config.issuer.origin) {
           throw new Error("OIDC metadata contains an unexpected endpoint");
         }
+      }
+      if (config.curatorScope && (!metadata.userinfo_endpoint ||
+          new URL(metadata.userinfo_endpoint).origin !== config.issuer.origin)) {
+        throw new Error("OIDC userinfo endpoint is required for curator role lookup");
       }
       if (!metadata.supportsPKCE() || !metadata.response_types_supported?.includes("code")) {
         throw new Error("OIDC provider must support Authorization Code and PKCE S256");
@@ -42,13 +47,19 @@ export async function authorizationUrl(config: AuthConfiguration, state: string,
   const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
   return oidc.buildAuthorizationUrl(client, {
     redirect_uri: config.callbackUrl.href,
-    scope: "openid profile email",
+    scope: oidcScopes(config),
     state,
     nonce,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
     max_age: String(ABSOLUTE_SESSION_SECONDS),
   });
+}
+
+export function oidcScopes(config: AuthConfiguration): string {
+  return config.curatorScope
+    ? `openid profile email urn:zitadel:iam:org:project:id:${config.curatorScope.projectId}:aud urn:zitadel:iam:org:projects:roles`
+    : "openid profile email";
 }
 
 export async function identityFromCallback(config: AuthConfiguration, currentUrl: URL,
@@ -67,6 +78,15 @@ export async function identityFromCallback(config: AuthConfiguration, currentUrl
       !Number.isSafeInteger(claims.auth_time) || !claims.auth_time) {
     throw new Error("OIDC ID Token is missing required identity claims");
   }
+  let userInfo: unknown = null;
+  if (config.curatorScope) {
+    try {
+      userInfo = await oidc.fetchUserInfo(client, tokens.access_token, claims.sub);
+    } catch {
+      // A role lookup failure cannot grant curator access or break ordinary sign-in.
+      console.error("OIDC curator role lookup unavailable; curator access denied");
+    }
+  }
   // Tokens are deliberately discarded after validation; the browser gets no provider credential.
   return {
     issuer: config.issuer.href.replace(/\/$/, ""),
@@ -74,6 +94,7 @@ export async function identityFromCallback(config: AuthConfiguration, currentUrl
     email: claims.email_verified === true && typeof claims.email === "string" ? claims.email : null,
     displayName: typeof claims.name === "string" ? claims.name : null,
     authenticatedAt: new Date(claims.auth_time * 1000),
+    curatorScope: curatorGrant(userInfo, config.curatorScope),
   };
 }
 

@@ -31,13 +31,14 @@ class MigrationRunnerTests(unittest.TestCase):
                                          "AUTHWEAVE_POSTGRES_DB": "other_database"}), \
                 patch.object(migration.subprocess, "run") as run:
             migration.migrate()
-        self.assertEqual(run.call_count, 2)
+        self.assertEqual(run.call_count, 3)
         command = run.call_args.args[0]
         self.assertEqual(command[:4], ["docker", "compose", "--project-name", "authweave"])
         self.assertEqual(command[-5:], ["--set=ON_ERROR_STOP=1", "--username", "authweave_admin",
                                         "--dbname", "authweave"])
         self.assertIn("CREATE TABLE web.sessions", run.call_args_list[0].kwargs["input"])
         self.assertIn("ADD COLUMN workspace_id", run.call_args_list[1].kwargs["input"])
+        self.assertIn("ADD COLUMN curator_project_id", run.call_args_list[2].kwargs["input"])
         self.assertNotIn("synthetic-secret", str(command))
         self.assertNotIn("COMPOSE_FILE", run.call_args.kwargs["env"])
         self.assertNotIn("AUTHWEAVE_POSTGRES_DB", run.call_args.kwargs["env"])
