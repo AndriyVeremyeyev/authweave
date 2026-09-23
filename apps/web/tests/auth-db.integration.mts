@@ -5,6 +5,7 @@ import { NextRequest } from "next/server.js";
 import { POST as createAssessmentRoute } from "../src/app/api/assessments/route.ts";
 import { POST as updateCapabilitiesRoute } from "../src/app/api/assessments/[id]/capabilities/route.ts";
 import { POST as weightedPreviewRoute } from "../src/app/api/assessments/[id]/weighted-preview/route.ts";
+import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { authDatabase, beginLogin, consumeLogin, createSession, revokeSession, touchSession } from
@@ -313,12 +314,33 @@ test("weighted preview route enforces origin and session without saving an asses
       }, body,
     },
   );
+  const sensitivityRequest = (origin: string, cookie: string | null,
+    body = "expectedVersion=2&baseline_OIDC=100&alternative_OIDC=100") => new NextRequest(
+    `http://localhost:3000/api/assessments/${assessmentId}/weight-sensitivity`, {
+      method: "POST", headers: {
+        Origin: origin, "Content-Type": "application/x-www-form-urlencoded",
+        ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}),
+      }, body,
+    },
+  );
   const calls: string[] = [];
   globalThis.fetch = async (input, init) => {
     calls.push(`${init?.method} ${input}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
     if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
       status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+    if (String(input).endsWith("/weight-sensitivity-preview")) {
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        baselineWeights: { OIDC: 100 }, alternativeWeights: { OIDC: 100 },
+      });
+      const scores = [{ optionId: "fictional-plan", status: "UNRESOLVED_HARD_CONSTRAINTS",
+        score: null, contributions: [] }];
+      return Response.json({ comparison, scoringPolicyVersion: "explicit-capability-weights-1",
+        sensitivityPolicyVersion: "explicit-weight-sensitivity-1",
+        baseline: { weights: { OIDC: 100 }, scores }, alternative: { weights: { OIDC: 100 }, scores },
+        deltas: [{ optionId: "fictional-plan", status: "UNRESOLVED_HARD_CONSTRAINTS",
+          scoreDelta: null, capabilityDeltas: [] }], rankingPerformed: false, recommendationReady: false });
+    }
     assert.deepEqual(JSON.parse(String(init?.body)), { weights: { OIDC: 100 } });
     return Response.json({ comparison, scoringPolicyVersion: "explicit-capability-weights-1",
       weights: { OIDC: 100 }, rankingPerformed: false, recommendationReady: false,
@@ -343,6 +365,22 @@ test("weighted preview route enforces origin and session without saving an asses
       "expectedVersion=1&OIDC=100"), context);
     assert.equal(stale.status, 409);
     assert.equal(calls.length, 3);
+    assert.equal((await weightSensitivityRoute(sensitivityRequest("https://other.example.test", sessionId), context)).status, 403);
+    assert.equal((await weightSensitivityRoute(sensitivityRequest("http://localhost:3000", null), context)).status, 401);
+    assert.equal((await weightSensitivityRoute(sensitivityRequest("http://localhost:3000", sessionId,
+      "expectedVersion=2&baseline_OIDC=100&alternative_OIDC=99"), context)).status, 400);
+    assert.equal(calls.length, 3);
+    const sensitivity = await weightSensitivityRoute(sensitivityRequest("http://localhost:3000", sessionId), context);
+    assert.equal(sensitivity.status, 200);
+    assert.equal(sensitivity.headers.get("cache-control"), "no-store");
+    const paired = await sensitivity.json();
+    assert.equal(paired.candidates[0].scoreDelta, null);
+    assert.deepEqual(paired.candidates[0].capabilityDeltas, []);
+    assert.equal("evidence" in paired.candidates[0], false);
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "POST", "GET", "GET", "POST"]);
+    assert.equal((await weightSensitivityRoute(sensitivityRequest("http://localhost:3000", sessionId,
+      "expectedVersion=1&baseline_OIDC=100&alternative_OIDC=100"), context)).status, 409);
+    assert.equal(calls.length, 6);
   } finally {
     await revokeSession(sessionId);
     globalThis.fetch = previous.fetch;

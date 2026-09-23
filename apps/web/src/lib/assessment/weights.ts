@@ -26,6 +26,33 @@ export type WeightedPreview = {
   candidates: WeightedCandidate[];
 };
 
+export type SensitivityCapabilityDelta = {
+  capability: string;
+  baselineWeight: number;
+  alternativeWeight: number;
+  outcome: "AVAILABLE" | "UNAVAILABLE";
+  pointChange: number;
+};
+
+export type SensitivityCandidate = {
+  optionId: string;
+  displayName: string;
+  plan: string;
+  region: string;
+  status: WeightedCandidate["status"];
+  baselineScore: number | null;
+  alternativeScore: number | null;
+  scoreDelta: number | null;
+  capabilityDeltas: SensitivityCapabilityDelta[];
+};
+
+export type SensitivityPreview = {
+  assessmentVersion: number;
+  catalogVersion: string;
+  sensitivityPolicyVersion: string;
+  candidates: SensitivityCandidate[];
+};
+
 export class InvalidWeightForm extends Error { }
 
 export function preferredCapabilities(profile: Record<string, unknown>): Capability[] | null {
@@ -59,6 +86,33 @@ export function parseWeightForm(params: URLSearchParams): {
     throw new InvalidWeightForm();
   }
   return { expectedVersion, weights };
+}
+
+export function parseSensitivityForm(params: URLSearchParams): {
+  expectedVersion: number; baselineWeights: CapabilityWeights; alternativeWeights: CapabilityWeights;
+} {
+  const version = params.getAll("expectedVersion");
+  if (version.length !== 1) throw new InvalidWeightForm();
+  const baseline = new URLSearchParams({ expectedVersion: version[0] });
+  const alternative = new URLSearchParams({ expectedVersion: version[0] });
+  for (const [key, value] of params) {
+    if (key === "expectedVersion") continue;
+    const match = /^(baseline|alternative)_(.+)$/.exec(key);
+    if (!match || !capabilityFields.some(field => field.capability === match[2])) {
+      throw new InvalidWeightForm();
+    }
+    (match[1] === "baseline" ? baseline : alternative).append(match[2], value);
+  }
+  const first = parseWeightForm(baseline);
+  const second = parseWeightForm(alternative);
+  const firstKeys = Object.keys(first.weights);
+  if (firstKeys.length !== Object.keys(second.weights).length ||
+      firstKeys.some(key => !Object.hasOwn(second.weights, key))) throw new InvalidWeightForm();
+  return {
+    expectedVersion: first.expectedVersion,
+    baselineWeights: first.weights,
+    alternativeWeights: second.weights,
+  };
 }
 
 export function weightsMatchPreferences(weights: CapabilityWeights, preferred: Capability[]): boolean {

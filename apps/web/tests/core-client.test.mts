@@ -5,6 +5,7 @@ import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
   readSyntheticComparison, updatePersonalCapabilities,
   previewPersonalWeightedComparison,
+  previewPersonalWeightSensitivity,
   updatePersonalEvaluationContext,
 } from "../src/lib/auth/core-client.ts";
 import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/capabilities.ts";
@@ -509,6 +510,135 @@ test("BFF rejects stale or mismatched weights and forged score responses", async
         comparison: { ...scoredComparison, assessmentVersion: 3 } });
     assert.deepEqual(await previewPersonalWeightedComparison(session, assessmentId, 2,
       { SOCIAL_LOGIN: 100 }), { kind: "conflict" });
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+const pairedWeights = { baselineWeights: { SOCIAL_LOGIN: 60, JIT: 40 },
+  alternativeWeights: { SOCIAL_LOGIN: 20, JIT: 80 } };
+const pairedProfile = { ...preferredProfile,
+  provisioning: { ...preferredProfile.provisioning, justInTimeProvisioning: "PREFERRED" } };
+const pairedComparison = { ...scoredComparison, candidates: [{ ...scoredComparison.candidates[0],
+  capabilityPreferences: [...scoredComparison.candidates[0].capabilityPreferences,
+    { ...coreComparison.candidates[0].capabilityPreferences[0], capability: "JIT",
+      profilePath: "provisioning.justInTimeProvisioning", outcome: "UNAVAILABLE",
+      reasonCode: "PREFERRED_CAPABILITY_UNAVAILABLE" }],
+}] };
+const pairedSensitivity = {
+  comparison: pairedComparison, scoringPolicyVersion: "explicit-capability-weights-1",
+  sensitivityPolicyVersion: "explicit-weight-sensitivity-1",
+  baseline: { weights: pairedWeights.baselineWeights,
+    scores: [{ optionId: "fictional-plan", status: "SCORED", score: 60,
+      contributions: [{ capability: "SOCIAL_LOGIN", weight: 60, outcome: "AVAILABLE", earnedPoints: 60 },
+        { capability: "JIT", weight: 40, outcome: "UNAVAILABLE", earnedPoints: 0 }] }] },
+  alternative: { weights: pairedWeights.alternativeWeights,
+    scores: [{ optionId: "fictional-plan", status: "SCORED", score: 20,
+      contributions: [{ capability: "SOCIAL_LOGIN", weight: 20, outcome: "AVAILABLE", earnedPoints: 20 },
+        { capability: "JIT", weight: 80, outcome: "UNAVAILABLE", earnedPoints: 0 }] }] },
+  deltas: [{ optionId: "fictional-plan", status: "SCORED", scoreDelta: -40,
+    capabilityDeltas: [{ capability: "SOCIAL_LOGIN", baselineWeight: 60,
+      alternativeWeight: 20, outcome: "AVAILABLE", pointChange: -40 },
+    { capability: "JIT", baselineWeight: 40,
+      alternativeWeight: 80, outcome: "UNAVAILABLE", pointChange: 0 }] }],
+  rankingPerformed: false, recommendationReady: false,
+};
+
+test("BFF compares explicit weights on one Core snapshot without exposing evidence or a winner", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const token = "synthetic-internal-token-000000000000000000000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token;
+  const calls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push(`${init?.method} ${input}`);
+    assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
+    assert.equal(init?.cache, "no-store");
+    if (init?.method === "GET") return Response.json({ ...coreAssessment, version: 2, profile: pairedProfile });
+    assert.deepEqual(JSON.parse(String(init?.body)), pairedWeights);
+    return Response.json(pairedSensitivity);
+  };
+  try {
+    const result = await previewPersonalWeightSensitivity(session, assessmentId, 2,
+      pairedWeights.baselineWeights, pairedWeights.alternativeWeights);
+    assert.equal(result.kind, "preview");
+    if (result.kind !== "preview") return;
+    assert.deepEqual(result.preview.candidates, [{ optionId: "fictional-plan", displayName: "Fictional Plan",
+      plan: "Demo", region: "Synthetic region", status: "SCORED", baselineScore: 60,
+      alternativeScore: 20, scoreDelta: -40,
+      capabilityDeltas: [{ capability: "SOCIAL_LOGIN", baselineWeight: 60,
+        alternativeWeight: 20, outcome: "AVAILABLE", pointChange: -40 },
+      { capability: "JIT", baselineWeight: 40,
+        alternativeWeight: 80, outcome: "UNAVAILABLE", pointChange: 0 }] }]);
+    assert.equal("evidence" in result.preview.candidates[0], false);
+    assert.equal("winnerId" in result.preview, false);
+    assert.deepEqual(calls, [
+      `GET http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
+      `POST http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/weight-sensitivity-preview`,
+    ]);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF withholds paired deltas and rejects stale, mismatched or forged sensitivity", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let posts = 0;
+  globalThis.fetch = async (_input, init) => {
+    if (init?.method === "POST") { posts++; return Response.json(pairedSensitivity); }
+    return Response.json({ ...coreAssessment, version: 2, profile: pairedProfile });
+  };
+  try {
+    assert.deepEqual(await previewPersonalWeightSensitivity(session, assessmentId, 1,
+      pairedWeights.baselineWeights, pairedWeights.alternativeWeights), { kind: "conflict" });
+    assert.deepEqual(await previewPersonalWeightSensitivity(session, assessmentId, 2,
+      pairedWeights.baselineWeights, { SCIM: 100 }), { kind: "invalid" });
+    assert.equal(posts, 0);
+    const withheldComparison = { ...pairedComparison, candidates: [{ ...pairedComparison.candidates[0],
+      hardVerdict: "UNRESOLVED", informationGaps: coreComparison.candidates[0].informationGaps }] };
+    const withheld = { ...pairedSensitivity, comparison: withheldComparison,
+      baseline: { ...pairedSensitivity.baseline, scores: [{ optionId: "fictional-plan",
+        status: "UNRESOLVED_HARD_CONSTRAINTS", score: null, contributions: [] }] },
+      alternative: { ...pairedSensitivity.alternative, scores: [{ optionId: "fictional-plan",
+        status: "UNRESOLVED_HARD_CONSTRAINTS", score: null, contributions: [] }] },
+      deltas: [{ optionId: "fictional-plan", status: "UNRESOLVED_HARD_CONSTRAINTS",
+        scoreDelta: null, capabilityDeltas: [] }] };
+    globalThis.fetch = async (_input, init) => init?.method === "GET" ?
+      Response.json({ ...coreAssessment, version: 2, profile: pairedProfile }) : Response.json(withheld);
+    const result = await previewPersonalWeightSensitivity(session, assessmentId, 2,
+      pairedWeights.baselineWeights, pairedWeights.alternativeWeights);
+    assert.equal(result.kind, "preview");
+    if (result.kind === "preview") {
+      assert.equal(result.preview.candidates[0].scoreDelta, null);
+      assert.deepEqual(result.preview.candidates[0].capabilityDeltas, []);
+    }
+    for (const invalid of [
+      { ...pairedSensitivity, rankingPerformed: true },
+      { ...pairedSensitivity, winnerId: "fictional-plan" },
+      { ...pairedSensitivity, deltas: [{ ...pairedSensitivity.deltas[0], scoreDelta: -39 }] },
+      { ...pairedSensitivity, alternative: { ...pairedSensitivity.alternative,
+        weights: pairedSensitivity.baseline.weights } },
+      { ...pairedSensitivity, comparison: { ...pairedComparison,
+        workspaceId: "70000000-0000-4000-8000-000000000002" } },
+      { ...withheld, deltas: [{ ...withheld.deltas[0], scoreDelta: 0 }] },
+    ]) {
+      globalThis.fetch = async (_input, init) => init?.method === "GET" ?
+        Response.json({ ...coreAssessment, version: 2, profile: pairedProfile }) : Response.json(invalid);
+      await assert.rejects(previewPersonalWeightSensitivity(session, assessmentId, 2,
+        pairedWeights.baselineWeights, pairedWeights.alternativeWeights), /response is invalid/);
+    }
+    globalThis.fetch = async (_input, init) => init?.method === "GET" ?
+      Response.json({ ...coreAssessment, version: 2, profile: pairedProfile }) :
+      Response.json({ ...pairedSensitivity, comparison: { ...pairedComparison, assessmentVersion: 3 } });
+    assert.deepEqual(await previewPersonalWeightSensitivity(session, assessmentId, 2,
+      pairedWeights.baselineWeights, pairedWeights.alternativeWeights), { kind: "conflict" });
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

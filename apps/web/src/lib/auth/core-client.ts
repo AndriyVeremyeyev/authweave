@@ -3,6 +3,7 @@ import type { BrowserSession } from "./store.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 import { withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
+  type SensitivityCapabilityDelta, type SensitivityCandidate, type SensitivityPreview,
   type WeightedCandidate, type WeightedContribution, type WeightedPreview } from "../assessment/weights.ts";
 
 const CORE_ORIGIN = "http://127.0.0.1:8080";
@@ -475,4 +476,125 @@ export async function previewPersonalWeightedComparison(
       comparison.assessmentVersion !== expectedVersion) return { kind: "conflict" };
   return { kind: "preview", preview: weightedPreviewFromCore(body, session, id,
     expectedVersion, weights) };
+}
+
+function sensitivityFromCore(value: unknown, session: BrowserSession, id: string,
+  expectedVersion: number, baselineWeights: CapabilityWeights,
+  alternativeWeights: CapabilityWeights): SensitivityPreview {
+  const body = object(value);
+  exactKeys(body, ["comparison", "scoringPolicyVersion", "sensitivityPolicyVersion", "baseline",
+    "alternative", "deltas", "rankingPerformed", "recommendationReady"]);
+  if (body.scoringPolicyVersion !== "explicit-capability-weights-1" ||
+      body.sensitivityPolicyVersion !== "explicit-weight-sensitivity-1" ||
+      body.rankingPerformed !== false || body.recommendationReady !== false) {
+    throw new Error("Core sensitivity response is invalid");
+  }
+  const baseline = object(body.baseline);
+  const alternative = object(body.alternative);
+  exactKeys(baseline, ["weights", "scores"]);
+  exactKeys(alternative, ["weights", "scores"]);
+  const scenario = (raw: Record<string, unknown>, weights: CapabilityWeights) => weightedPreviewFromCore({
+    comparison: body.comparison, scoringPolicyVersion: body.scoringPolicyVersion,
+    weights: raw.weights, rankingPerformed: false, recommendationReady: false, scores: raw.scores,
+  }, session, id, expectedVersion, weights);
+  const before = scenario(baseline, baselineWeights);
+  const after = scenario(alternative, alternativeWeights);
+  if (!Array.isArray(body.deltas) || body.deltas.length !== before.candidates.length) {
+    throw new Error("Core sensitivity response is invalid");
+  }
+  const deltaById = new Map<string, SensitivityCandidate>();
+  for (const item of body.deltas) {
+    const raw = object(item);
+    exactKeys(raw, ["optionId", "status", "scoreDelta", "capabilityDeltas"]);
+    const first = before.candidates.find(candidate => candidate.optionId === raw.optionId);
+    const second = after.candidates.find(candidate => candidate.optionId === raw.optionId);
+    if (!first || !second || deltaById.has(first.optionId) ||
+        first.status !== second.status || raw.status !== first.status ||
+        !Array.isArray(raw.capabilityDeltas)) {
+      throw new Error("Core sensitivity response is invalid");
+    }
+    let capabilityDeltas: SensitivityCapabilityDelta[] = [];
+    if (first.status === "SCORED") {
+      if (!Number.isSafeInteger(raw.scoreDelta) ||
+          raw.scoreDelta !== second.score! - first.score! ||
+          raw.capabilityDeltas.length !== first.contributions.length) {
+        throw new Error("Core sensitivity response is invalid");
+      }
+      const seen = new Set<string>();
+      capabilityDeltas = raw.capabilityDeltas.map((entry: unknown): SensitivityCapabilityDelta => {
+        const delta = object(entry);
+        exactKeys(delta, ["capability", "baselineWeight", "alternativeWeight", "outcome", "pointChange"]);
+        const base = first.contributions.find(contribution => contribution.capability === delta.capability);
+        const alt = second.contributions.find(contribution => contribution.capability === delta.capability);
+        const capability = String(delta.capability);
+        if (!base || !alt || seen.has(capability) || base.outcome !== alt.outcome ||
+            delta.baselineWeight !== base.weight || delta.alternativeWeight !== alt.weight ||
+            delta.outcome !== base.outcome ||
+            delta.pointChange !== alt.earnedPoints - base.earnedPoints) {
+          throw new Error("Core sensitivity response is invalid");
+        }
+        seen.add(capability);
+        return {
+          capability, baselineWeight: base.weight, alternativeWeight: alt.weight,
+          outcome: base.outcome, pointChange: delta.pointChange as number,
+        };
+      });
+      if (capabilityDeltas.reduce((sum, delta) => sum + delta.pointChange, 0) !== raw.scoreDelta) {
+        throw new Error("Core sensitivity response is invalid");
+      }
+    } else if (raw.scoreDelta !== null || raw.capabilityDeltas.length !== 0 ||
+        first.score !== null || second.score !== null) {
+      throw new Error("Core sensitivity response is invalid");
+    }
+    deltaById.set(first.optionId, {
+      optionId: first.optionId, displayName: first.displayName, plan: first.plan,
+      region: first.region, status: first.status, baselineScore: first.score,
+      alternativeScore: second.score, scoreDelta: raw.scoreDelta as number | null,
+      capabilityDeltas,
+    });
+  }
+  if (deltaById.size !== before.candidates.length) throw new Error("Core sensitivity response is invalid");
+  return {
+    assessmentVersion: before.assessmentVersion, catalogVersion: before.catalogVersion,
+    sensitivityPolicyVersion: body.sensitivityPolicyVersion as string,
+    candidates: before.candidates.map(candidate => deltaById.get(candidate.optionId)!),
+  };
+}
+
+export type SensitivityPreviewResult =
+  | { kind: "preview"; preview: SensitivityPreview }
+  | { kind: "conflict" }
+  | { kind: "invalid" }
+  | { kind: "not-found" };
+
+export async function previewPersonalWeightSensitivity(
+  session: BrowserSession, id: string, expectedVersion: number,
+  baselineWeights: CapabilityWeights, alternativeWeights: CapabilityWeights,
+): Promise<SensitivityPreviewResult> {
+  if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) {
+    throw new Error("Sensitivity preview request is invalid");
+  }
+  const current = await readPersonalAssessment(session, id);
+  if (!current) return { kind: "not-found" };
+  if (current.version !== expectedVersion) return { kind: "conflict" };
+  const preferred = preferredCapabilities(current.profile);
+  if (!preferred) throw new Error("Core profile cannot be read safely");
+  if (!weightsMatchPreferences(baselineWeights, preferred) ||
+      !weightsMatchPreferences(alternativeWeights, preferred)) return { kind: "invalid" };
+  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/weight-sensitivity-preview`, {
+    method: "POST",
+    headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
+    body: JSON.stringify({ baselineWeights, alternativeWeights }),
+    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status === 400) return { kind: "conflict" };
+  if (response.status === 404) return { kind: "not-found" };
+  if (response.status !== 200) throw new Error("Core sensitivity preview failed");
+  const body: unknown = await response.json();
+  const comparison = object(object(body).comparison);
+  if (comparison.workspaceId === session.workspaceId && comparison.assessmentId === id &&
+      Number.isSafeInteger(comparison.assessmentVersion) &&
+      comparison.assessmentVersion !== expectedVersion) return { kind: "conflict" };
+  return { kind: "preview", preview: sensitivityFromCore(body, session, id,
+    expectedVersion, baselineWeights, alternativeWeights) };
 }

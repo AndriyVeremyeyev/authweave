@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { capabilityFields, capabilityValues, criticalities, type CapabilityValues } from "@/lib/assessment/capabilities";
+import { capabilityFields, capabilityValues, criticalities, type Capability, type CapabilityValues } from "@/lib/assessment/capabilities";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { authConfiguration } from "@/lib/auth/config";
 import { readPersonalAssessment, readSyntheticComparison, type ComparisonCandidate,
@@ -152,7 +152,7 @@ function CapabilityEditor({ assessment, values }: { assessment: PersonalAssessme
 
 function ComparisonSection({ comparison, editable, assessmentId, preferred }: {
   comparison: SyntheticComparisonSummary; editable: boolean; assessmentId: string;
-  preferred: { capability: string; label: string }[];
+  preferred: { capability: Capability; label: string }[];
 }) {
   const preferences = comparison.candidates[0]?.capabilityPreferences.length ?? 0;
   return (
