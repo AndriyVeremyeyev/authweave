@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-rejection.v1.schema.json",
+  "title": "Recorded curator rejection v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decisionId", "proposalId", "proposalVersion", "proposalSha256", "decision", "reasonCode", "recordedAt"],
+  "properties": {
+    "decisionId": { "type": "string", "format": "uuid" },
+    "proposalId": { "type": "string", "format": "uuid" },
+    "proposalVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "proposalSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "decision": { "const": "REJECTED" },
+    "reasonCode": {
+      "type": "string",
+      "enum": ["INSUFFICIENT_EVIDENCE", "INACCURATE_FACTS", "OUT_OF_SCOPE", "OTHER"]
+    },
+    "recordedAt": { "type": "string", "format": "date-time" }
+  }
+}

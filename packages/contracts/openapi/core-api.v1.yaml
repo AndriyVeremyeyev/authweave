@@ -260,7 +260,8 @@ paths:
         Loopback-only development read, not authenticated curator access. Writes are only
         available through an explicit local non-web command. Returns the immutable stored
         request and preview without recalculating freshness or trusting the supplied base.
-        PROPOSED is stored, but no approval, rejection or catalog activation exists.
+        PROPOSED is stored in the immutable snapshot. A separate authorized rejection
+        record may exist; no approval or catalog activation exists.
         The nested preview's writesPerformed=false describes the historical preview, not
         whether this proposal snapshot was persisted. Proposal versions are independent
         from catalogVersion and do not reserve a published catalog version name.
@@ -277,6 +278,52 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         '404':
           $ref: '#/components/responses/CatalogProposalNotFound'
+  /api/v1/catalog-change-proposals/{proposalId}/decisions/rejection:
+    post:
+      tags: [Catalog drafts]
+      summary: Record an authenticated curator rejection of the current proposal revision
+      operationId: rejectCatalogProposal
+      description: >-
+        BFF-to-Core only. Requires the server-only bearer credential, exact configured
+        ZITADEL catalog_curator project and organization, an OIDC principal and a recent
+        authentication asserted from the BFF server-side session. Core verifies the
+        assertion independently. The request must match the current stored revision and
+        digest; a revision may be rejected only once. The decision and minimal actor audit
+        event commit atomically. This does not approve, publish or change provider facts.
+        The immutable proposal snapshot remains PROPOSED; its rejection is a separate record.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-proposal-rejection-request.v1.schema.json
+      responses:
+        '201':
+          description: Rejection and matching audit event committed.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-rejection.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Missing or invalid server credential or OIDC principal.
+        '403':
+          description: Curator role, scope or recent authentication missing.
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
+        '409':
+          description: Revision or digest is stale, or the revision was already decided.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
+        '503':
+          description: Curator scope or server credential is not configured.
   /api/v1/catalog-change-proposals/{proposalId}/revisions:
     get:
       tags: [Catalog drafts]
@@ -345,8 +392,8 @@ paths:
         requires reviewing all its facts even when their values are unchanged. Collection
         order and equivalent timestamps create no diff. A version-label-only change yields
         NO_CONTENT_CHANGES. Both validations share one reference instant; all facts stay
-        UNREVIEWED. No source fetching, publication, approval/rejection endpoint, persistence,
-        initial publication, affected-assessment analysis or golden-case impact run is implemented.
+        UNREVIEWED. This preview performs no source fetching, publication, decision or
+        persistence. It also performs no affected-assessment analysis or golden-case impact run.
       requestBody:
         required: true
         content:

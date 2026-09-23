@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Loopback-only reads. Proposal writes are deliberately not exposed before curator authorization. */
+/** Loopback-only proposal history reads; rejection is a separate curator-guarded route. */
 @RestController
 public class CatalogProposalController {
     private final CatalogProposalRepository repository;

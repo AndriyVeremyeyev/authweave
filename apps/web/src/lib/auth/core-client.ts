@@ -15,6 +15,26 @@ const CORE_ORIGIN = "http://127.0.0.1:8080";
 export type CuratorProbeStatus = "not-configured" | "not-granted" | "reauth-required" |
   "core-rejected" | "core-unavailable" | "ready";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SHA256 = /^[0-9a-f]{64}$/;
+const rejectionReasons = ["INSUFFICIENT_EVIDENCE", "INACCURATE_FACTS", "OUT_OF_SCOPE", "OTHER"] as const;
+export type CatalogRejectionReason = (typeof rejectionReasons)[number];
+export type CatalogRejectionInput = {
+  expectedVersion: number;
+  expectedSha256: string;
+  reasonCode: CatalogRejectionReason;
+};
+export type CatalogRejection = {
+  decisionId: string;
+  proposalId: string;
+  proposalVersion: number;
+  proposalSha256: string;
+  decision: "REJECTED";
+  reasonCode: CatalogRejectionReason;
+  recordedAt: string;
+};
+export type CatalogRejectionResult =
+  | { kind: "rejected"; decision: CatalogRejection }
+  | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" | "conflict" | "invalid" };
 
 export type PersonalAssessment = {
   id: string;
@@ -132,21 +152,66 @@ export async function readCuratorAuthorization(
   try {
     const response = await fetch(`${CORE_ORIGIN}/internal/v1/catalog-curator/authorization`, {
       method: "GET",
-      headers: {
-        Authorization: `Bearer ${serviceToken()}`,
-        "X-AuthWeave-Oidc-Issuer": session.issuer,
-        "X-AuthWeave-Oidc-Subject": session.subject,
-        "X-AuthWeave-Curator-Role": "catalog_curator",
-        "X-AuthWeave-Curator-Project-Id": scope.projectId,
-        "X-AuthWeave-Curator-Org-Id": scope.organizationId,
-        "X-AuthWeave-Authenticated-At": session.authenticatedAt.toISOString(),
-      },
+      headers: curatorHeaders(session, scope),
       cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
     });
     if (response.status === 204) return "ready";
     return response.status === 401 || response.status === 403 ? "core-rejected" : "core-unavailable";
   } catch {
     return "core-unavailable";
+  }
+}
+
+function curatorHeaders(session: BrowserSession, scope: NonNullable<AuthConfiguration["curatorScope"]>):
+    Record<string, string> {
+  return {
+    Authorization: `Bearer ${serviceToken()}`,
+    "X-AuthWeave-Oidc-Issuer": session.issuer,
+    "X-AuthWeave-Oidc-Subject": session.subject,
+    "X-AuthWeave-Curator-Role": "catalog_curator",
+    "X-AuthWeave-Curator-Project-Id": scope.projectId,
+    "X-AuthWeave-Curator-Org-Id": scope.organizationId,
+    "X-AuthWeave-Authenticated-At": session.authenticatedAt.toISOString(),
+  };
+}
+
+function rejectionFromCore(value: unknown, id: string, input: CatalogRejectionInput): CatalogRejection {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Core rejection response is invalid");
+  const body = value as Record<string, unknown>;
+  if (typeof body.decisionId !== "string" || !UUID.test(body.decisionId) || body.proposalId !== id ||
+      body.proposalVersion !== input.expectedVersion || body.proposalSha256 !== input.expectedSha256 ||
+      body.decision !== "REJECTED" || body.reasonCode !== input.reasonCode ||
+      typeof body.recordedAt !== "string" || !Number.isFinite(Date.parse(body.recordedAt))) {
+    throw new Error("Core rejection response is invalid");
+  }
+  return body as CatalogRejection;
+}
+
+export async function rejectCatalogProposal(session: BrowserSession,
+  config: Pick<AuthConfiguration, "issuer" | "curatorScope">, id: string,
+  input: CatalogRejectionInput, now: Date = new Date()): Promise<CatalogRejectionResult> {
+  if (!UUID.test(id) || !Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0 ||
+      !SHA256.test(input.expectedSha256) || !rejectionReasons.includes(input.reasonCode)) {
+    return { kind: "invalid" };
+  }
+  const authorization = await readCuratorAuthorization(session, config, now);
+  if (authorization !== "ready") return { kind: authorization };
+  if (!config.curatorScope) return { kind: "not-configured" };
+  try {
+    const response = await fetch(`${CORE_ORIGIN}/api/v1/catalog-change-proposals/${id}/decisions/rejection`, {
+      method: "POST",
+      headers: { ...curatorHeaders(session, config.curatorScope), "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    });
+    if (response.status === 404) return { kind: "not-found" };
+    if (response.status === 409) return { kind: "conflict" };
+    if (response.status === 400) return { kind: "invalid" };
+    if (response.status === 401 || response.status === 403) return { kind: "core-rejected" };
+    if (response.status !== 201) return { kind: "core-unavailable" };
+    return { kind: "rejected", decision: rejectionFromCore(await response.json(), id, input) };
+  } catch {
+    return { kind: "core-unavailable" };
   }
 }
 

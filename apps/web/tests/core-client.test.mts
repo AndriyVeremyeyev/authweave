@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
   readCuratorAuthorization,
+  rejectCatalogProposal,
   readPersonalArchitecturePatterns, readPersonalUsagePlanning, readSyntheticComparison,
   updatePersonalCapabilities,
   previewPersonalWeightedComparison,
@@ -158,6 +159,53 @@ test("BFF sends only server-session curator assertions to fixed Core probe", asy
     assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "core-unavailable");
     delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
     assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "core-unavailable");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF rejects only after a fresh scoped curator probe and sends no browser credential to Core", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const eligible = { ...session, curatorScope, authenticatedAt: new Date("2026-09-22T12:00:00Z") };
+  const id = "90000000-0000-4000-8000-000000000001";
+  const input = { expectedVersion: 2, expectedSha256: "a".repeat(64),
+    reasonCode: "INSUFFICIENT_EVIDENCE" as const };
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let calls = 0;
+  globalThis.fetch = async (url, init) => {
+    calls++;
+    assert.equal(init?.cache, "no-store");
+    assert.equal(init?.redirect, "error");
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], eligible.subject);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Curator-Project-Id"], curatorScope.projectId);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Authenticated-At"],
+      eligible.authenticatedAt.toISOString());
+    assert.equal((init?.headers as Record<string, string>).Cookie, undefined);
+    if (calls === 1) {
+      assert.equal(url, "http://127.0.0.1:8080/internal/v1/catalog-curator/authorization");
+      return new Response(null, { status: 204 });
+    }
+    assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/decisions/rejection`);
+    assert.equal(init?.method, "POST");
+    assert.deepEqual(JSON.parse(String(init?.body)), input);
+    return Response.json({ decisionId: "90000000-0000-4000-8000-000000000002", proposalId: id,
+      proposalVersion: 2, proposalSha256: input.expectedSha256, decision: "REJECTED",
+      reasonCode: input.reasonCode, recordedAt: "2026-09-22T12:10:00Z" }, { status: 201 });
+  };
+  try {
+    const result = await rejectCatalogProposal(eligible, curatorConfig, id, input, curatorNow);
+    assert.equal(result.kind, "rejected");
+    assert.equal(calls, 2);
+    calls = 0;
+    assert.equal((await rejectCatalogProposal({ ...eligible,
+      authenticatedAt: new Date("2026-09-22T11:54:59Z") }, curatorConfig, id, input, curatorNow)).kind,
+      "reauth-required");
+    assert.equal((await rejectCatalogProposal(eligible, curatorConfig, id,
+      { ...input, expectedSha256: "bad" }, curatorNow)).kind, "invalid");
+    assert.equal(calls, 0);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

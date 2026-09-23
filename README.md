@@ -93,7 +93,7 @@ does not print credentials, establish a browser session or prove AuthWeave login
 `catalog_curator` project-role definition, a Web OIDC application with Authorization Code,
 PKCE-compatible public-client settings and exact localhost callbacks, plus ordinary
 `alice@authweave.localhost` and `bob@authweave.localhost` users. It does not grant the role to
-any user. Role existence is not curator authorization; catalog writes remain disabled.
+any user. Role existence alone does not authorize a curator rejection.
 The command generates distinct user passwords in ignored `infra/zitadel/synthetic-users.env.local`
 and writes the issuer, non-secret client ID, project ID and organization ID to ignored
 `apps/web/.env.local`; both files have mode 600. It never prints credentials or tokens.
@@ -109,7 +109,7 @@ The sensitive-action policy requires authentication within the preceding 15 minu
 The account page offers a same-account reauthentication action using `prompt=login` and
 `max_age=0`. Its one-use transaction is bound to the existing session; the callback
 checks a recent `auth_time`, rejects a different issuer or subject, and rotates the
-session ID only after success. No catalog write route uses this policy yet, and neither
+session ID only after success. The guarded rejection route now uses this policy, but neither
 the browser step-up flow nor a positive role-assignment case has been manually verified.
 Do not treat role storage as catalog authorization or publication readiness.
 
@@ -127,8 +127,8 @@ absent, mismatched and stale grants make
 no Core request. `make dev-core` loads the non-secret scope IDs from the ignored
 `apps/web/.env.local` when present. The page shows a diagnostic status, not a catalog
 action. Neither a positive assigned-role browser case nor the step-up browser flow has
-been manually verified. No catalog decision endpoint exists, and a positive synthetic
-test does not prove a real curator grant, approval or publication.
+been manually verified. A protected rejection endpoint exists; positive synthetic
+tests do not prove a real curator grant, approval or publication.
 
 Open `http://localhost:8081/ui/console` (use `localhost`, not `127.0.0.1`). Sign in as
 `admin@authweave.localhost` using `AUTHWEAVE_ZITADEL_ADMIN_PASSWORD` from the ignored file,
@@ -756,9 +756,14 @@ insert only the required fields; database-generated timestamps cannot be overrid
 history cannot be updated or deleted, and the web database role has no access. The
 audit row contains actor identifiers and scope IDs, but no free-text rationale, source
 content, tokens or cookies. Database constraints alone cannot verify that a human
-actually authenticated: this is a storage boundary, not an enabled curator workflow.
-There is still no decision write API, role grant, approval, active catalog change or
-published state; existing proposal reads continue to report `PROPOSED`.
+actually authenticated. The BFF now exposes a same-origin, session-bound POST at
+`/api/catalog-change-proposals/{id}/rejection`; Core accepts only a credentialed BFF
+assertion with the exact configured curator role/scope and authentication within 15
+minutes. The request binds the current version and SHA-256, then inserts the rejection
+and audit event in one transaction. A duplicate, stale version or changed digest fails
+with 409. This is not yet a curator review UI, and no role is granted by setup. There is
+still no approval, active catalog change or published state; existing proposal reads
+continue to report the immutable snapshot as `PROPOSED`, with rejection stored separately.
 
 ### Conditional catalog impact
 

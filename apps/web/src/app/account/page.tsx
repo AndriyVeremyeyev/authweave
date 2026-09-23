@@ -14,7 +14,7 @@ const curatorMessages: Record<CuratorProbeStatus, string> = {
   "reauth-required": "A curator role was recorded, but identity verification is no longer recent enough.",
   "core-rejected": "Core rejected the curator assertion. Catalog access remains closed.",
   "core-unavailable": "Core curator verification is unavailable. Catalog access remains closed.",
-  ready: "The curator role and recent identity verification passed the read-only Core check. Catalog changes remain disabled.",
+  ready: "The curator role and recent identity verification passed the Core check. The rejection API is guarded; review UI, approval and publication are not available yet.",
 };
 
 export default async function AccountPage() {

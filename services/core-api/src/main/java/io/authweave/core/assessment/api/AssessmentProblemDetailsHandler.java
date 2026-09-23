@@ -48,10 +48,16 @@ public class AssessmentProblemDetailsHandler {
             return problem(HttpStatus.CONFLICT, "catalog-proposal-replay-unavailable", "Proposal replay unavailable",
                     "The stored request cannot be replayed with the current contract and digest policy.", request);
         }
-        // Only reads are HTTP-accessible. Do not accidentally expose future write failures as 404.
+        // The curator rejection write uses a separate conflict handler below.
         if (exception.reason() != io.authweave.core.catalog.proposal.CatalogProposalException.Reason.NOT_FOUND) throw exception;
         return problem(HttpStatus.NOT_FOUND, "catalog-proposal-not-found", "Catalog proposal not found",
                 "The requested catalog proposal does not exist.", request);
+    }
+
+    @ExceptionHandler(io.authweave.core.catalog.proposal.CatalogProposalDecisionConflictException.class)
+    ProblemDetail catalogDecisionConflict(HttpServletRequest request) {
+        return problem(HttpStatus.CONFLICT, "catalog-proposal-decision-conflict", "Catalog decision conflict",
+                "The proposal revision or digest is no longer current, or this revision was already decided.", request);
     }
 
     @ExceptionHandler(io.authweave.core.assessment.application.ProfileUpgradeRequiredException.class)

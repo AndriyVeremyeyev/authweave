@@ -49,6 +49,27 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("curator rejection contracts bind one revision and exclude approval or free text", () => {
+  const request = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-rejection-request.v1.schema.json");
+  const response = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-rejection.v1.schema.json");
+  const id = "90000000-0000-4000-8000-000000000001";
+  const digest = "a".repeat(64);
+  const validRequest = { expectedVersion: 2, expectedSha256: digest, reasonCode: "INACCURATE_FACTS" };
+  const validResponse = { decisionId: id, proposalId: id, proposalVersion: 2,
+    proposalSha256: digest, decision: "REJECTED", reasonCode: "INACCURATE_FACTS",
+    recordedAt: "2026-09-23T12:00:00Z" };
+  assert.equal(request(validRequest), true, validationMessage(request));
+  assert.equal(response(validResponse), true, validationMessage(response));
+  for (const invalid of [{ ...validRequest, reasonCode: "APPROVED" },
+    { ...validRequest, rationale: "untrusted text" },
+    { ...validRequest, expectedSha256: "bad" },
+    { ...validRequest, expectedVersion: 9007199254740992 }]) {
+    assert.equal(request(invalid), false);
+  }
+  assert.equal(response({ ...validResponse, decision: "APPROVED" }), false);
+  assert.equal(response({ ...validResponse, actorSubject: "private" }), false);
+});
+
 const validRequest = await readJson(
   path.join(fixturesRoot, "requirements-extraction-request.valid.json"),
 );

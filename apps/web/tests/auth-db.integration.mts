@@ -9,6 +9,7 @@ import { POST as weightedPreviewRoute } from "../src/app/api/assessments/[id]/we
 import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
+import { POST as rejectProposalRoute } from "../src/app/api/catalog-change-proposals/[id]/rejection/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { authDatabase, beginLogin, beginReauthentication, consumeLogin, createSession,
   revokeSession, touchSession } from
@@ -155,6 +156,85 @@ test("curator grant is persisted only with its project and organization scope", 
     email: null, displayName: null, authenticatedAt: new Date(),
     curatorScope: { projectId: "123", organizationId: "not-numeric" },
   }, undefined, pool), /Could not establish web session/);
+});
+
+test("curator rejection route requires same-origin, scoped fresh session and fixed Core write", async () => {
+  const previous = {
+    issuer: process.env.AUTHWEAVE_OIDC_ISSUER, clientId: process.env.AUTHWEAVE_OIDC_CLIENT_ID,
+    origin: process.env.AUTHWEAVE_PUBLIC_ORIGIN, token: process.env.AUTHWEAVE_CORE_SERVICE_TOKEN,
+    project: process.env.AUTHWEAVE_OIDC_PROJECT_ID, organization: process.env.AUTHWEAVE_OIDC_ORG_ID,
+    fetch: globalThis.fetch,
+  };
+  process.env.AUTHWEAVE_OIDC_ISSUER = "http://localhost:8081";
+  process.env.AUTHWEAVE_OIDC_CLIENT_ID = "synthetic-client";
+  process.env.AUTHWEAVE_PUBLIC_ORIGIN = "http://localhost:3000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  process.env.AUTHWEAVE_OIDC_PROJECT_ID = "123456789012345678";
+  process.env.AUTHWEAVE_OIDC_ORG_ID = "987654321098765432";
+  const proposalId = "90000000-0000-4000-8000-000000000001";
+  const digest = "a".repeat(64);
+  const input = { expectedVersion: 1, expectedSha256: digest, reasonCode: "OUT_OF_SCOPE" };
+  const curatorScope = { projectId: process.env.AUTHWEAVE_OIDC_PROJECT_ID,
+    organizationId: process.env.AUTHWEAVE_OIDC_ORG_ID };
+  const identity = { workspaceId: "70000000-0000-4000-8000-000000000001",
+    issuer: "http://localhost:8081", subject: "synthetic-rejection-curator", email: null,
+    displayName: null, authenticatedAt: new Date(), curatorScope };
+  const curatorSession = await createSession(identity, undefined);
+  const ordinarySession = await createSession({ ...identity, subject: "ordinary-user", curatorScope: null }, undefined);
+  const context = { params: Promise.resolve({ id: proposalId }) };
+  const request = (origin: string, sessionId: string | null, body: unknown = input) => new NextRequest(
+    `http://localhost:3000/api/catalog-change-proposals/${proposalId}/rejection`, {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/json",
+        ...(sessionId ? { Cookie: `${sessionCookieName(false)}=${sessionId}` } : {}) },
+      body: JSON.stringify(body),
+    });
+  const calls: string[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push(`${init?.method} ${url}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Curator-Project-Id"],
+      curatorScope.projectId);
+    if (init?.method === "GET") return new Response(null, { status: 204 });
+    assert.deepEqual(JSON.parse(String(init?.body)), input);
+    return Response.json({ decisionId: "90000000-0000-4000-8000-000000000002",
+      proposalId, proposalVersion: 1, proposalSha256: digest, decision: "REJECTED",
+      reasonCode: "OUT_OF_SCOPE", recordedAt: new Date().toISOString() }, { status: 201 });
+  };
+  try {
+    assert.equal((await rejectProposalRoute(request("https://evil.example.test", curatorSession), context)).status,
+      403);
+    assert.equal((await rejectProposalRoute(request("http://localhost:3000", null), context)).status, 401);
+    assert.equal((await rejectProposalRoute(request("http://localhost:3000", ordinarySession), context)).status,
+      403);
+    assert.equal((await rejectProposalRoute(request("http://localhost:3000", curatorSession,
+      { ...input, decision: "APPROVED" }), context)).status, 400);
+    assert.deepEqual(calls, []);
+    const response = await rejectProposalRoute(request("http://localhost:3000", curatorSession), context);
+    assert.equal(response.status, 201);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal((await response.json()).decision, "REJECTED");
+    assert.deepEqual(calls, [
+      "GET http://127.0.0.1:8080/internal/v1/catalog-curator/authorization",
+      `POST http://127.0.0.1:8080/api/v1/catalog-change-proposals/${proposalId}/decisions/rejection`,
+    ]);
+    calls.length = 0;
+    await authDatabase().query(`UPDATE web.sessions SET authenticated_at = CURRENT_TIMESTAMP - INTERVAL '16 minutes'
+      WHERE session_hash = $1`, [opaqueHash(curatorSession)]);
+    assert.equal((await rejectProposalRoute(request("http://localhost:3000", curatorSession), context)).status,
+      403);
+    assert.deepEqual(calls, []);
+  } finally {
+    await revokeSession(curatorSession);
+    await revokeSession(ordinarySession);
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of [
+      ["AUTHWEAVE_OIDC_ISSUER", previous.issuer], ["AUTHWEAVE_OIDC_CLIENT_ID", previous.clientId],
+      ["AUTHWEAVE_PUBLIC_ORIGIN", previous.origin], ["AUTHWEAVE_CORE_SERVICE_TOKEN", previous.token],
+      ["AUTHWEAVE_OIDC_PROJECT_ID", previous.project], ["AUTHWEAVE_OIDC_ORG_ID", previous.organization],
+    ] as const) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
 });
 
 test("web runtime cannot inspect core data or migration history", async () => {
