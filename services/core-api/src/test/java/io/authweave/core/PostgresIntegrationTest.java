@@ -24,6 +24,11 @@ public abstract class PostgresIntegrationTest {
         registry.add("spring.datasource.url", postgres::getJdbcUrl);
         registry.add("spring.datasource.username", () -> "authweave_core_runtime");
         registry.add("spring.datasource.password", () -> CORE_RUNTIME_PASSWORD);
+        // Cached Spring test contexts otherwise retain default-size pools until CI exhausts PostgreSQL slots.
+        // One concurrency test holds two writers while a third connection reads the committed page.
+        registry.add("spring.datasource.hikari.maximum-pool-size", () -> 3);
+        registry.add("spring.datasource.hikari.minimum-idle", () -> 0);
+        registry.add("spring.datasource.hikari.idle-timeout", () -> 10000);
         registry.add("spring.flyway.url", postgres::getJdbcUrl);
         registry.add("spring.flyway.user", postgres::getUsername);
         registry.add("spring.flyway.password", postgres::getPassword);
