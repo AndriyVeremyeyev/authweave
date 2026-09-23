@@ -474,6 +474,10 @@ Missing, stale, future or unreviewed preference facts remain `UNKNOWN`; an unava
 preference is not a hard failure. Only capability preferences are compared. There are
 no weights, scores, ranking or winner, and other preference dimensions remain deferred.
 The comparison uses the same fictional catalog and does not write assessment data.
+The private assessment page calls out stale facts in the checked constraints or
+capability preferences. Such facts cannot establish support or exclusion, and an
+affected diagnostic score is withheld. Merely changing an observation date does not
+verify its source. This warning does not refresh or approve catalog evidence.
 
 A fixed-clock Phase 3 regression suite reuses the three frozen B2B, public-sector and
 workforce profiles with the synthetic catalog. It pins reason-coded verdicts and

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { capabilityFields, capabilityValues, criticalities, type Capability, type CapabilityValues } from "@/lib/assessment/capabilities";
+import { hasStaleSyntheticEvidence } from "@/lib/assessment/comparison-evidence";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
 import { authConfiguration } from "@/lib/auth/config";
@@ -216,6 +217,12 @@ function ComparisonSection({ comparison, editable, assessmentId, preferred }: {
       <h2 id="comparison-heading" className="text-2xl font-semibold">Synthetic option comparison</h2>
       <p className="mt-3 text-slate-300">These are fictional plans for learning and testing the decision rules, not real provider recommendations. The checks below do not cover every requirement or establish a winner.</p>
       <p className="mt-2 text-sm text-slate-400">Assessment version {comparison.assessmentVersion} · Catalog {comparison.catalogVersion} · Checked {new Date(comparison.evaluatedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</p>
+      {hasStaleSyntheticEvidence(comparison.candidates) && (
+        <p role="status" className="mt-5 rounded-lg border border-amber-700 p-4 text-amber-100">
+          At least one fictional catalog fact is stale under the 90-day policy. It cannot prove support or a mismatch,
+          and affected scores remain withheld. Changing its observation date alone would not verify the source.
+        </p>
+      )}
       {preferences === 0 && <p className="mt-5 rounded-lg border border-slate-700 p-4 text-slate-300">
         No capability preferences are recorded in this draft. {editable && "Choose Preferred above and save to see how the fictional plans compare. "}The optional weight preview requires at least one saved preference.
       </p>}

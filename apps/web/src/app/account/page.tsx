@@ -27,7 +27,7 @@ export default async function AccountPage() {
       ) : session ? (
         <div className="mt-6 space-y-5">
           <p>Signed in as {session.displayName ?? session.email ?? session.subject}.</p>
-          <p className="text-sm text-slate-400">Your personal workspace is ready. Create a private assessment draft to begin. Editing and curator permissions are not enabled yet.</p>
+          <p className="text-sm text-slate-400">Your personal workspace is ready. Create and edit a private assessment draft to begin. Catalog curator permissions are not enabled yet.</p>
           <form method="post" action="/api/assessments">
             <button className="rounded-lg bg-cyan-300 px-4 py-2 font-medium text-slate-950">Create assessment draft</button>
           </form>
