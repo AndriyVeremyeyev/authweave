@@ -7,6 +7,7 @@ import { POST as updateCapabilitiesRoute } from "../src/app/api/assessments/[id]
 import { POST as weightedPreviewRoute } from "../src/app/api/assessments/[id]/weighted-preview/route.ts";
 import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
+import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { authDatabase, beginLogin, consumeLogin, createSession, revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
@@ -494,6 +495,101 @@ test("evaluation context route accepts only a scoped form from the personal sess
     assert.equal(conflict.headers.get("location"),
       `http://localhost:3000/assessments/${assessmentId}?contextError=stale`);
     assert.equal(calls.length, 5);
+  } finally {
+    await revokeSession(sessionId);
+    globalThis.fetch = previous.fetch;
+    for (const [key, value] of [
+      ["AUTHWEAVE_OIDC_ISSUER", previous.issuer],
+      ["AUTHWEAVE_OIDC_CLIENT_ID", previous.clientId],
+      ["AUTHWEAVE_PUBLIC_ORIGIN", previous.origin],
+      ["AUTHWEAVE_CORE_SERVICE_TOKEN", previous.token],
+    ] as const) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
+
+test("usage planning route preserves the personal session and writes only scoped inputs", async () => {
+  const previous = {
+    issuer: process.env.AUTHWEAVE_OIDC_ISSUER,
+    clientId: process.env.AUTHWEAVE_OIDC_CLIENT_ID,
+    origin: process.env.AUTHWEAVE_PUBLIC_ORIGIN,
+    token: process.env.AUTHWEAVE_CORE_SERVICE_TOKEN,
+    fetch: globalThis.fetch,
+  };
+  process.env.AUTHWEAVE_OIDC_ISSUER = "http://localhost:8081";
+  process.env.AUTHWEAVE_OIDC_CLIENT_ID = "synthetic-client";
+  process.env.AUTHWEAVE_PUBLIC_ORIGIN = "http://localhost:3000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const workspaceId = "70000000-0000-4000-8000-000000000001";
+  const assessmentId = "80000000-0000-4000-8000-000000000001";
+  const identity = {
+    workspaceId, issuer: "http://localhost:8081", subject: "synthetic-usage-user",
+    email: null, displayName: null, authenticatedAt: new Date(),
+  };
+  const sessionId = await createSession(identity, undefined);
+  const profile = {
+    application: { type: "B2B_SAAS" },
+    security: { assurance: "UNKNOWN" },
+    operations: { hosting: "UNKNOWN",
+      usagePlanning: { scopeDescription: "", assumptions: [], volumes: {} } },
+  };
+  const form = new URLSearchParams({ expectedVersion: "2", scopeDescription: "First production year" });
+  for (let index = 0; index < 10; index++) form.append("assumption", index === 0 ? "Launch forecast" : "");
+  for (const metric of ["MONTHLY_ACTIVE_USERS", "ENTERPRISE_SSO_CONNECTIONS",
+    "MONTHLY_M2M_TOKEN_ISSUANCES", "PEAK_HUMAN_LOGINS_PER_SECOND"]) {
+    form.set(`basis_${metric}`, "UNKNOWN");
+    form.set(`value_${metric}`, "");
+  }
+  form.set("basis_MONTHLY_ACTIVE_USERS", "ASSUMED");
+  form.set("value_MONTHLY_ACTIVE_USERS", "500");
+  const context = { params: Promise.resolve({ id: assessmentId }) };
+  const request = (origin: string, cookie: string | null, body = form.toString()) => new NextRequest(
+    `http://localhost:3000/api/assessments/${assessmentId}/usage-planning`, {
+      method: "POST", headers: { Origin: origin, "Content-Type": "application/x-www-form-urlencoded",
+        ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}) }, body,
+    },
+  );
+  const calls: string[] = [];
+  globalThis.fetch = async (input, init) => {
+    calls.push(`${init?.method} ${input}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
+      status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+    const update = JSON.parse(String(init?.body));
+    assert.equal(update.expectedVersion, 2);
+    assert.deepEqual(update.profile.operations.usagePlanning, {
+      scopeDescription: "First production year", assumptions: ["Launch forecast"],
+      volumes: { MONTHLY_ACTIVE_USERS: { basis: "ASSUMED", value: 500 } },
+    });
+    assert.equal(update.profile.operations.hosting, "UNKNOWN");
+    assert.deepEqual(update.profile.security, profile.security);
+    return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
+      profileSchemaVersion: 5, profile: update.profile });
+  };
+  try {
+    assert.equal((await usagePlanningRoute(request("https://other.example.test", sessionId), context)).status, 403);
+    assert.equal((await usagePlanningRoute(request("http://localhost:3000", null), context)).status, 401);
+    const forged = new URLSearchParams(form);
+    forged.set("workspaceId", workspaceId);
+    assert.equal((await usagePlanningRoute(request("http://localhost:3000", sessionId,
+      forged.toString()), context)).status, 400);
+    const invalidNumber = new URLSearchParams(form);
+    invalidNumber.set("value_MONTHLY_ACTIVE_USERS", "9007199254740992");
+    assert.equal((await usagePlanningRoute(request("http://localhost:3000", sessionId,
+      invalidNumber.toString()), context)).status, 400);
+    assert.equal(calls.length, 0);
+    const saved = await usagePlanningRoute(request("http://localhost:3000", sessionId), context);
+    assert.equal(saved.status, 303);
+    assert.equal(saved.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}`);
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT"]);
+    const stale = new URLSearchParams(form);
+    stale.set("expectedVersion", "1");
+    const conflict = await usagePlanningRoute(request("http://localhost:3000", sessionId,
+      stale.toString()), context);
+    assert.equal(conflict.headers.get("location"),
+      `http://localhost:3000/assessments/${assessmentId}?usageError=stale`);
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT", "GET"]);
   } finally {
     await revokeSession(sessionId);
     globalThis.fetch = previous.fetch;

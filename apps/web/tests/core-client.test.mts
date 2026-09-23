@@ -7,6 +7,7 @@ import {
   previewPersonalWeightedComparison,
   previewPersonalWeightSensitivity,
   updatePersonalEvaluationContext,
+  updatePersonalUsagePlanning,
 } from "../src/lib/auth/core-client.ts";
 import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/capabilities.ts";
 
@@ -145,6 +146,40 @@ test("BFF context update preserves capabilities and uses the existing optimistic
     assert.equal(await updatePersonalEvaluationContext(session, assessmentId, 2, values), "conflict");
     assert.equal(puts, 0);
     assert.equal(await updatePersonalEvaluationContext(session, assessmentId, 3, values), "saved");
+    assert.equal(puts, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF usage update changes only planning inputs through an optimistic Core write", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const currentProfile = { ...contextProfile, operations: {
+    hosting: "MANAGED", deploymentTarget: "UNDECIDED",
+    usagePlanning: { scopeDescription: "", assumptions: [], volumes: {} },
+  } };
+  const values = { scopeDescription: "Production, first year", assumptions: ["Launch forecast"],
+    volumes: { MONTHLY_ACTIVE_USERS: { basis: "ASSUMED" as const, value: 500 },
+      ENTERPRISE_SSO_CONNECTIONS: { basis: "OBSERVED" as const, value: 0 } } };
+  let puts = 0;
+  globalThis.fetch = async (_input, init) => {
+    if (init?.method === "GET") return Response.json({ ...coreAssessment, version: 3, profile: currentProfile });
+    puts++;
+    const update = JSON.parse(String(init?.body));
+    assert.equal(update.expectedVersion, 3);
+    assert.deepEqual(update.profile.operations.usagePlanning, values);
+    assert.equal(update.profile.operations.hosting, "MANAGED");
+    assert.deepEqual(update.profile.security, currentProfile.security);
+    return Response.json({ ...coreAssessment, version: 4, profile: update.profile });
+  };
+  try {
+    assert.equal(await updatePersonalUsagePlanning(session, assessmentId, 2, values), "conflict");
+    assert.equal(puts, 0);
+    assert.equal(await updatePersonalUsagePlanning(session, assessmentId, 3, values), "saved");
     assert.equal(puts, 1);
   } finally {
     globalThis.fetch = previousFetch;

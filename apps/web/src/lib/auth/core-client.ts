@@ -2,6 +2,7 @@
 import type { BrowserSession } from "./store.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 import { withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
+import { withUsagePlanningValues, type UsagePlanningValues } from "../assessment/usage-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
   type SensitivityCapabilityDelta, type SensitivityCandidate, type SensitivityPreview,
   type WeightedCandidate, type WeightedContribution, type WeightedPreview } from "../assessment/weights.ts";
@@ -206,6 +207,13 @@ export async function updatePersonalEvaluationContext(
 ): Promise<ProfileUpdateResult> {
   return updatePersonalProfile(session, id, expectedVersion,
     profile => withEvaluationContextValues(profile, values));
+}
+
+export async function updatePersonalUsagePlanning(
+  session: BrowserSession, id: string, expectedVersion: number, values: UsagePlanningValues,
+): Promise<ProfileUpdateResult> {
+  return updatePersonalProfile(session, id, expectedVersion,
+    profile => withUsagePlanningValues(profile, values));
 }
 
 export async function listPersonalAssessments(

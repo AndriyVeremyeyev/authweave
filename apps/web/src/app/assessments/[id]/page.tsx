@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { capabilityFields, capabilityValues, criticalities, type Capability, type CapabilityValues } from "@/lib/assessment/capabilities";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
+import { usagePlanningValues } from "@/lib/assessment/usage-planning";
 import { authConfiguration } from "@/lib/auth/config";
 import { readPersonalArchitecturePatterns, readPersonalAssessment, readSyntheticComparison,
   type ArchitecturePatternPreflightSummary, type ComparisonCandidate, type ComparisonFinding,
@@ -13,6 +14,7 @@ import { touchSession, type BrowserSession } from "@/lib/auth/store";
 import { WeightedPreviewForm } from "./weighted-preview";
 import { EvaluationContextEditor } from "./evaluation-context-editor";
 import { ArchitecturePatterns } from "./architecture-patterns";
+import { UsagePlanningEditor } from "./usage-planning-editor";
 
 export const runtime = "nodejs";
 
@@ -25,6 +27,11 @@ const editErrors: Record<string, string> = {
 const contextErrors: Record<string, string> = {
   stale: "This draft changed since you opened it. Review the current context and save again.",
   invalid: "Core rejected this combination of context and security requirements. Review the profile before trying again.",
+  locked: "Only drafts can be edited here.",
+};
+const usageErrors: Record<string, string> = {
+  stale: "This draft changed since you opened it. Review the current usage inputs and save again.",
+  invalid: "Core rejected these usage inputs. Review the current profile before trying again.",
   locked: "Only drafts can be edited here.",
 };
 
@@ -53,8 +60,10 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
   const query = await searchParams;
   const editError = query.editError;
   const contextError = query.contextError;
+  const usageError = query.usageError;
   const values = capabilityValues(assessment.profile);
   const contextValues = evaluationContextValues(assessment.profile);
+  const usageValues = usagePlanningValues(assessment.profile);
   const preferred = values ? capabilityFields.filter(field => values[field.capability] === "PREFERRED")
     .map(field => ({ capability: field.capability, label: field.label })) : [];
 
@@ -94,6 +103,11 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           {contextErrors[contextError]}
         </p>
       )}
+      {typeof usageError === "string" && Object.hasOwn(usageErrors, usageError) && (
+        <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">
+          {usageErrors[usageError]}
+        </p>
+      )}
       {assessment.status === "DRAFT" && contextValues &&
         <EvaluationContextEditor assessmentId={assessment.id} version={assessment.version} values={contextValues} />}
       {assessment.status === "DRAFT" && !contextValues && (
@@ -105,6 +119,13 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
       {assessment.status === "DRAFT" && !values && (
         <p className="mt-8 rounded-lg border border-amber-700 p-4 text-amber-100">
           Capability editing is unavailable because this profile cannot be read safely.
+        </p>
+      )}
+      {assessment.status === "DRAFT" && usageValues &&
+        <UsagePlanningEditor assessmentId={assessment.id} version={assessment.version} values={usageValues} />}
+      {assessment.status === "DRAFT" && !usageValues && (
+        <p className="mt-8 rounded-lg border border-amber-700 p-4 text-amber-100">
+          Usage editing is unavailable because this profile cannot be read safely.
         </p>
       )}
       {comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values}

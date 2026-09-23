@@ -48,10 +48,10 @@ Run `make help` to see component-specific checks and development-server commands
 Local ZITADEL infrastructure, an AuthWeave OIDC project/application and two ordinary synthetic
 users support the local BFF sign-in flow. First login provisions a personal workspace;
 versioned workspace routes require the BFF's server-only credential and an OIDC identity
-that owns that workspace. Signed-in users can create a private assessment draft and read
-its current profile through the BFF, and browse a bounded list of their assessments.
-Editing and catalog-curator permissions are not enabled yet. The public browser-only
-preview is unchanged. Browser sign-in still needs a manual end-to-end check.
+that owns that workspace. Signed-in users can create a private assessment draft, edit
+selected fields through the BFF, and browse a bounded list of their assessments.
+Catalog-curator permissions are not enabled yet. The public browser-only preview is
+unchanged. Browser sign-in and editing still need a manual end-to-end check.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -118,9 +118,9 @@ to the ignored mode-600 `infra/.env` and leaves an existing credential unchanged
 `make dev-core` in one terminal so Flyway applies the Core ownership migration. In another
 terminal, run `make migrate-web-auth` to apply both replay-safe web migrations, then
 `make dev-web`. Open `http://localhost:3000/account` to try sign-in and sign-out with a
-synthetic user. Once signed in, use **Create assessment draft** to open a private,
-read-only version-5 assessment page. **View your assessments** lists up to 20 recent
-summaries per page, with an Older link for earlier drafts. The ignored
+synthetic user. Once signed in, use **Create assessment draft** to open a private
+version-5 assessment page with selected draft editors. **View your assessments**
+lists up to 20 recent summaries per page, with an Older link for earlier drafts. The ignored
 `apps/web/.env.local` must already contain the issuer and client ID
 created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
 rotation/revocation and database role isolation.
@@ -130,10 +130,10 @@ server-only bearer credential. Versioned workspace routes additionally require
 `X-AuthWeave-Oidc-Issuer` and `X-AuthWeave-Oidc-Subject` headers from the validated
 BFF session; Core checks their immutable mapping against the path workspace ID.
 The browser must never supply these credentials or principal headers directly.
-The BFF creates, lists and reads assessments using only the workspace from its server-side
-session. Creation requires an exact same-origin request; anonymous sessions are denied.
-Catalog routes remain unauthenticated and loopback-only. Profile editing,
-curator authorization and browser end-to-end verification are still pending.
+The BFF creates, lists, reads and edits selected draft fields using only the workspace
+from its server-side session. Writes require an exact same-origin request and optimistic
+version check; anonymous sessions are denied. Catalog routes remain unauthenticated and
+loopback-only. Curator authorization and browser end-to-end verification are still pending.
 Do not expose the local HTTP lab or Core API.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
@@ -171,9 +171,9 @@ The Core API stores immutable assessment revisions and atomic state-change event
 with workspace-scoped paginated history reads. Runtime database roles cannot update
 or delete history. Versioned workspace routes now enforce a local BFF credential and
 personal-workspace ownership; the BFF exposes authenticated draft creation,
-bounded summary listing and read-only assessment pages, but not editing.
+bounded summary listing and selected draft editors through an optimistic Core write.
 The Core API also offers read-only capability and context preflights against explicitly
-fictional plans. Full provider evaluation, ADR export and authenticated workflows are still
+fictional plans. Full provider evaluation, ADR export and curator workflows are still
 planned. The AI worker exposes health endpoints.
 
 To run just the preview, only Node.js and npm are required:
@@ -495,6 +495,11 @@ Each recorded quantity has `basis: ASSUMED | OBSERVED` and an integer `value` fr
 An omitted metric is unknown; an explicit zero is a recorded value. No client type,
 requirement or budget-sensitivity label automatically supplies zeros or a spending cap.
 These definitions are planning units, not a vendor's billable-unit definitions.
+The private assessment page can edit these inputs in a draft. Each save reads the
+latest complete v5 profile through the BFF, changes only `usagePlanning`, and uses
+`expectedVersion`; other profile fields are preserved. Leave a metric blank with
+`Unknown` basis to keep it unknown, or choose `Assumed`/`Observed` and enter a number.
+The form accepts up to 10 separate assumptions. Do not enter secrets or personal data.
 Partial inputs can be saved, for example:
 
 ```json
@@ -534,7 +539,8 @@ cost quote, free-tier promise, affordability check, score or provider eliminatio
 performed. Dated prices, paid feature gates, billable-unit mapping and infrastructure,
 additional environments and operational costs still need a separate cost model.
 V1/v2/v3/v4 eligibility endpoints, policies and synthetic catalog v4 remain unchanged;
-there is no v5 eligibility endpoint. The browser preview remains v1 with no usage-input UI.
+there is no v5 eligibility endpoint. The separate browser-only `/preview` remains v1
+without a usage-input editor; the private authenticated draft page has one.
 
 ### Provider catalog drafts: validation before review
 
