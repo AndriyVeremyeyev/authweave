@@ -475,6 +475,15 @@ preference is not a hard failure. Only capability preferences are compared. Ther
 no weights, scores, ranking or winner, and other preference dimensions remain deferred.
 The comparison uses the same fictional catalog and does not write assessment data.
 
+A fixed-clock Phase 3 regression suite reuses the three frozen B2B, public-sector and
+workforce profiles with the synthetic catalog. It pins reason-coded verdicts and
+preference outcomes. A test-only B2B variant makes explicit choices and supplies
+weights to the separate preview; only a fully checked option receives a score.
+After the evidence ages past 90 days, the previous SCIM exclusion and score both
+become unresolved.
+These synthetic regression cases are not real provider evidence or the planned
+full 18-case evaluation dataset; they do not establish a final recommendation.
+
 ### Usage inputs and planning assumptions
 
 Profile API v5 adds `operations.usagePlanning` for the application being assessed,
