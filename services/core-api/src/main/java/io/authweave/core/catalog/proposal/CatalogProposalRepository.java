@@ -8,6 +8,7 @@ import tools.jackson.databind.ObjectMapper;
 import io.authweave.core.generated.jooq.tables.records.CatalogProposalRevisionsRecord;
 import static io.authweave.core.generated.jooq.tables.CatalogProposals.CATALOG_PROPOSALS;
 import static io.authweave.core.generated.jooq.tables.CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS;
+import static io.authweave.core.generated.jooq.tables.CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
 import static io.authweave.core.generated.audit.tables.CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS;
 
 /** Read boundary available to the loopback API; writing is an explicit local command only. */
@@ -24,6 +25,21 @@ public class CatalogProposalRepository {
                 .where(p.ID.eq(id)).fetchOneInto(r);
         if (row == null) throw new CatalogProposalException(CatalogProposalException.Reason.NOT_FOUND);
         return snapshot(row);
+    }
+
+    /** A decision is separate from the immutable PROPOSED snapshot; null means not yet rejected. */
+    public CatalogProposalRejection currentRejection(UUID id) {
+        var p = CATALOG_PROPOSALS; var d = CATALOG_PROPOSAL_DECISIONS;
+        var row = dsl.select(p.VERSION, d.ID, d.PROPOSAL_VERSION, d.PROPOSAL_SHA256,
+                        d.DECISION, d.REASON_CODE, d.RECORDED_AT)
+                .from(p).leftJoin(d).on(d.PROPOSAL_ID.eq(p.ID).and(d.PROPOSAL_VERSION.eq(p.VERSION)))
+                .where(p.ID.eq(id)).fetchOne();
+        if (row == null) throw new CatalogProposalException(CatalogProposalException.Reason.NOT_FOUND);
+        if (row.get(d.ID) == null) return null;
+        return new CatalogProposalRejection(row.get(d.ID), id, row.get(d.PROPOSAL_VERSION),
+                row.get(d.PROPOSAL_SHA256), row.get(d.DECISION),
+                CatalogProposalRejectionRequest.ReasonCode.valueOf(row.get(d.REASON_CODE)),
+                row.get(d.RECORDED_AT).toInstant());
     }
 
     public CatalogProposalPage<CatalogProposalSnapshot> revisions(UUID id, Long afterVersion, int limit) {

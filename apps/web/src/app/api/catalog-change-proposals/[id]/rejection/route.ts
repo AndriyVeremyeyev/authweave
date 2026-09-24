@@ -1,4 +1,4 @@
-import { type NextRequest } from "next/server.js";
+import { type NextRequest, NextResponse } from "next/server.js";
 
 import { authConfiguration, sameOriginMutation } from "../../../../../lib/auth/config.ts";
 import { rejectCatalogProposal, type CatalogRejectionInput } from "../../../../../lib/auth/core-client.ts";
@@ -26,6 +26,27 @@ function rejectionInput(value: unknown): CatalogRejectionInput | null {
   return body as CatalogRejectionInput;
 }
 
+function rejectionFormInput(text: string): CatalogRejectionInput | null {
+  const form = new URLSearchParams(text);
+  const names = [...form.keys()];
+  if (names.length !== 4 || new Set(names).size !== 4 ||
+      !["expectedVersion", "expectedSha256", "reasonCode", "confirm"].every(name => form.has(name)) ||
+      form.get("confirm") !== "REJECT") return null;
+  const version = form.get("expectedVersion");
+  if (!version || !/^(0|[1-9][0-9]*)$/.test(version)) return null;
+  return rejectionInput({ expectedVersion: Number(version), expectedSha256: form.get("expectedSha256"),
+    reasonCode: form.get("reasonCode") });
+}
+
+function returnToReview(origin: URL, id: string, outcome: "rejected" | "stale"): Response {
+  const destination = new URL(`/catalog/review/${id}`, origin);
+  destination.searchParams.set(outcome === "rejected" ? "result" : "error", outcome);
+  const response = NextResponse.redirect(destination, { status: 303 });
+  response.headers.set("Cache-Control", "no-store");
+  response.headers.set("Referrer-Policy", "no-referrer");
+  return response;
+}
+
 export async function POST(request: NextRequest,
   context: RouteContext<"/api/catalog-change-proposals/[id]/rejection">): Promise<Response> {
   try {
@@ -36,22 +57,24 @@ export async function POST(request: NextRequest,
     const sessionId = request.cookies.get(sessionCookieName(config.secureCookies))?.value;
     const session = await touchSession(sessionId);
     if (!session) return noStore(401);
-    if (request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
-      return noStore(415);
-    }
+    const mediaType = request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+    const isForm = mediaType === "application/x-www-form-urlencoded";
+    if (mediaType !== "application/json" && !isForm) return noStore(415);
     const declaredLength = request.headers.get("content-length");
     if (declaredLength && Number(declaredLength) > 512) return noStore(413);
     const text = await request.text();
     if (text.length > 512) return noStore(413);
     let input: CatalogRejectionInput | null;
-    try { input = rejectionInput(JSON.parse(text)); } catch { return noStore(400); }
+    try { input = isForm ? rejectionFormInput(text) : rejectionInput(JSON.parse(text)); }
+    catch { return noStore(400); }
     if (!input) return noStore(400);
     const result = await rejectCatalogProposal(session, config, id, input);
     if (result.kind === "rejected") {
+      if (isForm) return returnToReview(config.origin, id, "rejected");
       return Response.json(result.decision, { status: 201, headers: { "Cache-Control": "no-store" } });
     }
     if (result.kind === "not-found") return noStore(404);
-    if (result.kind === "conflict") return noStore(409);
+    if (result.kind === "conflict") return isForm ? returnToReview(config.origin, id, "stale") : noStore(409);
     if (result.kind === "invalid") return noStore(400);
     if (result.kind === "not-configured" || result.kind === "core-unavailable") return noStore(503);
     return noStore(403);

@@ -2,6 +2,7 @@
 import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
+import { proposalReviewFromCore, type CatalogProposalReview } from "../catalog/proposal-review.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 import { withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
@@ -35,6 +36,9 @@ export type CatalogRejection = {
 export type CatalogRejectionResult =
   | { kind: "rejected"; decision: CatalogRejection }
   | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" | "conflict" | "invalid" };
+export type CatalogReviewResult =
+  | { kind: "ready"; review: CatalogProposalReview; rejection: CatalogRejection | null }
+  | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" };
 
 export type PersonalAssessment = {
   id: string;
@@ -185,6 +189,43 @@ function rejectionFromCore(value: unknown, id: string, input: CatalogRejectionIn
     throw new Error("Core rejection response is invalid");
   }
   return body as CatalogRejection;
+}
+
+export async function readCatalogProposalReview(session: BrowserSession,
+  config: Pick<AuthConfiguration, "issuer" | "curatorScope">, id: string,
+  now: Date = new Date()): Promise<CatalogReviewResult> {
+  if (!UUID.test(id)) return { kind: "not-found" };
+  const authorization = await readCuratorAuthorization(session, config, now);
+  if (authorization !== "ready") return { kind: authorization };
+  if (!config.curatorScope) return { kind: "not-configured" };
+  try {
+    const headers = curatorHeaders(session, config.curatorScope);
+    const base = `${CORE_ORIGIN}/api/v1/catalog-change-proposals/${id}`;
+    const proposalResponse = await fetch(base, {
+      method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    });
+    if (proposalResponse.status === 404) return { kind: "not-found" };
+    if (proposalResponse.status !== 200) return { kind: "core-unavailable" };
+    const review = proposalReviewFromCore(await proposalResponse.json(), id);
+    const decisionResponse = await fetch(`${base}/decisions/current`, {
+      method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    });
+    if (decisionResponse.status === 204) return { kind: "ready", review, rejection: null };
+    if (decisionResponse.status === 401 || decisionResponse.status === 403) return { kind: "core-rejected" };
+    if (decisionResponse.status !== 200) return { kind: "core-unavailable" };
+    const value: unknown = await decisionResponse.json();
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid decision");
+    const reasonCode = (value as Record<string, unknown>).reasonCode;
+    if (typeof reasonCode !== "string" || !rejectionReasons.includes(reasonCode as CatalogRejectionReason)) {
+      throw new Error("Invalid decision reason");
+    }
+    return { kind: "ready", review, rejection: rejectionFromCore(value, id, {
+      expectedVersion: review.version, expectedSha256: review.proposalSha256,
+      reasonCode: reasonCode as CatalogRejectionReason,
+    }) };
+  } catch {
+    return { kind: "core-unavailable" };
+  }
 }
 
 export async function rejectCatalogProposal(session: BrowserSession,

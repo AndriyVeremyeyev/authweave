@@ -14,7 +14,7 @@ const curatorMessages: Record<CuratorProbeStatus, string> = {
   "reauth-required": "A curator role was recorded, but identity verification is no longer recent enough.",
   "core-rejected": "Core rejected the curator assertion. Catalog access remains closed.",
   "core-unavailable": "Core curator verification is unavailable. Catalog access remains closed.",
-  ready: "The curator role and recent identity verification passed the Core check. The rejection API is guarded; review UI, approval and publication are not available yet.",
+  ready: "The curator role and recent identity verification passed the Core check. You can inspect a stored proposal and reject its current revision; approval and publication are unavailable.",
 };
 
 export default async function AccountPage() {
@@ -41,6 +41,7 @@ export default async function AccountPage() {
           <p>Signed in as {session.displayName ?? session.email ?? session.subject}.</p>
           <p className="text-sm text-slate-400">Your personal workspace is ready. Create and edit a private assessment draft to begin.</p>
           {curatorStatus && <p className="text-sm text-slate-400">{curatorMessages[curatorStatus]}</p>}
+          {curatorStatus === "ready" && <Link href="/catalog/review" className="inline-block text-cyan-200 hover:underline">Review a catalog proposal →</Link>}
           <p className="text-sm text-slate-400">Last identity verification: <time dateTime={session.authenticatedAt.toISOString()}>{session.authenticatedAt.toISOString()}</time></p>
           <form method="post" action="/api/auth/reauth">
             <button className="rounded-lg border border-slate-500 px-4 py-2 font-medium text-slate-100">Verify this account again</button>

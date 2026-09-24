@@ -189,6 +189,7 @@ test("curator rejection route requires same-origin, scoped fresh session and fix
       body: JSON.stringify(body),
     });
   const calls: string[] = [];
+  let rejectStatus = 201;
   globalThis.fetch = async (url, init) => {
     calls.push(`${init?.method} ${url}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
@@ -196,6 +197,7 @@ test("curator rejection route requires same-origin, scoped fresh session and fix
       curatorScope.projectId);
     if (init?.method === "GET") return new Response(null, { status: 204 });
     assert.deepEqual(JSON.parse(String(init?.body)), input);
+    if (rejectStatus === 409) return new Response(null, { status: 409 });
     return Response.json({ decisionId: "90000000-0000-4000-8000-000000000002",
       proposalId, proposalVersion: 1, proposalSha256: digest, decision: "REJECTED",
       reasonCode: "OUT_OF_SCOPE", recordedAt: new Date().toISOString() }, { status: 201 });
@@ -217,6 +219,31 @@ test("curator rejection route requires same-origin, scoped fresh session and fix
       "GET http://127.0.0.1:8080/internal/v1/catalog-curator/authorization",
       `POST http://127.0.0.1:8080/api/v1/catalog-change-proposals/${proposalId}/decisions/rejection`,
     ]);
+    calls.length = 0;
+    const form = new URLSearchParams({ expectedVersion: "1", expectedSha256: digest,
+      reasonCode: "OUT_OF_SCOPE", confirm: "REJECT" });
+    const formRequest = (body: string) => new NextRequest(
+      `http://localhost:3000/api/catalog-change-proposals/${proposalId}/rejection`, {
+        method: "POST", headers: { Origin: "http://localhost:3000",
+          "Content-Type": "application/x-www-form-urlencoded",
+          Cookie: `${sessionCookieName(false)}=${curatorSession}` }, body,
+      });
+    assert.equal((await rejectProposalRoute(formRequest(new URLSearchParams({
+      expectedVersion: "1", expectedSha256: digest, reasonCode: "OUT_OF_SCOPE",
+    }).toString()), context)).status, 400);
+    const formResponse = await rejectProposalRoute(formRequest(form.toString()), context);
+    assert.equal(formResponse.status, 303);
+    assert.equal(formResponse.headers.get("location"),
+      `http://localhost:3000/catalog/review/${proposalId}?result=rejected`);
+    assert.equal(formResponse.headers.get("cache-control"), "no-store");
+    assert.equal(calls.length, 2);
+    calls.length = 0;
+    rejectStatus = 409;
+    const staleResponse = await rejectProposalRoute(formRequest(form.toString()), context);
+    assert.equal(staleResponse.status, 303);
+    assert.equal(staleResponse.headers.get("location"),
+      `http://localhost:3000/catalog/review/${proposalId}?error=stale`);
+    assert.equal(calls.length, 2);
     calls.length = 0;
     await authDatabase().query(`UPDATE web.sessions SET authenticated_at = CURRENT_TIMESTAMP - INTERVAL '16 minutes'
       WHERE session_hash = $1`, [opaqueHash(curatorSession)]);

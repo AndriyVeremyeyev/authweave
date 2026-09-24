@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
   readCuratorAuthorization,
+  readCatalogProposalReview,
   rejectCatalogProposal,
   readPersonalArchitecturePatterns, readPersonalUsagePlanning, readSyntheticComparison,
   updatePersonalCapabilities,
@@ -206,6 +207,62 @@ test("BFF rejects only after a fresh scoped curator probe and sends no browser c
     assert.equal((await rejectCatalogProposal(eligible, curatorConfig, id,
       { ...input, expectedSha256: "bad" }, curatorNow)).kind, "invalid");
     assert.equal(calls, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("curator review reads a version-bound proposal and separate current decision only after authorization", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const eligible = { ...session, curatorScope, authenticatedAt: new Date("2026-09-22T12:00:00Z") };
+  const id = "90000000-0000-4000-8000-000000000001";
+  const digest = "a".repeat(64);
+  const snapshot = { proposalId: id, version: 0, state: "PROPOSED", requestSchemaVersion: 1,
+    proposalSha256: digest, recordedAt: "2026-09-22T12:00:00Z",
+    request: { schemaVersion: 1, proposalId: id, rationale: "Synthetic review.",
+      base: { catalogVersion: "synthetic-base" }, candidate: { catalogVersion: "synthetic-candidate" } },
+    preview: { proposalId: id, proposalSha256: digest, rationale: "Synthetic review.",
+      proposalState: "PROPOSED", status: "REVIEW_REQUIRED", diffComputed: true,
+      baselineVerified: false, sourceVerificationPerformed: false, approvalGranted: false,
+      writesPerformed: false, evaluationReady: false, impactAnalysisPerformed: false,
+      blockers: [], affectedOptionIds: [], optionChanges: [], factChanges: [] } };
+  let decision: Response = new Response(null, { status: 204 });
+  const calls: string[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push(String(url));
+    assert.equal(init?.method, "GET");
+    assert.equal(init?.cache, "no-store");
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], eligible.subject);
+    if (String(url).endsWith("/authorization")) return new Response(null, { status: 204 });
+    if (String(url).endsWith("/decisions/current")) return decision;
+    assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}`);
+    return Response.json(snapshot);
+  };
+  try {
+    const unreviewed = await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow);
+    assert.equal(unreviewed.kind, "ready");
+    if (unreviewed.kind === "ready") assert.equal(unreviewed.rejection, null);
+    assert.equal(calls.length, 3);
+    decision = Response.json({ decisionId: "90000000-0000-4000-8000-000000000002", proposalId: id,
+      proposalVersion: 0, proposalSha256: digest, decision: "REJECTED", reasonCode: "OTHER",
+      recordedAt: "2026-09-22T12:01:00Z" });
+    const rejected = await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow);
+    assert.equal(rejected.kind, "ready");
+    if (rejected.kind === "ready") assert.equal(rejected.rejection?.reasonCode, "OTHER");
+    decision = Response.json({ decisionId: "90000000-0000-4000-8000-000000000002", proposalId: id,
+      proposalVersion: 0, proposalSha256: "b".repeat(64), decision: "REJECTED", reasonCode: "OTHER",
+      recordedAt: "2026-09-22T12:01:00Z" });
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind,
+      "core-unavailable");
+    calls.length = 0;
+    assert.equal((await readCatalogProposalReview({ ...eligible,
+      authenticatedAt: new Date("2026-09-22T11:54:59Z") }, curatorConfig, id, curatorNow)).kind,
+      "reauth-required");
+    assert.deepEqual(calls, []);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

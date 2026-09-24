@@ -23,6 +23,7 @@ import static io.authweave.core.generated.audit.tables.CatalogProposalDecisionEv
 import static io.authweave.core.generated.jooq.tables.CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -44,6 +45,8 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
     void validCuratorRejectsCurrentRevisionExactlyOnceWithMatchingAudit() throws Exception {
         var proposal = proposals.save(proposal(), null).proposal();
         String body = body(proposal.version(), proposal.proposalSha256(), "INSUFFICIENT_EVIDENCE");
+        mvc.perform(authorizedRead(proposal.proposalId(), Instant.now())).andExpect(status().isNoContent());
+        mvc.perform(authorizedRead(UUID.randomUUID(), Instant.now())).andExpect(status().isNotFound());
         mvc.perform(authorized(path(proposal.proposalId()), Instant.now()).content(body))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.proposalId").value(proposal.proposalId().toString()))
@@ -52,6 +55,10 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.decision").value("REJECTED"))
                 .andExpect(jsonPath("$.reasonCode").value("INSUFFICIENT_EVIDENCE"))
                 .andExpect(jsonPath("$.recordedAt").exists());
+        mvc.perform(authorizedRead(proposal.proposalId(), Instant.now()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.proposalSha256").value(proposal.proposalSha256()))
+                .andExpect(jsonPath("$.decision").value("REJECTED"));
         var d = CATALOG_PROPOSAL_DECISIONS;
         var e = CATALOG_PROPOSAL_DECISION_EVENTS;
         var decision = dsl.selectFrom(d).where(d.PROPOSAL_ID.eq(proposal.proposalId())).fetchOne();
@@ -75,6 +82,7 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
         String body = body(0, proposal.proposalSha256(), "OTHER");
         mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isUnauthorized());
+        mvc.perform(get(readPath(proposal.proposalId()))).andExpect(status().isUnauthorized());
         mvc.perform(post(path).header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
                 .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
         mvc.perform(authorized(path, Instant.now()).header("X-AuthWeave-Curator-Role", "assessor")
@@ -82,6 +90,8 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
         mvc.perform(authorized(path, Instant.now()).header("X-AuthWeave-Curator-Project-Id", "111")
                 .content(body)).andExpect(status().isForbidden());
         mvc.perform(authorized(path, Instant.now().minusSeconds(901)).content(body))
+                .andExpect(status().isForbidden());
+        mvc.perform(authorizedRead(proposal.proposalId(), Instant.now().minusSeconds(901)))
                 .andExpect(status().isForbidden());
         assertEquals(0, dsl.fetchCount(CATALOG_PROPOSAL_DECISIONS,
                 CATALOG_PROPOSAL_DECISIONS.PROPOSAL_ID.eq(proposal.proposalId())));
@@ -118,13 +128,26 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
         return "/api/v1/catalog-change-proposals/" + id + "/decisions/rejection";
     }
 
+    private static String readPath(UUID id) {
+        return "/api/v1/catalog-change-proposals/" + id + "/decisions/current";
+    }
+
+    private static MockHttpServletRequestBuilder authorizedRead(UUID id, Instant authenticatedAt) {
+        return withCuratorHeaders(get(readPath(id)), authenticatedAt);
+    }
+
     private static String body(long version, String digest, String reason) {
         return "{\"expectedVersion\":" + version + ",\"expectedSha256\":\"" + digest
                 + "\",\"reasonCode\":\"" + reason + "\"}";
     }
 
     private static MockHttpServletRequestBuilder authorized(String path, Instant authenticatedAt) {
-        return post(path).contentType(MediaType.APPLICATION_JSON)
+        return withCuratorHeaders(post(path).contentType(MediaType.APPLICATION_JSON), authenticatedAt);
+    }
+
+    private static MockHttpServletRequestBuilder withCuratorHeaders(MockHttpServletRequestBuilder builder,
+            Instant authenticatedAt) {
+        return builder
                 .header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
                 .header("X-AuthWeave-Oidc-Issuer", "http://localhost:8081")
                 .header("X-AuthWeave-Oidc-Subject", "synthetic-curator")

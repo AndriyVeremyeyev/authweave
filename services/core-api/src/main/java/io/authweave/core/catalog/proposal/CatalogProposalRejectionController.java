@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,11 +21,22 @@ import io.authweave.core.catalog.proposal.CatalogProposalRejectionWriter.Curator
 public class CatalogProposalRejectionController {
     private final InternalServiceCredentialFilter credentials;
     private final CatalogProposalRejectionWriter writer;
+    private final CatalogProposalRepository repository;
 
     public CatalogProposalRejectionController(InternalServiceCredentialFilter credentials,
-            CatalogProposalRejectionWriter writer) {
+            CatalogProposalRejectionWriter writer, CatalogProposalRepository repository) {
         this.credentials = credentials;
         this.writer = writer;
+        this.repository = repository;
+    }
+
+    @GetMapping("/api/v1/catalog-change-proposals/{proposalId}/decisions/current")
+    public ResponseEntity<CatalogProposalRejection> current(@PathVariable UUID proposalId,
+            HttpServletRequest request) {
+        int status = credentials.curatorStatus(request);
+        if (status != 204) return ResponseEntity.status(status).build();
+        var decision = repository.currentRejection(proposalId);
+        return decision == null ? ResponseEntity.noContent().build() : ResponseEntity.ok(decision);
     }
 
     @PostMapping("/api/v1/catalog-change-proposals/{proposalId}/decisions/rejection")

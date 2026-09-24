@@ -278,6 +278,39 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         '404':
           $ref: '#/components/responses/CatalogProposalNotFound'
+  /api/v1/catalog-change-proposals/{proposalId}/decisions/current:
+    get:
+      tags: [Catalog drafts]
+      summary: Read the current proposal revision's curator rejection, if any
+      operationId: getCurrentCatalogProposalDecision
+      description: >-
+        BFF-to-Core curator read requiring the same server credential, exact scoped role
+        and recent authentication as the rejection write. Returns 204 when the current
+        revision has no decision. A previous revision's rejection is not presented as
+        the current decision. This does not verify evidence or change active catalog data.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+      responses:
+        '200':
+          description: Recorded rejection of the current revision.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-rejection.v1.schema.json
+        '204':
+          description: Current revision has not been rejected.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Missing or invalid server credential or OIDC principal.
+        '403':
+          description: Curator role, scope or recent authentication missing.
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
+        '503':
+          description: Curator scope or server credential is not configured.
   /api/v1/catalog-change-proposals/{proposalId}/decisions/rejection:
     post:
       tags: [Catalog drafts]
