@@ -15,6 +15,7 @@ import {
 } from "../src/lib/auth/core-client.ts";
 import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/capabilities.ts";
 import { usageMetrics, type UsagePlanningValues } from "../src/lib/assessment/usage-planning.ts";
+import { storedImpactFixture } from "./fixtures/stored-impact.mts";
 
 const identity = {
   issuer: "http://localhost:8081",
@@ -231,6 +232,7 @@ test("curator review reads a version-bound proposal and separate current decisio
       writesPerformed: false, evaluationReady: false, impactAnalysisPerformed: false,
       blockers: [], affectedOptionIds: [], optionChanges: [], factChanges: [] } };
   let decision: Response = new Response(null, { status: 204 });
+  let impactResponse: Response = new Response(null, { status: 204 });
   const calls: string[] = [];
   globalThis.fetch = async (url, init) => {
     calls.push(String(url));
@@ -239,14 +241,32 @@ test("curator review reads a version-bound proposal and separate current decisio
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], eligible.subject);
     if (String(url).endsWith("/authorization")) return new Response(null, { status: 204 });
     if (String(url).endsWith("/decisions/current")) return decision;
+    if (String(url).endsWith("/impact-reports/latest")) {
+      assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/revisions/0/impact-reports/latest`);
+      return impactResponse;
+    }
     assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}`);
     return Response.json(snapshot);
   };
   try {
     const unreviewed = await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow);
     assert.equal(unreviewed.kind, "ready");
-    if (unreviewed.kind === "ready") assert.equal(unreviewed.rejection, null);
-    assert.equal(calls.length, 3);
+    if (unreviewed.kind === "ready") {
+      assert.equal(unreviewed.rejection, null);
+      assert.equal(unreviewed.impact, null);
+    }
+    assert.equal(calls.length, 4);
+    impactResponse = Response.json(storedImpactFixture(id, 0, digest));
+    const analyzed = await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow);
+    assert.equal(analyzed.kind, "ready");
+    if (analyzed.kind === "ready") {
+      assert.equal(analyzed.impact?.status, "ANALYZED");
+      assert.equal(analyzed.impact?.reportNumber, 7);
+    }
+    impactResponse = Response.json({ ...storedImpactFixture(id, 0, digest), proposalVersion: 1 });
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind,
+      "core-unavailable");
+    impactResponse = new Response(null, { status: 204 });
     decision = Response.json({ decisionId: "90000000-0000-4000-8000-000000000002", proposalId: id,
       proposalVersion: 0, proposalSha256: digest, decision: "REJECTED", reasonCode: "OTHER",
       recordedAt: "2026-09-22T12:01:00Z" });
@@ -256,6 +276,10 @@ test("curator review reads a version-bound proposal and separate current decisio
     decision = Response.json({ decisionId: "90000000-0000-4000-8000-000000000002", proposalId: id,
       proposalVersion: 0, proposalSha256: "b".repeat(64), decision: "REJECTED", reasonCode: "OTHER",
       recordedAt: "2026-09-22T12:01:00Z" });
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind,
+      "core-unavailable");
+    decision = new Response(null, { status: 204 });
+    impactResponse = new Response(null, { status: 503 });
     assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind,
       "core-unavailable");
     calls.length = 0;

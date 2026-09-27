@@ -94,8 +94,11 @@ class CatalogImpactReportPersistenceTests extends PostgresIntegrationTest {
 
     @Test void paginationIsScopedExclusiveBoundedAndDoesNotRequireContiguousNumbers() throws Exception {
         var a = request(); var b = request(); proposals.save(a, null); proposals.save(b, null);
+        assertTrue(reports.latest(a.proposalId(), 0).isEmpty());
         var first = writer.save(UUID.randomUUID(), a.proposalId(), 0).report(); writer.save(UUID.randomUUID(), b.proposalId(), 0);
         var second = writer.save(UUID.randomUUID(), a.proposalId(), 0).report();
+        assertEquals(second, reports.latest(a.proposalId(), 0).orElseThrow());
+        assertEquals(b.proposalId(), reports.latest(b.proposalId(), 0).orElseThrow().proposalId());
         var page = reports.list(a.proposalId(), 0, null, 1); assertEquals(List.of(first), page.items()); assertEquals(first.reportNumber(), page.nextAfterReportNumber());
         var rest = reports.list(a.proposalId(), 0, page.nextAfterReportNumber(), 1); assertEquals(List.of(second), rest.items()); assertNull(rest.nextAfterReportNumber());
         assertTrue(reports.list(a.proposalId(), 0, second.reportNumber(), 100).items().isEmpty());
@@ -104,6 +107,7 @@ class CatalogImpactReportPersistenceTests extends PostgresIntegrationTest {
             assertThrows(IllegalArgumentException.class, () -> reports.list(a.proposalId(), 0, value, 1));
         }
         for (int limit : List.of(0, 101)) assertThrows(IllegalArgumentException.class, () -> reports.list(a.proposalId(), 0, null, limit));
+        assertThrows(CatalogProposalException.class, () -> reports.latest(a.proposalId(), 1));
         assertThrows(UnsupportedOperationException.class, () -> page.items().clear());
     }
 

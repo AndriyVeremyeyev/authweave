@@ -3,6 +3,7 @@ package io.authweave.core.catalog.impact;
 import java.util.UUID;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 /** Historical loopback reads only; no HTTP write or curator decision. */
@@ -11,6 +12,12 @@ import org.springframework.web.bind.annotation.*;
 public final class CatalogImpactReportController {
     private final CatalogImpactReportRepository reports;
     public CatalogImpactReportController(CatalogImpactReportRepository reports) { this.reports = reports; }
+    @GetMapping("/latest")
+    public ResponseEntity<CatalogImpactReport> latest(@PathVariable UUID proposalId,
+            @PathVariable @Min(0) @Max(9007199254740991L) long version) {
+        return reports.latest(proposalId, version).map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
     @GetMapping
     public CatalogImpactReportRepository.Page list(@PathVariable UUID proposalId,
             @PathVariable @Min(0) @Max(9007199254740991L) long version,

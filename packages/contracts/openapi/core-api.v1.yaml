@@ -53,6 +53,35 @@ paths:
             application/problem+json:
               schema:
                 $ref: ../schemas/core-problem.v1.schema.json
+  /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/impact-reports/latest:
+    get:
+      tags: [Catalog drafts]
+      summary: Read the highest-numbered stored scenario report for one proposal revision
+      operationId: getLatestCatalogImpactReport
+      description: >-
+        Local-only historical read, not a fresh evaluation or curator approval. The report
+        is bound to the exact proposal revision; 204 means that revision has no stored
+        report. A later report can exist only after another explicit local command.
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - $ref: '#/components/parameters/CatalogProposalVersion'
+      responses:
+        '200':
+          description: Immutable stored report with the greatest reportNumber for this revision.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-impact-report.v1.schema.json
+        '204':
+          description: This proposal revision has no stored scenario report.
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '404':
+          description: The requested proposal revision does not exist.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
   /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/impact-reports/{reportId}:
     get:
       tags: [Catalog drafts]

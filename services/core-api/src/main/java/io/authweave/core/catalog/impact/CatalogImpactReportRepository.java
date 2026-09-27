@@ -27,13 +27,16 @@ public class CatalogImpactReportRepository {
         return find(reportId).filter(r -> r.proposalId().equals(proposalId) && r.proposalVersion() == version)
                 .orElseThrow(() -> new CatalogImpactReportException(CatalogImpactReportException.Reason.NOT_FOUND));
     }
+    public Optional<CatalogImpactReport> latest(UUID proposalId, long version) {
+        version(version); requireRevision(proposalId, version);
+        var r = CATALOG_IMPACT_REPORTS;
+        return dsl.selectFrom(r).where(r.PROPOSAL_ID.eq(proposalId).and(r.PROPOSAL_VERSION.eq(version)))
+                .orderBy(r.REPORT_NUMBER.desc()).limit(1).fetchOptional(this::snapshot);
+    }
     public Page list(UUID proposalId, long version, Long after, int limit) {
         version(version);
         if (limit < 1 || limit > 100 || (after != null && (after < 0 || after > 9007199254740991L))) throw new IllegalArgumentException("Invalid impact history page bounds");
-        var revisions = CATALOG_PROPOSAL_REVISIONS;
-        if (!dsl.fetchExists(revisions, revisions.PROPOSAL_ID.eq(proposalId).and(revisions.VERSION.eq(version)))) {
-            throw new CatalogProposalException(CatalogProposalException.Reason.NOT_FOUND);
-        }
+        requireRevision(proposalId, version);
         var r = CATALOG_IMPACT_REPORTS;
         var rows = dsl.selectFrom(r).where(r.PROPOSAL_ID.eq(proposalId).and(r.PROPOSAL_VERSION.eq(version)))
                 .and(r.REPORT_NUMBER.gt(after == null ? 0 : after)).orderBy(r.REPORT_NUMBER.asc()).limit(limit + 1).fetch(this::snapshot);
@@ -50,6 +53,12 @@ public class CatalogImpactReportRepository {
     private CatalogImpactReport snapshot(CatalogImpactReportsRecord row) {
         return new CatalogImpactReport(row.getId(), row.getReportNumber(), row.getProposalId(), row.getProposalVersion(), row.getReportSchemaVersion(),
                 row.getCanonicalizationVersion(), row.getProposalSha256(), row.getReportSha256(), row.getRecordedAt().toInstant(), mapper.readTree(row.getReport().data()));
+    }
+    private void requireRevision(UUID proposalId, long version) {
+        var revisions = CATALOG_PROPOSAL_REVISIONS;
+        if (!dsl.fetchExists(revisions, revisions.PROPOSAL_ID.eq(proposalId).and(revisions.VERSION.eq(version)))) {
+            throw new CatalogProposalException(CatalogProposalException.Reason.NOT_FOUND);
+        }
     }
     static void version(long value) { if (value < 0 || value > 9007199254740991L) throw new IllegalArgumentException("Use a non-negative safe integer version"); }
     public record Page(List<CatalogImpactReport> items, Long nextAfterReportNumber) { public Page { items = List.copyOf(items); } }

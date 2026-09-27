@@ -761,11 +761,15 @@ actually authenticated. The BFF now exposes a same-origin, session-bound POST at
 assertion with the exact configured curator role/scope and authentication within 15
 minutes. The request binds the current version and SHA-256, then inserts the rejection
 and audit event in one transaction. A duplicate, stale version or changed digest fails
-with 409. A curator-gated, read-only review screen at `/catalog/review` now accepts a
+with 409. A curator-gated proposal review screen at `/catalog/review` now accepts a
 proposal UUID and displays its stored semantic option/fact changes, caller-supplied
 provenance as unverified text, revision and digest. It reads the current rejection
-decision separately and can submit only the protected rejection action after an
-explicit version-bound confirmation. It does not list proposals, verify sources or
+decision separately and shows the latest stored conditional scenario impact report
+for that exact revision, if one exists. Its evaluated time, rule/case-set versions,
+scenario outcomes and uncovered changes are historical; no analysis is rerun and
+incomplete coverage is not treated as approval. The screen can submit only the
+protected rejection action after an explicit version-bound confirmation. It does not
+list proposals, verify sources or
 grant roles; no role is granted by setup. There is still no approval, active catalog
 change or published state; existing proposal reads continue to report the immutable
 snapshot as `PROPOSED`, with rejection stored separately.
@@ -934,6 +938,9 @@ With Core API running, these local-only GET routes use the prefix
   Continue with `nextAfterReportNumber` until it is null. Report numbers can have gaps;
   they are ordering keys, not counts. Writes for the same proposal are serialized before
   allocating numbers so an in-flight lower-numbered report cannot be skipped.
+- `/latest` returns the highest-numbered report for that exact revision, or 204 if
+  the revision exists but has no report. It does not rerun analysis. The BFF uses
+  this read only after checking a fresh scoped curator session for the review screen.
 - `/{reportId}` reads one immutable snapshot. A report under a different proposal or
   revision returns 404 `catalog-impact-report-not-found`.
 - `/{reportId}/event` reads the single recording event: `catalog-impact.recorded`, IDs,

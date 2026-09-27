@@ -6,6 +6,7 @@ import { authConfiguration } from "@/lib/auth/config";
 import { readCatalogProposalReview, type CatalogReviewResult } from "@/lib/auth/core-client";
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession } from "@/lib/auth/store";
+import type { CatalogImpactReview, ScenarioImpactRow } from "@/lib/catalog/impact-review";
 import { sourceDetails, type CatalogProposalReview, type ReviewFactChange,
   type ReviewOptionChange } from "@/lib/catalog/proposal-review";
 
@@ -13,6 +14,16 @@ export const runtime = "nodejs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PAGE_SIZE = 20;
+const conditionalStatusLabels: Record<ScenarioImpactRow["before"], string> = {
+  WOULD_SATISFY_CHECKED_REQUIREMENTS: "Would satisfy checked requirements",
+  WOULD_VIOLATE_CHECKED_REQUIREMENTS: "Would violate checked requirements",
+  INDETERMINATE: "Indeterminate",
+  OPTION_ABSENT: "Option absent",
+};
+function boundedPage(value: string | string[] | undefined, count: number): number {
+  const requested = typeof value === "string" && /^[1-9][0-9]*$/.test(value) ? Number(value) : 1;
+  return Number.isSafeInteger(requested) ? Math.min(requested, Math.max(1, count)) : 1;
+}
 
 export default async function CatalogProposalReviewPage({ params, searchParams }:
     PageProps<"/catalog/review/[id]">) {
@@ -44,12 +55,10 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
       </form>}
     </main>;
   }
-  const { review, rejection } = result;
+  const { review, rejection, impact } = result;
   const query = await searchParams;
-  const requestedPage = typeof query.page === "string" && /^[1-9][0-9]*$/.test(query.page)
-    ? Number(query.page) : 1;
   const pageCount = Math.max(1, Math.ceil(review.factChanges.length / PAGE_SIZE));
-  const page = Number.isSafeInteger(requestedPage) ? Math.min(requestedPage, pageCount) : 1;
+  const page = boundedPage(query.page, pageCount);
   const facts = review.factChanges.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   return (
     <main className="mx-auto max-w-5xl px-6 py-20 text-slate-100">
@@ -100,9 +109,64 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
           </>
         )}
       </section>
+      <ImpactSection proposalId={id} impact={impact} scenarioPage={boundedPage(query.impactPage,
+        Math.ceil((impact?.scenarios.length ?? 0) / PAGE_SIZE))} uncoveredPage={boundedPage(query.uncoveredPage,
+        Math.ceil((impact?.uncoveredChanges.length ?? 0) / PAGE_SIZE))} />
       <DecisionSection review={review} rejection={rejection} />
     </main>
   );
+}
+
+function ImpactSection({ proposalId, impact, scenarioPage, uncoveredPage }: {
+  proposalId: string; impact: CatalogImpactReview | null; scenarioPage: number; uncoveredPage: number;
+}) {
+  return <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="impact-heading">
+    <h2 id="impact-heading" className="text-2xl font-semibold">Stored scenario impact</h2>
+    {!impact ? <p className="mt-3 text-slate-300">No scenario impact report is stored for this exact revision. An explicit local command is required to create one; absence does not mean no impact.</p> : <>
+      <p className="mt-3 text-amber-100">Historical, conditional analysis only. The base and sources are unverified, coverage is incomplete, and results may not reflect current rules. This is not approval, a recommendation or an active catalog evaluation.</p>
+      <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+        <div><dt className="text-slate-400">Latest stored report</dt><dd>#{impact.reportNumber} · {impact.status}</dd></div>
+        <div><dt className="text-slate-400">Evaluated at</dt><dd><time dateTime={impact.evaluatedAt}>{impact.evaluatedAt}</time></dd></div>
+        <div><dt className="text-slate-400">Stored at</dt><dd><time dateTime={impact.recordedAt}>{impact.recordedAt}</time></dd></div>
+        <div><dt className="text-slate-400">Report ID</dt><dd className="break-all font-mono">{impact.reportId}</dd></div>
+        <div><dt className="text-slate-400">Case set · rule · policy</dt><dd className="break-words">{impact.caseSetVersion} · {impact.ruleVersion} · {impact.policyVersion}</dd></div>
+        <div><dt className="text-slate-400">Case-set SHA-256</dt><dd className="break-all font-mono">{impact.caseSetSha256}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-slate-400">Report SHA-256</dt><dd className="break-all font-mono">{impact.reportSha256}</dd></div>
+      </dl>
+      {impact.status === "BLOCKED" ? <p className="mt-6 text-amber-100">The stored run was blocked. No hypothetical scenario evaluation was performed.</p> : <>
+        <h3 className="mt-8 text-lg font-semibold">Three synthetic profiles</h3>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-slate-300">
+          {impact.scenarioDefinitions.map(def => <li key={def.id}><span className="font-medium">{def.id}</span>: {def.description}</li>)}
+        </ul>
+        <h3 className="mt-8 text-lg font-semibold">Scenario and option outcomes</h3>
+        <p className="mt-2 text-sm text-slate-400">{impact.scenarios.length} recorded rows · page {scenarioPage} of {Math.max(1, Math.ceil(impact.scenarios.length / PAGE_SIZE))}. A changed conditional status is not proof of a real provider outcome.</p>
+        <div className="mt-4 space-y-4">
+          {impact.scenarios.slice((scenarioPage - 1) * PAGE_SIZE, scenarioPage * PAGE_SIZE).map((row, index) =>
+            <article key={`${row.scenarioId}-${row.optionId}-${index}`} className="rounded-lg border border-slate-600 p-4">
+              <h4 className="font-medium">{row.scenarioId} · {row.optionId}</h4>
+              <p className="mt-2 break-words text-sm text-slate-300">Before: {conditionalStatusLabels[row.before]} → After: {conditionalStatusLabels[row.after]}</p>
+              <p className="mt-1 text-sm text-slate-400">Conditional status changed: {row.conditionalStatusChanged ? "Yes" : "No"}. Option scope changed: {row.scopeChanged ? "Yes" : "No"}.</p>
+              <p className="mt-2 break-words text-sm text-slate-400">Changed checks: {row.changedCheckIds.length ? row.changedCheckIds.join(", ") : "None"}</p>
+              <p className="mt-1 break-words text-sm text-slate-400">Affected fact paths: {row.affectedFactPaths.length ? row.affectedFactPaths.join(", ") : "None"}</p>
+            </article>)}
+        </div>
+        {impact.scenarios.length > PAGE_SIZE && <nav aria-label="Scenario impact pages" className="mt-5 flex gap-5 text-cyan-200">
+          {scenarioPage > 1 && <Link href={`/catalog/review/${proposalId}?impactPage=${scenarioPage - 1}`} className="hover:underline">← Previous scenarios</Link>}
+          {scenarioPage * PAGE_SIZE < impact.scenarios.length && <Link href={`/catalog/review/${proposalId}?impactPage=${scenarioPage + 1}`} className="hover:underline">Next scenarios →</Link>}
+        </nav>}
+        <h3 className="mt-8 text-lg font-semibold">Changes without scenario dependency</h3>
+        <p className="mt-2 text-sm text-slate-400">{impact.uncoveredChanges.length} uncovered changes · page {uncoveredPage} of {Math.max(1, Math.ceil(impact.uncoveredChanges.length / PAGE_SIZE))}. Other dimensions may also be deferred; zero here does not imply complete coverage.</p>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-300">
+          {impact.uncoveredChanges.slice((uncoveredPage - 1) * PAGE_SIZE, uncoveredPage * PAGE_SIZE).map((row, index) =>
+            <li key={`${row.optionId}-${row.factPath}-${index}`} className="break-words">{row.optionId} · {row.factPath}</li>)}
+        </ul>
+        {impact.uncoveredChanges.length > PAGE_SIZE && <nav aria-label="Uncovered change pages" className="mt-5 flex gap-5 text-cyan-200">
+          {uncoveredPage > 1 && <Link href={`/catalog/review/${proposalId}?uncoveredPage=${uncoveredPage - 1}`} className="hover:underline">← Previous uncovered changes</Link>}
+          {uncoveredPage * PAGE_SIZE < impact.uncoveredChanges.length && <Link href={`/catalog/review/${proposalId}?uncoveredPage=${uncoveredPage + 1}`} className="hover:underline">Next uncovered changes →</Link>}
+        </nav>}
+      </>}
+    </>}
+  </section>;
 }
 
 function OptionChange({ change }: { change: ReviewOptionChange }) {
