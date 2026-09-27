@@ -39,6 +39,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
             "^/internal/v[1-9][0-9]*/catalog-curator(?:/|$)");
     private static final Pattern CURATOR_DECISION_PREFIX = Pattern.compile(
             "^/api/v[1-9][0-9]*/catalog-change-proposals/[^/]+/decisions(?:/|$)");
+    private static final Pattern CURATOR_REVIEW_INDEX = Pattern.compile(
+            "^/api/v[1-9][0-9]*/catalog-change-proposals/?$");
     private static final long CURATOR_REAUTH_SECONDS = 15 * 60;
     private static final long CLOCK_SKEW_SECONDS = 30;
 
@@ -56,7 +58,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = path(request);
         return !path.startsWith("/internal/") && !WORKSPACE_PREFIX.matcher(path).find()
-                && !CURATOR_DECISION_PREFIX.matcher(path).find();
+                && !CURATOR_DECISION_PREFIX.matcher(path).find()
+                && !CURATOR_REVIEW_INDEX.matcher(path).find();
     }
 
     @Override
@@ -93,7 +96,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
             }
         }
         if (CURATOR_INTERNAL_PREFIX.matcher(path).find()
-                || CURATOR_DECISION_PREFIX.matcher(path).find()) {
+                || CURATOR_DECISION_PREFIX.matcher(path).find()
+                || CURATOR_REVIEW_INDEX.matcher(path).find()) {
             int curatorStatus = curatorStatus(request);
             if (curatorStatus != HttpServletResponse.SC_NO_CONTENT) {
                 response.sendError(curatorStatus);

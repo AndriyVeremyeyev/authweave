@@ -761,16 +761,19 @@ actually authenticated. The BFF now exposes a same-origin, session-bound POST at
 assertion with the exact configured curator role/scope and authentication within 15
 minutes. The request binds the current version and SHA-256, then inserts the rejection
 and audit event in one transaction. A duplicate, stale version or changed digest fails
-with 409. A curator-gated proposal review screen at `/catalog/review` now accepts a
-proposal UUID and displays its stored semantic option/fact changes, caller-supplied
-provenance as unverified text, revision and digest. It reads the current rejection
+with 409. A curator-gated proposal review screen at `/catalog/review` now lists up to
+20 current-revision summaries per page, newest first, with an older-page cursor.
+The index includes only IDs, versions, digests, timestamps and whether a rejection
+was recorded for that revision; it never includes proposal bodies or evidence.
+The screen also accepts a proposal UUID and displays its stored semantic option/fact
+changes, caller-supplied provenance as unverified text, revision and digest. It reads the current rejection
 decision separately and shows the latest stored conditional scenario impact report
 for that exact revision, if one exists. Its evaluated time, rule/case-set versions,
 scenario outcomes and uncovered changes are historical; no analysis is rerun and
 incomplete coverage is not treated as approval. The screen can submit only the
 protected rejection action after an explicit version-bound confirmation. It does not
-list proposals, verify sources or
-grant roles; no role is granted by setup. There is still no approval, active catalog
+verify sources or grant roles; no role is granted by setup. A missing rejection does
+not mean approval. There is still no approval, active catalog
 change or published state; existing proposal reads continue to report the immutable
 snapshot as `PROPOSED`, with rejection stored separately.
 

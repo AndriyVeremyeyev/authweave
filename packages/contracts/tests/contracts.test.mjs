@@ -70,6 +70,20 @@ test("curator rejection contracts bind one revision and exclude approval or free
   assert.equal(response({ ...validResponse, actorSubject: "private" }), false);
 });
 
+test("curator review index is bounded and excludes proposal bodies and approval claims", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-review-page.v1.schema.json");
+  const id = "90000000-0000-4000-8000-000000000001";
+  const at = "2026-09-22T12:00:00.123456Z";
+  const item = { proposalId: id, version: 0, proposalSha256: "a".repeat(64),
+    createdAt: at, updatedAt: at, rejectionRecorded: false };
+  assert.equal(validate({ items: [item], nextBefore: null }), true, validationMessage(validate));
+  assert.equal(validate({ items: Array(21).fill(item), nextBefore: { createdAt: at, id } }), false);
+  for (const extra of [{ request: {} }, { evidence: [] }, { approved: true }]) {
+    assert.equal(validate({ items: [{ ...item, ...extra }], nextBefore: null }), false);
+  }
+  assert.equal(validate({ items: [item], nextBefore: { createdAt: at } }), false);
+});
+
 const validRequest = await readJson(
   path.join(fixturesRoot, "requirements-extraction-request.valid.json"),
 );

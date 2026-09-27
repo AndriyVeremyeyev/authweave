@@ -8,7 +8,8 @@ info:
     The local development API refuses to start with a non-loopback server address.
     Every versioned workspace route requires a server-only BFF bearer credential and
     a validated OIDC issuer/subject pair mapped to the requested personal workspace.
-    Catalog draft routes remain unauthenticated and local-only. Do not expose this
+    Catalog draft routes remain unauthenticated and local-only, except the scoped
+    curator review index and decision routes. Do not expose this
     service through a proxy or tunnel; this is not a hosted authentication boundary.
 servers:
   - url: http://127.0.0.1:8080
@@ -22,6 +23,43 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-change-proposals:
+    get:
+      tags: [Catalog drafts]
+      summary: List bounded current proposal summaries for scoped curator review
+      operationId: listCatalogProposalsForReview
+      description: >-
+        BFF-to-Core only. Requires the same server credential, exact curator role/scope
+        and recent authentication as a rejection. Returns at most 20 current-revision
+        summaries, never the proposal body or evidence. Ordered by immutable creation
+        time descending, then UUID descending; both cursor fields must be supplied
+        together. A missing rejection is not an approval or source-verification state.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - name: beforeCreatedAt
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: beforeId
+          in: query
+          required: false
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Current proposal summaries and an exclusive older-page cursor.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-review-page.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Missing or invalid server credential or OIDC principal.
+        '403':
+          description: Curator role, scope or recent authentication missing.
+        '503':
+          description: Curator scope or server credential is not configured.
   /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/impact-reports:
     get:
       tags: [Catalog drafts]

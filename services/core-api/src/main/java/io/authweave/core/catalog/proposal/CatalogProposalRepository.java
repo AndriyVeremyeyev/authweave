@@ -1,7 +1,11 @@
 package io.authweave.core.catalog.proposal;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
+import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
@@ -15,6 +19,7 @@ import static io.authweave.core.generated.audit.tables.CatalogProposalEvents.CAT
 @Repository
 @Transactional(readOnly = true)
 public class CatalogProposalRepository {
+    private static final int REVIEW_PAGE_SIZE = 20;
     private final DSLContext dsl;
     private final ObjectMapper mapper;
     public CatalogProposalRepository(DSLContext dsl, ObjectMapper mapper) { this.dsl = dsl; this.mapper = mapper; }
@@ -25,6 +30,30 @@ public class CatalogProposalRepository {
                 .where(p.ID.eq(id)).fetchOneInto(r);
         if (row == null) throw new CatalogProposalException(CatalogProposalException.Reason.NOT_FOUND);
         return snapshot(row);
+    }
+
+    /** Stable keyset over creation time and ID; current revision and decision only. */
+    public CatalogProposalReviewPage reviewPage(CatalogProposalReviewPage.Cursor before) {
+        var p = CATALOG_PROPOSALS; var r = CATALOG_PROPOSAL_REVISIONS; var d = CATALOG_PROPOSAL_DECISIONS;
+        Condition older = DSL.trueCondition();
+        if (before != null) {
+            var at = OffsetDateTime.ofInstant(before.createdAt(), ZoneOffset.UTC);
+            older = p.CREATED_AT.lt(at).or(p.CREATED_AT.eq(at).and(p.ID.lt(before.id())));
+        }
+        var rows = dsl.select(p.ID, p.VERSION, p.CREATED_AT, p.UPDATED_AT,
+                        r.PROPOSAL_SHA256, d.ID)
+                .from(p).join(r).on(r.PROPOSAL_ID.eq(p.ID).and(r.VERSION.eq(p.VERSION)))
+                .leftJoin(d).on(d.PROPOSAL_ID.eq(p.ID).and(d.PROPOSAL_VERSION.eq(p.VERSION)))
+                .where(older).orderBy(p.CREATED_AT.desc(), p.ID.desc())
+                .limit(REVIEW_PAGE_SIZE + 1)
+                .fetch(row -> new CatalogProposalReviewPage.Item(row.get(p.ID), row.get(p.VERSION),
+                        row.get(r.PROPOSAL_SHA256), row.get(p.CREATED_AT).toInstant(),
+                        row.get(p.UPDATED_AT).toInstant(), row.get(d.ID) != null));
+        boolean more = rows.size() > REVIEW_PAGE_SIZE;
+        var items = more ? rows.subList(0, REVIEW_PAGE_SIZE) : rows;
+        var last = more ? items.getLast() : null;
+        return new CatalogProposalReviewPage(items, last == null ? null :
+                new CatalogProposalReviewPage.Cursor(last.createdAt(), last.proposalId()));
     }
 
     /** A decision is separate from the immutable PROPOSED snapshot; null means not yet rejected. */

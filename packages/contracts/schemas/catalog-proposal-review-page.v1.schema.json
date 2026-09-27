@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-review-page.v1.schema.json",
+  "title": "Curator proposal review index v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items", "nextBefore"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["proposalId", "version", "proposalSha256", "createdAt", "updatedAt", "rejectionRecorded"],
+        "properties": {
+          "proposalId": { "type": "string", "format": "uuid" },
+          "version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "proposalSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "rejectionRecorded": { "type": "boolean" }
+        }
+      }
+    },
+    "nextBefore": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["createdAt", "id"],
+          "properties": {
+            "createdAt": { "type": "string", "format": "date-time" },
+            "id": { "type": "string", "format": "uuid" }
+          }
+        }
+      ]
+    }
+  }
+}

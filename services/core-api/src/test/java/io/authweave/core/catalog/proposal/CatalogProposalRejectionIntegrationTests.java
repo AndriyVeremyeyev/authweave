@@ -2,6 +2,8 @@ package io.authweave.core.catalog.proposal;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.UUID;
 
 import org.jooq.DSLContext;
@@ -22,6 +24,7 @@ import io.authweave.core.catalog.draft.CatalogChangePreviewRequest;
 import static io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS;
 import static io.authweave.core.generated.jooq.tables.CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -114,6 +117,46 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isNotFound());
         assertEquals(0, dsl.fetchCount(CATALOG_PROPOSAL_DECISIONS,
                 CATALOG_PROPOSAL_DECISIONS.PROPOSAL_ID.eq(proposal.proposalId())));
+    }
+
+    @Test
+    void curatorIndexIsScopedBoundedAndDoesNotIncludeProposalBodies() throws Exception {
+        String listPath = "/api/v1/catalog-change-proposals";
+        mvc.perform(get(listPath)).andExpect(status().isUnauthorized());
+        mvc.perform(withCuratorHeaders(get(listPath), Instant.now())
+                        .header("X-AuthWeave-Curator-Role", "assessor"))
+                .andExpect(status().isForbidden());
+        mvc.perform(withCuratorHeaders(get(listPath), Instant.now().minusSeconds(901)))
+                .andExpect(status().isForbidden());
+        var created = new ArrayList<CatalogProposalSnapshot>();
+        for (int i = 0; i < 22; i++) created.add(proposals.save(proposal(), null).proposal());
+        var rejected = created.getLast();
+        mvc.perform(authorized(path(rejected.proposalId()), Instant.now())
+                        .content(body(rejected.version(), rejected.proposalSha256(), "OTHER")))
+                .andExpect(status().isCreated());
+        var firstResponse = mvc.perform(withCuratorHeaders(get(listPath), Instant.now()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var first = mapper.readTree(firstResponse);
+        assertEquals(20, first.get("items").size());
+        assertTrue(first.hasNonNull("nextBefore"));
+        assertTrue(firstResponse.contains("\"rejectionRecorded\":true"));
+        assertTrue(!firstResponse.contains("\"request\"") && !firstResponse.contains("\"preview\""));
+        var seen = new HashSet<String>();
+        first.get("items").forEach(item -> seen.add(item.get("proposalId").asText()));
+        var second = mapper.readTree(mvc.perform(withCuratorHeaders(get(listPath), Instant.now())
+                        .param("beforeCreatedAt", first.get("nextBefore").get("createdAt").asText())
+                        .param("beforeId", first.get("nextBefore").get("id").asText()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        second.get("items").forEach(item -> assertTrue(seen.add(item.get("proposalId").asText())));
+        assertTrue(created.stream().allMatch(item -> seen.contains(item.proposalId().toString())));
+        mvc.perform(withCuratorHeaders(get(listPath), Instant.now())
+                        .param("beforeId", rejected.proposalId().toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("invalid-request"));
+        mvc.perform(withCuratorHeaders(get(listPath), Instant.now())
+                        .param("beforeCreatedAt", "not-a-time")
+                        .param("beforeId", rejected.proposalId().toString()))
+                .andExpect(status().isBadRequest());
     }
 
     private CatalogChangePreviewRequest proposal() throws Exception {

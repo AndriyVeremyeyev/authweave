@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   createPersonalAssessment, listPersonalAssessments, provisionPersonalWorkspace, readPersonalAssessment,
   readCuratorAuthorization,
+  listCatalogProposalsForReview,
   readCatalogProposalReview,
   rejectCatalogProposal,
   readPersonalArchitecturePatterns, readPersonalUsagePlanning, readSyntheticComparison,
@@ -161,6 +162,49 @@ test("BFF sends only server-session curator assertions to fixed Core probe", asy
     assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "core-unavailable");
     delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
     assert.equal(await readCuratorAuthorization(eligible, curatorConfig, curatorNow), "core-unavailable");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("curator index requires a fresh grant, sends a bounded cursor, and fails closed on Core data", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const eligible = { ...session, curatorScope, authenticatedAt: new Date("2026-09-22T12:00:00Z") };
+  const before = { createdAt: "2026-09-22T12:00:00.123456Z",
+    id: "90000000-0000-4000-8000-000000000001" };
+  const calls: string[] = [];
+  let page: unknown = { items: [], nextBefore: null };
+  globalThis.fetch = async (input, init) => {
+    calls.push(String(input));
+    assert.equal(init?.method, "GET");
+    assert.equal(init?.cache, "no-store");
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Curator-Role"], "catalog_curator");
+    if (String(input).endsWith("/authorization")) return new Response(null, { status: 204 });
+    assert.equal(String(input), `http://127.0.0.1:8080/api/v1/catalog-change-proposals?beforeCreatedAt=${encodeURIComponent(before.createdAt)}&beforeId=${before.id}`);
+    return Response.json(page);
+  };
+  try {
+    assert.equal((await listCatalogProposalsForReview(session, curatorConfig, before, curatorNow)).kind,
+      "not-granted");
+    assert.equal((await listCatalogProposalsForReview({ ...eligible,
+      authenticatedAt: new Date("2026-09-22T11:54:59Z") }, curatorConfig, before, curatorNow)).kind,
+      "reauth-required");
+    assert.deepEqual(calls, []);
+    assert.deepEqual(await listCatalogProposalsForReview(eligible, curatorConfig, before, curatorNow), {
+      kind: "ready", page,
+    });
+    assert.equal(calls.length, 2);
+    calls.length = 0;
+    assert.equal((await listCatalogProposalsForReview(eligible, curatorConfig,
+      { createdAt: before.createdAt }, curatorNow)).kind, "invalid-cursor");
+    assert.equal(calls.length, 1);
+    page = { items: [{ request: { sources: [] } }], nextBefore: null };
+    assert.equal((await listCatalogProposalsForReview(eligible, curatorConfig, before, curatorNow)).kind,
+      "core-unavailable");
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

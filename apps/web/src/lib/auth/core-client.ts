@@ -3,6 +3,8 @@ import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
 import { impactReviewFromCore, type CatalogImpactReview } from "../catalog/impact-review.ts";
+import { parseProposalReviewCursor, proposalIndexFromCore,
+  type ProposalReviewIndexPage } from "../catalog/proposal-index.ts";
 import { proposalReviewFromCore, type CatalogProposalReview } from "../catalog/proposal-review.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 import { withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
@@ -41,6 +43,9 @@ export type CatalogReviewResult =
   | { kind: "ready"; review: CatalogProposalReview; rejection: CatalogRejection | null;
       impact: CatalogImpactReview | null }
   | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" };
+export type CatalogReviewIndexResult =
+  | { kind: "ready"; page: ProposalReviewIndexPage }
+  | { kind: Exclude<CuratorProbeStatus, "ready"> | "invalid-cursor" };
 
 export type PersonalAssessment = {
   id: string;
@@ -191,6 +196,33 @@ function rejectionFromCore(value: unknown, id: string, input: CatalogRejectionIn
     throw new Error("Core rejection response is invalid");
   }
   return body as CatalogRejection;
+}
+
+export async function listCatalogProposalsForReview(session: BrowserSession,
+  config: Pick<AuthConfiguration, "issuer" | "curatorScope">, before: unknown = null,
+  now: Date = new Date()): Promise<CatalogReviewIndexResult> {
+  const authorization = await readCuratorAuthorization(session, config, now);
+  if (authorization !== "ready") return { kind: authorization };
+  if (!config.curatorScope) return { kind: "not-configured" };
+  let cursor;
+  try { cursor = parseProposalReviewCursor(before); }
+  catch { return { kind: "invalid-cursor" }; }
+  try {
+    const url = new URL(`${CORE_ORIGIN}/api/v1/catalog-change-proposals`);
+    if (cursor) {
+      url.searchParams.set("beforeCreatedAt", cursor.createdAt);
+      url.searchParams.set("beforeId", cursor.id);
+    }
+    const response = await fetch(url, {
+      method: "GET", headers: curatorHeaders(session, config.curatorScope),
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    });
+    if (response.status === 401 || response.status === 403) return { kind: "core-rejected" };
+    if (response.status !== 200) return { kind: "core-unavailable" };
+    return { kind: "ready", page: proposalIndexFromCore(await response.json()) };
+  } catch {
+    return { kind: "core-unavailable" };
+  }
 }
 
 export async function readCatalogProposalReview(session: BrowserSession,
