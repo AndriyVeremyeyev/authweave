@@ -1,5 +1,26 @@
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const SHA256 = /^[0-9a-f]{64}$/;
+const UTC_INSTANT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?Z$/;
+const NANOS_PER_MILLISECOND = BigInt(1_000_000);
+const MAX_EVIDENCE_AGE_NANOS = BigInt(90 * 24 * 60 * 60 * 1000) * NANOS_PER_MILLISECOND;
+
+export type ObservationDateStatus = "WITHIN_90_DAYS" | "OLDER_THAN_90_DAYS" |
+  "FUTURE_DATE" | "INVALID_DATE";
+
+/** Display-only mirror of Core's 90-day date boundary; Core remains authoritative. */
+export function observationDateStatus(observedAt: string, asOf: Date): ObservationDateStatus {
+  const match = UTC_INSTANT.exec(observedAt);
+  if (!match || !Number.isFinite(asOf.getTime())) return "INVALID_DATE";
+  const wholeSecondsMillis = Date.parse(`${match[1]}Z`);
+  if (!Number.isFinite(wholeSecondsMillis) ||
+      new Date(wholeSecondsMillis).toISOString().slice(0, 19) !== match[1]) return "INVALID_DATE";
+  const observedNanos = BigInt(wholeSecondsMillis) * NANOS_PER_MILLISECOND +
+    BigInt((match[2] ?? "").padEnd(9, "0") || "0");
+  const asOfNanos = BigInt(asOf.getTime()) * NANOS_PER_MILLISECOND;
+  if (observedNanos > asOfNanos) return "FUTURE_DATE";
+  return observedNanos < asOfNanos - MAX_EVIDENCE_AGE_NANOS
+    ? "OLDER_THAN_90_DAYS" : "WITHIN_90_DAYS";
+}
 
 export type ReviewOptionChange = {
   optionId: string;

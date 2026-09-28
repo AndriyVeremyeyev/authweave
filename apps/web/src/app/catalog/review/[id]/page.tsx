@@ -7,13 +7,20 @@ import { readCatalogProposalReview, type CatalogReviewResult } from "@/lib/auth/
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession } from "@/lib/auth/store";
 import type { CatalogImpactReview, ScenarioImpactRow } from "@/lib/catalog/impact-review";
-import { sourceDetails, type CatalogProposalReview, type ReviewFactChange,
+import { observationDateStatus, sourceDetails, type CatalogProposalReview,
+  type ObservationDateStatus, type ReviewFactChange,
   type ReviewOptionChange } from "@/lib/catalog/proposal-review";
 
 export const runtime = "nodejs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const PAGE_SIZE = 20;
+const observationLabels: Record<ObservationDateStatus, string> = {
+  WITHIN_90_DAYS: "Dated within 90 days — still unverified",
+  OLDER_THAN_90_DAYS: "Dated more than 90 days ago — stale and unverified",
+  FUTURE_DATE: "Dated in the future — unusable and unverified",
+  INVALID_DATE: "Invalid observation date — unusable and unverified",
+};
 const conditionalStatusLabels: Record<ScenarioImpactRow["before"], string> = {
   WOULD_SATISFY_CHECKED_REQUIREMENTS: "Would satisfy checked requirements",
   WOULD_VIOLATE_CHECKED_REQUIREMENTS: "Would violate checked requirements",
@@ -60,6 +67,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
   const pageCount = Math.max(1, Math.ceil(review.factChanges.length / PAGE_SIZE));
   const page = boundedPage(query.page, pageCount);
   const facts = review.factChanges.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const asOf = new Date();
   return (
     <main className="mx-auto max-w-5xl px-6 py-20 text-slate-100">
       <Link href="/catalog/review" className="text-sm text-cyan-200 hover:underline">← Proposal review</Link>
@@ -94,14 +102,15 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
         <p className="mt-3 text-sm text-slate-400">Affected: {review.affectedOptionIds.length ? review.affectedOptionIds.join(", ") : "None"}</p>
         {review.optionChanges.length > 0 && <div className="mt-6 space-y-4">
           <h3 className="text-lg font-semibold">Option scope</h3>
-          {review.optionChanges.map((change, index) => <OptionChange key={`${change.optionId}-${index}`} change={change} />)}
+          {review.optionChanges.map((change, index) => <OptionChange key={`${change.optionId}-${index}`} change={change} asOf={asOf} />)}
         </div>}
         <h3 className="mt-8 text-lg font-semibold">Fact changes</h3>
+        <p className="mt-2 text-sm text-slate-400">Observation-date cues for displayed changes as of <time dateTime={asOf.toISOString()}>{asOf.toISOString()}</time> use the 90-day evidence age boundary. Unchanged facts are not assessed here; these cues do not verify a source or authorize a decision.</p>
         {review.factChanges.length === 0 ? <p className="mt-3 text-slate-400">No fact changes were recorded.</p> : (
           <>
             <p className="mt-2 text-sm text-slate-400">Showing {((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, review.factChanges.length)} of {review.factChanges.length}. Page {page} of {pageCount}.</p>
             <div className="mt-5 space-y-4">{facts.map((change, index) => <FactChange
-              key={`${change.optionId}-${change.path}-${(page - 1) * PAGE_SIZE + index}`} change={change} />)}</div>
+              key={`${change.optionId}-${change.path}-${(page - 1) * PAGE_SIZE + index}`} change={change} asOf={asOf} />)}</div>
             {pageCount > 1 && <nav aria-label="Fact change pages" className="mt-6 flex gap-5 text-cyan-200">
               {page > 1 && <Link href={`/catalog/review/${id}?page=${page - 1}`} className="hover:underline">← Previous</Link>}
               {page < pageCount && <Link href={`/catalog/review/${id}?page=${page + 1}`} className="hover:underline">Next →</Link>}
@@ -169,37 +178,42 @@ function ImpactSection({ proposalId, impact, scenarioPage, uncoveredPage }: {
   </section>;
 }
 
-function OptionChange({ change }: { change: ReviewOptionChange }) {
+function OptionChange({ change, asOf }: { change: ReviewOptionChange; asOf: Date }) {
   return <article className="rounded-lg border border-slate-600 p-4">
     <h4 className="font-medium">{change.optionId} · {change.changeType}</h4>
     <div className="mt-3 grid gap-4 sm:grid-cols-2">
-      <Snapshot label="Before" value={change.before} />
-      <Snapshot label="After" value={change.after} />
+      <Snapshot label="Before" value={change.before} asOf={asOf} />
+      <Snapshot label="After" value={change.after} asOf={asOf} />
     </div>
   </article>;
 }
 
-function FactChange({ change }: { change: ReviewFactChange }) {
+function FactChange({ change, asOf }: { change: ReviewFactChange; asOf: Date }) {
   return <article className="rounded-lg border border-slate-600 p-4">
     <h4 className="break-words font-medium">{change.optionId} · {change.path}</h4>
     <p className="mt-1 text-sm text-slate-400">{change.factKind} · {change.changeType} · Changed: {change.aspects.join(", ")}</p>
     <div className="mt-3 grid gap-4 sm:grid-cols-2">
-      <Snapshot label="Before" value={change.before} />
-      <Snapshot label="After" value={change.after} />
+      <Snapshot label="Before" value={change.before} asOf={asOf} />
+      <Snapshot label="After" value={change.after} asOf={asOf} />
     </div>
   </article>;
 }
 
-function Snapshot({ label, value }: { label: string; value: Record<string, unknown> | null }) {
+function Snapshot({ label, value, asOf }: { label: string; value: Record<string, unknown> | null; asOf: Date }) {
   const source = sourceDetails(value);
+  const observation = source ? observationDateStatus(source.observedAt, asOf) : null;
   return <div className="min-w-0 rounded-lg bg-slate-900 p-3">
     <h5 className="text-sm font-semibold text-slate-300">{label}</h5>
     {value === null ? <p className="mt-2 text-slate-400">Absent</p> : <>
       {source && <div className="mt-2 text-xs text-slate-300">
         <p className="break-all">Unverified source: {source.sourceUrl}</p>
         <p>Observed: {source.observedAt}</p>
+        {observation && <p className={observation === "WITHIN_90_DAYS" ? "text-slate-300" : "text-amber-200"}>
+          {observationLabels[observation]}
+        </p>}
         <p className="break-words">Summary: {source.summary}</p>
       </div>}
+      {!source && <p className="mt-2 text-xs text-amber-200">Source details are missing or malformed; the observation date cannot be assessed.</p>}
       <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-300">{JSON.stringify(value, null, 2)}</pre>
     </>}
   </div>;

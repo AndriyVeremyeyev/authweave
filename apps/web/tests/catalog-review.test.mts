@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { proposalReviewFromCore, sourceDetails } from "../src/lib/catalog/proposal-review.ts";
+import { observationDateStatus, proposalReviewFromCore, sourceDetails } from "../src/lib/catalog/proposal-review.ts";
 import { impactReviewFromCore } from "../src/lib/catalog/impact-review.ts";
 import { storedImpactFixture } from "./fixtures/stored-impact.mts";
 
@@ -34,6 +34,20 @@ test("stored proposal review exposes diff and inert unverified provenance", () =
   assert.deepEqual(sourceDetails(review.factChanges[0].after), source);
   assert.equal(sourceDetails(null), null);
   assert.equal(sourceDetails({ evidence: { sourceUrl: "bad" } }), null);
+});
+
+test("observation-date cues use the 90-day instant boundary without claiming verification", () => {
+  const asOf = new Date("2026-09-28T00:00:00.000Z");
+  const cutoffMillis = asOf.getTime() - 90 * 24 * 60 * 60 * 1000;
+  const cutoff = new Date(cutoffMillis).toISOString().replace(".000Z", "Z");
+  const beforeCutoff = new Date(cutoffMillis - 1000).toISOString().replace(".000Z", ".999999999Z");
+  assert.equal(observationDateStatus(cutoff, asOf), "WITHIN_90_DAYS");
+  assert.equal(observationDateStatus(beforeCutoff, asOf), "OLDER_THAN_90_DAYS");
+  assert.equal(observationDateStatus("2026-09-28T00:00:00.000000001Z", asOf), "FUTURE_DATE");
+  assert.equal(observationDateStatus("2026-02-30T00:00:00Z", asOf), "INVALID_DATE");
+  assert.equal(observationDateStatus("not-an-instant", asOf), "INVALID_DATE");
+  assert.equal(observationDateStatus(source.observedAt, new Date(Number.NaN)), "INVALID_DATE");
+  assert.equal(observationDateStatus(source.observedAt, asOf), "WITHIN_90_DAYS");
 });
 
 test("review fails closed for a forged or mismatched approval boundary", () => {

@@ -766,9 +766,12 @@ with 409. A curator-gated proposal review screen at `/catalog/review` now lists 
 The index includes only IDs, versions, digests, timestamps and whether a rejection
 was recorded for that revision; it never includes proposal bodies or evidence.
 The screen also accepts a proposal UUID and displays its stored semantic option/fact
-changes, caller-supplied provenance as unverified text, revision and digest. It reads the current rejection
-decision separately and shows the latest stored conditional scenario impact report
-for that exact revision, if one exists. Its evaluated time, rule/case-set versions,
+changes, caller-supplied provenance as unverified text, revision and digest. For
+displayed fact changes, a read-time 90-day observation-date cue marks old or future
+dates without fetching or verifying sources; unchanged facts are not assessed by
+that cue. It reads the current rejection decision separately and shows the latest
+stored conditional scenario impact report for that exact revision, if one exists.
+Its evaluated time, rule/case-set versions,
 scenario outcomes and uncovered changes are historical; no analysis is rerun and
 incomplete coverage is not treated as approval. The screen can submit only the
 protected rejection action after an explicit version-bound confirmation. It does not
