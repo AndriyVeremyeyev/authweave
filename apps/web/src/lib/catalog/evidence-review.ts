@@ -1,7 +1,15 @@
 import type { CatalogProposalReview } from "./proposal-review.ts";
 
+type Support = "SUPPORTED" | "UNSUPPORTED" | "UNKNOWN";
+export type CandidateClaim =
+  | { kind: "CAPABILITY"; availability: "OPTIONAL" | "MANDATORY" | "UNAVAILABLE" | "UNKNOWN" }
+  | { kind: "COMPATIBILITY"; support: Support }
+  | { kind: "RESIDENCY"; coverage: "COMPLETE" | "PARTIAL" | "UNKNOWN"; storageCountries: string[] }
+  | { kind: "AUTHENTICATION_CONTROL"; availability: Support; enforcement: Support };
+
 export type CandidateEvidenceItem = {
   optionId: string; path: string;
+  claim: CandidateClaim;
   scope: { providerId: string; product: string; plan: string; deployment: "MANAGED" | "SELF_HOSTED";
     region: string; configuration: string };
   evidenceStatus: "UNREVIEWED"; freshness: "CURRENT" | "STALE" | "FUTURE";
@@ -31,6 +39,57 @@ function instant(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
+function claimFromCore(value: unknown, path: string): CandidateClaim {
+  const claim = object(value);
+  const support = (value: unknown): value is Support =>
+    typeof value === "string" && ["SUPPORTED", "UNSUPPORTED", "UNKNOWN"].includes(value);
+  const keys = (expected: string[]) => claim && Object.keys(claim).length === expected.length &&
+    expected.every(key => Object.hasOwn(claim, key));
+  if (claim?.kind === "CAPABILITY" && /^facts\.[A-Z0-9_]+$/.test(path) && keys(["kind", "availability"]) &&
+      ["OPTIONAL", "MANDATORY", "UNAVAILABLE", "UNKNOWN"].includes(String(claim.availability))) {
+    return { kind: claim.kind, availability: claim.availability as Extract<CandidateClaim, { kind: "CAPABILITY" }>["availability"] };
+  }
+  if (claim?.kind === "COMPATIBILITY" &&
+      /^compatibility\.(applications|clients|populations|tenancy|membership)\.[A-Z0-9_]+$/.test(path) &&
+      keys(["kind", "support"]) && support(claim.support)) {
+    return { kind: claim.kind, support: claim.support };
+  }
+  if (claim?.kind === "RESIDENCY" && /^residency\.[A-Z0-9_]+$/.test(path) &&
+      keys(["kind", "coverage", "storageCountries"]) && ["COMPLETE", "PARTIAL", "UNKNOWN"].includes(String(claim.coverage)) &&
+      Array.isArray(claim.storageCountries) && claim.storageCountries.length <= 249 &&
+      claim.storageCountries.every(v => typeof v === "string" && /^[A-Z]{2}$/.test(v)) &&
+      new Set(claim.storageCountries).size === claim.storageCountries.length) {
+    return { kind: claim.kind, coverage: claim.coverage as Extract<CandidateClaim, { kind: "RESIDENCY" }>["coverage"],
+      storageCountries: [...claim.storageCountries] };
+  }
+  if (claim?.kind === "AUTHENTICATION_CONTROL" && /^authenticationControls\.[A-Z0-9_]+\.[A-Z0-9_]+\.[A-Z0-9_]+$/.test(path) &&
+      keys(["kind", "availability", "enforcement"]) && support(claim.availability) && support(claim.enforcement)) {
+    return { kind: claim.kind, availability: claim.availability, enforcement: claim.enforcement };
+  }
+  throw new Error("Core candidate claim is invalid");
+}
+
+/** Labels describe submitted values, not source verification or a provider verdict. */
+export function candidateClaimSummary(claim: CandidateClaim): string[] {
+  const supportLabels: Record<Support, string> = {
+    SUPPORTED: "Supported", UNSUPPORTED: "Unsupported", UNKNOWN: "Unknown (not an unsupported claim)",
+  };
+  switch (claim.kind) {
+    case "CAPABILITY": return [`Availability: ${ {
+      OPTIONAL: "Optional (can be enabled or disabled)", MANDATORY: "Mandatory (cannot be disabled)",
+      UNAVAILABLE: "Unavailable", UNKNOWN: "Unknown (not an unavailable claim)",
+    }[claim.availability]}`];
+    case "COMPATIBILITY": return [`Compatibility: ${supportLabels[claim.support]}`];
+    case "RESIDENCY": return [
+      `Storage coverage: ${ { COMPLETE: "Complete", PARTIAL: "Partial (does not rule out other countries)",
+        UNKNOWN: "Unknown (no complete country claim)" }[claim.coverage]}`,
+      `Recorded storage countries: ${claim.storageCountries.length ? claim.storageCountries.join(", ") : "None recorded"}`,
+    ];
+    case "AUTHENTICATION_CONTROL": return [`Availability: ${supportLabels[claim.availability]}`,
+      `Enforcement: ${supportLabels[claim.enforcement]}`];
+  }
+}
+
 /** Accept a bounded, unverified evidence page bound to the displayed revision and digest. */
 export function evidencePageFromCore(value: unknown, review: CatalogProposalReview,
   offset: number): CandidateEvidencePage {
@@ -38,7 +97,7 @@ export function evidencePageFromCore(value: unknown, review: CatalogProposalRevi
   const totals = object(body?.freshness);
   if (!body || body.proposalId !== review.proposalId || body.proposalVersion !== review.version ||
       body.proposalSha256 !== review.proposalSha256 || body.catalogVersion !== review.candidateCatalogVersion ||
-      body.policyVersion !== "catalog-proposal-evidence-review-1" || body.maxEvidenceAgeDays !== 90 ||
+      body.policyVersion !== "catalog-proposal-evidence-review-2" || body.maxEvidenceAgeDays !== 90 ||
       body.sourceVerificationPerformed !== false || body.approvalGranted !== false ||
       body.writesPerformed !== false || body.evaluationReady !== false || !instant(body.evaluatedAt) ||
       !count(body.factCount) || !totals || !count(totals.current) || !count(totals.stale) || !count(totals.future) ||
@@ -64,7 +123,7 @@ export function evidencePageFromCore(value: unknown, review: CatalogProposalRevi
     const key = `${row.optionId}\0${row.path}`;
     if (key <= previousKey) throw new Error("Core candidate evidence order is invalid");
     previousKey = key;
-    return { optionId: row.optionId, path: row.path,
+    return { optionId: row.optionId, path: row.path, claim: claimFromCore(row.claim, row.path),
       scope: { providerId: scope.providerId, product: scope.product, plan: scope.plan,
         deployment: scope.deployment as CandidateEvidenceItem["scope"]["deployment"],
         region: scope.region, configuration: scope.configuration },

@@ -32,7 +32,8 @@ paths:
         BFF-to-Core only with a fresh scoped curator assertion. Verifies the stored
         request digest, then applies current Core date policy to every recorded candidate
         fact, including unchanged facts. Returns 20 rows ordered by optionId and path,
-        plus counts for the entire candidate. Sources and conditions are caller-supplied
+        plus counts for the entire candidate. The v2 response includes the exact typed
+        claim beside its provenance. Sources and conditions are caller-supplied
         text; no source is fetched or verified and no decision or catalog write occurs.
         Missing facts remain unknown. Each page has its own evaluatedAt instant.
       security:
@@ -50,7 +51,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: ../schemas/catalog-proposal-evidence-page.v1.schema.json
+                $ref: ../schemas/catalog-proposal-evidence-page.v2.schema.json
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':

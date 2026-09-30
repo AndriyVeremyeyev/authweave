@@ -14,7 +14,7 @@ public record CatalogProposalEvidencePage(UUID proposalId, long proposalVersion,
         boolean evaluationReady, int factCount, CatalogChangePreview.FreshnessCounts freshness,
         int offset, List<Item> items, Integer nextOffset) {
     public CatalogProposalEvidencePage { items = List.copyOf(items); }
-    public record Item(String optionId, String path, CatalogChangePreview.OptionScope scope,
+    public record Item(String optionId, String path, CatalogChangePreview.OptionScope scope, CatalogFactClaim claim,
             CatalogDraftValidation.ReviewStatus evidenceStatus, CatalogDraftValidation.Freshness freshness,
             List<String> conditions, ProviderCatalogDraft.Evidence evidence) {
         public Item { conditions = List.copyOf(conditions); }

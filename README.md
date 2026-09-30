@@ -770,7 +770,11 @@ changes, caller-supplied provenance as unverified text, revision and digest. For
 displayed fact changes, a read-time 90-day observation-date cue marks old or future
 dates without fetching or verifying sources. A separate candidate evidence list
 includes all recorded candidate facts, including unchanged facts, with the product,
-plan, region, configuration, submitted conditions and source paraphrase. Core checks
+plan, region, configuration, submitted conditions and source paraphrase. Its v2
+response also includes the exact typed claim: capability availability, context support,
+storage coverage/countries, or separate authentication availability and enforcement.
+The screen labels these values as submitted and unverified; unknown is not unsupported,
+and partial storage coverage does not rule out other countries. Core checks
 the stored request digest and applies its current date policy to that exact revision.
 The list returns 20 rows per page, with observation-date counts for the whole candidate
 and an explicit evaluation time for each page. Missing facts remain unknown and all

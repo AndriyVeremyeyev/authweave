@@ -45,7 +45,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Exports actual MVC requests/responses for independent AJV checks in make check-core and CI. */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
+        "AUTHWEAVE_CORE_SERVICE_TOKEN=synthetic-internal-token-000000000000000000000",
+        "AUTHWEAVE_OIDC_PROJECT_ID=123456789012345678",
+        "AUTHWEAVE_OIDC_ORG_ID=987654321098765432"
+})
 @AutoConfigureMockMvc(addFilters = false)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @Import(AssessmentHttpContractIntegrationTests.PreflightClock.class)
@@ -2201,6 +2205,34 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
             response("proposal-not-found", mvc.perform(get("/api/v1/catalog-change-proposals/" + UUID.randomUUID() + suffix))
                     .andExpect(status().isNotFound()).andExpect(jsonPath("$.code").value("catalog-proposal-not-found")).andReturn());
         }
+    }
+
+    @Test
+    void curatorEvidenceHttpResponseIncludesEveryClaimFamilyAndRemainsUnverified() throws Exception {
+        var input = proposalRequest();
+        var id = UUID.randomUUID(); input.put("proposalId", id.toString());
+        var stored = storeProposal(input, null).proposal();
+        var result = mvc.perform(get("/api/v1/catalog-change-proposals/" + id + "/revisions/0/evidence-review")
+                .header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                .header("X-AuthWeave-Oidc-Issuer", "http://localhost:8081")
+                .header("X-AuthWeave-Oidc-Subject", "synthetic-curator")
+                .header("X-AuthWeave-Curator-Role", "catalog_curator")
+                .header("X-AuthWeave-Curator-Project-Id", "123456789012345678")
+                .header("X-AuthWeave-Curator-Org-Id", "987654321098765432")
+                .header("X-AuthWeave-Authenticated-At", Instant.now().toString()))
+                .andExpect(status().isOk()).andReturn();
+        var page = versionedSample("candidate-claims-and-evidence", "catalog-proposal-evidence-page.v2", result);
+        var kinds = new java.util.HashSet<String>();
+        for (var item : page.get("items")) kinds.add(item.at("/claim/kind").asText());
+        assertEquals(java.util.Set.of("CAPABILITY", "COMPATIBILITY", "RESIDENCY", "AUTHENTICATION_CONTROL"), kinds);
+        assertEquals(stored.request(), proposals.revision(id, 0).request());
+        assertEquals(1, proposals.events(id, null, 100).items().size());
+        var invalid = (ObjectNode) page.deepCopy();
+        ((ObjectNode) invalid.at("/items/0/claim")).put("kind", "CAPABILITY");
+        sample("candidate-claim-family-mismatch", "catalog-proposal-evidence-page.v2", false, invalid);
+        invalid = (ObjectNode) page.deepCopy();
+        ((ObjectNode) invalid.at("/items/0")).remove("claim");
+        sample("candidate-claim-missing", "catalog-proposal-evidence-page.v2", false, invalid);
     }
 
     private io.authweave.core.catalog.proposal.LocalCatalogProposalWriter.SaveResult storeProposal(ObjectNode input, Long expectedVersion) {

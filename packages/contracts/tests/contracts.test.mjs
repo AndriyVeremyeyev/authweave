@@ -67,6 +67,36 @@ test("candidate evidence pages preserve scope and forbid verification or approva
     { ...page, items: [{ ...item, evidenceStatus: "REVIEWED" }] }]) assert.equal(validate(invalid), false);
 });
 
+test("candidate evidence v2 binds each typed claim to its fact family without promoting trust", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-evidence-page.v2.schema.json");
+  const item = { optionId: "example-eu", path: "facts.SCIM",
+    claim: { kind: "CAPABILITY", availability: "UNKNOWN" }, scope: { providerId: "example",
+      product: "Example Identity", plan: "Example Enterprise", deployment: "MANAGED", region: "EU", configuration: "Pilot" },
+    evidenceStatus: "UNREVIEWED", freshness: "CURRENT", conditions: [], evidence: {
+      sourceUrl: "https://example.invalid/source", observedAt: "2026-09-30T12:00:00Z", summary: "Fictional claim." } };
+  const page = { proposalId: "90000000-0000-4000-8000-000000000001", proposalVersion: 0,
+    proposalSha256: "a".repeat(64), catalogVersion: "example-1", evaluatedAt: "2026-09-30T12:00:00Z",
+    policyVersion: "catalog-proposal-evidence-review-2", maxEvidenceAgeDays: 90,
+    sourceVerificationPerformed: false, approvalGranted: false, writesPerformed: false, evaluationReady: false,
+    factCount: 1, freshness: { current: 1, stale: 0, future: 0 }, offset: 0, items: [item], nextOffset: null };
+  for (const [path, claim] of [["facts.SCIM", { kind: "CAPABILITY", availability: "UNKNOWN" }],
+    ["facts.OAUTH2_APIS", { kind: "CAPABILITY", availability: "OPTIONAL" }],
+    ["compatibility.applications.B2B_SAAS", { kind: "COMPATIBILITY", support: "SUPPORTED" }],
+    ["compatibility.clients.BROWSER", { kind: "COMPATIBILITY", support: "UNSUPPORTED" }],
+    ["residency.USER_PROFILES", { kind: "RESIDENCY", coverage: "PARTIAL", storageCountries: ["DE"] }],
+    ["authenticationControls.BROWSER.PARTNERS.PHISHING_RESISTANCE",
+      { kind: "AUTHENTICATION_CONTROL", availability: "SUPPORTED", enforcement: "UNKNOWN" }]]) {
+    assert.equal(validate({ ...page, items: [{ ...item, path, claim }] }), true, validationMessage(validate));
+  }
+  for (const claim of [undefined, { kind: "CAPABILITY", availability: "SUPPORTED" },
+    { kind: "CAPABILITY", availability: "OPTIONAL", sourceVerified: true },
+    { kind: "COMPATIBILITY", support: "SUPPORTED" }]) {
+    assert.equal(validate({ ...page, items: [{ ...item, claim }] }), false);
+  }
+  assert.equal(validate({ ...page, policyVersion: "catalog-proposal-evidence-review-1" }), false);
+  assert.equal(validate({ ...page, approvalGranted: true }), false);
+});
+
 test("curator rejection contracts bind one revision and exclude approval or free text", () => {
   const request = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-rejection-request.v1.schema.json");
   const response = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-rejection.v1.schema.json");

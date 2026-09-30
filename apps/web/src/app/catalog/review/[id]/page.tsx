@@ -7,7 +7,7 @@ import { readCatalogProposalReview, type CatalogReviewResult } from "@/lib/auth/
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession } from "@/lib/auth/store";
 import type { CatalogImpactReview, ScenarioImpactRow } from "@/lib/catalog/impact-review";
-import { evidenceOffsetFromQuery, type CandidateEvidencePage } from "@/lib/catalog/evidence-review";
+import { candidateClaimSummary, evidenceOffsetFromQuery, type CandidateEvidencePage } from "@/lib/catalog/evidence-review";
 import { observationDateStatus, sourceDetails, type CatalogProposalReview,
   type ObservationDateStatus, type ReviewFactChange,
   type ReviewOptionChange } from "@/lib/catalog/proposal-review";
@@ -142,6 +142,8 @@ function EvidenceSection({ proposalId, evidence }: { proposalId: string; evidenc
         <h3 className="break-words font-medium">{item.optionId} · {item.path}</h3>
         <p className="mt-2 break-words text-sm text-slate-300">{item.scope.providerId} · {item.scope.product} · {item.scope.plan} · {item.scope.deployment} · {item.scope.region}</p>
         <p className="mt-1 break-words text-sm text-slate-400">Configuration: {item.scope.configuration}</p>
+        <h4 className="mt-4 text-sm font-semibold">Submitted claim · unverified</h4>
+        {candidateClaimSummary(item.claim).map(line => <p key={line} className="mt-1 break-words text-sm text-slate-300">{line}</p>)}
         <p className={`mt-3 text-sm ${item.freshness === "CURRENT" ? "text-slate-300" : "text-amber-200"}`}>{labels[item.freshness]}</p>
         <p className="mt-2 break-all text-sm text-slate-300">Unverified source: {item.evidence.sourceUrl}</p>
         <p className="mt-1 text-sm text-slate-400">Observed: <time dateTime={item.evidence.observedAt}>{item.evidence.observedAt}</time></p>

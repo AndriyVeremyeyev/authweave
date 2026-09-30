@@ -8,6 +8,7 @@ import tools.jackson.databind.ObjectMapper;
 import io.authweave.core.catalog.draft.CatalogChangePreview;
 import io.authweave.core.catalog.draft.CatalogChangePreviewRequest;
 import io.authweave.core.catalog.draft.CatalogDraftCanonicalizer;
+import io.authweave.core.catalog.draft.CatalogDraftFacts;
 import io.authweave.core.catalog.draft.CatalogDraftValidation;
 import io.authweave.core.catalog.draft.CatalogDraftValidator;
 import io.authweave.core.evaluation.EvidencePolicy;
@@ -15,7 +16,7 @@ import io.authweave.core.evaluation.EvidencePolicy;
 /** Reads an exact revision and reuses Core date policy; sources remain caller-supplied text. */
 @Service
 public final class CatalogProposalEvidenceService {
-    public static final String POLICY_VERSION = "catalog-proposal-evidence-review-1";
+    public static final String POLICY_VERSION = "catalog-proposal-evidence-review-2";
     private static final int PAGE_SIZE = 20;
     private final CatalogProposalRepository repository;
     private final CatalogDraftValidator validator;
@@ -43,6 +44,8 @@ public final class CatalogProposalEvidenceService {
             }
             var scopes = request.candidate().options().stream().collect(Collectors.toMap(
                     option -> option.id(), Function.identity()));
+            var claims = request.candidate().options().stream().collect(Collectors.toMap(
+                    option -> option.id(), CatalogDraftFacts::entries));
             int start = Math.min(offset, validation.factCount());
             int end = Math.min(start + PAGE_SIZE, validation.factCount());
             var items = validation.facts().subList(start, end).stream().map(fact -> {
@@ -50,6 +53,7 @@ public final class CatalogProposalEvidenceService {
                 var scope = new CatalogChangePreview.OptionScope(option.providerId(), option.product(),
                         option.plan(), option.deployment(), option.region(), option.configuration());
                 return new CatalogProposalEvidencePage.Item(fact.optionId(), fact.path(), scope,
+                        CatalogFactClaim.from(claims.get(fact.optionId()).get(fact.path())),
                         fact.evidenceStatus(), fact.freshness(), fact.conditions(), fact.evidence());
             }).toList();
             int current = 0, stale = 0, future = 0;

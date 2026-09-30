@@ -204,6 +204,17 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
         assertEquals(null, second.nextOffset());
         assertTrue(first.items().stream().anyMatch(item -> item.path().equals("compatibility.clients.BROWSER")));
         assertTrue(first.items().stream().allMatch(item -> item.evidenceStatus().name().equals("UNREVIEWED")));
+        var claims = first.items().stream().filter(item -> item.optionId().equals("example-managed-eu"))
+                .collect(java.util.stream.Collectors.toMap(item -> item.path(), item -> item.claim()));
+        assertEquals(new CatalogFactClaim.Capability(io.authweave.core.catalog.ProviderCatalog.Availability.UNAVAILABLE),
+                claims.get("facts.SCIM"));
+        assertEquals(new CatalogFactClaim.Compatibility(io.authweave.core.catalog.ProviderCatalog.Support.SUPPORTED),
+                claims.get("compatibility.clients.BROWSER"));
+        assertEquals(new CatalogFactClaim.Residency(io.authweave.core.catalog.ProviderCatalog.ResidencyCoverage.COMPLETE,
+                java.util.List.of("DE", "FR")), claims.get("residency.USER_PROFILES"));
+        assertEquals(new CatalogFactClaim.AuthenticationControl(io.authweave.core.catalog.ProviderCatalog.Support.SUPPORTED,
+                io.authweave.core.catalog.ProviderCatalog.Support.SUPPORTED),
+                claims.get("authenticationControls.BROWSER.PARTNERS.PHISHING_RESISTANCE"));
         assertEquals(stored.request(), repository.revision(stored.proposalId(), 0).request());
         assertEquals(1, repository.events(stored.proposalId(), null, 100).items().size());
         var corruptRepository = mock(CatalogProposalRepository.class);
@@ -228,6 +239,9 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.proposalSha256").value(stored.proposalSha256()))
                 .andExpect(jsonPath("$.factCount").value(27))
+                .andExpect(jsonPath("$.policyVersion").value("catalog-proposal-evidence-review-2"))
+                .andExpect(jsonPath("$.items[0].claim.kind").value("AUTHENTICATION_CONTROL"))
+                .andExpect(jsonPath("$.items[0].claim.enforcement").value("SUPPORTED"))
                 .andExpect(jsonPath("$.nextOffset").value(20))
                 .andExpect(jsonPath("$.sourceVerificationPerformed").value(false));
         proposals.save(new CatalogChangePreviewRequest(1, request.proposalId(), "Updated rationale.",

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-evidence-page.v2.schema.json",
+  "title": "Candidate claims and evidence review page v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposalId", "proposalVersion", "proposalSha256", "catalogVersion", "evaluatedAt", "policyVersion", "maxEvidenceAgeDays", "sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady", "factCount", "freshness", "offset", "items", "nextOffset"],
+  "properties": {
+    "proposalId": { "$ref": "./catalog-proposal-evidence-page.v1.schema.json#/properties/proposalId" },
+    "proposalVersion": { "$ref": "./catalog-proposal-evidence-page.v1.schema.json#/properties/proposalVersion" },
+    "proposalSha256": { "$ref": "./catalog-proposal-evidence-page.v1.schema.json#/properties/proposalSha256" },
+    "catalogVersion": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "policyVersion": { "const": "catalog-proposal-evidence-review-2" },
+    "maxEvidenceAgeDays": { "const": 90 },
+    "sourceVerificationPerformed": { "const": false },
+    "approvalGranted": { "const": false },
+    "writesPerformed": { "const": false },
+    "evaluationReady": { "const": false },
+    "factCount": { "$ref": "./catalog-proposal-evidence-page.v1.schema.json#/properties/factCount" },
+    "freshness": { "$ref": "./catalog-proposal-evidence-page.v1.schema.json#/properties/freshness" },
+    "offset": { "$ref": "./catalog-proposal-evidence-page.v1.schema.json#/properties/offset" },
+    "nextOffset": { "$ref": "./catalog-proposal-evidence-page.v1.schema.json#/properties/nextOffset" },
+    "items": {
+      "type": "array", "maxItems": 20,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["optionId", "path", "scope", "claim", "evidenceStatus", "freshness", "conditions", "evidence"],
+        "properties": {
+          "optionId": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+          "path": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "scope": { "$ref": "./catalog-change-preview.v1.schema.json#/$defs/optionScope" },
+          "claim": { "$ref": "#/$defs/claim" },
+          "evidenceStatus": { "const": "UNREVIEWED" },
+          "freshness": { "enum": ["CURRENT", "STALE", "FUTURE"] },
+          "conditions": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/conditions" },
+          "evidence": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/evidence" }
+        },
+        "oneOf": [
+          { "properties": { "path": { "type": "string", "pattern": "^facts\\.[A-Z0-9_]+$" }, "claim": { "properties": { "kind": { "const": "CAPABILITY" } }, "type": "object" } } },
+          { "properties": { "path": { "type": "string", "pattern": "^compatibility\\.(applications|clients|populations|tenancy|membership)\\.[A-Z0-9_]+$" }, "claim": { "properties": { "kind": { "const": "COMPATIBILITY" } }, "type": "object" } } },
+          { "properties": { "path": { "type": "string", "pattern": "^residency\\.[A-Z0-9_]+$" }, "claim": { "properties": { "kind": { "const": "RESIDENCY" } }, "type": "object" } } },
+          { "properties": { "path": { "type": "string", "pattern": "^authenticationControls\\.[A-Z0-9_]+\\.[A-Z0-9_]+\\.[A-Z0-9_]+$" }, "claim": { "properties": { "kind": { "const": "AUTHENTICATION_CONTROL" } }, "type": "object" } } }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "claim": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "availability"],
+          "properties": {
+            "kind": { "const": "CAPABILITY" },
+            "availability": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/fact/properties/availability" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "support"],
+          "properties": {
+            "kind": { "const": "COMPATIBILITY" },
+            "support": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/compatibilityFact/properties/support" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "coverage", "storageCountries"],
+          "properties": {
+            "kind": { "const": "RESIDENCY" },
+            "coverage": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact/properties/coverage" },
+            "storageCountries": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/residencyFact/properties/storageCountries" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["kind", "availability", "enforcement"],
+          "properties": {
+            "kind": { "const": "AUTHENTICATION_CONTROL" },
+            "availability": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact/properties/availability" },
+            "enforcement": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/authenticationControlFact/properties/enforcement" }
+          }
+        }
+      ]
+    }
+  }
+}
