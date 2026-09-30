@@ -43,6 +43,12 @@ make check
 
 Run `make help` to see component-specific checks and development-server commands.
 
+CI audits both npm workspaces, including development dependencies, and fails on
+known moderate-or-higher vulnerabilities. Run `npm audit --audit-level=moderate`
+inside `apps/web` or `packages/contracts` for the same check locally. A clean audit
+only reflects the registry's currently reported advisories; it is not proof that
+the application is secure.
+
 ### Optional local identity lab
 
 Local ZITADEL infrastructure, an AuthWeave OIDC project/application and two ordinary synthetic
