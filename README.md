@@ -789,7 +789,7 @@ and shows the latest
 stored conditional scenario impact report for that exact revision, if one exists.
 Its evaluated time, rule/case-set versions,
 scenario outcomes and uncovered changes are historical; no analysis is rerun and
-incomplete coverage is not treated as approval. The screen can submit only the
+incomplete coverage is not treated as approval. For proposal decisions, the screen can submit only the
 protected rejection action after an explicit version-bound confirmation. It does not
 verify sources or grant roles; no role is granted by setup. A missing rejection does
 not mean approval. There is still no approval, active catalog
@@ -814,7 +814,7 @@ Core revalidates the immutable candidate and digest before a new write. The same
 payload and actor return the original receipt (200 rather than 201) without another
 audit event, even after head changes or rejection; authorization must still be fresh.
 Reusing a key for another payload or actor conflicts. New observations on stale, rejected
-or absent fact targets fail closed. No source-review CLI or browser form is available yet.
+or absent fact targets fail closed. No source-review CLI is available.
 Database identity/freshness constraints do not prove an OIDC login. A human verdict is
 not automatic source verification, evidence freshness,
 approval or catalog publication, and existing catalog/evaluation behavior is unchanged.
@@ -829,8 +829,25 @@ pages. The curator proposal screen now shows this ledger separately from candida
 evidence, preserving earlier verdicts and corrections as reported human observations,
 not verified fact statuses. Browser pagination binds the cursor to the displayed
 revision and requires a restart if the head changes. An empty history does not mean
-verification or approval. The screen still has no source-review submission form;
-the existing rejection action is unchanged.
+verification or approval. The existing rejection action is unchanged.
+
+Each displayed candidate fact now has a native HTML form for a manual source-review
+observation. The curator must choose one of the three verdicts (none is preselected)
+and explicitly confirm manual assessment of the source, typed claim, option scope
+and conditions. The form binds the displayed revision/digest, option and fact path
+and includes a server-generated UUID observation ID. It is unavailable on a rejected
+revision. The existing BFF endpoint accepts JSON or strict URL-encoded forms, both
+limited to 2,048 actual body bytes with the same origin, session and curator checks.
+Duplicate fields, unknown fields, unsafe revisions and missing confirmation fail closed.
+Native success and exact retries return a 303 to the revision-bound stored observation;
+the page shows a confirmation only if that ID is present in validated history. A
+conflict returns to current facts for review. An uncertain Core outcome returns a
+no-store 503 page retaining the exact payload/key with an explicit retry form; it does
+not claim failure to write or mint a replacement key. Check history before retrying.
+Reusing that original key/payload/actor returns an existing receipt without another
+observation, while a deliberate correction uses a new form/key. Sources remain
+unreviewed, observation dates and active evaluation behavior are unchanged, and
+approval/publication are still unavailable.
 
 ### Conditional catalog impact
 

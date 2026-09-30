@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { randomUUID } from "node:crypto";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
@@ -62,7 +63,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
       <Link href="/catalog/review" className="text-sm text-cyan-200 hover:underline">← Proposal review</Link>
       <h1 className="mt-8 text-3xl font-semibold">Review unavailable</h1>
       <p className="mt-5 rounded-xl border border-amber-700 p-6 text-amber-100">{
-        result.kind === "reauth-required" ? "Verify this account again before reviewing or rejecting a proposal." :
+        result.kind === "reauth-required" ? "Verify this account again before reviewing a proposal or recording a curator action." :
         result.kind === "not-granted" ? "This account does not have the scoped catalog curator role." :
         result.kind === "not-configured" ? "Catalog curator scope is not configured." :
         result.kind === "stale-review-cursor" ? "The proposal revision changed. Restart the review history for the current revision." :
@@ -77,6 +78,8 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
     </main>;
   }
   const { review, rejection, impact, evidence, factReviews } = result;
+  const storedObservation = typeof query.reviewResult === "string"
+    ? factReviews.items.find(item => item.reviewId === query.reviewResult) : undefined;
   const pageCount = Math.max(1, Math.ceil(review.factChanges.length / PAGE_SIZE));
   const page = boundedPage(query.page, pageCount);
   const facts = review.factChanges.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -95,6 +98,12 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
       </p>}
       {query.result === "rejected" && rejection && <p role="status" className="mt-5 rounded-lg border border-emerald-700 p-4 text-emerald-100">
         Rejection recorded with an audit event. No provider facts were published.
+      </p>}
+      {query.reviewError === "conflict" && <p role="alert" className="mt-5 rounded-lg border border-amber-700 p-4 text-amber-100">
+        The submitted observation conflicts with the current revision, fact target or observation ID. Read the current facts and history before trying again; no new observation was confirmed.
+      </p>}
+      {storedObservation && <p role="status" className="mt-5 rounded-lg border border-emerald-700 p-4 text-emerald-100">
+        Observation #{storedObservation.reviewNumber} is stored for this exact revision with an audit event. This is a reported human conclusion, not source verification, trust promotion or catalog approval.
       </p>}
       <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="summary-heading">
         <h2 id="summary-heading" className="text-2xl font-semibold">Review summary</h2>
@@ -131,7 +140,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
           </>
         )}
       </section>
-      <EvidenceSection proposalId={id} evidence={evidence} />
+      <EvidenceSection proposalId={id} evidence={evidence} review={review} canRecord={!rejection} />
       <FactReviewHistorySection history={factReviews} />
       <ImpactSection proposalId={id} impact={impact} scenarioPage={boundedPage(query.impactPage,
         Math.ceil((impact?.scenarios.length ?? 0) / PAGE_SIZE))} uncoveredPage={boundedPage(query.uncoveredPage,
@@ -165,13 +174,17 @@ function FactReviewHistorySection({ history }: { history: FactReviewHistoryPage 
   </section>;
 }
 
-function EvidenceSection({ proposalId, evidence }: { proposalId: string; evidence: CandidateEvidencePage }) {
+function EvidenceSection({ proposalId, evidence, review, canRecord }: {
+  proposalId: string; evidence: CandidateEvidencePage;
+  review: Pick<CatalogProposalReview, "version" | "proposalSha256">; canRecord: boolean;
+}) {
   const labels = { CURRENT: "Within 90 days · unreviewed", STALE: "Older than 90 days · unreviewed",
     FUTURE: "Future date · unreviewed" };
-  return <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="evidence-heading">
+  return <section id="candidate-evidence" className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="evidence-heading">
     <h2 id="evidence-heading" className="text-2xl font-semibold">Candidate evidence</h2>
     <p className="mt-3 text-slate-300">All recorded candidate facts, including unchanged facts. Source verification is still required; omitted facts remain unknown.</p>
     <p className="mt-3 text-sm text-slate-400">Dates checked at <time dateTime={evidence.evaluatedAt}>{evidence.evaluatedAt}</time>: {evidence.freshness.current} within 90 days · {evidence.freshness.stale} older than 90 days · {evidence.freshness.future} future dates.</p>
+    {!canRecord && <p className="mt-3 text-amber-100">This revision was rejected. New source-review observations are unavailable; its existing history remains readable.</p>}
     {evidence.items.length === 0 ? <p className="mt-5 text-slate-300">No recorded facts on this page.</p> : <>
       <p className="mt-5 text-sm text-slate-400">Showing {evidence.offset + 1}–{evidence.offset + evidence.items.length} of {evidence.factCount} recorded facts.</p>
       <div className="mt-4 space-y-4">{evidence.items.map(item => <article key={`${item.optionId}-${item.path}`} className="rounded-lg border border-slate-600 p-4">
@@ -185,6 +198,8 @@ function EvidenceSection({ proposalId, evidence }: { proposalId: string; evidenc
         <p className="mt-1 text-sm text-slate-400">Observed: <time dateTime={item.evidence.observedAt}>{item.evidence.observedAt}</time></p>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-300">{item.evidence.summary}</p>
         <p className="mt-2 break-words text-sm text-slate-400">Submitted conditions: {item.conditions.length ? item.conditions.join("; ") : "None recorded"}</p>
+        {canRecord && <ManualFactReviewForm proposalId={proposalId} version={review.version}
+          digest={review.proposalSha256} optionId={item.optionId} factPath={item.path} />}
       </article>)}</div>
     </>}
     {(evidence.offset > 0 || evidence.nextOffset !== null) && <nav aria-label="Candidate evidence pages" className="mt-6 flex gap-5 text-cyan-200">
@@ -192,6 +207,38 @@ function EvidenceSection({ proposalId, evidence }: { proposalId: string; evidenc
       {evidence.nextOffset !== null && <Link href={`/catalog/review/${proposalId}?evidenceOffset=${evidence.nextOffset}`} className="hover:underline">Next evidence →</Link>}
     </nav>}
   </section>;
+}
+
+function ManualFactReviewForm({ proposalId, version, digest, optionId, factPath }: {
+  proposalId: string; version: number; digest: string; optionId: string; factPath: string;
+}) {
+  const reviewId = randomUUID();
+  const verdictId = `verdict-${reviewId}`, warningId = `review-warning-${reviewId}`;
+  return <details className="mt-5 border-t border-slate-600 pt-4">
+    <summary className="cursor-pointer font-medium text-cyan-200">Record a manual source review</summary>
+    <p id={warningId} className="mt-3 text-sm text-amber-100">Manually assess the submitted source against the claim, product, plan, region, configuration and conditions shown above. AuthWeave does not open or verify the source. This records your observation only; it does not refresh evidence, change trust, approve or publish facts. Corrections append another observation.</p>
+    <form method="post" encType="application/x-www-form-urlencoded"
+      action={`/api/catalog-change-proposals/${proposalId}/fact-reviews`} aria-describedby={warningId} className="mt-4 space-y-4">
+      <input type="hidden" name="reviewId" value={reviewId} />
+      <input type="hidden" name="expectedVersion" value={version} />
+      <input type="hidden" name="expectedSha256" value={digest} />
+      <input type="hidden" name="optionId" value={optionId} />
+      <input type="hidden" name="factPath" value={factPath} />
+      <label htmlFor={verdictId} className="block text-sm font-medium">Your manual conclusion</label>
+      <select id={verdictId} name="verdict" required defaultValue="" className="w-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2">
+        <option value="" disabled>Select a conclusion</option>
+        <option value="SOURCE_SUPPORTS_CLAIM">Source supports the submitted claim in this scope</option>
+        <option value="SOURCE_DOES_NOT_SUPPORT_CLAIM">Source does not support the submitted claim in this scope</option>
+        <option value="INSUFFICIENT_EVIDENCE">Insufficient evidence to decide</option>
+      </select>
+      <label className="flex gap-3 text-sm text-slate-300">
+        <input type="checkbox" name="confirmation" value="MANUAL_SOURCE_REVIEW" required className="mt-1" />
+        <span>I manually assessed this source, claim, scope and conditions. Record my conclusion for {optionId} · {factPath}, revision {version}, SHA-256 {digest}. This is not approval.</span>
+      </label>
+      <p className="break-all text-xs text-slate-400">Observation ID: {reviewId}. If the outcome is uncertain, check history and retry this original form unchanged; do not create a new observation just to retry.</p>
+      <button type="submit" className="rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200">Record observation</button>
+    </form>
+  </details>;
 }
 
 function ImpactSection({ proposalId, impact, scenarioPage, uncoveredPage }: {

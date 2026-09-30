@@ -265,7 +265,7 @@ test("curator rejection route requires same-origin, scoped fresh session and fix
   }
 });
 
-test("manual fact-review route bounds JSON and uses only fresh scoped DB-session identity", async () => {
+test("manual fact-review route bounds JSON/native forms and uses only fresh scoped DB-session identity", async () => {
   const keys = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN",
     "AUTHWEAVE_CORE_SERVICE_TOKEN", "AUTHWEAVE_OIDC_PROJECT_ID", "AUTHWEAVE_OIDC_ORG_ID"];
   const previous = keys.map(key => process.env[key]); const previousFetch = globalThis.fetch;
@@ -285,7 +285,10 @@ test("manual fact-review route bounds JSON and uses only fresh scoped DB-session
     new NextRequest(`http://localhost:3000/api/catalog-change-proposals/${id}/fact-reviews`, {
       method: "POST", headers: { Origin: "http://localhost:3000", "Content-Type": "application/json",
         ...(session ? { Cookie: `${sessionCookieName(false)}=${session}` } : {}), ...headers }, body });
-  const calls: string[] = []; let coreStatus = 201;
+  const form = new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)]));
+  const formRequest = (session: string | null, body = form.toString(), headers: Record<string, string> = {}) =>
+    request(session, body, { "Content-Type": "application/x-www-form-urlencoded", ...headers });
+  const calls: string[] = []; let coreStatus = 201, reviewNumber = 1, forgedReceipt = false;
   globalThis.fetch = async (url, init) => {
     calls.push(`${init?.method} ${url}`);
     const headers = init?.headers as Record<string, string>;
@@ -295,9 +298,9 @@ test("manual fact-review route bounds JSON and uses only fresh scoped DB-session
     assert.deepEqual(JSON.parse(String(init?.body)), input);
     if (coreStatus !== 201 && coreStatus !== 200) return new Response(null, { status: coreStatus });
     return Response.json({ reviewId: input.reviewId, proposalId: id, proposalVersion: 0, proposalSha256: input.expectedSha256,
-      reviewNumber: 1, optionId: input.optionId, factPath: input.factPath, verdict: input.verdict, recordedAt: new Date().toISOString(),
+      reviewNumber, optionId: input.optionId, factPath: input.factPath, verdict: input.verdict, recordedAt: new Date().toISOString(),
       kind: "HUMAN_SOURCE_REVIEW_OBSERVATION", sourceVerificationPerformed: false, approvalGranted: false,
-      catalogWritesPerformed: false, factTrustChanged: false }, { status: coreStatus });
+      catalogWritesPerformed: false, factTrustChanged: forgedReceipt }, { status: coreStatus });
   };
   try {
     assert.equal((await factReviewRoute(request(curator, undefined, { Origin: "https://evil.invalid" }), context)).status, 403);
@@ -320,9 +323,58 @@ test("manual fact-review route bounds JSON and uses only fresh scoped DB-session
       if (status <= 201) assert.equal((await response.json()).factTrustChanged, false);
     }
     calls.length = 0;
+    assert.equal((await factReviewRoute(formRequest(curator, undefined, { Origin: "https://evil.invalid" }), context)).status, 403);
+    assert.equal((await factReviewRoute(formRequest(curator, undefined, { Origin: "" }), context)).status, 403);
+    assert.equal((await factReviewRoute(formRequest(null), context)).status, 401);
+    assert.equal((await factReviewRoute(formRequest(ordinary), context)).status, 403);
+    for (const invalid of [form.toString() + "&reviewId=" + input.reviewId,
+      form.toString().replace("confirmation=MANUAL_SOURCE_REVIEW", "confirmation=APPROVE"),
+      form.toString() + "&actorSubject=forged", form.toString() + "&returnTo=https://evil.invalid"]) {
+      assert.equal((await factReviewRoute(formRequest(curator, invalid), context)).status, 400);
+    }
+    assert.equal((await factReviewRoute(formRequest(curator, undefined, { "Content-Length": "2049" }), context)).status, 413);
+    assert.equal((await factReviewRoute(formRequest(curator, "x".repeat(2049)), context)).status, 413);
+    assert.equal((await factReviewRoute(formRequest(curator, undefined, { "Content-Length": "invalid" }), context)).status, 413);
+    assert.deepEqual(calls, []);
+    for (const status of [201, 200]) {
+      coreStatus = status; reviewNumber = status === 201 ? 1 : 26; calls.length = 0;
+      const response = await factReviewRoute(formRequest(curator, undefined,
+        { "X-AuthWeave-Oidc-Subject": "forged" }), context);
+      assert.equal(response.status, 303);
+      assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+      assert.equal(response.headers.get("location"), `http://localhost:3000/catalog/review/${id}` +
+        `?reviewVersion=0&reviewAfter=${Math.max(0, reviewNumber - 20)}&reviewResult=${input.reviewId}#fact-review-history`);
+      assert.equal(calls.length, 2);
+    }
+    coreStatus = 409;
+    const conflict = await factReviewRoute(formRequest(curator), context);
+    assert.equal(conflict.status, 303);
+    assert.equal(conflict.headers.get("location"), `http://localhost:3000/catalog/review/${id}?reviewError=conflict#candidate-evidence`);
+    for (const status of [404, 400, 403]) {
+      coreStatus = status;
+      assert.equal((await factReviewRoute(formRequest(curator), context)).status, status);
+    }
+    for (const status of [503, 201]) {
+      coreStatus = status; forgedReceipt = status === 201;
+      const unconfirmed = await factReviewRoute(formRequest(curator), context);
+      assert.equal(unconfirmed.status, 503); assert.equal(unconfirmed.headers.get("location"), null);
+      assert.match(unconfirmed.headers.get("content-type")!, /text\/html/);
+      const html = await unconfirmed.text();
+      assert.match(html, /use the original form unchanged/);
+      assert.match(html, /Retry this exact observation/);
+      assert.ok(html.includes(`name="reviewId" value="${input.reviewId}"`));
+      assert.ok(html.includes(`name="expectedSha256" value="${input.expectedSha256}"`));
+      assert.match(html, /name="confirmation"[^>]*required/);
+    }
+    forgedReceipt = false;
+    calls.length = 0;
     await authDatabase().query(`UPDATE web.sessions SET authenticated_at = CURRENT_TIMESTAMP - INTERVAL '16 minutes'
       WHERE session_hash = $1`, [opaqueHash(curator)]);
     assert.equal((await factReviewRoute(request(curator), context)).status, 403); assert.deepEqual(calls, []);
+    const staleForm = await factReviewRoute(formRequest(curator), context);
+    assert.equal(staleForm.status, 403); assert.match(await staleForm.text(), /verify this account again/);
+    assert.deepEqual(calls, []);
   } finally {
     await revokeSession(curator); await revokeSession(ordinary); globalThis.fetch = previousFetch;
     keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });

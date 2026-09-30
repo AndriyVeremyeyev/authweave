@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { factReviewInput, factReviewFromCore, type FactReviewInput } from "../src/lib/catalog/fact-review.ts";
+import { factReviewFormInput, factReviewInput, factReviewFromCore, type FactReviewInput } from "../src/lib/catalog/fact-review.ts";
 import { recordCatalogFactReview } from "../src/lib/auth/core-client.ts";
 
 const id = "90000000-0000-4000-8000-000000000001";
@@ -36,6 +36,28 @@ test("manual review receipt is exactly request-bound and cannot imply approval o
     { sourceVerificationPerformed: true }, { approvalGranted: true }, { catalogWritesPerformed: true },
     { factTrustChanged: true }, { actorSubject: "private" }]) {
     assert.throws(() => factReviewFromCore({ ...receipt, ...change }, id, input), /Invalid/);
+  }
+});
+
+test("native manual-review forms require exact fields, canonical revision and explicit human confirmation", () => {
+  const form = new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)]));
+  assert.deepEqual(factReviewFormInput(form.toString()), input);
+  for (const verdict of ["SOURCE_SUPPORTS_CLAIM", "SOURCE_DOES_NOT_SUPPORT_CLAIM", "INSUFFICIENT_EVIDENCE"] as const) {
+    const changed = new URLSearchParams(form); changed.set("verdict", verdict);
+    assert.deepEqual(factReviewFormInput(changed.toString()), { ...input, verdict });
+  }
+  for (const key of form.keys()) {
+    const missing = new URLSearchParams(form); missing.delete(key);
+    assert.equal(factReviewFormInput(missing.toString()), null);
+    const duplicate = new URLSearchParams(form); duplicate.append(key, form.get(key)!);
+    assert.equal(factReviewFormInput(duplicate.toString()), null);
+  }
+  for (const [key, value] of [["expectedVersion", "02"], ["expectedVersion", "2.0"], ["expectedVersion", "+2"],
+    ["expectedVersion", "-1"], ["expectedVersion", "9007199254740992"], ["confirmation", ""], ["confirmation", "APPROVE"],
+    ["verdict", "VERIFIED"], ["expectedSha256", "b"], ["reviewId", "bad"], ["factPath", "../facts.OIDC"],
+    ["actorSubject", "forged"], ["returnTo", "https://evil.invalid"], ["sourceUrl", "https://evil.invalid"]]) {
+    const changed = new URLSearchParams(form); changed.set(key, value);
+    assert.equal(factReviewFormInput(changed.toString()), null);
   }
 });
 

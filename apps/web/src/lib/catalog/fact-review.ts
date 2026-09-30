@@ -30,6 +30,17 @@ export function factReviewInput(value: unknown): FactReviewInput | null {
   return body as FactReviewInput;
 }
 
+export function factReviewFormInput(text: string): FactReviewInput | null {
+  const form = new URLSearchParams(text);
+  const keys = ["reviewId", "expectedVersion", "expectedSha256", "optionId", "factPath", "verdict", "confirmation"];
+  const names = [...form.keys()];
+  if (names.length !== keys.length || new Set(names).size !== keys.length ||
+      !keys.every(key => form.has(key))) return null;
+  const version = form.get("expectedVersion");
+  if (!version || !/^(0|[1-9][0-9]*)$/.test(version)) return null;
+  return factReviewInput({ ...Object.fromEntries(form), expectedVersion: Number(version) });
+}
+
 export function factReviewFromCore(value: unknown, proposalId: string, input: FactReviewInput): FactReviewReceipt {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid fact review receipt");
   const body = value as Record<string, unknown>;
