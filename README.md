@@ -790,6 +790,20 @@ not mean approval. There is still no approval, active catalog
 change or published state; existing proposal reads continue to report the immutable
 snapshot as `PROPOSED`, with rejection stored separately.
 
+Migration V13 reserves append-only storage for a curator's source-review verdict on one
+recorded candidate fact: `SOURCE_SUPPORTS_CLAIM`, `SOURCE_DOES_NOT_SUPPORT_CLAIM`, or
+`INSUFFICIENT_EVIDENCE`. Each observation binds the exact proposal revision/digest,
+option ID and fact path and must commit with a matching minimal curator audit event.
+Corrections append another observation; existing history cannot be rewritten by runtime
+roles. PostgreSQL checks that the fact exists in the current unrejected revision and
+assigns a per-revision review number while holding the proposal head lock shared by
+Core revision/rejection writers. Runtime roles cannot supply the number or timestamps;
+the web role cannot read or insert these records. This is reserved storage only: no
+source-review API, CLI or form is available yet. Database identity/freshness constraints
+do not prove an OIDC login; a future write boundary must independently authorize the
+curator. A human verdict is not automatic source verification, evidence freshness,
+approval or catalog publication, and existing catalog/evaluation behavior is unchanged.
+
 ### Conditional catalog impact
 
 `POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview

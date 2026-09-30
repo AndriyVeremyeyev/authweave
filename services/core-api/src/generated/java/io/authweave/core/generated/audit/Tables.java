@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
@@ -30,6 +31,12 @@ public class Tables {
      * update or delete events.
      */
     public static final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
+
+    /**
+     * Atomic curator assertion audit. No source content or credentials;
+     * database constraints do not verify an OIDC login.
+     */
+    public static final CatalogFactReviewEvents CATALOG_FACT_REVIEW_EVENTS = CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS;
 
     /**
      * Atomic report-save events from a local service, not an authenticated

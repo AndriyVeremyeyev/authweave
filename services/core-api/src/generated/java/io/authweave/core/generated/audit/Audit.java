@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
@@ -47,6 +48,12 @@ public class Audit extends SchemaImpl {
     public final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
 
     /**
+     * Atomic curator assertion audit. No source content or credentials;
+     * database constraints do not verify an OIDC login.
+     */
+    public final CatalogFactReviewEvents CATALOG_FACT_REVIEW_EVENTS = CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS;
+
+    /**
      * Atomic report-save events from a local service, not an authenticated
      * human. No raw source or profile text.
      */
@@ -81,6 +88,7 @@ public class Audit extends SchemaImpl {
     public final List<Table<?>> getTables() {
         return Arrays.asList(
             AssessmentEvents.ASSESSMENT_EVENTS,
+            CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS,
             CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS,
             CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS,
             CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS
