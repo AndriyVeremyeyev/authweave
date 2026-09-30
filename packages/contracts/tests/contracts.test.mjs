@@ -119,6 +119,21 @@ test("manual source-review contracts bind a fact observation without granting tr
     { nextAfterReviewNumber: 0 }, { approved: true }, { items: [{ ...receipt, actorSubject: "private" }] }]) {
     assert.equal(history({ ...page, ...change }), false);
   }
+  const summarize = ajv.getSchema("https://authweave.dev/contracts/catalog-fact-review-summary-page.v1.schema.json");
+  const summary = { proposalId: receipt.proposalId, proposalVersion: 0, proposalSha256: receipt.proposalSha256,
+    policyVersion: "catalog-fact-review-summary-1", reviewThroughNumber: 1, factCount: 2,
+    counts: { noObservation: 1, sourceSupportsClaim: 0, sourceDoesNotSupportClaim: 0, insufficientEvidence: 1 },
+    offset: 0, items: [{ optionId: receipt.optionId, factPath: receipt.factPath, latestObservation: receipt },
+      { optionId: receipt.optionId, factPath: "facts.SCIM", latestObservation: null }], nextOffset: null,
+    sourceVerificationPerformed: false, approvalGranted: false, catalogWritesPerformed: false, factTrustChanged: false };
+  assert.equal(summarize(summary), true, ajv.errorsText(summarize.errors));
+  for (const change of [{ sourceVerificationPerformed: true }, { approvalGranted: true }, { factTrustChanged: true },
+    { reviewThroughNumber: -1 }, { reviewThroughNumber: 9007199254740992 }, { approved: true },
+    { counts: { ...summary.counts, noObservation: "1" } }, { items: Array(21).fill(summary.items[0]) },
+    { items: [{ ...summary.items[0], latestObservation: { ...receipt, actorSubject: "private" } }] },
+    { items: [{ ...summary.items[0], evidenceStatus: "REVIEWED" }] }]) {
+    assert.equal(summarize({ ...summary, ...change }), false);
+  }
   for (const change of [{ actorSubject: "forged" }, { confirmation: "AUTOMATIC" }, { verdict: "VERIFIED" },
     { expectedVersion: "0" }, { expectedVersion: 9007199254740992 }, { factPath: "request.candidate" }]) {
     assert.equal(request({ ...input, ...change }), false);

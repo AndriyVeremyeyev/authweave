@@ -18,6 +18,7 @@ import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/c
 import { usageMetrics, type UsagePlanningValues } from "../src/lib/assessment/usage-planning.ts";
 import { storedImpactFixture } from "./fixtures/stored-impact.mts";
 import { candidateEvidenceFixture } from "./fixtures/candidate-evidence.mts";
+import { factReviewSummaryFixture } from "./fixtures/fact-review-summary.mts";
 
 const identity = {
   issuer: "http://localhost:8081",
@@ -282,6 +283,7 @@ test("curator review reads a version-bound proposal and separate current decisio
   let history: unknown = { proposalId: id, proposalVersion: 0, proposalSha256: digest,
     afterReviewNumber: 0, items: [], nextAfterReviewNumber: null };
   let historyStatus = 200;
+  let summary: unknown = factReviewSummaryFixture(id, 0, digest), summaryStatus = 200;
   const calls: string[] = [];
   globalThis.fetch = async (url, init) => {
     calls.push(String(url));
@@ -302,6 +304,10 @@ test("curator review reads a version-bound proposal and separate current decisio
       assert.ok(String(url).startsWith(`http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/revisions/0/fact-reviews?`));
       return historyStatus === 200 ? Response.json(history) : new Response(null, { status: historyStatus });
     }
+    if (String(url).endsWith("/fact-reviews/summary?offset=0")) {
+      assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/revisions/0/fact-reviews/summary?offset=0`);
+      return summaryStatus === 200 ? Response.json(summary) : new Response(null, { status: summaryStatus });
+    }
     assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}`);
     return Response.json(snapshot);
   };
@@ -313,8 +319,16 @@ test("curator review reads a version-bound proposal and separate current decisio
       assert.equal(unreviewed.impact, null);
       assert.equal(unreviewed.evidence.items[0].path, "facts.OIDC");
       assert.deepEqual(unreviewed.factReviews.items, []);
+      assert.equal(unreviewed.factReviewSummary.counts.noObservation, 1);
     }
-    assert.equal(calls.length, 6);
+    assert.equal(calls.length, 7);
+    summary = { ...factReviewSummaryFixture(id, 0, digest), proposalVersion: 1 };
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind, "core-unavailable");
+    summary = factReviewSummaryFixture(id, 0, digest); summaryStatus = 403;
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind, "core-rejected");
+    summaryStatus = 503;
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind, "core-unavailable");
+    summaryStatus = 200;
     history = { proposalId: id, proposalVersion: 1, proposalSha256: digest,
       afterReviewNumber: 0, items: [], nextAfterReviewNumber: null };
     assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind, "core-unavailable");

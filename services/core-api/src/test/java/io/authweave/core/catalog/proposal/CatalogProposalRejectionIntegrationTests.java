@@ -31,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -50,6 +51,124 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
     @Autowired private ObjectMapper mapper;
     @Autowired private DSLContext dsl;
     @Autowired private CatalogFactReviewWriter factReviews;
+    @Autowired private CatalogFactReviewSummaryService summaries;
+
+    @Test
+    void summaryCountsWholeCandidateByLatestNumberAcrossHistoryAndFactPagesWithoutTrustOrWrites() throws Exception {
+        var json = (ObjectNode) mapper.valueToTree(proposal());
+        var options = ((ObjectNode) json.get("candidate")).withArray("options");
+        var template = (ObjectNode) options.get(0).deepCopy();
+        for (int i = 1; i < 3; i++) {
+            var copy = template.deepCopy(); copy.put("id", "example-managed-eu-" + i);
+            copy.put("configuration", "Synthetic configuration " + i); options.add(copy);
+        }
+        var request = mapper.treeToValue(json, CatalogChangePreviewRequest.class);
+        var stored = proposals.save(request, null).proposal();
+        String path = factReviewPath(stored.proposalId()).replace("/fact-reviews", "/revisions/0/fact-reviews/summary");
+        var actor = new CatalogProposalRejectionWriter.CuratorActor("http://localhost:8081", "synthetic-curator",
+                "123456789012345678", "987654321098765432", Instant.now());
+        var empty = summaries.summary(stored.proposalId(), 0, 0);
+        assertEquals(27, empty.factCount()); assertEquals(27, empty.counts().noObservation());
+        assertEquals(0, empty.reviewThroughNumber()); assertEquals(20, empty.items().size()); assertEquals(20, empty.nextOffset());
+        for (int i = 0; i < 26; i++) {
+            var input = factReview(stored, "facts.OIDC");
+            factReviews.record(stored.proposalId(), new CatalogFactReviewRequest(input.reviewId(), 0L,
+                    input.expectedSha256(), input.optionId(), input.factPath(), i == 25
+                    ? CatalogFactReviewRequest.Verdict.SOURCE_DOES_NOT_SUPPORT_CLAIM
+                    : CatalogFactReviewRequest.Verdict.SOURCE_SUPPORTS_CLAIM, input.confirmation()), actor);
+        }
+        var paths = java.util.List.of("compatibility.applications.B2B_SAAS", "residency.USER_PROFILES",
+                "authenticationControls.BROWSER.PARTNERS.PHISHING_RESISTANCE", "residency.USER_PROFILES");
+        for (int i = 0; i < paths.size(); i++) {
+            var input = factReview(stored, paths.get(i));
+            factReviews.record(stored.proposalId(), new CatalogFactReviewRequest(input.reviewId(), 0L, input.expectedSha256(),
+                    i == 3 ? "example-managed-eu-2" : input.optionId(), input.factPath(),
+                    i == 1 ? CatalogFactReviewRequest.Verdict.INSUFFICIENT_EVIDENCE : i == 3
+                    ? CatalogFactReviewRequest.Verdict.SOURCE_DOES_NOT_SUPPORT_CLAIM
+                    : CatalogFactReviewRequest.Verdict.SOURCE_SUPPORTS_CLAIM, input.confirmation()), actor);
+        }
+        var other = proposals.save(proposal(), null).proposal();
+        factReviews.record(other.proposalId(), factReview(other, "facts.OIDC"), actor);
+        var first = summaries.summary(stored.proposalId(), 0, 0);
+        var second = summaries.summary(stored.proposalId(), 0, 20);
+        assertEquals(new CatalogFactReviewSummaryPage.Counts(22, 2, 2, 1), first.counts());
+        assertEquals(first.counts(), second.counts()); assertEquals(30, first.reviewThroughNumber());
+        assertEquals(7, second.items().size()); assertEquals(null, second.nextOffset());
+        var oidc = first.items().stream().filter(item -> item.optionId().equals("example-managed-eu")
+                && item.factPath().equals("facts.OIDC")).findFirst().orElseThrow().latestObservation();
+        assertEquals(26, oidc.reviewNumber()); assertEquals(CatalogFactReviewRequest.Verdict.SOURCE_DOES_NOT_SUPPORT_CLAIM, oidc.verdict());
+        assertTrue(second.items().stream().anyMatch(item -> item.latestObservation() != null && item.latestObservation().reviewNumber() == 30));
+        var input = factReview(stored, "residency.USER_PROFILES");
+        factReviews.record(stored.proposalId(), new CatalogFactReviewRequest(input.reviewId(), 0L, input.expectedSha256(),
+                "example-managed-eu-2", input.factPath(), CatalogFactReviewRequest.Verdict.SOURCE_SUPPORTS_CLAIM, input.confirmation()), actor);
+        var corrected = summaries.summary(stored.proposalId(), 0, 0);
+        assertEquals(new CatalogFactReviewSummaryPage.Counts(22, 3, 1, 1), corrected.counts()); assertEquals(31, corrected.reviewThroughNumber());
+        var response = mvc.perform(withCuratorHeaders(get(path), Instant.now())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.factTrustChanged").value(false)).andReturn().getResponse();
+        assertEquals("no-store", response.getHeader("Cache-Control"));
+        assertTrue(!response.getContentAsString().contains("actor") && !response.getContentAsString().contains("sourceUrl"));
+        mvc.perform(authorized(path(stored.proposalId()), Instant.now()).content(body(0, stored.proposalSha256(), "OTHER")))
+                .andExpect(status().isCreated());
+        proposals.save(new CatalogChangePreviewRequest(1, request.proposalId(), "New rationale.", request.expectedBaseSha256(),
+                request.base(), request.candidate()), 0L);
+        assertEquals(corrected, summaries.summary(stored.proposalId(), 0, 0));
+        assertEquals(27, summaries.summary(stored.proposalId(), 1, 0).counts().noObservation());
+        assertEquals(0, summaries.summary(stored.proposalId(), 1, 0).reviewThroughNumber());
+        assertTrue(summaries.summary(stored.proposalId(), 0, 6800).items().isEmpty());
+        var r = io.authweave.core.generated.jooq.tables.CatalogFactReviews.CATALOG_FACT_REVIEWS;
+        var e = io.authweave.core.generated.audit.tables.CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS;
+        assertEquals(31, dsl.fetchCount(r, r.PROPOSAL_ID.eq(stored.proposalId())));
+        assertEquals(31, dsl.fetchCount(e, e.PROPOSAL_ID.eq(stored.proposalId())));
+        assertEquals(stored.request(), repository.revision(stored.proposalId(), 0).request());
+        assertEquals(stored.preview(), repository.revision(stored.proposalId(), 0).preview());
+        assertEquals(2, repository.events(stored.proposalId(), null, 100).items().size());
+    }
+
+    @Test
+    void summaryIsScopedFreshBoundedAndRequiresAnExistingRevision() throws Exception {
+        var stored = proposals.save(proposal(), null).proposal();
+        String path = factReviewPath(stored.proposalId()).replace("/fact-reviews", "/revisions/0/fact-reviews/summary");
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", "Bearer synthetic-internal-token-000000000000000000000"))
+                .andExpect(status().isUnauthorized());
+        for (var header : java.util.Map.of("X-AuthWeave-Curator-Role", "assessor", "X-AuthWeave-Curator-Project-Id", "111",
+                "X-AuthWeave-Curator-Org-Id", "222").entrySet()) {
+            mvc.perform(withCuratorHeaders(get(path), Instant.now()).with(req -> {
+                req.removeHeader(header.getKey()); req.addHeader(header.getKey(), header.getValue()); return req;
+            })).andExpect(status().isForbidden());
+        }
+        for (var at : java.util.List.of(Instant.now().minusSeconds(901), Instant.now().plusSeconds(60))) {
+            mvc.perform(withCuratorHeaders(get(path), at)).andExpect(status().isForbidden());
+        }
+        for (var offset : java.util.List.of("-1", "6801", "1.5", "invalid")) {
+            mvc.perform(withCuratorHeaders(get(path), Instant.now()).param("offset", offset)).andExpect(status().isBadRequest());
+        }
+        for (var version : java.util.List.of("-1", "9007199254740992", "1.5", "invalid")) {
+            mvc.perform(withCuratorHeaders(get(path.replace("/revisions/0/", "/revisions/" + version + "/")), Instant.now()))
+                    .andExpect(status().isBadRequest());
+        }
+        mvc.perform(withCuratorHeaders(get(path.replace("/revisions/0/", "/revisions/1/")), Instant.now())).andExpect(status().isNotFound());
+        mvc.perform(withCuratorHeaders(get(path.replace(stored.proposalId().toString(), UUID.randomUUID().toString())), Instant.now()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void summaryRejectsCorruptOrUnsupportedStoredInputsBeforeReadingTheLedger() throws Exception {
+        var stored = proposals.save(proposal(), null).proposal();
+        for (var mode : java.util.List.of("digest", "format", "shape", "identity")) {
+            var request = stored.request().deepCopy();
+            if (mode.equals("shape")) ((ObjectNode) request).remove("candidate");
+            if (mode.equals("identity")) ((ObjectNode) request).put("proposalId", UUID.randomUUID().toString());
+            var fake = mock(CatalogProposalRepository.class); var ledger = mock(CatalogFactReviewRepository.class);
+            when(fake.revision(stored.proposalId(), 0)).thenReturn(new CatalogProposalSnapshot(stored.proposalId(), 0,
+                    stored.state(), mode.equals("format") ? 99 : 1, mode.equals("digest") ? "0".repeat(64) : stored.proposalSha256(),
+                    stored.recordedAt(), request, stored.preview()));
+            var service = new CatalogFactReviewSummaryService(fake, ledger, new CatalogDraftValidator(Clock.systemUTC()), mapper);
+            assertEquals(CatalogProposalException.Reason.REPLAY_UNAVAILABLE,
+                    assertThrows(CatalogProposalException.class, () -> service.summary(stored.proposalId(), 0, 0)).reason());
+            verifyNoInteractions(ledger);
+        }
+    }
 
     @Test
     void factReviewHistoryPagesAllCorrectionsAndSurvivesRejectionAndHeadChangesWithoutWrites() throws Exception {

@@ -21,9 +21,19 @@ public class CatalogFactReviewController {
     private final InternalServiceCredentialFilter credentials;
     private final CatalogFactReviewWriter writer;
     private final CatalogFactReviewRepository history;
+    private final CatalogFactReviewSummaryService summaries;
     public CatalogFactReviewController(InternalServiceCredentialFilter credentials, CatalogFactReviewWriter writer,
-            CatalogFactReviewRepository history) {
-        this.credentials = credentials; this.writer = writer; this.history = history;
+            CatalogFactReviewRepository history, CatalogFactReviewSummaryService summaries) {
+        this.credentials = credentials; this.writer = writer; this.history = history; this.summaries = summaries;
+    }
+
+    @GetMapping("/api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/fact-reviews/summary")
+    public ResponseEntity<CatalogFactReviewSummaryPage> summary(@PathVariable UUID proposalId,
+            @PathVariable @Min(0) @Max(9007199254740991L) long version,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(6800) int offset, HttpServletRequest request) {
+        int status = credentials.curatorStatus(request);
+        if (status != 204) return ResponseEntity.status(status).build();
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(summaries.summary(proposalId, version, offset));
     }
 
     @GetMapping("/api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/fact-reviews")

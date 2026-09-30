@@ -506,6 +506,54 @@ paths:
           $ref: '#/components/responses/CatalogProposalNotFound'
         '503':
           description: Curator scope or server credential is not configured.
+  /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/fact-reviews/summary:
+    get:
+      tags: [Catalog drafts]
+      summary: Summarize the latest reported human observation for every recorded candidate fact
+      operationId: summarizeCatalogFactReviews
+      description: >-
+        BFF-to-Core only with fresh scoped curator authorization. Counts cover the whole
+        immutable candidate, not just a history or evidence page. Each recorded fact is
+        classified by its greatest committed review number; corrections retain earlier
+        history. One SQL ledger snapshot supplies the counts and reviewThroughNumber.
+        Pages contain at most 20 sorted fact targets with a latest receipt or null.
+        Concurrent appends may change later reads. No source fetch, date update, actor
+        disclosure, trust promotion, assessment evaluation or approval occurs. Available
+        after rejection/head changes; invalid stored input fails closed.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - name: version
+          in: path
+          required: true
+          schema: { type: integer, minimum: 0, maximum: 9007199254740991 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, maximum: 6800, default: 0 }
+      responses:
+        '200':
+          description: Whole-revision observation counts and one bounded fact-target page.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-fact-review-summary-page.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Missing or invalid server credential or OIDC principal.
+        '403':
+          description: Curator role, scope or recent authentication missing.
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
+        '409':
+          description: Stored revision cannot be validated for a summary.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
+        '503':
+          description: Curator scope or server credential is not configured.
   /api/v1/catalog-change-proposals/{proposalId}/fact-reviews:
     post:
       tags: [Catalog drafts]

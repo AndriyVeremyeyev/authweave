@@ -849,6 +849,26 @@ observation, while a deliberate correction uses a new form/key. Sources remain
 unreviewed, observation dates and active evaluation behavior are unchanged, and
 approval/publication are still unavailable.
 
+The protected
+`GET /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/fact-reviews/summary`
+validates the immutable candidate and summarizes every recorded fact, including
+unchanged facts. It classifies each by its greatest committed review number:
+no observation, source supports the claim, source does not support it, or insufficient
+evidence. One SQL ledger snapshot supplies these whole-revision counts and
+`reviewThroughNumber`; only the latest receipt per fact is loaded, not the entire
+observation history. The response pages at most 20 sorted fact targets, aligned with
+candidate evidence, with a receipt or null for each. Corrections change the summary
+without erasing history. Scoped reads remain available after rejection or a head change.
+The curator screen shows the counts and each displayed fact's latest reported conclusion
+with a history link. The BFF checks exact revision/digest, target alignment, count sums,
+observation bounds and authority flags; invalid data fails closed. Concurrent appends
+can change later reads, and the independently fetched history can be newer than the
+summary. Missing observations are not negative provider claims; supporting observations
+are not capability values, verified evidence or an approval gate. Even support for every
+recorded fact does not prove freshness, baseline trust, complete coverage or eligibility.
+No source is fetched, stored dates or evidence trust changed, actor identity disclosed,
+assessment evaluated or catalog published by this read.
+
 ### Conditional catalog impact
 
 `POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview

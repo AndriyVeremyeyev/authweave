@@ -2279,6 +2279,26 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         sample("manual-source-review-history-no-actor", "catalog-fact-review-page", false, invalidHistory);
         invalidHistory = (ObjectNode) history.deepCopy(); invalidHistory.put("afterReviewNumber", -1);
         sample("manual-source-review-history-safe-cursor", "catalog-fact-review-page", false, invalidHistory);
+        var summary = versionedSample("manual-source-review-summary", "catalog-fact-review-summary-page",
+                mvc.perform(get("/api/v1/catalog-change-proposals/" + id + "/revisions/0/fact-reviews/summary")
+                    .header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                    .header("X-AuthWeave-Oidc-Issuer", "http://localhost:8081")
+                    .header("X-AuthWeave-Oidc-Subject", "synthetic-curator")
+                    .header("X-AuthWeave-Curator-Role", "catalog_curator")
+                    .header("X-AuthWeave-Curator-Project-Id", "123456789012345678")
+                    .header("X-AuthWeave-Curator-Org-Id", "987654321098765432")
+                    .header("X-AuthWeave-Authenticated-At", Instant.now().toString()))
+                    .andExpect(status().isOk()).andReturn());
+        assertEquals(8, summary.get("counts").get("noObservation").asInt());
+        for (var item : summary.get("items")) {
+            if (item.get("factPath").asText().equals("facts.OIDC")) assertEquals(receipt, item.get("latestObservation"));
+        }
+        var invalidSummary = (ObjectNode) summary.deepCopy(); invalidSummary.put("approvalGranted", true);
+        sample("manual-source-review-summary-no-approval", "catalog-fact-review-summary-page", false, invalidSummary);
+        invalidSummary = (ObjectNode) summary.deepCopy(); invalidSummary.put("reviewThroughNumber", -1);
+        sample("manual-source-review-summary-safe-number", "catalog-fact-review-summary-page", false, invalidSummary);
+        invalidSummary = (ObjectNode) summary.deepCopy(); ((ObjectNode) invalidSummary.get("counts")).put("noObservation", "8");
+        sample("manual-source-review-summary-count-types", "catalog-fact-review-summary-page", false, invalidSummary);
         var invalid = input.deepCopy(); invalid.remove("confirmation");
         sample("manual-source-review-confirmation-required", "catalog-fact-review-request", false, invalid);
         invalid = input.deepCopy(); invalid.put("actorSubject", "forged");

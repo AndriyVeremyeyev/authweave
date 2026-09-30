@@ -11,6 +11,7 @@ import type { CatalogImpactReview, ScenarioImpactRow } from "@/lib/catalog/impac
 import { candidateClaimSummary, evidenceOffsetFromQuery, type CandidateEvidencePage } from "@/lib/catalog/evidence-review";
 import { factReviewHistoryCursorFromQuery, factReviewHistoryHref, factReviewVerdictLabel,
   type FactReviewHistoryPage } from "@/lib/catalog/fact-review-history";
+import type { FactReviewSummaryPage } from "@/lib/catalog/fact-review-summary";
 import { observationDateStatus, sourceDetails, type CatalogProposalReview,
   type ObservationDateStatus, type ReviewFactChange,
   type ReviewOptionChange } from "@/lib/catalog/proposal-review";
@@ -77,7 +78,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
         <Link href={`/catalog/review/${id}`} className="mt-5 inline-block text-cyan-200 hover:underline">Restart review history →</Link>}
     </main>;
   }
-  const { review, rejection, impact, evidence, factReviews } = result;
+  const { review, rejection, impact, evidence, factReviews, factReviewSummary } = result;
   const storedObservation = typeof query.reviewResult === "string"
     ? factReviews.items.find(item => item.reviewId === query.reviewResult) : undefined;
   const pageCount = Math.max(1, Math.ceil(review.factChanges.length / PAGE_SIZE));
@@ -140,7 +141,8 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
           </>
         )}
       </section>
-      <EvidenceSection proposalId={id} evidence={evidence} review={review} canRecord={!rejection} />
+      <ManualObservationSummary summary={factReviewSummary} />
+      <EvidenceSection proposalId={id} evidence={evidence} review={review} summary={factReviewSummary} canRecord={!rejection} />
       <FactReviewHistorySection history={factReviews} />
       <ImpactSection proposalId={id} impact={impact} scenarioPage={boundedPage(query.impactPage,
         Math.ceil((impact?.scenarios.length ?? 0) / PAGE_SIZE))} uncoveredPage={boundedPage(query.uncoveredPage,
@@ -174,9 +176,25 @@ function FactReviewHistorySection({ history }: { history: FactReviewHistoryPage 
   </section>;
 }
 
-function EvidenceSection({ proposalId, evidence, review, canRecord }: {
+function ManualObservationSummary({ summary }: { summary: FactReviewSummaryPage }) {
+  return <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="observation-summary-heading">
+    <h2 id="observation-summary-heading" className="text-2xl font-semibold">Manual observation coverage</h2>
+    <p className="mt-3 text-slate-300">Counts cover all {summary.factCount} recorded candidate facts in revision {summary.proposalVersion}, not just this page. Each fact uses its latest recorded human observation by review number. Earlier conclusions remain in history; omitted facts remain unknown.</p>
+    <p className="mt-3 text-sm text-slate-400">Observations included through review number {summary.reviewThroughNumber}. New observations can change later reads; the separately read history may be newer. Reload to refresh this summary.</p>
+    <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+      <div><dt className="text-sm text-slate-400">No manual observation</dt><dd>{summary.counts.noObservation}</dd></div>
+      <div><dt className="text-sm text-slate-400">Curator reported: source supports claim</dt><dd>{summary.counts.sourceSupportsClaim}</dd></div>
+      <div><dt className="text-sm text-slate-400">Curator reported: source does not support claim</dt><dd>{summary.counts.sourceDoesNotSupportClaim}</dd></div>
+      <div><dt className="text-sm text-slate-400">Curator reported: insufficient evidence</dt><dd>{summary.counts.insufficientEvidence}</dd></div>
+    </dl>
+    <p className="mt-5 text-amber-100">These are reported source assessments, not provider capability values or verified evidence. Even a supporting observation for every recorded fact does not establish freshness, a trusted baseline, complete coverage, eligibility, approval or publication.</p>
+  </section>;
+}
+
+function EvidenceSection({ proposalId, evidence, review, summary, canRecord }: {
   proposalId: string; evidence: CandidateEvidencePage;
   review: Pick<CatalogProposalReview, "version" | "proposalSha256">; canRecord: boolean;
+  summary: FactReviewSummaryPage;
 }) {
   const labels = { CURRENT: "Within 90 days · unreviewed", STALE: "Older than 90 days · unreviewed",
     FUTURE: "Future date · unreviewed" };
@@ -187,7 +205,7 @@ function EvidenceSection({ proposalId, evidence, review, canRecord }: {
     {!canRecord && <p className="mt-3 text-amber-100">This revision was rejected. New source-review observations are unavailable; its existing history remains readable.</p>}
     {evidence.items.length === 0 ? <p className="mt-5 text-slate-300">No recorded facts on this page.</p> : <>
       <p className="mt-5 text-sm text-slate-400">Showing {evidence.offset + 1}–{evidence.offset + evidence.items.length} of {evidence.factCount} recorded facts.</p>
-      <div className="mt-4 space-y-4">{evidence.items.map(item => <article key={`${item.optionId}-${item.path}`} className="rounded-lg border border-slate-600 p-4">
+      <div className="mt-4 space-y-4">{evidence.items.map((item, index) => <article key={`${item.optionId}-${item.path}`} className="rounded-lg border border-slate-600 p-4">
         <h3 className="break-words font-medium">{item.optionId} · {item.path}</h3>
         <p className="mt-2 break-words text-sm text-slate-300">{item.scope.providerId} · {item.scope.product} · {item.scope.plan} · {item.scope.deployment} · {item.scope.region}</p>
         <p className="mt-1 break-words text-sm text-slate-400">Configuration: {item.scope.configuration}</p>
@@ -198,6 +216,12 @@ function EvidenceSection({ proposalId, evidence, review, canRecord }: {
         <p className="mt-1 text-sm text-slate-400">Observed: <time dateTime={item.evidence.observedAt}>{item.evidence.observedAt}</time></p>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-300">{item.evidence.summary}</p>
         <p className="mt-2 break-words text-sm text-slate-400">Submitted conditions: {item.conditions.length ? item.conditions.join("; ") : "None recorded"}</p>
+        <h4 className="mt-4 text-sm font-semibold">Latest reported human observation</h4>
+        {summary.items[index].latestObservation ? <>
+          <p className="mt-2 text-sm text-slate-300">{factReviewVerdictLabel(summary.items[index].latestObservation.verdict)} · observation #{summary.items[index].latestObservation.reviewNumber}.</p>
+          <Link href={factReviewHistoryHref(proposalId, review.version,
+            Math.max(0, summary.items[index].latestObservation.reviewNumber - 20))} className="mt-2 inline-block text-sm text-cyan-200 hover:underline">Read observation history →</Link>
+        </> : <p className="mt-2 text-sm text-slate-400">No manual observation recorded for this fact. Its evidence remains unreviewed.</p>}
         {canRecord && <ManualFactReviewForm proposalId={proposalId} version={review.version}
           digest={review.proposalSha256} optionId={item.optionId} factPath={item.path} />}
       </article>)}</div>

@@ -1,11 +1,13 @@
 package io.authweave.core.catalog.proposal;
 
 import java.util.UUID;
+import java.util.List;
 import org.jooq.DSLContext;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 import static io.authweave.core.generated.jooq.tables.CatalogFactReviews.CATALOG_FACT_REVIEWS;
 import static io.authweave.core.generated.jooq.tables.CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS;
+import static org.jooq.impl.DSL.max;
 
 @Repository
 @Transactional(readOnly = true)
@@ -31,5 +33,15 @@ public class CatalogFactReviewRepository {
         var items = more ? rows.subList(0, PAGE_SIZE) : rows;
         return new CatalogFactReviewPage(proposalId, version, digest.value1(), afterReviewNumber, items,
                 more ? items.getLast().reviewNumber() : null);
+    }
+
+    List<CatalogFactReview> latest(UUID proposalId, long version, String digest) {
+        var r = CATALOG_FACT_REVIEWS;
+        var revision = r.PROPOSAL_ID.eq(proposalId).and(r.PROPOSAL_VERSION.eq(version)).and(r.PROPOSAL_SHA256.eq(digest));
+        // One SQL statement/snapshot: the newest review number per fact, not an unbounded history scan in Java.
+        return dsl.selectFrom(r).where(revision)
+                .and(r.REVIEW_NUMBER.in(dsl.select(max(r.REVIEW_NUMBER)).from(r).where(revision)
+                        .groupBy(r.OPTION_ID, r.FACT_PATH)))
+                .orderBy(r.OPTION_ID.asc(), r.FACT_PATH.asc()).limit(6801).fetch(CatalogFactReview::from);
     }
 }

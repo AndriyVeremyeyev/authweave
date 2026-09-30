@@ -4,6 +4,7 @@ import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
 import { factReviewInput, factReviewFromCore, type FactReviewInput, type FactReviewReceipt } from "../catalog/fact-review.ts";
 import { factReviewHistoryFromCore, type FactReviewHistoryCursor, type FactReviewHistoryPage } from "../catalog/fact-review-history.ts";
+import { factReviewSummaryFromCore, type FactReviewSummaryPage } from "../catalog/fact-review-summary.ts";
 import { impactReviewFromCore, type CatalogImpactReview } from "../catalog/impact-review.ts";
 import { evidencePageFromCore, type CandidateEvidencePage } from "../catalog/evidence-review.ts";
 import { parseProposalReviewCursor, proposalIndexFromCore,
@@ -44,7 +45,8 @@ export type CatalogRejectionResult =
   | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" | "conflict" | "invalid" };
 export type CatalogReviewResult =
   | { kind: "ready"; review: CatalogProposalReview; rejection: CatalogRejection | null;
-      impact: CatalogImpactReview | null; evidence: CandidateEvidencePage; factReviews: FactReviewHistoryPage }
+      impact: CatalogImpactReview | null; evidence: CandidateEvidencePage; factReviews: FactReviewHistoryPage;
+      factReviewSummary: FactReviewSummaryPage }
   | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" | "invalid-review-cursor" | "stale-review-cursor" };
 export type CatalogReviewIndexResult =
   | { kind: "ready"; page: ProposalReviewIndexPage }
@@ -280,7 +282,7 @@ export async function readCatalogProposalReview(session: BrowserSession,
     const review = proposalReviewFromCore(await proposalResponse.json(), id);
     if (historyCursor && historyCursor.version !== review.version) return { kind: "stale-review-cursor" };
     const afterReviewNumber = historyCursor?.afterReviewNumber ?? 0;
-    const [decisionResponse, impactResponse, evidenceResponse, historyResponse] = await Promise.all([
+    const [decisionResponse, impactResponse, evidenceResponse, historyResponse, summaryResponse] = await Promise.all([
       fetch(`${base}/decisions/current`, {
         method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
       }),
@@ -293,12 +295,15 @@ export async function readCatalogProposalReview(session: BrowserSession,
       fetch(`${base}/revisions/${review.version}/fact-reviews?afterReviewNumber=${afterReviewNumber}`, {
         method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
       }),
+      fetch(`${base}/revisions/${review.version}/fact-reviews/summary?offset=${evidenceOffset}`, {
+        method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+      }),
     ]);
-    if ([decisionResponse, impactResponse, evidenceResponse, historyResponse].some(r => r.status === 401 || r.status === 403)) {
+    if ([decisionResponse, impactResponse, evidenceResponse, historyResponse, summaryResponse].some(r => r.status === 401 || r.status === 403)) {
       return { kind: "core-rejected" };
     }
     if (![200, 204].includes(decisionResponse.status) || ![200, 204].includes(impactResponse.status) ||
-        evidenceResponse.status !== 200 || historyResponse.status !== 200) {
+        evidenceResponse.status !== 200 || historyResponse.status !== 200 || summaryResponse.status !== 200) {
       return { kind: "core-unavailable" };
     }
     let rejection: CatalogRejection | null = null;
@@ -318,7 +323,8 @@ export async function readCatalogProposalReview(session: BrowserSession,
       ? impactReviewFromCore(await impactResponse.json(), review) : null;
     const evidence = evidencePageFromCore(await evidenceResponse.json(), review, evidenceOffset);
     const factReviews = factReviewHistoryFromCore(await historyResponse.json(), review, afterReviewNumber);
-    return { kind: "ready", review, rejection, impact, evidence, factReviews };
+    const factReviewSummary = factReviewSummaryFromCore(await summaryResponse.json(), review, evidence);
+    return { kind: "ready", review, rejection, impact, evidence, factReviews, factReviewSummary };
   } catch {
     return { kind: "core-unavailable" };
   }
