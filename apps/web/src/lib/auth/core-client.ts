@@ -5,6 +5,7 @@ import { freshCuratorGrant } from "./curator.ts";
 import { factReviewInput, factReviewFromCore, type FactReviewInput, type FactReviewReceipt } from "../catalog/fact-review.ts";
 import { factReviewHistoryFromCore, type FactReviewHistoryCursor, type FactReviewHistoryPage } from "../catalog/fact-review-history.ts";
 import { factReviewSummaryFromCore, type FactReviewSummaryPage } from "../catalog/fact-review-summary.ts";
+import { catalogReviewPrerequisites, type CatalogReviewPrerequisites } from "../catalog/review-prerequisites.ts";
 import { impactReviewFromCore, type CatalogImpactReview } from "../catalog/impact-review.ts";
 import { evidencePageFromCore, type CandidateEvidencePage } from "../catalog/evidence-review.ts";
 import { parseProposalReviewCursor, proposalIndexFromCore,
@@ -46,7 +47,7 @@ export type CatalogRejectionResult =
 export type CatalogReviewResult =
   | { kind: "ready"; review: CatalogProposalReview; rejection: CatalogRejection | null;
       impact: CatalogImpactReview | null; evidence: CandidateEvidencePage; factReviews: FactReviewHistoryPage;
-      factReviewSummary: FactReviewSummaryPage }
+      factReviewSummary: FactReviewSummaryPage; prerequisites: CatalogReviewPrerequisites }
   | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" | "invalid-review-cursor" | "stale-review-cursor" };
 export type CatalogReviewIndexResult =
   | { kind: "ready"; page: ProposalReviewIndexPage }
@@ -324,7 +325,8 @@ export async function readCatalogProposalReview(session: BrowserSession,
     const evidence = evidencePageFromCore(await evidenceResponse.json(), review, evidenceOffset);
     const factReviews = factReviewHistoryFromCore(await historyResponse.json(), review, afterReviewNumber);
     const factReviewSummary = factReviewSummaryFromCore(await summaryResponse.json(), review, evidence);
-    return { kind: "ready", review, rejection, impact, evidence, factReviews, factReviewSummary };
+    const prerequisites = catalogReviewPrerequisites(review, evidence, factReviewSummary, impact, rejection !== null);
+    return { kind: "ready", review, rejection, impact, evidence, factReviews, factReviewSummary, prerequisites };
   } catch {
     return { kind: "core-unavailable" };
   }

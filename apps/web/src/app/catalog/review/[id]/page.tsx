@@ -12,6 +12,7 @@ import { candidateClaimSummary, evidenceOffsetFromQuery, type CandidateEvidenceP
 import { factReviewHistoryCursorFromQuery, factReviewHistoryHref, factReviewVerdictLabel,
   type FactReviewHistoryPage } from "@/lib/catalog/fact-review-history";
 import type { FactReviewSummaryPage } from "@/lib/catalog/fact-review-summary";
+import type { CatalogReviewPrerequisites } from "@/lib/catalog/review-prerequisites";
 import { observationDateStatus, sourceDetails, type CatalogProposalReview,
   type ObservationDateStatus, type ReviewFactChange,
   type ReviewOptionChange } from "@/lib/catalog/proposal-review";
@@ -78,7 +79,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
         <Link href={`/catalog/review/${id}`} className="mt-5 inline-block text-cyan-200 hover:underline">Restart review history →</Link>}
     </main>;
   }
-  const { review, rejection, impact, evidence, factReviews, factReviewSummary } = result;
+  const { review, rejection, impact, evidence, factReviews, factReviewSummary, prerequisites } = result;
   const storedObservation = typeof query.reviewResult === "string"
     ? factReviews.items.find(item => item.reviewId === query.reviewResult) : undefined;
   const pageCount = Math.max(1, Math.ceil(review.factChanges.length / PAGE_SIZE));
@@ -119,6 +120,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
         <h3 className="mt-7 font-semibold">Submitted rationale</h3>
         <p className="mt-2 whitespace-pre-wrap break-words text-slate-300">{review.rationale}</p>
       </section>
+      <ReviewPrerequisites report={prerequisites} />
       <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="changes-heading">
         <h2 id="changes-heading" className="text-2xl font-semibold">Semantic changes</h2>
         <p className="mt-2 text-slate-300">{review.affectedOptionIds.length} affected option IDs · {review.optionChanges.length} option-scope changes · {review.factChanges.length} fact changes.</p>
@@ -150,6 +152,24 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
       <DecisionSection review={review} rejection={rejection} />
     </main>
   );
+}
+
+function ReviewPrerequisites({ report }: { report: CatalogReviewPrerequisites }) {
+  return <section className="mt-8 rounded-xl border border-amber-700 p-6" aria-labelledby="prerequisites-heading">
+    <h2 id="prerequisites-heading" className="text-2xl font-semibold">Why approval is unavailable</h2>
+    <p className="mt-3 text-amber-100">Read-only prerequisites report for revision {report.proposalVersion}. This is an informational display, not an exhaustive checklist, a Core approval gate or permission to publish.</p>
+    <p className="mt-3 text-sm text-slate-400">Uses whole-candidate counts, not the visible evidence or history page. Gaps can overlap; do not sum their fact counts.</p>
+    <p className="mt-3 text-sm text-slate-400">Evidence dates checked at <time dateTime={report.evidenceEvaluatedAt}>{report.evidenceEvaluatedAt}</time>; manual observations included through #{report.reviewThroughNumber}; latest stored scenario report: {report.impactReportNumber === null ? "none" : `#${report.impactReportNumber}`}.</p>
+    <p className="mt-2 text-sm text-slate-400">These are independent Core reads, not an atomic approval snapshot. A new observation, report, revision or rejection can change later reads. Reload before any curator action; Core rechecks write preconditions.</p>
+    <ul className="mt-6 space-y-5">
+      {report.gaps.map(gap => <li key={gap.code} data-prerequisite={gap.code}>
+        <h3 className="font-semibold">{gap.title}{gap.factCount !== null && ` · ${gap.factCount} recorded fact${gap.factCount === 1 ? "" : "s"}`}</h3>
+        <p className="mt-1 text-sm text-slate-300">{gap.explanation}</p>
+        <a href={`#${gap.section}`} className="mt-1 inline-block text-sm text-cyan-200 hover:underline">View details →</a>
+      </li>)}
+    </ul>
+    <p className="mt-6 text-amber-100">No source is fetched, date refreshed, trust promoted, assessment evaluated or catalog written by this report. Supporting human observations alone never make approval available.</p>
+  </section>;
 }
 
 function FactReviewHistorySection({ history }: { history: FactReviewHistoryPage }) {

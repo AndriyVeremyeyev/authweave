@@ -869,6 +869,22 @@ recorded fact does not prove freshness, baseline trust, complete coverage or eli
 No source is fetched, stored dates or evidence trust changed, actor identity disclosed,
 assessment evaluated or catalog published by this read.
 
+The curator screen also explains **why approval is unavailable** in a display-only
+prerequisites report derived from the already validated Core reads. It identifies
+missing, non-supporting or insufficient latest manual observations, stale/future
+evidence dates, a rejected revision and a missing or blocked exact-revision scenario
+report. Whole-candidate counts include facts outside the visible page; categories
+can overlap and must not be summed. Candidate evidence remains unreviewed, the
+caller-supplied baseline untrusted, full impact coverage unestablished and
+approval/publication unimplemented, even with all-supporting observations, current
+dates, an analyzed report and zero uncovered changes. Detail links lead to evidence,
+history, impact and the existing rejection boundary. Bound to the displayed
+revision/digest, the report identifies the Core date-check time, observation
+through-number and latest stored report number. These independent reads are not an
+atomic approval snapshot, an exhaustive checklist or a Core approval policy. No additional API call, source fetch,
+evaluation, date refresh, trust promotion or catalog write is performed. Existing
+curator authorization and write preconditions remain authoritative.
+
 ### Conditional catalog impact
 
 `POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview

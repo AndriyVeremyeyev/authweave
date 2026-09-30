@@ -320,6 +320,9 @@ test("curator review reads a version-bound proposal and separate current decisio
       assert.equal(unreviewed.evidence.items[0].path, "facts.OIDC");
       assert.deepEqual(unreviewed.factReviews.items, []);
       assert.equal(unreviewed.factReviewSummary.counts.noObservation, 1);
+      assert.equal(unreviewed.prerequisites.approvalStatus, "UNAVAILABLE");
+      assert.ok(unreviewed.prerequisites.gaps.some(gap => gap.code === "MANUAL_OBSERVATIONS_MISSING" && gap.factCount === 1));
+      assert.ok(unreviewed.prerequisites.gaps.some(gap => gap.code === "IMPACT_REPORT_MISSING"));
     }
     assert.equal(calls.length, 7);
     summary = { ...factReviewSummaryFixture(id, 0, digest), proposalVersion: 1 };
@@ -364,6 +367,10 @@ test("curator review reads a version-bound proposal and separate current decisio
     if (analyzed.kind === "ready") {
       assert.equal(analyzed.impact?.status, "ANALYZED");
       assert.equal(analyzed.impact?.reportNumber, 7);
+      assert.equal(analyzed.prerequisites.impactReportNumber, 7);
+      assert.ok(analyzed.prerequisites.gaps.some(gap => gap.code === "IMPACT_COVERAGE_INCOMPLETE"));
+      assert.ok(!analyzed.prerequisites.gaps.some(gap => gap.code === "IMPACT_REPORT_MISSING"));
+      assert.equal(analyzed.prerequisites.approvalGranted, false);
     }
     impactResponse = Response.json({ ...storedImpactFixture(id, 0, digest), proposalVersion: 1 });
     assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind,
@@ -374,7 +381,11 @@ test("curator review reads a version-bound proposal and separate current decisio
       recordedAt: "2026-09-22T12:01:00Z" });
     const rejected = await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow);
     assert.equal(rejected.kind, "ready");
-    if (rejected.kind === "ready") assert.equal(rejected.rejection?.reasonCode, "OTHER");
+    if (rejected.kind === "ready") {
+      assert.equal(rejected.rejection?.reasonCode, "OTHER");
+      assert.ok(rejected.prerequisites.gaps.some(gap => gap.code === "REVISION_REJECTED"));
+      assert.equal(rejected.prerequisites.approvalGranted, false);
+    }
     decision = Response.json({ decisionId: "90000000-0000-4000-8000-000000000002", proposalId: id,
       proposalVersion: 0, proposalSha256: "b".repeat(64), decision: "REJECTED", reasonCode: "OTHER",
       recordedAt: "2026-09-22T12:01:00Z" });
