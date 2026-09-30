@@ -798,10 +798,19 @@ Corrections append another observation; existing history cannot be rewritten by 
 roles. PostgreSQL checks that the fact exists in the current unrejected revision and
 assigns a per-revision review number while holding the proposal head lock shared by
 Core revision/rejection writers. Runtime roles cannot supply the number or timestamps;
-the web role cannot read or insert these records. This is reserved storage only: no
-source-review API, CLI or form is available yet. Database identity/freshness constraints
-do not prove an OIDC login; a future write boundary must independently authorize the
-curator. A human verdict is not automatic source verification, evidence freshness,
+the web role cannot read or insert these records. Core now accepts a protected
+`POST /api/v1/catalog-change-proposals/{proposalId}/fact-reviews`, forwarded by the
+same-origin BFF JSON endpoint `/api/catalog-change-proposals/{id}/fact-reviews`.
+Both boundaries require the configured curator scope and authentication within 15 minutes;
+the browser cannot supply the audit actor. A request supplies a UUID `reviewId`, expected
+revision and digest, option ID, fact path, verdict and `MANUAL_SOURCE_REVIEW` confirmation.
+Core revalidates the immutable candidate and digest before a new write. The same key,
+payload and actor return the original receipt (200 rather than 201) without another
+audit event, even after head changes or rejection; authorization must still be fresh.
+Reusing a key for another payload or actor conflicts. New observations on stale, rejected
+or absent fact targets fail closed. No source-review CLI or browser form is available yet.
+Database identity/freshness constraints do not prove an OIDC login. A human verdict is
+not automatic source verification, evidence freshness,
 approval or catalog publication, and existing catalog/evaluation behavior is unchanged.
 
 ### Conditional catalog impact

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-fact-review-request.v1.schema.json",
+  "title": "Manual candidate fact source review request v1",
+  "description": "Explicit curator observation only. The caller confirms manual review; the system does not fetch or independently verify the source, approve a proposal, or promote fact trust. Reuse reviewId only for an exact retry by the same actor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reviewId", "expectedVersion", "expectedSha256", "optionId", "factPath", "verdict", "confirmation"],
+  "properties": {
+    "reviewId": { "type": "string", "format": "uuid" },
+    "expectedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "expectedSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "optionId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+    "factPath": { "type": "string", "maxLength": 200, "pattern": "^(facts\\.[A-Z0-9_]+|compatibility\\.(applications|clients|populations|tenancy|membership)\\.[A-Z0-9_]+|residency\\.[A-Z0-9_]+|authenticationControls\\.[A-Z0-9_]+\\.[A-Z0-9_]+\\.[A-Z0-9_]+)$" },
+    "verdict": { "type": "string", "enum": ["SOURCE_SUPPORTS_CLAIM", "SOURCE_DOES_NOT_SUPPORT_CLAIM", "INSUFFICIENT_EVIDENCE"] },
+    "confirmation": { "const": "MANUAL_SOURCE_REVIEW" }
+  }
+}

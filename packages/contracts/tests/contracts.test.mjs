@@ -97,6 +97,30 @@ test("candidate evidence v2 binds each typed claim to its fact family without pr
   assert.equal(validate({ ...page, approvalGranted: true }), false);
 });
 
+test("manual source-review contracts bind a fact observation without granting trust", () => {
+  const request = ajv.getSchema("https://authweave.dev/contracts/catalog-fact-review-request.v1.schema.json");
+  const response = ajv.getSchema("https://authweave.dev/contracts/catalog-fact-review.v1.schema.json");
+  const input = { reviewId: "90000000-0000-4000-8000-000000000001", expectedVersion: 0,
+    expectedSha256: "a".repeat(64), optionId: "example-managed-eu", factPath: "compatibility.applications.B2B_SAAS",
+    verdict: "INSUFFICIENT_EVIDENCE", confirmation: "MANUAL_SOURCE_REVIEW" };
+  assert.equal(request(input), true, ajv.errorsText(request.errors));
+  const receipt = { reviewId: input.reviewId, proposalId: "90000000-0000-4000-8000-000000000002",
+    proposalVersion: 0, proposalSha256: input.expectedSha256, reviewNumber: 1, optionId: input.optionId,
+    factPath: input.factPath, verdict: input.verdict, recordedAt: "2026-09-30T12:00:00Z",
+    kind: "HUMAN_SOURCE_REVIEW_OBSERVATION", sourceVerificationPerformed: false, approvalGranted: false,
+    catalogWritesPerformed: false, factTrustChanged: false };
+  assert.equal(response(receipt), true, ajv.errorsText(response.errors));
+  for (const change of [{ actorSubject: "forged" }, { confirmation: "AUTOMATIC" }, { verdict: "VERIFIED" },
+    { expectedVersion: "0" }, { expectedVersion: 9007199254740992 }, { factPath: "request.candidate" }]) {
+    assert.equal(request({ ...input, ...change }), false);
+  }
+  const missing = { ...input }; delete missing.confirmation; assert.equal(request(missing), false);
+  for (const change of [{ sourceVerificationPerformed: true }, { approvalGranted: true },
+    { catalogWritesPerformed: true }, { factTrustChanged: true }, { reviewNumber: 0 }, { actorSubject: "private" }]) {
+    assert.equal(response({ ...receipt, ...change }), false);
+  }
+});
+
 test("curator rejection contracts bind one revision and exclude approval or free text", () => {
   const request = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-rejection-request.v1.schema.json");
   const response = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-rejection.v1.schema.json");

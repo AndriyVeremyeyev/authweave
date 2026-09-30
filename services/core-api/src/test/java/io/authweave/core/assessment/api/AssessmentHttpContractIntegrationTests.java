@@ -2235,6 +2235,44 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         sample("candidate-claim-missing", "catalog-proposal-evidence-page.v2", false, invalid);
     }
 
+    @Test
+    void manualFactReviewHttpContractRequiresConfirmationAndCannotClaimVerification() throws Exception {
+        var proposal = proposalRequest();
+        var id = UUID.randomUUID(); proposal.put("proposalId", id.toString());
+        var stored = storeProposal(proposal, null).proposal();
+        var input = mapper.createObjectNode().put("reviewId", UUID.randomUUID().toString())
+                .put("expectedVersion", 0).put("expectedSha256", stored.proposalSha256())
+                .put("optionId", "example-managed-eu").put("factPath", "facts.OIDC")
+                .put("verdict", "SOURCE_SUPPORTS_CLAIM").put("confirmation", "MANUAL_SOURCE_REVIEW");
+        sample("manual-source-review-request", "catalog-fact-review-request", true, input);
+        tools.jackson.databind.JsonNode receipt = null;
+        for (int attempt = 0; attempt < 2; attempt++) {
+            var result = mvc.perform(post("/api/v1/catalog-change-proposals/" + id + "/fact-reviews")
+                    .contentType(MediaType.APPLICATION_JSON).content(input.toString())
+                    .header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                    .header("X-AuthWeave-Oidc-Issuer", "http://localhost:8081")
+                    .header("X-AuthWeave-Oidc-Subject", "synthetic-curator")
+                    .header("X-AuthWeave-Curator-Role", "catalog_curator")
+                    .header("X-AuthWeave-Curator-Project-Id", "123456789012345678")
+                    .header("X-AuthWeave-Curator-Org-Id", "987654321098765432")
+                    .header("X-AuthWeave-Authenticated-At", Instant.now().toString()))
+                    .andExpect(status().is(attempt == 0 ? 201 : 200)).andReturn();
+            var response = versionedSample("manual-source-review-receipt-" + attempt, "catalog-fact-review", result);
+            if (receipt != null) assertEquals(receipt, response);
+            receipt = response;
+        }
+        var invalid = input.deepCopy(); invalid.remove("confirmation");
+        sample("manual-source-review-confirmation-required", "catalog-fact-review-request", false, invalid);
+        invalid = input.deepCopy(); invalid.put("actorSubject", "forged");
+        sample("manual-source-review-server-actor-only", "catalog-fact-review-request", false, invalid);
+        for (String flag : java.util.List.of("sourceVerificationPerformed", "approvalGranted", "catalogWritesPerformed", "factTrustChanged")) {
+            invalid = (ObjectNode) receipt.deepCopy(); invalid.put(flag, true);
+            sample("manual-source-review-no-" + flag, "catalog-fact-review", false, invalid);
+        }
+        invalid = (ObjectNode) receipt.deepCopy(); invalid.put("reviewNumber", 0);
+        sample("manual-source-review-positive-number", "catalog-fact-review", false, invalid);
+    }
+
     private io.authweave.core.catalog.proposal.LocalCatalogProposalWriter.SaveResult storeProposal(ObjectNode input, Long expectedVersion) {
         return new org.springframework.transaction.support.TransactionTemplate(proposalTransactions).execute(status ->
                 new io.authweave.core.catalog.proposal.LocalCatalogProposalWriter(proposalDsl, mapper, proposalPreviews, proposals)

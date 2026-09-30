@@ -49,6 +49,145 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
     @Autowired private CatalogProposalRepository repository;
     @Autowired private ObjectMapper mapper;
     @Autowired private DSLContext dsl;
+    @Autowired private CatalogFactReviewWriter factReviews;
+
+    @Test
+    void sourceReviewIsAtomicActorBoundAndIdempotentEvenAfterRevisionChangesOrRejection() throws Exception {
+        var request = proposal();
+        var stored = proposals.save(request, null).proposal();
+        var review = factReview(stored, "facts.OIDC");
+        String path = factReviewPath(stored.proposalId());
+        String payload = mapper.writeValueAsString(review);
+        var receipt = mvc.perform(authorized(path, Instant.now()).content(payload))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.reviewNumber").value(1))
+                .andExpect(jsonPath("$.kind").value("HUMAN_SOURCE_REVIEW_OBSERVATION"))
+                .andExpect(jsonPath("$.sourceVerificationPerformed").value(false))
+                .andExpect(jsonPath("$.approvalGranted").value(false))
+                .andExpect(jsonPath("$.catalogWritesPerformed").value(false))
+                .andExpect(jsonPath("$.factTrustChanged").value(false))
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(receipt, mvc.perform(authorized(path, Instant.now()).content(payload))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        var changed = (ObjectNode) mapper.valueToTree(review);
+        changed.put("verdict", "INSUFFICIENT_EVIDENCE");
+        mvc.perform(authorized(path, Instant.now()).content(changed.toString())).andExpect(status().isConflict());
+        mvc.perform(authorized(path, Instant.now()).with(req -> {
+            req.removeHeader("X-AuthWeave-Oidc-Subject"); req.addHeader("X-AuthWeave-Oidc-Subject", "another-curator"); return req;
+        }).content(payload))
+                .andExpect(status().isConflict());
+        mvc.perform(authorized(path, Instant.now()).with(req -> {
+            req.removeHeader("X-AuthWeave-Oidc-Issuer"); req.addHeader("X-AuthWeave-Oidc-Issuer", "http://another.invalid"); return req;
+        }).content(payload))
+                .andExpect(status().isConflict());
+        var other = proposals.save(proposal(), null).proposal();
+        mvc.perform(authorized(factReviewPath(other.proposalId()), Instant.now()).content(payload))
+                .andExpect(status().isConflict());
+        mvc.perform(authorized(path(stored.proposalId()), Instant.now())
+                .content(body(0, stored.proposalSha256(), "OTHER"))).andExpect(status().isCreated());
+        assertEquals(receipt, mvc.perform(authorized(path, Instant.now()).content(payload))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        mvc.perform(authorized(path, Instant.now()).content(mapper.writeValueAsString(factReview(stored, "facts.SCIM"))))
+                .andExpect(status().isConflict());
+        proposals.save(new CatalogChangePreviewRequest(1, request.proposalId(), "Updated rationale.",
+                request.expectedBaseSha256(), request.base(), request.candidate()), 0L);
+        assertEquals(receipt, mvc.perform(authorized(path, Instant.now()).content(payload))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        mvc.perform(authorized(path, Instant.now().minusSeconds(901)).content(payload)).andExpect(status().isForbidden());
+        var r = io.authweave.core.generated.jooq.tables.CatalogFactReviews.CATALOG_FACT_REVIEWS;
+        var e = io.authweave.core.generated.audit.tables.CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS;
+        assertEquals(1, dsl.fetchCount(r, r.PROPOSAL_ID.eq(stored.proposalId())));
+        assertEquals(1, dsl.fetchCount(e, e.PROPOSAL_ID.eq(stored.proposalId())));
+        var event = dsl.selectFrom(e).where(e.REVIEW_ID.eq(review.reviewId())).fetchOne();
+        assertEquals("synthetic-curator", event.getActorSubject());
+        assertEquals(review.expectedSha256(), event.getProposalSha256());
+        assertEquals(review.factPath(), event.getFactPath());
+        assertEquals(stored.request(), repository.revision(stored.proposalId(), 0).request());
+        assertEquals(stored.preview(), repository.revision(stored.proposalId(), 0).preview());
+    }
+
+    @Test
+    void factReviewRejectsUnauthorizedMalformedStaleAndAbsentTargetsWithoutWrites() throws Exception {
+        var stored = proposals.save(proposal(), null).proposal();
+        String path = factReviewPath(stored.proposalId());
+        var input = (ObjectNode) mapper.valueToTree(factReview(stored, "facts.OIDC"));
+        mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(input.toString())).andExpect(status().isUnauthorized());
+        mvc.perform(post(path).header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                .contentType(MediaType.APPLICATION_JSON).content(input.toString())).andExpect(status().isUnauthorized());
+        for (var header : java.util.Map.of("X-AuthWeave-Curator-Role", "assessor",
+                "X-AuthWeave-Curator-Project-Id", "111", "X-AuthWeave-Curator-Org-Id", "222").entrySet()) {
+            mvc.perform(authorized(path, Instant.now()).header(header.getKey(), header.getValue()).content(input.toString()))
+                    .andExpect(status().isForbidden());
+        }
+        for (Instant time : java.util.List.of(Instant.now().minusSeconds(901), Instant.now().plusSeconds(60))) {
+            mvc.perform(authorized(path, time).content(input.toString())).andExpect(status().isForbidden());
+        }
+        for (var mutation : java.util.Map.of("expectedVersion", 1, "expectedSha256", "0".repeat(64),
+                "optionId", "absent-option", "factPath", "facts.WEBAUTHN").entrySet()) {
+            var invalid = input.deepCopy(); invalid.set(mutation.getKey(), mapper.valueToTree(mutation.getValue()));
+            mvc.perform(authorized(path, Instant.now()).content(invalid.toString())).andExpect(status().isConflict());
+        }
+        for (var mutation : java.util.Map.of("expectedVersion", "0", "verdict", "VERIFIED",
+                "confirmation", "AUTOMATIC", "factPath", "../facts.OIDC", "actor", "forged").entrySet()) {
+            var invalid = input.deepCopy(); invalid.put(mutation.getKey(), mutation.getValue());
+            mvc.perform(authorized(path, Instant.now()).content(invalid.toString())).andExpect(status().isBadRequest());
+        }
+        var missing = input.deepCopy(); missing.remove("confirmation");
+        mvc.perform(authorized(path, Instant.now()).content(missing.toString())).andExpect(status().isBadRequest());
+        mvc.perform(authorized(factReviewPath(UUID.randomUUID()), Instant.now()).content(input.toString()))
+                .andExpect(status().isNotFound());
+        var r = io.authweave.core.generated.jooq.tables.CatalogFactReviews.CATALOG_FACT_REVIEWS;
+        assertEquals(0, dsl.fetchCount(r, r.PROPOSAL_ID.eq(stored.proposalId())));
+    }
+
+    @Test
+    void allFactFamiliesAndVerdictsProduceMonotonicReceiptsWithoutTrustPromotion() throws Exception {
+        var stored = proposals.save(proposal(), null).proposal();
+        var paths = java.util.List.of("facts.SCIM", "compatibility.applications.B2B_SAAS",
+                "residency.USER_PROFILES", "authenticationControls.BROWSER.PARTNERS.PHISHING_RESISTANCE");
+        for (int i = 0; i < paths.size(); i++) {
+            var input = factReview(stored, paths.get(i));
+            input = new CatalogFactReviewRequest(input.reviewId(), 0L, input.expectedSha256(), input.optionId(), input.factPath(),
+                    CatalogFactReviewRequest.Verdict.values()[i % 3], input.confirmation());
+            mvc.perform(authorized(factReviewPath(stored.proposalId()), Instant.now()).content(mapper.writeValueAsString(input)))
+                    .andExpect(status().isCreated()).andExpect(jsonPath("$.reviewNumber").value(i + 1))
+                    .andExpect(jsonPath("$.verdict").value(input.verdict().name()));
+        }
+        assertEquals(stored.request(), repository.current(stored.proposalId()).request());
+        assertEquals(stored.preview(), repository.current(stored.proposalId()).preview());
+    }
+
+    @Test
+    void concurrentExactRetriesCommitOneObservationAndAuditFailureRollsBackTheObservation() throws Exception {
+        var stored = proposals.save(proposal(), null).proposal();
+        var input = factReview(stored, "facts.OIDC");
+        var actor = new CatalogProposalRejectionWriter.CuratorActor("http://localhost:8081", "synthetic-curator",
+                "123456789012345678", "987654321098765432", Instant.now());
+        try (var executor = java.util.concurrent.Executors.newVirtualThreadPerTaskExecutor()) {
+            var tasks = new ArrayList<java.util.concurrent.Future<CatalogFactReviewWriter.Result>>();
+            for (int i = 0; i < 4; i++) tasks.add(executor.submit(() -> factReviews.record(stored.proposalId(), input, actor)));
+            int created = 0;
+            for (var task : tasks) { var result = task.get(20, java.util.concurrent.TimeUnit.SECONDS);
+                if (result.created()) created++; assertEquals(1, result.review().reviewNumber()); }
+            assertEquals(1, created);
+        }
+        var failure = factReview(stored, "facts.SCIM");
+        var invalidAuditActor = new CatalogProposalRejectionWriter.CuratorActor(actor.issuer(), actor.subject(), actor.projectId(),
+                actor.organizationId(), Instant.now().minusSeconds(3600));
+        assertThrows(RuntimeException.class, () -> factReviews.record(stored.proposalId(), failure, invalidAuditActor));
+        var r = io.authweave.core.generated.jooq.tables.CatalogFactReviews.CATALOG_FACT_REVIEWS;
+        var e = io.authweave.core.generated.audit.tables.CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS;
+        assertEquals(1, dsl.fetchCount(r, r.PROPOSAL_ID.eq(stored.proposalId())));
+        assertEquals(1, dsl.fetchCount(e, e.PROPOSAL_ID.eq(stored.proposalId())));
+        assertEquals(2, factReviews.record(stored.proposalId(), failure, actor).review().reviewNumber());
+    }
+
+    private static CatalogFactReviewRequest factReview(CatalogProposalSnapshot snapshot, String factPath) {
+        return new CatalogFactReviewRequest(UUID.randomUUID(), snapshot.version(), snapshot.proposalSha256(),
+                "example-managed-eu", factPath, CatalogFactReviewRequest.Verdict.SOURCE_SUPPORTS_CLAIM,
+                CatalogFactReviewRequest.Confirmation.MANUAL_SOURCE_REVIEW);
+    }
+
+    private static String factReviewPath(UUID id) { return "/api/v1/catalog-change-proposals/" + id + "/fact-reviews"; }
 
     @Test
     void validCuratorRejectsCurrentRevisionExactlyOnceWithMatchingAudit() throws Exception {

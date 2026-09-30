@@ -60,6 +60,12 @@ public class AssessmentProblemDetailsHandler {
                 "The proposal revision or digest is no longer current, or this revision was already decided.", request);
     }
 
+    @ExceptionHandler(io.authweave.core.catalog.proposal.CatalogFactReviewConflictException.class)
+    ProblemDetail catalogFactReviewConflict(HttpServletRequest request) {
+        return problem(HttpStatus.CONFLICT, "catalog-fact-review-conflict", "Catalog fact review conflict",
+                "The target is not a current reviewable fact, or the review key is already bound to another observation.", request);
+    }
+
     @ExceptionHandler(io.authweave.core.assessment.application.ProfileUpgradeRequiredException.class)
     ProblemDetail profileUpgradeRequired(RuntimeException exception, HttpServletRequest request) {
         return problem(HttpStatus.CONFLICT, "profile-upgrade-required", "Use profile API v2", exception.getMessage(), request);

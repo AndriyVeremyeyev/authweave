@@ -2,6 +2,7 @@
 import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
+import { factReviewInput, factReviewFromCore, type FactReviewInput, type FactReviewReceipt } from "../catalog/fact-review.ts";
 import { impactReviewFromCore, type CatalogImpactReview } from "../catalog/impact-review.ts";
 import { evidencePageFromCore, type CandidateEvidencePage } from "../catalog/evidence-review.ts";
 import { parseProposalReviewCursor, proposalIndexFromCore,
@@ -185,6 +186,32 @@ function curatorHeaders(session: BrowserSession, scope: NonNullable<AuthConfigur
     "X-AuthWeave-Curator-Org-Id": scope.organizationId,
     "X-AuthWeave-Authenticated-At": session.authenticatedAt.toISOString(),
   };
+}
+
+export type FactReviewResult =
+  | { kind: "recorded"; review: FactReviewReceipt; created: boolean }
+  | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" | "conflict" | "invalid" };
+
+export async function recordCatalogFactReview(session: BrowserSession,
+  config: Pick<AuthConfiguration, "issuer" | "curatorScope">, id: string, input: FactReviewInput,
+  now: Date = new Date()): Promise<FactReviewResult> {
+  if (!UUID.test(id) || !factReviewInput(input)) return { kind: "invalid" };
+  const authorization = await readCuratorAuthorization(session, config, now);
+  if (authorization !== "ready") return { kind: authorization };
+  if (!config.curatorScope) return { kind: "not-configured" };
+  try {
+    const response = await fetch(`${CORE_ORIGIN}/api/v1/catalog-change-proposals/${id}/fact-reviews`, {
+      method: "POST", headers: { ...curatorHeaders(session, config.curatorScope), "Content-Type": "application/json" },
+      body: JSON.stringify(input), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    });
+    if (response.status === 404) return { kind: "not-found" };
+    if (response.status === 409) return { kind: "conflict" };
+    if (response.status === 400) return { kind: "invalid" };
+    if (response.status === 401 || response.status === 403) return { kind: "core-rejected" };
+    if (response.status !== 201 && response.status !== 200) return { kind: "core-unavailable" };
+    return { kind: "recorded", created: response.status === 201,
+      review: factReviewFromCore(await response.json(), id, input) };
+  } catch { return { kind: "core-unavailable" }; }
 }
 
 function rejectionFromCore(value: unknown, id: string, input: CatalogRejectionInput): CatalogRejection {

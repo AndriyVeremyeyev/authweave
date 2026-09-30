@@ -30,6 +30,8 @@ for (const { name, schema, valid, payload } of samples) {
   covered.add(`${schema}:${valid}`);
 }
 for (const required of ["assessment-response:true", "core-problem:true",
+  "catalog-fact-review-request:true", "catalog-fact-review-request:false",
+  "catalog-fact-review:true", "catalog-fact-review:false",
   "catalog-proposal-evidence-page.v2:true", "catalog-proposal-evidence-page.v2:false",
   "provider-catalog-draft:true", "provider-catalog-draft:false",
   "catalog-draft-validation:true", "catalog-draft-validation:false",

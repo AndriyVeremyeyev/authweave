@@ -465,6 +465,59 @@ paths:
                 $ref: ../schemas/core-problem.v1.schema.json
         '503':
           description: Curator scope or server credential is not configured.
+  /api/v1/catalog-change-proposals/{proposalId}/fact-reviews:
+    post:
+      tags: [Catalog drafts]
+      summary: Record a curator's manual source-review observation for a candidate fact
+      operationId: recordCatalogFactReview
+      description: >-
+        BFF-to-Core only, with the same scoped catalog_curator assertion and recent
+        authentication as a rejection. A new observation must match a current, undecided,
+        canonical proposal revision and an existing candidate fact. Its reviewId binds
+        the exact payload and actor; an exact retry returns the original receipt, including
+        after revision changes or rejection, but still requires fresh authorization.
+        The observation and minimal actor audit commit atomically. Confirmation records
+        the caller's assertion of manual review, not proof of source verification.
+        No URL fetch, fact-trust promotion, proposal approval or catalog activation occurs.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-fact-review-request.v1.schema.json
+      responses:
+        '201':
+          description: New observation and matching audit event committed.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-fact-review.v1.schema.json
+        '200':
+          description: Exact retry by the same actor; no additional write.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-fact-review.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Missing or invalid server credential or OIDC principal.
+        '403':
+          description: Curator role, scope or recent authentication missing.
+        '404':
+          $ref: '#/components/responses/CatalogProposalNotFound'
+        '409':
+          description: Stale, rejected, missing or unreviewable fact target, or a review key bound to another payload or actor.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/core-problem.v1.schema.json
+        '503':
+          description: Curator scope or server credential is not configured.
   /api/v1/catalog-change-proposals/{proposalId}/revisions:
     get:
       tags: [Catalog drafts]

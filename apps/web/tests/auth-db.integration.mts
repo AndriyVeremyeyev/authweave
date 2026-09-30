@@ -10,6 +10,7 @@ import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
 import { POST as rejectProposalRoute } from "../src/app/api/catalog-change-proposals/[id]/rejection/route.ts";
+import { POST as factReviewRoute } from "../src/app/api/catalog-change-proposals/[id]/fact-reviews/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { authDatabase, beginLogin, beginReauthentication, consumeLogin, createSession,
   revokeSession, touchSession } from
@@ -261,6 +262,70 @@ test("curator rejection route requires same-origin, scoped fresh session and fix
     ] as const) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
+  }
+});
+
+test("manual fact-review route bounds JSON and uses only fresh scoped DB-session identity", async () => {
+  const keys = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN",
+    "AUTHWEAVE_CORE_SERVICE_TOKEN", "AUTHWEAVE_OIDC_PROJECT_ID", "AUTHWEAVE_OIDC_ORG_ID"];
+  const previous = keys.map(key => process.env[key]); const previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-internal-token-000000000000000000000",
+    AUTHWEAVE_OIDC_PROJECT_ID: "123456789012345678", AUTHWEAVE_OIDC_ORG_ID: "987654321098765432" });
+  const id = "90000000-0000-4000-8000-000000000003";
+  const input = { reviewId: "90000000-0000-4000-8000-000000000004", expectedVersion: 0, expectedSha256: "a".repeat(64),
+    optionId: "example-managed-eu", factPath: "facts.OIDC", verdict: "SOURCE_SUPPORTS_CLAIM", confirmation: "MANUAL_SOURCE_REVIEW" };
+  const identity = { workspaceId: "70000000-0000-4000-8000-000000000001", issuer: "http://localhost:8081",
+    subject: "synthetic-fact-curator", email: null, displayName: null, authenticatedAt: new Date(),
+    curatorScope: { projectId: "123456789012345678", organizationId: "987654321098765432" } };
+  const curator = await createSession(identity, undefined);
+  const ordinary = await createSession({ ...identity, curatorScope: null }, undefined);
+  const context = { params: Promise.resolve({ id }) };
+  const request = (session: string | null, body = JSON.stringify(input), headers: Record<string, string> = {}) =>
+    new NextRequest(`http://localhost:3000/api/catalog-change-proposals/${id}/fact-reviews`, {
+      method: "POST", headers: { Origin: "http://localhost:3000", "Content-Type": "application/json",
+        ...(session ? { Cookie: `${sessionCookieName(false)}=${session}` } : {}), ...headers }, body });
+  const calls: string[] = []; let coreStatus = 201;
+  globalThis.fetch = async (url, init) => {
+    calls.push(`${init?.method} ${url}`);
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal(headers["X-AuthWeave-Curator-Role"], "catalog_curator"); assert.equal(headers.Cookie, undefined);
+    if (init?.method === "GET") return new Response(null, { status: 204 });
+    assert.deepEqual(JSON.parse(String(init?.body)), input);
+    if (coreStatus !== 201 && coreStatus !== 200) return new Response(null, { status: coreStatus });
+    return Response.json({ reviewId: input.reviewId, proposalId: id, proposalVersion: 0, proposalSha256: input.expectedSha256,
+      reviewNumber: 1, optionId: input.optionId, factPath: input.factPath, verdict: input.verdict, recordedAt: new Date().toISOString(),
+      kind: "HUMAN_SOURCE_REVIEW_OBSERVATION", sourceVerificationPerformed: false, approvalGranted: false,
+      catalogWritesPerformed: false, factTrustChanged: false }, { status: coreStatus });
+  };
+  try {
+    assert.equal((await factReviewRoute(request(curator, undefined, { Origin: "https://evil.invalid" }), context)).status, 403);
+    assert.equal((await factReviewRoute(request(curator, undefined, { Origin: "" }), context)).status, 403);
+    assert.equal((await factReviewRoute(request(null), context)).status, 401);
+    assert.equal((await factReviewRoute(request(ordinary), context)).status, 403);
+    assert.equal((await factReviewRoute(request(curator, JSON.stringify({ ...input, actor: "forged" })), context)).status, 400);
+    assert.equal((await factReviewRoute(request(curator, "{}"), context)).status, 400);
+    assert.equal((await factReviewRoute(request(curator, "{"), context)).status, 400);
+    assert.equal((await factReviewRoute(request(curator, undefined, { "Content-Type": "text/plain" }), context)).status, 415);
+    assert.equal((await factReviewRoute(request(curator, undefined, { "Content-Length": "2049" }), context)).status, 413);
+    assert.equal((await factReviewRoute(request(curator, " ".repeat(2049)), context)).status, 413);
+    assert.deepEqual(calls, []);
+    for (const status of [201, 200, 409, 404, 400, 403, 503]) {
+      coreStatus = status; calls.length = 0;
+      const response = await factReviewRoute(request(curator, undefined, { "X-AuthWeave-Oidc-Subject": "forged" }), context);
+      assert.equal(response.status, status); assert.equal(response.headers.get("cache-control"), "no-store");
+      assert.deepEqual(calls, ["GET http://127.0.0.1:8080/internal/v1/catalog-curator/authorization",
+        `POST http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/fact-reviews`]);
+      if (status <= 201) assert.equal((await response.json()).factTrustChanged, false);
+    }
+    calls.length = 0;
+    await authDatabase().query(`UPDATE web.sessions SET authenticated_at = CURRENT_TIMESTAMP - INTERVAL '16 minutes'
+      WHERE session_hash = $1`, [opaqueHash(curator)]);
+    assert.equal((await factReviewRoute(request(curator), context)).status, 403); assert.deepEqual(calls, []);
+  } finally {
+    await revokeSession(curator); await revokeSession(ordinary); globalThis.fetch = previousFetch;
+    keys.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
   }
 });
 
