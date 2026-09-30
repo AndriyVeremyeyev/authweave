@@ -15,7 +15,7 @@
     "test:auth-db": "node --test tests/auth-db.integration.mts"
   },
   "dependencies": {
-    "next": "16.3.3",
+    "next": "16.3.6",
     "openid-client": "^6.8.8",
     "pg": "^8.23.0",
     "react": "19.2.8",
