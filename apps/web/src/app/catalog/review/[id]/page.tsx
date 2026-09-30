@@ -8,6 +8,8 @@ import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession } from "@/lib/auth/store";
 import type { CatalogImpactReview, ScenarioImpactRow } from "@/lib/catalog/impact-review";
 import { candidateClaimSummary, evidenceOffsetFromQuery, type CandidateEvidencePage } from "@/lib/catalog/evidence-review";
+import { factReviewHistoryCursorFromQuery, factReviewHistoryHref, factReviewVerdictLabel,
+  type FactReviewHistoryPage } from "@/lib/catalog/fact-review-history";
 import { observationDateStatus, sourceDetails, type CatalogProposalReview,
   type ObservationDateStatus, type ReviewFactChange,
   type ReviewOptionChange } from "@/lib/catalog/proposal-review";
@@ -45,8 +47,13 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
     const sessionId = (await cookies()).get(sessionCookieName(config.secureCookies))?.value;
     const session = await touchSession(sessionId);
     if (!session) anonymous = true;
-    else result = await readCatalogProposalReview(session, config, id, new Date(),
-      evidenceOffsetFromQuery(query.evidenceOffset));
+    else {
+      let historyCursor;
+      try { historyCursor = factReviewHistoryCursorFromQuery(query.reviewVersion, query.reviewAfter); }
+      catch { result = { kind: "invalid-review-cursor" }; }
+      if (historyCursor !== undefined) result = await readCatalogProposalReview(session, config, id, new Date(),
+        evidenceOffsetFromQuery(query.evidenceOffset), historyCursor);
+    }
   } catch { /* Do not render proposal data if authentication or Core is unavailable. */ }
   if (anonymous) redirect("/account");
   if (result.kind === "not-found") notFound();
@@ -58,14 +65,18 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
         result.kind === "reauth-required" ? "Verify this account again before reviewing or rejecting a proposal." :
         result.kind === "not-granted" ? "This account does not have the scoped catalog curator role." :
         result.kind === "not-configured" ? "Catalog curator scope is not configured." :
+        result.kind === "stale-review-cursor" ? "The proposal revision changed. Restart the review history for the current revision." :
+        result.kind === "invalid-review-cursor" ? "The review history cursor is invalid. Restart from the first page." :
         "Core could not verify curator access or return a valid proposal review."
       }</p>
       {result.kind === "reauth-required" && <form action="/api/auth/reauth" method="post" className="mt-5">
         <button className="rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-950">Verify this account again</button>
       </form>}
+      {(result.kind === "stale-review-cursor" || result.kind === "invalid-review-cursor") &&
+        <Link href={`/catalog/review/${id}`} className="mt-5 inline-block text-cyan-200 hover:underline">Restart review history →</Link>}
     </main>;
   }
-  const { review, rejection, impact, evidence } = result;
+  const { review, rejection, impact, evidence, factReviews } = result;
   const pageCount = Math.max(1, Math.ceil(review.factChanges.length / PAGE_SIZE));
   const page = boundedPage(query.page, pageCount);
   const facts = review.factChanges.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -121,12 +132,37 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
         )}
       </section>
       <EvidenceSection proposalId={id} evidence={evidence} />
+      <FactReviewHistorySection history={factReviews} />
       <ImpactSection proposalId={id} impact={impact} scenarioPage={boundedPage(query.impactPage,
         Math.ceil((impact?.scenarios.length ?? 0) / PAGE_SIZE))} uncoveredPage={boundedPage(query.uncoveredPage,
         Math.ceil((impact?.uncoveredChanges.length ?? 0) / PAGE_SIZE))} />
       <DecisionSection review={review} rejection={rejection} />
     </main>
   );
+}
+
+function FactReviewHistorySection({ history }: { history: FactReviewHistoryPage }) {
+  return <section id="fact-review-history" className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="fact-review-history-heading">
+    <h2 id="fact-review-history-heading" className="text-2xl font-semibold">Manual source-review history</h2>
+    <p className="mt-3 text-slate-300">Historical curator observations for revision {history.proposalVersion}, in recording order. Corrections append another observation; earlier conclusions remain visible. This is not a verified fact status or approval.</p>
+    <p className="mt-3 break-all text-sm text-slate-400">Revision SHA-256: {history.proposalSha256}</p>
+    <p className="mt-3 text-sm text-amber-100">Recording or reading these observations does not fetch a source, refresh observedAt, promote evidence trust or publish a catalog. Actor identities are not shown.</p>
+    {history.items.length === 0 ? <p className="mt-5 text-slate-300">{
+      history.afterReviewNumber === 0 ? "No manual source-review observations are stored for this revision. This does not mean the facts are verified." :
+        "No later observations are stored after this cursor. Return to the first page to read the history."
+    }</p> : <ol className="mt-5 space-y-4">
+      {history.items.map(item => <li key={item.reviewId} className="rounded-lg border border-slate-600 p-4">
+        <h3 className="break-words font-medium">#{item.reviewNumber} · {item.optionId} · {item.factPath}</h3>
+        <p className="mt-2 text-slate-300">{factReviewVerdictLabel(item.verdict)}</p>
+        <p className="mt-2 text-sm text-slate-400">Recorded <time dateTime={item.recordedAt}>{item.recordedAt}</time>.</p>
+        <p className="mt-1 break-all font-mono text-xs text-slate-400">Observation ID: {item.reviewId}</p>
+      </li>)}
+    </ol>}
+    {(history.afterReviewNumber > 0 || history.nextAfterReviewNumber !== null) && <nav aria-label="Manual source-review history pages" className="mt-6 flex gap-5 text-cyan-200">
+      {history.afterReviewNumber > 0 && <Link href={factReviewHistoryHref(history.proposalId, history.proposalVersion, 0)} className="hover:underline">← First observations</Link>}
+      {history.nextAfterReviewNumber !== null && <Link href={factReviewHistoryHref(history.proposalId, history.proposalVersion, history.nextAfterReviewNumber)} className="hover:underline">Next observations →</Link>}
+    </nav>}
+  </section>;
 }
 
 function EvidenceSection({ proposalId, evidence }: { proposalId: string; evidence: CandidateEvidencePage }) {

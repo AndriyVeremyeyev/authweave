@@ -279,6 +279,9 @@ test("curator review reads a version-bound proposal and separate current decisio
   let decision: Response = new Response(null, { status: 204 });
   let impactResponse: Response = new Response(null, { status: 204 });
   let evidence = candidateEvidenceFixture(id, 0, digest);
+  let history: unknown = { proposalId: id, proposalVersion: 0, proposalSha256: digest,
+    afterReviewNumber: 0, items: [], nextAfterReviewNumber: null };
+  let historyStatus = 200;
   const calls: string[] = [];
   globalThis.fetch = async (url, init) => {
     calls.push(String(url));
@@ -295,6 +298,10 @@ test("curator review reads a version-bound proposal and separate current decisio
       assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/revisions/0/evidence-review?offset=0`);
       return Response.json(evidence);
     }
+    if (String(url).includes("/fact-reviews?afterReviewNumber=")) {
+      assert.ok(String(url).startsWith(`http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/revisions/0/fact-reviews?`));
+      return historyStatus === 200 ? Response.json(history) : new Response(null, { status: historyStatus });
+    }
     assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}`);
     return Response.json(snapshot);
   };
@@ -305,8 +312,34 @@ test("curator review reads a version-bound proposal and separate current decisio
       assert.equal(unreviewed.rejection, null);
       assert.equal(unreviewed.impact, null);
       assert.equal(unreviewed.evidence.items[0].path, "facts.OIDC");
+      assert.deepEqual(unreviewed.factReviews.items, []);
     }
-    assert.equal(calls.length, 5);
+    assert.equal(calls.length, 6);
+    history = { proposalId: id, proposalVersion: 1, proposalSha256: digest,
+      afterReviewNumber: 0, items: [], nextAfterReviewNumber: null };
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind, "core-unavailable");
+    history = { proposalId: id, proposalVersion: 0, proposalSha256: digest,
+      afterReviewNumber: 0, items: [], nextAfterReviewNumber: null };
+    historyStatus = 403;
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind, "core-rejected");
+    historyStatus = 200;
+    calls.length = 0;
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow, 0,
+      { version: 1, afterReviewNumber: 20 })).kind, "stale-review-cursor");
+    assert.equal(calls.length, 2);
+    calls.length = 0;
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow, 0,
+      { version: 0, afterReviewNumber: -1 })).kind, "invalid-review-cursor");
+    assert.equal(calls.length, 0);
+    history = { proposalId: id, proposalVersion: 0, proposalSha256: digest,
+      afterReviewNumber: 20, items: [], nextAfterReviewNumber: null };
+    const later = await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow, 0,
+      { version: 0, afterReviewNumber: 20 });
+    assert.equal(later.kind, "ready");
+    if (later.kind === "ready") assert.equal(later.factReviews.afterReviewNumber, 20);
+    assert.ok(calls.some(url => url.endsWith("/revisions/0/fact-reviews?afterReviewNumber=20")));
+    history = { proposalId: id, proposalVersion: 0, proposalSha256: digest,
+      afterReviewNumber: 0, items: [], nextAfterReviewNumber: null };
     evidence = { ...evidence, proposalVersion: 1 };
     assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind,
       "core-unavailable");

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-fact-review-page.v1.schema.json",
+  "title": "Exact-revision manual source-review history page v1",
+  "description": "Ascending append-only observations, never a reviewed status or approval. No source fetch, date-policy replay or audit actor disclosure. Newly appended observations may appear on later pages. An empty page does not imply verification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposalId", "proposalVersion", "proposalSha256", "afterReviewNumber", "items", "nextAfterReviewNumber"],
+  "properties": {
+    "proposalId": { "type": "string", "format": "uuid" },
+    "proposalVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "proposalSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "afterReviewNumber": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "items": { "type": "array", "maxItems": 20, "items": { "$ref": "catalog-fact-review.v1.schema.json" } },
+    "nextAfterReviewNumber": { "type": ["integer", "null"], "minimum": 1, "maximum": 9007199254740991 }
+  }
+}

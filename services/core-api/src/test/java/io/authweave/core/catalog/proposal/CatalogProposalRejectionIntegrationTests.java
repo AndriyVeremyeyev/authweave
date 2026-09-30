@@ -52,6 +52,96 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
     @Autowired private CatalogFactReviewWriter factReviews;
 
     @Test
+    void factReviewHistoryPagesAllCorrectionsAndSurvivesRejectionAndHeadChangesWithoutWrites() throws Exception {
+        var request = proposal();
+        var stored = proposals.save(request, null).proposal();
+        String path = factReviewPath(stored.proposalId()).replace("/fact-reviews", "/revisions/0/fact-reviews");
+        var actor = new CatalogProposalRejectionWriter.CuratorActor("http://localhost:8081", "synthetic-curator",
+                "123456789012345678", "987654321098765432", Instant.now());
+        mvc.perform(withCuratorHeaders(get(path), Instant.now())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(0)).andExpect(jsonPath("$.nextAfterReviewNumber").isEmpty());
+        for (int i = 0; i < 25; i++) {
+            var input = factReview(stored, "facts.OIDC");
+            input = new CatalogFactReviewRequest(input.reviewId(), 0L, input.expectedSha256(), input.optionId(), input.factPath(),
+                    CatalogFactReviewRequest.Verdict.values()[i % 3], input.confirmation());
+            factReviews.record(stored.proposalId(), input, actor);
+        }
+        var other = proposals.save(proposal(), null).proposal();
+        factReviews.record(other.proposalId(), factReview(other, "facts.SCIM"), actor);
+        var first = mapper.readTree(mvc.perform(withCuratorHeaders(get(path), Instant.now()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.proposalVersion").value(0))
+                .andExpect(jsonPath("$.proposalSha256").value(stored.proposalSha256()))
+                .andExpect(jsonPath("$.items.length()").value(20))
+                .andExpect(jsonPath("$.nextAfterReviewNumber").value(20))
+                .andReturn().getResponse().getContentAsString());
+        // Appends can appear on later pages, but earlier observations never shift or get overwritten.
+        factReviews.record(stored.proposalId(), factReview(stored, "facts.SCIM"), actor);
+        var secondResponse = mvc.perform(withCuratorHeaders(get(path), Instant.now()).param("afterReviewNumber", "20"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(6))
+                .andExpect(jsonPath("$.nextAfterReviewNumber").isEmpty()).andReturn().getResponse().getContentAsString();
+        var second = mapper.readTree(secondResponse);
+        var seen = new HashSet<String>();
+        for (int i = 0; i < 20; i++) {
+            var item = first.get("items").get(i);
+            assertEquals(i + 1, item.get("reviewNumber").asInt());
+            assertEquals(CatalogFactReviewRequest.Verdict.values()[i % 3].name(), item.get("verdict").asText());
+            assertTrue(seen.add(item.get("reviewId").asText()));
+        }
+        for (int i = 0; i < 6; i++) {
+            var item = second.get("items").get(i);
+            assertEquals(i + 21, item.get("reviewNumber").asInt());
+            assertTrue(seen.add(item.get("reviewId").asText()));
+        }
+        assertTrue(!secondResponse.contains("actor") && !secondResponse.contains("synthetic-curator")
+                && !secondResponse.contains("authenticatedAt") && !secondResponse.contains("sourceUrl"));
+        mvc.perform(authorized(path(stored.proposalId()), Instant.now())
+                .content(body(0, stored.proposalSha256(), "OTHER"))).andExpect(status().isCreated());
+        proposals.save(new CatalogChangePreviewRequest(1, request.proposalId(), "New proposal revision.",
+                request.expectedBaseSha256(), request.base(), request.candidate()), 0L);
+        assertEquals(first, mapper.readTree(mvc.perform(withCuratorHeaders(get(path), Instant.now()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        mvc.perform(withCuratorHeaders(get(path.replace("/revisions/0/", "/revisions/1/")), Instant.now()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        mvc.perform(withCuratorHeaders(get(path), Instant.now()).param("afterReviewNumber", "9007199254740991"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(0));
+        var r = io.authweave.core.generated.jooq.tables.CatalogFactReviews.CATALOG_FACT_REVIEWS;
+        var e = io.authweave.core.generated.audit.tables.CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS;
+        assertEquals(26, dsl.fetchCount(r, r.PROPOSAL_ID.eq(stored.proposalId())));
+        assertEquals(26, dsl.fetchCount(e, e.PROPOSAL_ID.eq(stored.proposalId())));
+        assertEquals(stored.request(), repository.revision(stored.proposalId(), 0).request());
+        assertEquals(stored.preview(), repository.revision(stored.proposalId(), 0).preview());
+        assertEquals(2, repository.events(stored.proposalId(), null, 100).items().size());
+    }
+
+    @Test
+    void factReviewHistoryIsProtectedAndRejectsInvalidBoundsAndMissingRevisions() throws Exception {
+        var stored = proposals.save(proposal(), null).proposal();
+        String path = factReviewPath(stored.proposalId()).replace("/fact-reviews", "/revisions/0/fact-reviews");
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", "Bearer synthetic-internal-token-000000000000000000000"))
+                .andExpect(status().isUnauthorized());
+        for (var header : java.util.Map.of("X-AuthWeave-Curator-Role", "assessor",
+                "X-AuthWeave-Curator-Project-Id", "111", "X-AuthWeave-Curator-Org-Id", "222").entrySet()) {
+            mvc.perform(withCuratorHeaders(get(path), Instant.now()).with(req -> {
+                req.removeHeader(header.getKey()); req.addHeader(header.getKey(), header.getValue()); return req;
+            })).andExpect(status().isForbidden());
+        }
+        for (var at : java.util.List.of(Instant.now().minusSeconds(901), Instant.now().plusSeconds(60))) {
+            mvc.perform(withCuratorHeaders(get(path), at)).andExpect(status().isForbidden());
+        }
+        for (var cursor : java.util.List.of("-1", "9007199254740992", "1.5", "invalid")) {
+            mvc.perform(withCuratorHeaders(get(path), Instant.now()).param("afterReviewNumber", cursor))
+                    .andExpect(status().isBadRequest());
+            mvc.perform(withCuratorHeaders(get(path.replace("/revisions/0/", "/revisions/" + cursor + "/")), Instant.now()))
+                    .andExpect(status().isBadRequest());
+        }
+        mvc.perform(withCuratorHeaders(get(path.replace("/revisions/0/", "/revisions/1/")), Instant.now()))
+                .andExpect(status().isNotFound());
+        mvc.perform(withCuratorHeaders(get(path.replace(stored.proposalId().toString(), UUID.randomUUID().toString())), Instant.now()))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
     void sourceReviewIsAtomicActorBoundAndIdempotentEvenAfterRevisionChangesOrRejection() throws Exception {
         var request = proposal();
         var stored = proposals.save(request, null).proposal();

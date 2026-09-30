@@ -55,7 +55,7 @@ public class CatalogFactReviewWriter {
                 throw new CatalogFactReviewConflictException();
             }
             // A fresh authorization is still required by the HTTP boundary, even for historical retries.
-            return new Result(receipt(existing), false);
+            return new Result(CatalogFactReview.from(existing), false);
         }
         if (!request.expectedVersion().equals(head.getVersion())
                 || dsl.fetchExists(CATALOG_PROPOSAL_DECISIONS,
@@ -81,7 +81,7 @@ public class CatalogFactReviewWriter {
                 .set(e.ACTOR_PROJECT_ID, actor.projectId()).set(e.ACTOR_ORG_ID, actor.organizationId())
                 .set(e.AUTHENTICATED_AT, OffsetDateTime.ofInstant(actor.authenticatedAt(), ZoneOffset.UTC))
                 .set(e.CORRELATION_ID, UUID.randomUUID()).set(e.OUTCOME, "SUCCEEDED").execute();
-        return new Result(receipt(saved), true);
+        return new Result(CatalogFactReview.from(saved), true);
     }
 
     private void validateFact(CatalogProposalSnapshot snapshot, CatalogFactReviewRequest review) {
@@ -102,13 +102,6 @@ public class CatalogFactReviewWriter {
         } catch (tools.jackson.core.JacksonException | IllegalArgumentException invalidSnapshot) {
             throw new CatalogProposalException(CatalogProposalException.Reason.REPLAY_UNAVAILABLE);
         }
-    }
-
-    private static CatalogFactReview receipt(io.authweave.core.generated.jooq.tables.records.CatalogFactReviewsRecord row) {
-        return new CatalogFactReview(row.getId(), row.getProposalId(), row.getProposalVersion(), row.getProposalSha256(),
-                row.getReviewNumber(), row.getOptionId(), row.getFactPath(),
-                CatalogFactReviewRequest.Verdict.valueOf(row.getVerdict()), row.getRecordedAt().toInstant(),
-                "HUMAN_SOURCE_REVIEW_OBSERVATION", false, false, false, false);
     }
 
     public record Result(CatalogFactReview review, boolean created) { }

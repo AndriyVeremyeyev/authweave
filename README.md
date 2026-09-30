@@ -819,6 +819,19 @@ Database identity/freshness constraints do not prove an OIDC login. A human verd
 not automatic source verification, evidence freshness,
 approval or catalog publication, and existing catalog/evaluation behavior is unchanged.
 
+The protected read endpoint
+`GET /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/fact-reviews`
+returns at most 20 observations in ascending per-revision review-number order. Its
+exclusive `afterReviewNumber` cursor never mixes revisions. Reading does not replay the
+proposal, refresh dates, fetch sources or expose audit actor identities, and history
+remains available after rejection or a head change. New observations may append between
+pages. The curator proposal screen now shows this ledger separately from candidate
+evidence, preserving earlier verdicts and corrections as reported human observations,
+not verified fact statuses. Browser pagination binds the cursor to the displayed
+revision and requires a restart if the head changes. An empty history does not mean
+verification or approval. The screen still has no source-review submission form;
+the existing rejection action is unchanged.
+
 ### Conditional catalog impact
 
 `POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview

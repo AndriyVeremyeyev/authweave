@@ -2261,6 +2261,24 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
             if (receipt != null) assertEquals(receipt, response);
             receipt = response;
         }
+        var history = versionedSample("manual-source-review-history", "catalog-fact-review-page",
+                mvc.perform(get("/api/v1/catalog-change-proposals/" + id + "/revisions/0/fact-reviews")
+                    .header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                    .header("X-AuthWeave-Oidc-Issuer", "http://localhost:8081")
+                    .header("X-AuthWeave-Oidc-Subject", "synthetic-curator")
+                    .header("X-AuthWeave-Curator-Role", "catalog_curator")
+                    .header("X-AuthWeave-Curator-Project-Id", "123456789012345678")
+                    .header("X-AuthWeave-Curator-Org-Id", "987654321098765432")
+                    .header("X-AuthWeave-Authenticated-At", Instant.now().toString()))
+                    .andExpect(status().isOk()).andReturn());
+        assertEquals(receipt, history.get("items").get(0));
+        var invalidHistory = (ObjectNode) history.deepCopy(); invalidHistory.put("approved", true);
+        sample("manual-source-review-history-no-approval", "catalog-fact-review-page", false, invalidHistory);
+        invalidHistory = (ObjectNode) history.deepCopy();
+        ((ObjectNode) invalidHistory.get("items").get(0)).put("actorSubject", "private");
+        sample("manual-source-review-history-no-actor", "catalog-fact-review-page", false, invalidHistory);
+        invalidHistory = (ObjectNode) history.deepCopy(); invalidHistory.put("afterReviewNumber", -1);
+        sample("manual-source-review-history-safe-cursor", "catalog-fact-review-page", false, invalidHistory);
         var invalid = input.deepCopy(); invalid.remove("confirmation");
         sample("manual-source-review-confirmation-required", "catalog-fact-review-request", false, invalid);
         invalid = input.deepCopy(); invalid.put("actorSubject", "forged");

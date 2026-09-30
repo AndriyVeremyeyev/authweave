@@ -44,7 +44,7 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
     private static final Pattern CURATOR_EVIDENCE_REVIEW = Pattern.compile(
             "^/api/v[1-9][0-9]*/catalog-change-proposals/[^/]+/revisions/[^/]+/evidence-review(?:/|$)");
     private static final Pattern CURATOR_FACT_REVIEW = Pattern.compile(
-            "^/api/v[1-9][0-9]*/catalog-change-proposals/[^/]+/fact-reviews(?:/|$)");
+            "^/api/v[1-9][0-9]*/catalog-change-proposals/[^/]+/(?:revisions/[^/]+/)?fact-reviews(?:/|$)");
     private static final long CURATOR_REAUTH_SECONDS = 15 * 60;
     private static final long CLOCK_SKEW_SECONDS = 30;
 
