@@ -7,6 +7,7 @@ import { readCatalogProposalReview, type CatalogReviewResult } from "@/lib/auth/
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession } from "@/lib/auth/store";
 import type { CatalogImpactReview, ScenarioImpactRow } from "@/lib/catalog/impact-review";
+import { evidenceOffsetFromQuery, type CandidateEvidencePage } from "@/lib/catalog/evidence-review";
 import { observationDateStatus, sourceDetails, type CatalogProposalReview,
   type ObservationDateStatus, type ReviewFactChange,
   type ReviewOptionChange } from "@/lib/catalog/proposal-review";
@@ -36,6 +37,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
     PageProps<"/catalog/review/[id]">) {
   const { id } = await params;
   if (!UUID.test(id)) notFound();
+  const query = await searchParams;
   let result: CatalogReviewResult = { kind: "core-unavailable" };
   let anonymous = false;
   try {
@@ -43,7 +45,8 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
     const sessionId = (await cookies()).get(sessionCookieName(config.secureCookies))?.value;
     const session = await touchSession(sessionId);
     if (!session) anonymous = true;
-    else result = await readCatalogProposalReview(session, config, id);
+    else result = await readCatalogProposalReview(session, config, id, new Date(),
+      evidenceOffsetFromQuery(query.evidenceOffset));
   } catch { /* Do not render proposal data if authentication or Core is unavailable. */ }
   if (anonymous) redirect("/account");
   if (result.kind === "not-found") notFound();
@@ -62,8 +65,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
       </form>}
     </main>;
   }
-  const { review, rejection, impact } = result;
-  const query = await searchParams;
+  const { review, rejection, impact, evidence } = result;
   const pageCount = Math.max(1, Math.ceil(review.factChanges.length / PAGE_SIZE));
   const page = boundedPage(query.page, pageCount);
   const facts = review.factChanges.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -118,12 +120,40 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
           </>
         )}
       </section>
+      <EvidenceSection proposalId={id} evidence={evidence} />
       <ImpactSection proposalId={id} impact={impact} scenarioPage={boundedPage(query.impactPage,
         Math.ceil((impact?.scenarios.length ?? 0) / PAGE_SIZE))} uncoveredPage={boundedPage(query.uncoveredPage,
         Math.ceil((impact?.uncoveredChanges.length ?? 0) / PAGE_SIZE))} />
       <DecisionSection review={review} rejection={rejection} />
     </main>
   );
+}
+
+function EvidenceSection({ proposalId, evidence }: { proposalId: string; evidence: CandidateEvidencePage }) {
+  const labels = { CURRENT: "Within 90 days · unreviewed", STALE: "Older than 90 days · unreviewed",
+    FUTURE: "Future date · unreviewed" };
+  return <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="evidence-heading">
+    <h2 id="evidence-heading" className="text-2xl font-semibold">Candidate evidence</h2>
+    <p className="mt-3 text-slate-300">All recorded candidate facts, including unchanged facts. Source verification is still required; omitted facts remain unknown.</p>
+    <p className="mt-3 text-sm text-slate-400">Dates checked at <time dateTime={evidence.evaluatedAt}>{evidence.evaluatedAt}</time>: {evidence.freshness.current} within 90 days · {evidence.freshness.stale} older than 90 days · {evidence.freshness.future} future dates.</p>
+    {evidence.items.length === 0 ? <p className="mt-5 text-slate-300">No recorded facts on this page.</p> : <>
+      <p className="mt-5 text-sm text-slate-400">Showing {evidence.offset + 1}–{evidence.offset + evidence.items.length} of {evidence.factCount} recorded facts.</p>
+      <div className="mt-4 space-y-4">{evidence.items.map(item => <article key={`${item.optionId}-${item.path}`} className="rounded-lg border border-slate-600 p-4">
+        <h3 className="break-words font-medium">{item.optionId} · {item.path}</h3>
+        <p className="mt-2 break-words text-sm text-slate-300">{item.scope.providerId} · {item.scope.product} · {item.scope.plan} · {item.scope.deployment} · {item.scope.region}</p>
+        <p className="mt-1 break-words text-sm text-slate-400">Configuration: {item.scope.configuration}</p>
+        <p className={`mt-3 text-sm ${item.freshness === "CURRENT" ? "text-slate-300" : "text-amber-200"}`}>{labels[item.freshness]}</p>
+        <p className="mt-2 break-all text-sm text-slate-300">Unverified source: {item.evidence.sourceUrl}</p>
+        <p className="mt-1 text-sm text-slate-400">Observed: <time dateTime={item.evidence.observedAt}>{item.evidence.observedAt}</time></p>
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm text-slate-300">{item.evidence.summary}</p>
+        <p className="mt-2 break-words text-sm text-slate-400">Submitted conditions: {item.conditions.length ? item.conditions.join("; ") : "None recorded"}</p>
+      </article>)}</div>
+    </>}
+    {(evidence.offset > 0 || evidence.nextOffset !== null) && <nav aria-label="Candidate evidence pages" className="mt-6 flex gap-5 text-cyan-200">
+      {evidence.offset > 0 && <Link href={`/catalog/review/${proposalId}?evidenceOffset=${Math.max(0, evidence.offset - 20)}`} className="hover:underline">← Previous evidence</Link>}
+      {evidence.nextOffset !== null && <Link href={`/catalog/review/${proposalId}?evidenceOffset=${evidence.nextOffset}`} className="hover:underline">Next evidence →</Link>}
+    </nav>}
+  </section>;
 }
 
 function ImpactSection({ proposalId, impact, scenarioPage, uncoveredPage }: {
@@ -193,13 +223,15 @@ function FactChange({ change, asOf }: { change: ReviewFactChange; asOf: Date }) 
     <h4 className="break-words font-medium">{change.optionId} · {change.path}</h4>
     <p className="mt-1 text-sm text-slate-400">{change.factKind} · {change.changeType} · Changed: {change.aspects.join(", ")}</p>
     <div className="mt-3 grid gap-4 sm:grid-cols-2">
-      <Snapshot label="Before" value={change.before} asOf={asOf} />
-      <Snapshot label="After" value={change.after} asOf={asOf} />
+      <Snapshot label="Before" value={change.before} asOf={asOf} expectsEvidence />
+      <Snapshot label="After" value={change.after} asOf={asOf} expectsEvidence />
     </div>
   </article>;
 }
 
-function Snapshot({ label, value, asOf }: { label: string; value: Record<string, unknown> | null; asOf: Date }) {
+function Snapshot({ label, value, asOf, expectsEvidence = false }: {
+  label: string; value: Record<string, unknown> | null; asOf: Date; expectsEvidence?: boolean;
+}) {
   const source = sourceDetails(value);
   const observation = source ? observationDateStatus(source.observedAt, asOf) : null;
   return <div className="min-w-0 rounded-lg bg-slate-900 p-3">
@@ -213,7 +245,7 @@ function Snapshot({ label, value, asOf }: { label: string; value: Record<string,
         </p>}
         <p className="break-words">Summary: {source.summary}</p>
       </div>}
-      {!source && <p className="mt-2 text-xs text-amber-200">Source details are missing or malformed; the observation date cannot be assessed.</p>}
+      {expectsEvidence && !source && <p className="mt-2 text-xs text-amber-200">Source details are missing or malformed; the observation date cannot be assessed.</p>}
       <pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words text-xs text-slate-300">{JSON.stringify(value, null, 2)}</pre>
     </>}
   </div>;

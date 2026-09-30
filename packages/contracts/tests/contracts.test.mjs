@@ -49,6 +49,24 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("candidate evidence pages preserve scope and forbid verification or approval claims", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-evidence-page.v1.schema.json");
+  const item = { optionId: "example-eu", path: "facts.SCIM", scope: { providerId: "example",
+    product: "Example Identity", plan: "Example Enterprise", deployment: "MANAGED", region: "EU",
+    configuration: "Pilot" }, evidenceStatus: "UNREVIEWED", freshness: "STALE", conditions: [],
+    evidence: { sourceUrl: "https://docs.example.invalid/identity", observedAt: "2026-01-01T00:00:00Z",
+      summary: "Fictional source paraphrase." } };
+  const page = { proposalId: "90000000-0000-4000-8000-000000000001", proposalVersion: 0,
+    proposalSha256: "a".repeat(64), catalogVersion: "example-1", evaluatedAt: "2026-09-30T12:00:00Z",
+    policyVersion: "catalog-proposal-evidence-review-1", maxEvidenceAgeDays: 90,
+    sourceVerificationPerformed: false, approvalGranted: false, writesPerformed: false, evaluationReady: false,
+    factCount: 1, freshness: { current: 0, stale: 1, future: 0 }, offset: 0, items: [item], nextOffset: null };
+  assert.equal(validate(page), true, validationMessage(validate));
+  for (const invalid of [{ ...page, approvalGranted: true }, { ...page, sourceVerificationPerformed: true },
+    { ...page, offset: -1 }, { ...page, items: Array(21).fill(item) },
+    { ...page, items: [{ ...item, evidenceStatus: "REVIEWED" }] }]) assert.equal(validate(invalid), false);
+});
+
 test("curator rejection contracts bind one revision and exclude approval or free text", () => {
   const request = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-rejection-request.v1.schema.json");
   const response = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-rejection.v1.schema.json");

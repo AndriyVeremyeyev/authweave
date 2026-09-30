@@ -5,25 +5,39 @@ import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.UUID;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import io.authweave.core.config.InternalServiceCredentialFilter;
 
-/** BFF-only, scoped curator index of current proposal revisions. */
+/** BFF-only curator index and exact-revision candidate evidence review. */
 @RestController
 public final class CatalogProposalReviewController {
     private final InternalServiceCredentialFilter credentials;
     private final CatalogProposalRepository proposals;
+    private final CatalogProposalEvidenceService evidence;
 
     public CatalogProposalReviewController(InternalServiceCredentialFilter credentials,
-            CatalogProposalRepository proposals) {
+            CatalogProposalRepository proposals, CatalogProposalEvidenceService evidence) {
         this.credentials = credentials;
         this.proposals = proposals;
+        this.evidence = evidence;
+    }
+
+    @GetMapping("/api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/evidence-review")
+    public ResponseEntity<?> evidence(HttpServletRequest request, @PathVariable UUID proposalId,
+            @PathVariable @Min(0) @Max(9007199254740991L) long version,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(6800) int offset) {
+        int status = credentials.curatorStatus(request);
+        if (status != 204) return ResponseEntity.status(status).build();
+        return ResponseEntity.ok(evidence.review(proposalId, version, offset));
     }
 
     @GetMapping("/api/v1/catalog-change-proposals")

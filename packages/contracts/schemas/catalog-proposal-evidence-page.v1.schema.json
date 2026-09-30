@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-evidence-page.v1.schema.json",
+  "title": "Candidate evidence review page v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["proposalId", "proposalVersion", "proposalSha256", "catalogVersion", "evaluatedAt", "policyVersion", "maxEvidenceAgeDays", "sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady", "factCount", "freshness", "offset", "items", "nextOffset"],
+  "properties": {
+    "proposalId": { "type": "string", "format": "uuid" },
+    "proposalVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "proposalSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "catalogVersion": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "policyVersion": { "const": "catalog-proposal-evidence-review-1" },
+    "maxEvidenceAgeDays": { "const": 90 },
+    "sourceVerificationPerformed": { "const": false },
+    "approvalGranted": { "const": false },
+    "writesPerformed": { "const": false },
+    "evaluationReady": { "const": false },
+    "factCount": { "type": "integer", "minimum": 0, "maximum": 6800 },
+    "freshness": {
+      "type": "object", "additionalProperties": false, "required": ["current", "stale", "future"],
+      "properties": {
+        "current": { "type": "integer", "minimum": 0, "maximum": 6800 },
+        "stale": { "type": "integer", "minimum": 0, "maximum": 6800 },
+        "future": { "type": "integer", "minimum": 0, "maximum": 6800 }
+      }
+    },
+    "offset": { "type": "integer", "minimum": 0, "maximum": 6800 },
+    "nextOffset": { "type": ["integer", "null"], "minimum": 0, "maximum": 6800 },
+    "items": {
+      "type": "array", "maxItems": 20,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["optionId", "path", "scope", "evidenceStatus", "freshness", "conditions", "evidence"],
+        "properties": {
+          "optionId": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+          "path": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "scope": { "$ref": "./catalog-change-preview.v1.schema.json#/$defs/optionScope" },
+          "evidenceStatus": { "const": "UNREVIEWED" },
+          "freshness": { "enum": ["CURRENT", "STALE", "FUTURE"] },
+          "conditions": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/conditions" },
+          "evidence": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/evidence" }
+        }
+      }
+    }
+  }
+}

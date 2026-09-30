@@ -41,6 +41,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
             "^/api/v[1-9][0-9]*/catalog-change-proposals/[^/]+/decisions(?:/|$)");
     private static final Pattern CURATOR_REVIEW_INDEX = Pattern.compile(
             "^/api/v[1-9][0-9]*/catalog-change-proposals/?$");
+    private static final Pattern CURATOR_EVIDENCE_REVIEW = Pattern.compile(
+            "^/api/v[1-9][0-9]*/catalog-change-proposals/[^/]+/revisions/[^/]+/evidence-review(?:/|$)");
     private static final long CURATOR_REAUTH_SECONDS = 15 * 60;
     private static final long CLOCK_SKEW_SECONDS = 30;
 
@@ -59,7 +61,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
         String path = path(request);
         return !path.startsWith("/internal/") && !WORKSPACE_PREFIX.matcher(path).find()
                 && !CURATOR_DECISION_PREFIX.matcher(path).find()
-                && !CURATOR_REVIEW_INDEX.matcher(path).find();
+                && !CURATOR_REVIEW_INDEX.matcher(path).find()
+                && !CURATOR_EVIDENCE_REVIEW.matcher(path).find();
     }
 
     @Override
@@ -97,7 +100,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
         }
         if (CURATOR_INTERNAL_PREFIX.matcher(path).find()
                 || CURATOR_DECISION_PREFIX.matcher(path).find()
-                || CURATOR_REVIEW_INDEX.matcher(path).find()) {
+                || CURATOR_REVIEW_INDEX.matcher(path).find()
+                || CURATOR_EVIDENCE_REVIEW.matcher(path).find()) {
             int curatorStatus = curatorStatus(request);
             if (curatorStatus != HttpServletResponse.SC_NO_CONTENT) {
                 response.sendError(curatorStatus);
@@ -107,7 +111,7 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
         chain.doFilter(request, response);
     }
 
-    // Decision controllers must also call this check: URL encodings may differ between routing and filters.
+    // Curator controllers also check assertions: URL encodings may differ between routing and filters.
     public int curatorStatus(HttpServletRequest request) {
         int credential = credentialStatus(request);
         if (credential != HttpServletResponse.SC_OK) return credential;

@@ -3,6 +3,7 @@ import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
 import { impactReviewFromCore, type CatalogImpactReview } from "../catalog/impact-review.ts";
+import { evidencePageFromCore, type CandidateEvidencePage } from "../catalog/evidence-review.ts";
 import { parseProposalReviewCursor, proposalIndexFromCore,
   type ProposalReviewIndexPage } from "../catalog/proposal-index.ts";
 import { proposalReviewFromCore, type CatalogProposalReview } from "../catalog/proposal-review.ts";
@@ -41,7 +42,7 @@ export type CatalogRejectionResult =
   | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" | "conflict" | "invalid" };
 export type CatalogReviewResult =
   | { kind: "ready"; review: CatalogProposalReview; rejection: CatalogRejection | null;
-      impact: CatalogImpactReview | null }
+      impact: CatalogImpactReview | null; evidence: CandidateEvidencePage }
   | { kind: Exclude<CuratorProbeStatus, "ready"> | "not-found" };
 export type CatalogReviewIndexResult =
   | { kind: "ready"; page: ProposalReviewIndexPage }
@@ -227,8 +228,11 @@ export async function listCatalogProposalsForReview(session: BrowserSession,
 
 export async function readCatalogProposalReview(session: BrowserSession,
   config: Pick<AuthConfiguration, "issuer" | "curatorScope">, id: string,
-  now: Date = new Date()): Promise<CatalogReviewResult> {
+  now: Date = new Date(), evidenceOffset = 0): Promise<CatalogReviewResult> {
   if (!UUID.test(id)) return { kind: "not-found" };
+  if (!Number.isSafeInteger(evidenceOffset) || evidenceOffset < 0 || evidenceOffset > 6800) {
+    return { kind: "core-unavailable" };
+  }
   const authorization = await readCuratorAuthorization(session, config, now);
   if (authorization !== "ready") return { kind: authorization };
   if (!config.curatorScope) return { kind: "not-configured" };
@@ -241,16 +245,22 @@ export async function readCatalogProposalReview(session: BrowserSession,
     if (proposalResponse.status === 404) return { kind: "not-found" };
     if (proposalResponse.status !== 200) return { kind: "core-unavailable" };
     const review = proposalReviewFromCore(await proposalResponse.json(), id);
-    const [decisionResponse, impactResponse] = await Promise.all([
+    const [decisionResponse, impactResponse, evidenceResponse] = await Promise.all([
       fetch(`${base}/decisions/current`, {
         method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
       }),
       fetch(`${base}/revisions/${review.version}/impact-reports/latest`, {
         method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
       }),
+      fetch(`${base}/revisions/${review.version}/evidence-review?offset=${evidenceOffset}`, {
+        method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+      }),
     ]);
-    if (decisionResponse.status === 401 || decisionResponse.status === 403) return { kind: "core-rejected" };
-    if (![200, 204].includes(decisionResponse.status) || ![200, 204].includes(impactResponse.status)) {
+    if ([decisionResponse, impactResponse, evidenceResponse].some(r => r.status === 401 || r.status === 403)) {
+      return { kind: "core-rejected" };
+    }
+    if (![200, 204].includes(decisionResponse.status) || ![200, 204].includes(impactResponse.status) ||
+        evidenceResponse.status !== 200) {
       return { kind: "core-unavailable" };
     }
     let rejection: CatalogRejection | null = null;
@@ -268,7 +278,8 @@ export async function readCatalogProposalReview(session: BrowserSession,
     }
     const impact = impactResponse.status === 200
       ? impactReviewFromCore(await impactResponse.json(), review) : null;
-    return { kind: "ready", review, rejection, impact };
+    const evidence = evidencePageFromCore(await evidenceResponse.json(), review, evidenceOffset);
+    return { kind: "ready", review, rejection, impact, evidence };
   } catch {
     return { kind: "core-unavailable" };
   }

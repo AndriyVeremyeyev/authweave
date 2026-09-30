@@ -17,6 +17,7 @@ import {
 import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/capabilities.ts";
 import { usageMetrics, type UsagePlanningValues } from "../src/lib/assessment/usage-planning.ts";
 import { storedImpactFixture } from "./fixtures/stored-impact.mts";
+import { candidateEvidenceFixture } from "./fixtures/candidate-evidence.mts";
 
 const identity = {
   issuer: "http://localhost:8081",
@@ -277,6 +278,7 @@ test("curator review reads a version-bound proposal and separate current decisio
       blockers: [], affectedOptionIds: [], optionChanges: [], factChanges: [] } };
   let decision: Response = new Response(null, { status: 204 });
   let impactResponse: Response = new Response(null, { status: 204 });
+  let evidence = candidateEvidenceFixture(id, 0, digest);
   const calls: string[] = [];
   globalThis.fetch = async (url, init) => {
     calls.push(String(url));
@@ -289,6 +291,10 @@ test("curator review reads a version-bound proposal and separate current decisio
       assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/revisions/0/impact-reports/latest`);
       return impactResponse;
     }
+    if (String(url).endsWith("/evidence-review?offset=0")) {
+      assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}/revisions/0/evidence-review?offset=0`);
+      return Response.json(evidence);
+    }
     assert.equal(url, `http://127.0.0.1:8080/api/v1/catalog-change-proposals/${id}`);
     return Response.json(snapshot);
   };
@@ -298,8 +304,13 @@ test("curator review reads a version-bound proposal and separate current decisio
     if (unreviewed.kind === "ready") {
       assert.equal(unreviewed.rejection, null);
       assert.equal(unreviewed.impact, null);
+      assert.equal(unreviewed.evidence.items[0].path, "facts.OIDC");
     }
-    assert.equal(calls.length, 4);
+    assert.equal(calls.length, 5);
+    evidence = { ...evidence, proposalVersion: 1 };
+    assert.equal((await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow)).kind,
+      "core-unavailable");
+    evidence = candidateEvidenceFixture(id, 0, digest);
     impactResponse = Response.json(storedImpactFixture(id, 0, digest));
     const analyzed = await readCatalogProposalReview(eligible, curatorConfig, id, curatorNow);
     assert.equal(analyzed.kind, "ready");

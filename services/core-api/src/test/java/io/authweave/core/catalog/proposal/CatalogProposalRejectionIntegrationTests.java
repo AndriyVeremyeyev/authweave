@@ -2,6 +2,8 @@ package io.authweave.core.catalog.proposal;
 
 import java.nio.file.Path;
 import java.time.Instant;
+import java.time.Clock;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.UUID;
@@ -20,11 +22,15 @@ import tools.jackson.databind.node.ObjectNode;
 
 import io.authweave.core.PostgresIntegrationTest;
 import io.authweave.core.catalog.draft.CatalogChangePreviewRequest;
+import io.authweave.core.catalog.draft.CatalogDraftValidator;
 
 import static io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS;
 import static io.authweave.core.generated.jooq.tables.CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -165,6 +171,74 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
         var json = (ObjectNode) mapper.readTree(fixture.toFile());
         json.put("proposalId", UUID.randomUUID().toString());
         return mapper.treeToValue(json, CatalogChangePreviewRequest.class);
+    }
+
+    @Test
+    void evidenceReviewIncludesUnchangedFactsUsesCorePolicyAndPagesAnExactRevision() throws Exception {
+        var json = (ObjectNode) mapper.valueToTree(proposal());
+        var options = ((ObjectNode) json.get("candidate")).withArray("options");
+        var template = (ObjectNode) options.get(0).deepCopy();
+        for (int i = 1; i < 3; i++) {
+            var copy = template.deepCopy();
+            copy.put("id", "example-managed-eu-" + i);
+            copy.put("configuration", "Synthetic configuration " + i);
+            options.add(copy);
+        }
+        ((ObjectNode) options.get(0).get("facts").get("OIDC").get("evidence"))
+                .put("observedAt", "2026-01-01T00:00:00Z");
+        ((ObjectNode) options.get(1).get("facts").get("OIDC").get("evidence"))
+                .put("observedAt", "2027-01-01T00:00:00Z");
+        var request = mapper.treeToValue(json, CatalogChangePreviewRequest.class);
+        var stored = proposals.save(request, null).proposal();
+        var service = new CatalogProposalEvidenceService(repository,
+                new CatalogDraftValidator(Clock.fixed(Instant.parse("2026-09-30T12:00:00Z"), ZoneOffset.UTC)), mapper);
+        var first = service.review(stored.proposalId(), 0, 0);
+        assertEquals(27, first.factCount());
+        assertEquals(25, first.freshness().current());
+        assertEquals(1, first.freshness().stale());
+        assertEquals(1, first.freshness().future());
+        assertEquals(20, first.items().size());
+        assertEquals(20, first.nextOffset());
+        var second = service.review(stored.proposalId(), 0, 20);
+        assertEquals(7, second.items().size());
+        assertEquals(null, second.nextOffset());
+        assertTrue(first.items().stream().anyMatch(item -> item.path().equals("compatibility.clients.BROWSER")));
+        assertTrue(first.items().stream().allMatch(item -> item.evidenceStatus().name().equals("UNREVIEWED")));
+        assertEquals(stored.request(), repository.revision(stored.proposalId(), 0).request());
+        assertEquals(1, repository.events(stored.proposalId(), null, 100).items().size());
+        var corruptRepository = mock(CatalogProposalRepository.class);
+        when(corruptRepository.revision(stored.proposalId(), 0)).thenReturn(new CatalogProposalSnapshot(
+                stored.proposalId(), 0, stored.state(), stored.requestSchemaVersion(), "0".repeat(64),
+                stored.recordedAt(), stored.request(), stored.preview()));
+        var corruptService = new CatalogProposalEvidenceService(corruptRepository,
+                new CatalogDraftValidator(Clock.systemUTC()), mapper);
+        assertEquals(CatalogProposalException.Reason.REPLAY_UNAVAILABLE,
+                assertThrows(CatalogProposalException.class,
+                        () -> corruptService.review(stored.proposalId(), 0, 0)).reason());
+
+        String path = "/api/v1/catalog-change-proposals/" + stored.proposalId() + "/revisions/0/evidence-review";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(withCuratorHeaders(get(path), Instant.now().minusSeconds(901)))
+                .andExpect(status().isForbidden());
+        mvc.perform(withCuratorHeaders(get(path), Instant.now()).param("offset", "-1"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(withCuratorHeaders(get(path), Instant.now()).param("offset", "6801"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(withCuratorHeaders(get(path), Instant.now()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.proposalSha256").value(stored.proposalSha256()))
+                .andExpect(jsonPath("$.factCount").value(27))
+                .andExpect(jsonPath("$.nextOffset").value(20))
+                .andExpect(jsonPath("$.sourceVerificationPerformed").value(false));
+        proposals.save(new CatalogChangePreviewRequest(1, request.proposalId(), "Updated rationale.",
+                request.expectedBaseSha256(), request.base(), request.candidate()), 0L);
+        mvc.perform(withCuratorHeaders(get(path), Instant.now()).param("offset", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.proposalVersion").value(0))
+                .andExpect(jsonPath("$.proposalSha256").value(stored.proposalSha256()))
+                .andExpect(jsonPath("$.items.length()").value(7));
+        mvc.perform(withCuratorHeaders(get(path.replace("/revisions/0/", "/revisions/2/")), Instant.now()))
+                .andExpect(status().isNotFound());
     }
 
     private static String path(UUID id) {

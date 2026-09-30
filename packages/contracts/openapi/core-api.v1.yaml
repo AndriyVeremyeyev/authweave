@@ -9,7 +9,7 @@ info:
     Every versioned workspace route requires a server-only BFF bearer credential and
     a validated OIDC issuer/subject pair mapped to the requested personal workspace.
     Catalog draft routes remain unauthenticated and local-only, except the scoped
-    curator review index and decision routes. Do not expose this
+    curator review index, evidence review and decision routes. Do not expose this
     service through a proxy or tunnel; this is not a hosted authentication boundary.
 servers:
   - url: http://127.0.0.1:8080
@@ -23,6 +23,46 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/evidence-review:
+    get:
+      tags: [Catalog drafts]
+      summary: Review recorded evidence for all candidate facts in one exact revision
+      operationId: getCatalogProposalEvidencePage
+      description: >-
+        BFF-to-Core only with a fresh scoped curator assertion. Verifies the stored
+        request digest, then applies current Core date policy to every recorded candidate
+        fact, including unchanged facts. Returns 20 rows ordered by optionId and path,
+        plus counts for the entire candidate. Sources and conditions are caller-supplied
+        text; no source is fetched or verified and no decision or catalog write occurs.
+        Missing facts remain unknown. Each page has its own evaluatedAt instant.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: '#/components/parameters/CatalogProposalId'
+        - $ref: '#/components/parameters/CatalogProposalVersion'
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 6800, default: 0 }
+      responses:
+        '200':
+          description: Unverified candidate evidence and current observation-date counts.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-evidence-page.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Missing or invalid server credential or OIDC principal.
+        '403':
+          description: Curator role, scope or recent authentication missing.
+        '404':
+          description: The requested proposal revision does not exist.
+        '409':
+          description: The stored request cannot be reviewed with the current contract or digest policy.
+        '503':
+          description: Curator scope or server credential is not configured.
   /api/v1/catalog-change-proposals:
     get:
       tags: [Catalog drafts]
