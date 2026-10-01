@@ -40,9 +40,10 @@ class CatalogPublicationPreflightTests {
     private final CatalogPublicationLookup lookup = mock(CatalogPublicationLookup.class);
     private final CatalogBootstrapReviewService bootstrapReviews = mock(CatalogBootstrapReviewService.class);
     private final CatalogPublicationImpactVerifier impacts = mock(CatalogPublicationImpactVerifier.class);
+    private final CatalogPublicationFactPathVerifier storedRegressions = mock(CatalogPublicationFactPathVerifier.class);
     private final CatalogPublicationPreflight preflight = new CatalogPublicationPreflight(repository, reviews, publications,
             lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews, impacts,
-            new CatalogFactPathRegressionService(new CatalogImpactService(new CatalogChangePreviewService(validator, clock))));
+            new CatalogFactPathRegressionService(new CatalogImpactService(new CatalogChangePreviewService(validator, clock))), storedRegressions);
     private CatalogChangePreviewRequest request;
     private CatalogPublicationPreflightRepository.Proposal row;
     private PublishedCatalogSnapshot.Reference baseline;
@@ -62,6 +63,8 @@ class CatalogPublicationPreflightTests {
         when(impacts.verify(any(), anyLong(), any(), any())).thenReturn(new CatalogPublicationImpactVerifier.Check(
                 CatalogPublicationImpactVerifier.Status.VERIFIED_PARTIAL_ANALYSIS, UUID.randomUUID(), 1, "a".repeat(64), AT, 3, 0, 7));
         when(repository.registryEmpty()).thenReturn(true);
+        when(storedRegressions.verify(any(), anyLong(), any(), any())).thenReturn(new CatalogPublicationFactPathVerifier.Check(
+                CatalogPublicationFactPathVerifier.Status.VERIFIED_FACT_PATH_ANALYSIS, UUID.randomUUID(), 1, "b".repeat(64), AT, 1, 1, 0, 1, 0));
     }
 
     @Test
@@ -234,6 +237,35 @@ class CatalogPublicationPreflightTests {
             default -> Blocker.IMPACT_ANALYSIS_BLOCKED;
         };
         assertTrue(result.blockers().contains(blocker)); assertEquals(impact, result.impact()); assertBlocked(result);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"MISSING", "READ_BUDGET_EXCEEDED", "INVALID_RECEIPT", "INCOMPATIBLE_RULES", "REPLAY_MISMATCH", "VERIFIED_BLOCKED_ANALYSIS", "VERIFIED_INCOMPLETE_ANALYSIS"})
+    void freshRegressionCannotReplaceMissingInvalidBlockedOrIncompleteStoredReceipts(String state) {
+        var status = CatalogPublicationFactPathVerifier.Status.valueOf(state);
+        var receipt = status == CatalogPublicationFactPathVerifier.Status.VERIFIED_BLOCKED_ANALYSIS
+                || status == CatalogPublicationFactPathVerifier.Status.VERIFIED_INCOMPLETE_ANALYSIS
+                ? new CatalogPublicationFactPathVerifier.Check(status, UUID.randomUUID(), 1, "b".repeat(64), AT, 0, 0, 0, 0, 0)
+                : CatalogPublicationFactPathVerifier.Check.unavailable(status);
+        when(storedRegressions.verify(any(), anyLong(), any(), any())).thenReturn(receipt);
+        var result = run(); assertTrue(result.factPaths().changedFactPathsCovered());
+        var blocker = switch (status) {
+            case MISSING -> Blocker.FACT_PATH_RECEIPT_MISSING;
+            case READ_BUDGET_EXCEEDED -> Blocker.FACT_PATH_REPORT_READ_BUDGET_EXCEEDED;
+            case INVALID_RECEIPT -> Blocker.FACT_PATH_RECEIPT_INVALID;
+            case INCOMPATIBLE_RULES -> Blocker.FACT_PATH_RULES_INCOMPATIBLE;
+            case REPLAY_MISMATCH -> Blocker.FACT_PATH_REPLAY_MISMATCH;
+            case VERIFIED_BLOCKED_ANALYSIS -> Blocker.STORED_FACT_PATH_ANALYSIS_BLOCKED;
+            default -> Blocker.STORED_FACT_PATH_ANALYSIS_INCOMPLETE;
+        };
+        assertTrue(result.blockers().contains(blocker)); assertEquals(receipt, result.storedFactPaths()); assertBlocked(result);
+    }
+
+    @Test void storedRegressionOutagesPropagateWithoutReadingBootstrapReceiptsOrReusingFreshCounts() {
+        when(storedRegressions.verify(any(), anyLong(), any(), any())).thenThrow(new DataAccessException("Unavailable"));
+        assertThrows(DataAccessException.class, this::run); clearInvocations(storedRegressions);
+        var result = preflight.bootstrap(request.candidate());
+        assertEquals(CatalogPublicationFactPathVerifier.Status.NOT_CHECKED, result.storedFactPaths().status());
+        verifyNoInteractions(storedRegressions); assertBlocked(result);
     }
 
     @Test void impactStorageFailuresPropagateAndBootstrapNeverReadsProposalReports() {

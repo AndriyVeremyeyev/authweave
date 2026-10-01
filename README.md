@@ -1038,10 +1038,18 @@ report/case-set hashes and bounded counts; it is independent of the historical `
 receipt and does not refresh it. Contract/schema drift and a pinned suite digest require
 an explicit suite review rather than silently expanding coverage.
 
+The separate `storedFactPaths` check now verifies the latest immutable 68-path receipt
+for that exact revision, with bounded body, request/report hashes, schema, database
+receipt/audit times and service-event bindings. It regenerates the entire bound report
+at its original `evaluatedAt`, not the current time. Missing, invalid, incompatible or
+replay-mismatched receipts are separate blockers; the fresh calculation cannot replace
+one. `VERIFIED_FACT_PATH_ANALYSIS` only establishes replayed changed-path coverage.
+Blocked or no-op reports can have valid stored integrity without that coverage.
+
 The 24-probe and three-profile HTTP/history formats remain unchanged. Full-profile
-deferred dimensions, durable full-regression receipt policy and a distinct bootstrap
-impact workflow still prevent complete publication coverage. No new endpoint,
-registry write, runtime grant or catalog activation is added.
+deferred dimensions and a distinct bootstrap impact workflow still prevent complete
+publication coverage. The new local storage grants do not grant publication authority;
+no HTTP endpoint, registry write or catalog activation is added.
 
 First publication uses the distinct `CURATED_BOOTSTRAP` preflight: all three publication
 tables must be empty, the candidate valid and its evidence current. Empty storage or a
@@ -1272,6 +1280,34 @@ execution, so these broader areas remain deferred too. Coverage, baseline/source
 approval, writes, evaluation and recommendation readiness remain false. No source fetches,
 scoring, AI calls, installations, migrations or paid services are introduced. These endpoints
 remain local-only and unauthenticated; authorized curator decisions and activation are separate work.
+
+### Stored fact-path regression reports
+
+With local PostgreSQL running and an explicit proposal revision already stored, the
+separate local-only command saves the complete 68-path required-rule report:
+
+```shell
+AUTHWEAVE_CATALOG_REGRESSION_REPORT_ID=55555555-5555-4555-8555-555555555555 \
+AUTHWEAVE_CATALOG_PROPOSAL_ID=33333333-3333-4333-8333-333333333333 \
+AUTHWEAVE_CATALOG_PROPOSAL_VERSION=0 \
+  make store-catalog-regression
+```
+
+Only the `local-catalog-regression-write` command profile enables this writer; normal
+server startup does not. Inputs select UUIDs/revision, never report JSON, trust flags
+or times. Core reads the bounded stored request, verifies its digest and computes the
+report using database time. V16 stores immutable JSON/schema/canonicalization/hash and
+a mandatory body-free `catalog-fact-path.recorded` service event in one transaction.
+Core cannot update/delete receipts or supply their database timestamps/numbers; Web
+cannot access these tables. No human/source-authenticity or publication assertion is made.
+
+The first call returns `SAVED`; retrying the same UUID/revision returns `UNCHANGED`
+without regeneration or another event. A new UUID requests a new analysis; rebinding
+an old UUID to another proposal/revision is rejected. Historical revisions remain
+readable but do not satisfy a new head's receipt requirement. This storage is separate
+from existing scenario history and has no HTTP read/write endpoint. Analysis flags
+remain false for trust, full coverage, approval, writes and readiness; the enclosing
+storage operation does not change their meaning. Missing inputs fail without a write.
 
 ### Stored scenario impact reports
 

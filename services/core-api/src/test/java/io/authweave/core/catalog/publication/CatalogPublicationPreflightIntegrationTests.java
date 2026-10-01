@@ -20,6 +20,8 @@ import io.authweave.core.catalog.impact.LocalCatalogImpactWriter;
 import io.authweave.core.catalog.impact.CatalogImpactReport;
 import io.authweave.core.catalog.impact.CatalogImpactReportRepository;
 import io.authweave.core.catalog.impact.CatalogFactPathRegressionService;
+import io.authweave.core.catalog.impact.CatalogFactPathReportRepository;
+import io.authweave.core.catalog.impact.LocalCatalogFactPathReportWriter;
 import io.authweave.core.catalog.proposal.CatalogFactReviewRequest;
 import io.authweave.core.catalog.proposal.CatalogFactReviewWriter;
 import io.authweave.core.catalog.proposal.LocalCatalogProposalWriter;
@@ -36,7 +38,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@ActiveProfiles({"local-catalog-write", "local-catalog-impact-write"})
+@ActiveProfiles({"local-catalog-write", "local-catalog-impact-write", "local-catalog-regression-write"})
 class CatalogPublicationPreflightIntegrationTests {
     // Empty registry is a real bootstrap prerequisite; do not share a database with admin-seeded storage tests.
     private static final PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:0.8.6-pg18-bookworm")
@@ -63,6 +65,8 @@ class CatalogPublicationPreflightIntegrationTests {
     @Autowired private CatalogDraftValidator validator;
     @Autowired private LocalCatalogImpactWriter impactWriter;
     @Autowired private CatalogImpactReportRepository impacts;
+    @Autowired private LocalCatalogFactPathReportWriter regressionWriter;
+    @MockitoSpyBean private CatalogFactPathReportRepository regressions;
     @MockitoSpyBean private CatalogPublicationPreflightRepository repository;
 
     @Test
@@ -121,7 +125,9 @@ class CatalogPublicationPreflightIntegrationTests {
         var fixtures = new CatalogPublicationLookupFixtures(mapper); var node = fixtures.child(fixtures.root(Instant.now()));
         var saved = writer.save(node.request(), null).proposal();
         var report = impactWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        var regression = regressionWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
         doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(repository).latestImpact(any(UUID.class), anyLong());
+        doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(regressions).latest(any(UUID.class), anyLong());
         int count = dsl.fetchCount(CATALOG_IMPACT_REPORTS);
         var result = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null);
         assertEquals(CatalogPublicationImpactVerifier.Status.VERIFIED_PARTIAL_ANALYSIS, result.impact().status());
@@ -134,6 +140,13 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(1, result.factPaths().checkedCases()); assertEquals(1, result.factPaths().changedFacts());
         assertTrue(result.factPaths().changedFactPathsCovered()); assertFalse(result.factPaths().coverageComplete());
         assertFalse(result.factPaths().storedReportVerified());
+        assertEquals(CatalogPublicationFactPathVerifier.Status.VERIFIED_FACT_PATH_ANALYSIS, result.storedFactPaths().status());
+        assertTrue(result.storedFactPaths().storedIntegrityValidated()); assertTrue(result.storedFactPaths().historicalReplayVerified());
+        assertTrue(result.storedFactPaths().changedFactPathsCovered()); assertFalse(result.storedFactPaths().coverageComplete());
+        assertEquals(regression.reportId(), result.storedFactPaths().reportId());
+        assertEquals(regression.reportSha256(), result.storedFactPaths().reportSha256());
+        assertEquals(Instant.parse(regression.report().get("evaluatedAt").asText()), result.storedFactPaths().evaluatedAt());
+        assertFalse(result.blockers().contains(FACT_PATH_RECEIPT_MISSING));
         assertTrue(result.blockers().contains(IMPACT_COVERAGE_INCOMPLETE)); assertFalse(result.coverageComplete());
         assertFalse(result.blockers().contains(IMPACT_RECEIPT_MISSING)); assertFalse(result.approvalGranted());
         assertEquals(count, dsl.fetchCount(CATALOG_IMPACT_REPORTS)); assertEquals(report, impacts.get(saved.proposalId(), saved.version(), report.reportId()));
@@ -202,15 +215,51 @@ class CatalogPublicationPreflightIntegrationTests {
         }
     }
 
+    @Test
+    void storedFactPathReceiptCannotFallbackAcrossRevisionOrToAnOlderUntamperedRun() throws Exception {
+        var fixtures = new CatalogPublicationLookupFixtures(mapper); var node = fixtures.child(fixtures.root(Instant.now()));
+        var saved = writer.save(node.request(), null).proposal();
+        var missing = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null);
+        assertEquals(CatalogPublicationFactPathVerifier.Status.MISSING, missing.storedFactPaths().status());
+        assertTrue(missing.blockers().contains(FACT_PATH_RECEIPT_MISSING));
+        var first = regressionWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        var last = regressionWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        var body = (tools.jackson.databind.node.ObjectNode) last.report();
+        ((tools.jackson.databind.node.ArrayNode) body.get("cases")).remove(0);
+        try {
+            replace(last, mapper.writeValueAsString(body), CatalogDraftCanonicalizer.sha256(body), "catalog_fact_path_reports", "catalog_fact_path_report_events");
+            var invalid = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null);
+            assertEquals(CatalogPublicationFactPathVerifier.Status.REPLAY_MISMATCH, invalid.storedFactPaths().status());
+            assertTrue(invalid.blockers().contains(FACT_PATH_REPLAY_MISMATCH)); assertNull(invalid.storedFactPaths().reportId());
+            assertEquals(0, invalid.storedFactPaths().checkedCases()); assertFalse(invalid.publicationReady());
+            assertEquals(last.reportId(), regressions.latest(saved.proposalId(), saved.version()).id());
+            assertEquals(first, regressions.get(saved.proposalId(), saved.version(), first.reportId()));
+        } finally { replace(last, mapper.writeValueAsString(last.report()), last.reportSha256(), "catalog_fact_path_reports", "catalog_fact_path_report_events"); }
+        var original = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null);
+        assertTrue(original.storedFactPaths().storedIntegrityValidated());
+        var request = node.request();
+        var next = writer.save(new CatalogChangePreviewRequest(1, request.proposalId(), request.rationale() + " new revision",
+                request.expectedBaseSha256(), request.base(), request.candidate()), saved.version()).proposal();
+        var head = preflight.proposal(next.proposalId(), next.version(), next.proposalSha256(), null);
+        assertEquals(CatalogPublicationFactPathVerifier.Status.MISSING, head.storedFactPaths().status());
+        assertTrue(head.blockers().contains(FACT_PATH_RECEIPT_MISSING));
+        assertEquals(original.storedFactPaths(), preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null).storedFactPaths());
+        registryStillEmpty();
+    }
+
     private void replace(CatalogImpactReport report, String body, String digest) throws Exception {
+        replace(report, body, digest, "catalog_impact_reports", "catalog_impact_report_events");
+    }
+
+    private void replace(CatalogImpactReport report, String body, String digest, String table, String eventTable) throws Exception {
         // Disposable test DB admin only. Restore a fully consistent tuple; never alter runtime grants or real data.
         try (var admin = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
             admin.setAutoCommit(false);
             try (var configuration = admin.createStatement()) { configuration.execute("SET LOCAL session_replication_role = replica"); }
-            try (var update = admin.prepareStatement("UPDATE core.catalog_impact_reports SET report = ?::jsonb, report_sha256 = ? WHERE id = ?")) {
+            try (var update = admin.prepareStatement("UPDATE core." + table + " SET report = ?::jsonb, report_sha256 = ? WHERE id = ?")) {
                 update.setString(1, body); update.setString(2, digest); update.setObject(3, report.reportId()); update.executeUpdate();
             }
-            try (var audit = admin.prepareStatement("UPDATE audit.catalog_impact_report_events SET report_sha256 = ? WHERE report_id = ?")) {
+            try (var audit = admin.prepareStatement("UPDATE audit." + eventTable + " SET report_sha256 = ? WHERE report_id = ?")) {
                 audit.setString(1, digest); audit.setObject(2, report.reportId()); audit.executeUpdate();
             }
             admin.commit();

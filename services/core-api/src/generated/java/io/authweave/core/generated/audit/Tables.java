@@ -6,6 +6,7 @@ package io.authweave.core.generated.audit;
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
 import io.authweave.core.generated.audit.tables.CatalogBootstrapReviewEvents;
+import io.authweave.core.generated.audit.tables.CatalogFactPathReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
@@ -39,6 +40,12 @@ public class Tables {
      * authenticate an OIDC principal.
      */
     public static final CatalogBootstrapReviewEvents CATALOG_BOOTSTRAP_REVIEW_EVENTS = CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS;
+
+    /**
+     * Mandatory body-free local service receipt. No
+     * human/OIDC/source-authenticity assertion.
+     */
+    public static final CatalogFactPathReportEvents CATALOG_FACT_PATH_REPORT_EVENTS = CatalogFactPathReportEvents.CATALOG_FACT_PATH_REPORT_EVENTS;
 
     /**
      * Atomic curator assertion audit. No source content or credentials;

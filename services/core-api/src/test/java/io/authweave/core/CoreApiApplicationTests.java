@@ -42,6 +42,10 @@ class CoreApiApplicationTests extends PostgresIntegrationTest {
 	void contextLoads() {
 		assertTrue(context.getBeansOfType(SyntheticAssessmentSeeder.class).isEmpty(),
 				"Normal application startup must not activate development seeding");
+		assertTrue(context.getBeansOfType(io.authweave.core.catalog.impact.LocalCatalogFactPathReportWriter.class).isEmpty(),
+				"Normal startup must not enable local regression writes");
+		assertTrue(context.getBeansOfType(io.authweave.core.catalog.impact.LocalCatalogFactPathReportCommand.class).isEmpty(),
+				"Normal startup must not enable the explicit local regression command");
 	}
 
 	@Test

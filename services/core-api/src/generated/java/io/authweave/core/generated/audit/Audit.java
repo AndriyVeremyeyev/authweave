@@ -6,6 +6,7 @@ package io.authweave.core.generated.audit;
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
 import io.authweave.core.generated.audit.tables.CatalogBootstrapReviewEvents;
+import io.authweave.core.generated.audit.tables.CatalogFactPathReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
@@ -56,6 +57,12 @@ public class Audit extends SchemaImpl {
     public final CatalogBootstrapReviewEvents CATALOG_BOOTSTRAP_REVIEW_EVENTS = CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS;
 
     /**
+     * Mandatory body-free local service receipt. No
+     * human/OIDC/source-authenticity assertion.
+     */
+    public final CatalogFactPathReportEvents CATALOG_FACT_PATH_REPORT_EVENTS = CatalogFactPathReportEvents.CATALOG_FACT_PATH_REPORT_EVENTS;
+
+    /**
      * Atomic curator assertion audit. No source content or credentials;
      * database constraints do not verify an OIDC login.
      */
@@ -103,6 +110,7 @@ public class Audit extends SchemaImpl {
         return Arrays.asList(
             AssessmentEvents.ASSESSMENT_EVENTS,
             CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS,
+            CatalogFactPathReportEvents.CATALOG_FACT_PATH_REPORT_EVENTS,
             CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS,
             CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS,
             CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS,

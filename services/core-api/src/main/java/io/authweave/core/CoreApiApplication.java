@@ -12,6 +12,25 @@ import io.authweave.core.assessment.seed.SyntheticAssessmentSeeder;
 public class CoreApiApplication {
 
     public static void main(String[] args) {
+        if (Arrays.asList(args).contains("--store-catalog-regression")) {
+            SpringApplication application = new SpringApplication(CoreApiApplication.class);
+            application.setWebApplicationType(WebApplicationType.NONE);
+            application.setAdditionalProfiles("local-catalog-regression-write");
+            int exitCode = 0;
+            try (var context = application.run(args)) {
+                var result = context.getBean(io.authweave.core.catalog.impact.LocalCatalogFactPathReportCommand.class).store(System.getenv());
+                var report = result.report();
+                System.out.printf("%s regression=%s proposal=%s version=%d status=%s approval=false activation=false%n",
+                        result.changed() ? "SAVED" : "UNCHANGED", report.reportId(), report.proposalId(), report.proposalVersion(), report.report().get("status").asText());
+            } catch (io.authweave.core.catalog.impact.CatalogFactPathReportException failure) {
+                System.err.println("Catalog regression command rejected: " + failure.reason()); exitCode = 2;
+            } catch (IllegalArgumentException failure) {
+                System.err.println("Invalid catalog regression command: " + failure.getMessage()); exitCode = 2;
+            } catch (RuntimeException failure) {
+                System.err.println("Catalog regression command failed (" + failure.getClass().getSimpleName() + "). No success is claimed."); exitCode = 1;
+            }
+            System.exit(exitCode); return;
+        }
         if (Arrays.asList(args).contains("--store-catalog-impact")) {
             SpringApplication application = new SpringApplication(CoreApiApplication.class);
             application.setWebApplicationType(WebApplicationType.NONE);

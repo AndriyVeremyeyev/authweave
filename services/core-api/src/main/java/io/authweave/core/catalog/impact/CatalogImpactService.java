@@ -37,6 +37,13 @@ public final class CatalogImpactService {
                 CatalogFactPathRegressionCases.VERSION, CatalogFactPathRegressionCases.SHA256, CatalogFactPathRegressionCases.PROBES);
     }
 
+    /** Exact stored revision binding for durable reports and their historical replay. */
+    public CatalogImpactPreview analyzeFactPathsAt(CatalogChangePreviewRequest request, long version, String digest, Instant at) {
+        CatalogImpactReportRepository.version(version); java.util.Objects.requireNonNull(digest);
+        return analyze(request, version, digest, previews.previewAt(request, at), "CATALOG_FACT_PATH_REGRESSION_IMPACT", FACT_PATH_POLICY_VERSION,
+                CatalogFactPathRegressionCases.VERSION, CatalogFactPathRegressionCases.SHA256, CatalogFactPathRegressionCases.PROBES);
+    }
+
     private CatalogImpactPreview analyze(CatalogChangePreviewRequest request, Long storedVersion, String storedDigest,
             CatalogChangePreview preview, String scope, String policyVersion, String caseSetVersion, String caseSetSha256,
             List<CatalogImpactCases.Probe> probes) {

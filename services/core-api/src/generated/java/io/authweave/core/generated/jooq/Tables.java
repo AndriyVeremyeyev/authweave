@@ -7,6 +7,7 @@ package io.authweave.core.generated.jooq;
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapReviews;
+import io.authweave.core.generated.jooq.tables.CatalogFactPathReports;
 import io.authweave.core.generated.jooq.tables.CatalogFactReviews;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions;
@@ -50,6 +51,12 @@ public class Tables {
      * curator approval or catalog publication.
      */
     public static final CatalogBootstrapReviews CATALOG_BOOTSTRAP_REVIEWS = CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS;
+
+    /**
+     * Exact-revision immutable conditional regressions of draft v1 fact
+     * addresses. Not full-profile evaluation, approval or publication.
+     */
+    public static final CatalogFactPathReports CATALOG_FACT_PATH_REPORTS = CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS;
 
     /**
      * Append-only human source verdict for a revision-bound candidate fact. Not

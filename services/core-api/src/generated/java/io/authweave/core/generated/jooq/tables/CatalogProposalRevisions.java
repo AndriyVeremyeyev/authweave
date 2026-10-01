@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq.tables;
 
 import io.authweave.core.generated.jooq.Core;
 import io.authweave.core.generated.jooq.Keys;
+import io.authweave.core.generated.jooq.tables.CatalogFactPathReports.CatalogFactPathReportsPath;
 import io.authweave.core.generated.jooq.tables.CatalogFactReviews.CatalogFactReviewsPath;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports.CatalogImpactReportsPath;
 import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions.CatalogProposalDecisionsPath;
@@ -218,6 +219,19 @@ public class CatalogProposalRevisions extends TableImpl<CatalogProposalRevisions
             _catalogProposals = new CatalogProposalsPath(this, Keys.CATALOG_PROPOSAL_REVISIONS__CATALOG_PROPOSAL_REVISIONS_PROPOSAL_ID_FKEY, null);
 
         return _catalogProposals;
+    }
+
+    private transient CatalogFactPathReportsPath _catalogFactPathReports;
+
+    /**
+     * Get the implicit to-many join path to the
+     * <code>core.catalog_fact_path_reports</code> table
+     */
+    public CatalogFactPathReportsPath catalogFactPathReports() {
+        if (_catalogFactPathReports == null)
+            _catalogFactPathReports = new CatalogFactPathReportsPath(this, null, Keys.CATALOG_FACT_PATH_REPORTS__CATALOG_FACT_PATH_REVISION_FK.getInverseKey());
+
+        return _catalogFactPathReports;
     }
 
     private transient CatalogFactReviewsPath _catalogFactReviews;

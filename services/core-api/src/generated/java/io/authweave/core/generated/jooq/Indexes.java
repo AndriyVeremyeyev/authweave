@@ -5,6 +5,7 @@ package io.authweave.core.generated.jooq;
 
 
 import io.authweave.core.generated.jooq.tables.Assessments;
+import io.authweave.core.generated.jooq.tables.CatalogFactPathReports;
 import io.authweave.core.generated.jooq.tables.CatalogFactReviews;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 
@@ -35,6 +36,7 @@ public class Indexes {
 
     public static final Index ASSESSMENTS_WORKSPACE_CREATED_ID_IDX = Internal.createIndex(DSL.name("assessments_workspace_created_id_idx"), Assessments.ASSESSMENTS, new OrderField[] { Assessments.ASSESSMENTS.WORKSPACE_ID, Assessments.ASSESSMENTS.CREATED_AT.desc(), Assessments.ASSESSMENTS.ID.desc() }, false);
     public static final Index ASSESSMENTS_WORKSPACE_UPDATED_IDX = Internal.createIndex(DSL.name("assessments_workspace_updated_idx"), Assessments.ASSESSMENTS, new OrderField[] { Assessments.ASSESSMENTS.WORKSPACE_ID, Assessments.ASSESSMENTS.UPDATED_AT.desc() }, false);
+    public static final Index CATALOG_FACT_PATH_REVISION_LATEST_IDX = Internal.createIndex(DSL.name("catalog_fact_path_revision_latest_idx"), CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS, new OrderField[] { CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS.PROPOSAL_ID, CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS.PROPOSAL_VERSION, CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS.REPORT_NUMBER.desc() }, false);
     public static final Index CATALOG_FACT_REVIEW_HISTORY_IDX = Internal.createIndex(DSL.name("catalog_fact_review_history_idx"), CatalogFactReviews.CATALOG_FACT_REVIEWS, new OrderField[] { CatalogFactReviews.CATALOG_FACT_REVIEWS.PROPOSAL_ID, CatalogFactReviews.CATALOG_FACT_REVIEWS.PROPOSAL_VERSION, CatalogFactReviews.CATALOG_FACT_REVIEWS.OPTION_ID, CatalogFactReviews.CATALOG_FACT_REVIEWS.FACT_PATH, CatalogFactReviews.CATALOG_FACT_REVIEWS.REVIEW_NUMBER.desc() }, false);
     public static final Index CATALOG_IMPACT_REVISION_PAGE_IDX = Internal.createIndex(DSL.name("catalog_impact_revision_page_idx"), CatalogImpactReports.CATALOG_IMPACT_REPORTS, new OrderField[] { CatalogImpactReports.CATALOG_IMPACT_REPORTS.PROPOSAL_ID, CatalogImpactReports.CATALOG_IMPACT_REPORTS.PROPOSAL_VERSION, CatalogImpactReports.CATALOG_IMPACT_REPORTS.REPORT_NUMBER }, false);
 }
