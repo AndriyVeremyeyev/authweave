@@ -154,8 +154,11 @@ class CatalogPublicationPreflightIntegrationTests {
         assertFalse(result.blockers().contains(FACT_PATH_RECEIPT_MISSING));
         assertTrue(result.blockers().contains(IMPACT_COVERAGE_INCOMPLETE)); assertFalse(result.coverageComplete());
         assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
-        assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(96, result.profileImpactCoverage().dimensions().size());
-        assertEquals(44, result.profileImpactCoverage().unexercisedFactPaths().size());
+        assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(128, result.profileImpactCoverage().dimensions().size());
+        assertTrue(result.profileImpactCoverage().unexercisedFactPaths().isEmpty());
+        assertEquals(result.evaluatedAt(), result.scopedProfileImpact().evaluatedAt()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
+        assertEquals(result.profileImpactCoverage().scenarioSetSha256(), result.scopedProfileImpact().scenarioSetSha256());
+        assertEquals(saved.proposalId(), result.scopedProfileImpact().inputId()); assertEquals(saved.proposalSha256(), result.scopedProfileImpact().inputSha256());
         assertFalse(result.blockers().contains(IMPACT_RECEIPT_MISSING)); assertFalse(result.approvalGranted());
         assertEquals(count, dsl.fetchCount(CATALOG_IMPACT_REPORTS)); assertEquals(report, impacts.get(saved.proposalId(), saved.version(), report.reportId()));
         registryStillEmpty();
@@ -291,7 +294,9 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(bootstrapReportCount, dsl.fetchCount(io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS));
         assertEquals(CatalogPublicationBootstrapImpactVerifier.Status.MISSING, result.storedBootstrapImpact().status());
         assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
-        assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(6, result.profileImpactCoverage().additionalGaps().size());
+        assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(8, result.profileImpactCoverage().additionalGaps().size());
+        assertEquals(result.evaluatedAt(), result.scopedProfileImpact().evaluatedAt()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
+        assertEquals(request.reviewId(), result.scopedProfileImpact().inputId()); assertEquals(receipt.reviewSha256(), result.scopedProfileImpact().inputSha256());
         var json = mapper.writeValueAsString(check); assertFalse(json.contains("sourceUrl")); assertFalse(json.contains("profile")); assertFalse(json.contains(actor.subject()));
     }
 

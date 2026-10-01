@@ -50,6 +50,21 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("additional scoped regression profiles independently validate against profile v5 without replacing frozen v1", async () => {
+  const resourceRoot = path.resolve(contractsRoot, "../../services/core-api/src/main/resources/catalog");
+  const scoped = await readJson(path.join(resourceRoot, "scoped-impact-scenarios.v1.json"));
+  const frozen = await readJson(path.join(resourceRoot, "impact-scenarios.v1.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/application-identity-profile.v5.schema.json");
+  assert.equal(scoped.length, 4);
+  assert.equal(frozen.length, 3);
+  assert.equal(new Set(scoped.map((item) => item.id)).size, 4);
+  for (const item of scoped) {
+    assert.equal(item.profileSchemaVersion, 5);
+    assert.equal(validate(item.profile), true, validationMessage(validate));
+    assert.equal(frozen.some((old) => old.id === item.id), false);
+  }
+});
+
 test("bootstrap review contracts require a separate explicit assertion and cannot claim approval or disclose actors", async () => {
   const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-bootstrap-review-request.v1.schema.json");
   const validateReceipt = ajv.getSchema("https://authweave.dev/contracts/catalog-bootstrap-review.v1.schema.json");

@@ -1,0 +1,86 @@
+[
+  {
+    "id": "b2b-saas-scoped",
+    "description": "Synthetic required-scope B2B regression profile; not a customer default, certification or configured flow.",
+    "profileSchemaVersion": 5,
+    "profile": {
+      "application": { "type": "B2B_SAAS", "clients": ["BROWSER", "NATIVE_MOBILE", "MACHINE_TO_MACHINE"] },
+      "audience": { "populations": ["EXTERNAL_CUSTOMERS", "PARTNERS"], "tenancy": "MULTI_TENANT_ORGANIZATIONS", "membership": "MULTIPLE_ORGANIZATIONS_PER_USER" },
+      "protocols": { "federation": { "OIDC": "REQUIRED", "SAML": "REQUIRED" }, "oauth2ProtectedApis": "REQUIRED", "socialLogin": "REQUIRED", "enterpriseSingleSignOn": "REQUIRED" },
+      "provisioning": { "scim": "REQUIRED", "justInTimeProvisioning": "REQUIRED", "groupSynchronization": "REQUIRED" },
+      "security": {
+        "multiFactorAuthentication": "REQUIRED", "browserTokenExposureMinimization": "REQUIRED", "auditability": "REQUIRED", "dataResidency": "REQUIRED",
+        "assurance": "BASELINE", "complianceTargets": [], "complianceScopeStatus": "NONE_IDENTIFIED",
+        "dataResidencyDetails": { "allowedCountries": ["DE"], "dataCategories": ["USER_PROFILES", "CREDENTIALS", "AUDIT_LOGS", "BACKUPS"] },
+        "authenticationControls": { "phishingResistance": "REQUIRED", "nonExportableKeys": "REQUIRED", "stepUpAuthentication": "REQUIRED" }
+      },
+      "operations": {
+        "hosting": "MANAGED", "deploymentTarget": "AZURE", "identityExpertise": "LIMITED", "budgetSensitivity": "HIGH",
+        "usagePlanning": { "scopeDescription": "", "assumptions": [], "volumes": {} }
+      }
+    }
+  },
+  {
+    "id": "partner-portal-scoped",
+    "description": "Synthetic partner-portal regression profile with browser and native clients; availability does not establish provisioning lifecycle.",
+    "profileSchemaVersion": 5,
+    "profile": {
+      "application": { "type": "PARTNER_PORTAL", "clients": ["BROWSER", "NATIVE_MOBILE"] },
+      "audience": { "populations": ["PARTNERS"], "tenancy": "MULTI_TENANT_ORGANIZATIONS", "membership": "SINGLE_ORGANIZATION_PER_USER" },
+      "protocols": { "federation": { "OIDC": "REQUIRED", "SAML": "REQUIRED" }, "oauth2ProtectedApis": "REQUIRED", "socialLogin": "FORBIDDEN", "enterpriseSingleSignOn": "REQUIRED" },
+      "provisioning": { "scim": "REQUIRED", "justInTimeProvisioning": "PREFERRED", "groupSynchronization": "REQUIRED" },
+      "security": {
+        "multiFactorAuthentication": "REQUIRED", "browserTokenExposureMinimization": "REQUIRED", "auditability": "REQUIRED", "dataResidency": "REQUIRED",
+        "assurance": "ELEVATED", "complianceTargets": [], "complianceScopeStatus": "NONE_IDENTIFIED",
+        "dataResidencyDetails": { "allowedCountries": ["DE"], "dataCategories": ["USER_PROFILES", "CREDENTIALS", "AUDIT_LOGS", "BACKUPS"] },
+        "authenticationControls": { "phishingResistance": "REQUIRED", "nonExportableKeys": "REQUIRED", "stepUpAuthentication": "REQUIRED" }
+      },
+      "operations": {
+        "hosting": "MANAGED", "deploymentTarget": "AZURE", "identityExpertise": "LIMITED", "budgetSensitivity": "HIGH",
+        "usagePlanning": { "scopeDescription": "", "assumptions": [], "volumes": {} }
+      }
+    }
+  },
+  {
+    "id": "public-sector-scoped",
+    "description": "Synthetic citizen and operator regression scopes; identified compliance targets deliberately remain unproved.",
+    "profileSchemaVersion": 5,
+    "profile": {
+      "application": { "type": "PUBLIC_SECTOR_PORTAL", "clients": ["BROWSER", "NATIVE_MOBILE"] },
+      "audience": { "populations": ["CITIZENS", "INTERNAL_OPERATORS"], "tenancy": "NO_ORGANIZATION_BOUNDARY", "membership": "NOT_APPLICABLE" },
+      "protocols": { "federation": { "OIDC": "REQUIRED", "SAML": "UNKNOWN" }, "oauth2ProtectedApis": "REQUIRED", "socialLogin": "FORBIDDEN", "enterpriseSingleSignOn": "NOT_REQUIRED" },
+      "provisioning": { "scim": "NOT_REQUIRED", "justInTimeProvisioning": "UNKNOWN", "groupSynchronization": "NOT_REQUIRED" },
+      "security": {
+        "multiFactorAuthentication": "REQUIRED", "browserTokenExposureMinimization": "REQUIRED", "auditability": "REQUIRED", "dataResidency": "REQUIRED",
+        "assurance": "HIGH", "complianceTargets": ["GDPR"], "complianceScopeStatus": "TARGETS_IDENTIFIED",
+        "dataResidencyDetails": { "allowedCountries": ["DE"], "dataCategories": ["USER_PROFILES", "CREDENTIALS", "AUDIT_LOGS", "BACKUPS"] },
+        "authenticationControls": { "phishingResistance": "REQUIRED", "nonExportableKeys": "REQUIRED", "stepUpAuthentication": "REQUIRED" }
+      },
+      "operations": {
+        "hosting": "UNKNOWN", "deploymentTarget": "UNDECIDED", "identityExpertise": "UNKNOWN", "budgetSensitivity": "UNKNOWN",
+        "usagePlanning": { "scopeDescription": "", "assumptions": [], "volumes": {} }
+      }
+    }
+  },
+  {
+    "id": "internal-workforce-scoped",
+    "description": "Synthetic employee and contractor regression scopes; human controls are not machine authentication assurance.",
+    "profileSchemaVersion": 5,
+    "profile": {
+      "application": { "type": "INTERNAL_WORKFORCE", "clients": ["BROWSER", "NATIVE_MOBILE", "MACHINE_TO_MACHINE"] },
+      "audience": { "populations": ["EMPLOYEES", "CONTRACTORS"], "tenancy": "SINGLE_ORGANIZATION", "membership": "SINGLE_ORGANIZATION_PER_USER" },
+      "protocols": { "federation": { "OIDC": "REQUIRED", "SAML": "PREFERRED" }, "oauth2ProtectedApis": "REQUIRED", "socialLogin": "FORBIDDEN", "enterpriseSingleSignOn": "REQUIRED" },
+      "provisioning": { "scim": "REQUIRED", "justInTimeProvisioning": "UNKNOWN", "groupSynchronization": "REQUIRED" },
+      "security": {
+        "multiFactorAuthentication": "REQUIRED", "browserTokenExposureMinimization": "PREFERRED", "auditability": "REQUIRED", "dataResidency": "REQUIRED",
+        "assurance": "UNKNOWN", "complianceTargets": [], "complianceScopeStatus": "UNKNOWN",
+        "dataResidencyDetails": { "allowedCountries": ["DE"], "dataCategories": ["USER_PROFILES", "CREDENTIALS", "AUDIT_LOGS", "BACKUPS"] },
+        "authenticationControls": { "phishingResistance": "REQUIRED", "nonExportableKeys": "REQUIRED", "stepUpAuthentication": "REQUIRED" }
+      },
+      "operations": {
+        "hosting": "SELF_HOSTED", "deploymentTarget": "ON_PREMISES", "identityExpertise": "ADVANCED", "budgetSensitivity": "HIGH",
+        "usagePlanning": { "scopeDescription": "", "assumptions": [], "volumes": {} }
+      }
+    }
+  }
+]

@@ -16,7 +16,7 @@ import io.authweave.core.catalog.draft.CatalogDraftCanonicalizer;
 /** Structural regression coverage, not provider support, source truth or permission to publish. */
 @Service
 public final class CatalogProfileImpactCoverageService {
-    public static final String POLICY_VERSION = "catalog-profile-impact-coverage-1";
+    public static final String POLICY_VERSION = "catalog-profile-impact-coverage-2";
     public static final int PROFILE_SCHEMA_VERSION = 5;
     public static final String PROFILE_SCHEMA_SHA256 = "c995122fdd206e90bdf8145ee76e0e85f657933bb4b91dfae39a6ef715e30561";
     public enum Boundary { CATALOG_CLAIM_RULE, REQUIREMENTS_SCOPE, ARCHITECTURE_CONFIGURATION, AUDITABILITY,
@@ -33,8 +33,8 @@ public final class CatalogProfileImpactCoverageService {
             new AdditionalBoundary("provisioning", Boundary.PROVISIONING_LIFECYCLE),
             new AdditionalBoundary("security.authenticationControls", Boundary.CONFIGURED_AUTHENTICATION_FLOW));
     public static final String MANIFEST_SHA256 = CatalogDraftCanonicalizer.sha256(List.of(PROFILE_SCHEMA_VERSION, PROFILE_SCHEMA_SHA256, DIMENSIONS, ADDITIONAL_BOUNDARIES));
-    private final CatalogScenarioCases cases;
-    public CatalogProfileImpactCoverageService(CatalogScenarioCases cases) { this.cases = cases; }
+    private final CatalogScopedProfileCases cases;
+    public CatalogProfileImpactCoverageService(CatalogScopedProfileCases cases) { this.cases = cases; }
 
     public record DimensionCheck(String scenarioId, String profilePath, Boundary boundary, State state,
             int ruleCount, int activeFactRuleCount, List<String> factPaths) {
@@ -68,12 +68,12 @@ public final class CatalogProfileImpactCoverageService {
             if (status == Status.NOT_CHECKED ? evaluatedAt != null || scenarioSetSha256 != null || !dimensions.isEmpty()
                     || !additionalGaps.isEmpty() || !unexercisedFactPaths.isEmpty()
                     : evaluatedAt == null || scenarioSetSha256 == null || !scenarioSetSha256.matches("[a-f0-9]{64}")
-                        || dimensions.size() != 3 * DIMENSIONS.size() || additionalGaps.size() > 3 * ADDITIONAL_BOUNDARIES.size()
+                        || dimensions.size() != CatalogScopedProfileCases.COUNT * DIMENSIONS.size() || additionalGaps.size() > CatalogScopedProfileCases.COUNT * ADDITIONAL_BOUNDARIES.size()
                         || new HashSet<>(dimensions.stream().map(d -> d.scenarioId() + "|" + d.profilePath()).toList()).size() != dimensions.size()
                         || new HashSet<>(additionalGaps).size() != additionalGaps.size()
                         || new HashSet<>(unexercisedFactPaths).size() != unexercisedFactPaths.size()
                         || unexercisedFactPaths.size() > CatalogFactPathRegressionCases.FACT_PATH_COUNT
-                        || dimensions.stream().map(DimensionCheck::scenarioId).distinct().count() != 3
+                        || dimensions.stream().map(DimensionCheck::scenarioId).distinct().count() != CatalogScopedProfileCases.COUNT
                         || dimensions.stream().anyMatch(d -> boundDimensions.stream().filter(c -> c.scenarioId().equals(d.scenarioId())).count() != DIMENSIONS.size())
                         || !new HashSet<>(additionalGaps).equals(dimensions.stream().map(DimensionCheck::scenarioId).distinct()
                             .flatMap(id -> ADDITIONAL_BOUNDARIES.stream().map(b -> new BoundaryGap(id, b.profilePath(), b.boundary())))
@@ -86,12 +86,13 @@ public final class CatalogProfileImpactCoverageService {
         }
         public static Check notChecked() { return new Check(Status.NOT_CHECKED, null, null, List.of(), List.of(), List.of()); }
         @JsonProperty public String scope() { return "CATALOG_PROFILE_IMPACT_COVERAGE"; }
-        @JsonProperty public String analysisBasis() { return "STRUCTURAL_COVERAGE_OF_FROZEN_SCENARIOS"; }
+        @JsonProperty public String analysisBasis() { return "STRUCTURAL_COVERAGE_OF_SCOPED_REGRESSION_SCENARIOS"; }
         @JsonProperty public String policyVersion() { return POLICY_VERSION; }
         @JsonProperty public int profileSchemaVersion() { return PROFILE_SCHEMA_VERSION; }
         @JsonProperty public String profileSchemaSha256() { return PROFILE_SCHEMA_SHA256; }
         @JsonProperty public String manifestSha256() { return MANIFEST_SHA256; }
-        @JsonProperty public String scenarioSetVersion() { return CatalogScenarioCases.VERSION; }
+        @JsonProperty public String scenarioSetVersion() { return CatalogScopedProfileCases.VERSION; }
+        @JsonProperty public int declaredScenarios() { return CatalogScopedProfileCases.COUNT; }
         @JsonProperty public String ruleVersion() { return io.authweave.core.evaluation.ClaimRules.VERSION; }
         @JsonProperty public String profilePolicyVersion() { return io.authweave.core.evaluation.EligibilityEvaluator.COMPLIANCE_SCOPE_POLICY_VERSION; }
         @JsonProperty public String factPathSetVersion() { return CatalogFactPathRegressionCases.VERSION; }
@@ -118,7 +119,8 @@ public final class CatalogProfileImpactCoverageService {
         Objects.requireNonNull(at);
         var knownPaths = new TreeSet<String>(); DIMENSIONS.forEach(d -> knownPaths.add(d.profilePath()));
         var factPaths = new TreeSet<String>(); CatalogFactPathRegressionCases.PROBES.forEach(p -> factPaths.add(p.factPath()));
-        if (definitions.size() != 3 || plans.size() != 3 || definitions.stream().map(CatalogScenarioCases.Definition::id).distinct().count() != 3
+        if (definitions.size() != CatalogScopedProfileCases.COUNT || plans.size() != CatalogScopedProfileCases.COUNT
+                || definitions.stream().map(CatalogScenarioCases.Definition::id).distinct().count() != CatalogScopedProfileCases.COUNT
                 || !CatalogDraftCanonicalizer.sha256(definitions).equals(digest)) throw new IllegalStateException("Review the frozen scenario coverage binding");
         var checks = new ArrayList<DimensionCheck>(); var gaps = new ArrayList<BoundaryGap>(); var exercised = new TreeSet<String>();
         for (int i = 0; i < definitions.size(); i++) {

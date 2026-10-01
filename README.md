@@ -1134,7 +1134,8 @@ write, catalog activation or existing HTTP/history format is changed.
 
 ### Profile impact coverage policy
 
-Internal preflight policy v7 adds a separate, fresh `profileImpactCoverage` check.
+Internal preflight policy v8 combines a fresh `profileImpactCoverage` policy v2 with
+a separate `scopedProfileImpact` conditional regression.
 Passing a receipt replay or checking every catalog address does not establish that
 the frozen profiles exercise every decision-critical requirement. The versioned
 coverage manifest maps **all 32 semantic inputs of profile v5** to their rule and
@@ -1144,8 +1145,13 @@ schema-path and canonical-schema fingerprint tests require review when fields,
 types, vocabulary or scope change. Unknown profile paths, duplicate rules or facts
 borrowed from another requirement fail closed, rather than silently widening coverage.
 
-The check emits one body-free row per input and frozen scenario: 96 rows for the
-three existing profiles. `CONDITIONAL_RULE_PRESENT` means that scenario exercises an
+The structural check emits one body-free row per input in four additional, versioned
+scoped profiles: 128 rows. These synthetic B2B, partner-portal, public-sector and
+workforce regression inputs explicitly exercise browser/native human controls,
+population scope, machine-client compatibility and four residency categories.
+They are not customer defaults or configured authentication flows. The original
+three frozen profiles, their digests and all historical receipts remain unchanged.
+`CONDITIONAL_RULE_PRESENT` means that scenario exercises an
 evidence-dependent rule, not that the provider meets it. `SCOPE_GUARD_ONLY` means the
 rule handles an unknown/not-applied scope or criticality without exercising a fact
 dependency; it is not evidence of support. `DEFERRED_DIMENSION` identifies an input
@@ -1156,12 +1162,30 @@ The current suite has 11 deferred inputs per scenario: browser token architectur
 configuration, auditability, full assurance, compliance evidence and operational/cost
 planning. Additional gaps explicitly distinguish **provisioning lifecycle** and
 **configured human authentication flows** from feature/enforceability availability.
-The 44 `unexercisedFactPaths` are addresses not actively consumed by these three frozen
-profiles, not omissions from the separate 68-path required-rule probe suite. Empty gaps,
+The new scoped suite actively consumes all 68 declared fact addresses across its
+profiles, leaving no `unexercisedFactPaths`. The earlier three frozen profiles still
+leave 44 such addresses unconsumed; old receipts are not upgraded or reinterpreted.
+Four profiles leave 44 deferred-input rows and eight additional behavior gaps.
+Empty fact-address gaps,
 positive conditional outcomes, owner labels, recorded usage values or a successful
 historical replay cannot erase the other coverage boundaries.
 
-The policy uses source-controlled profiles and plans, not caller-supplied definitions
+The fresh conditional regression uses the same production rule kernel as the
+historical analysis. Proposals evaluate four profiles for every affected option,
+with real supplied before/after drafts and exact changed/scope dependencies. A disjoint
+100-option base/candidate union is bounded to 800 profile results. Exact bootstrap
+reviews evaluate only their candidate, up to 400 results; no baseline or before/after
+history is invented. Missing facts cannot borrow another client, population, option or
+region label. Conditional outcomes and source freshness remain separate; observations,
+conditions and provenance are bound but never interpreted as proof or instructions.
+
+The body-free `scopedProfileImpact` summary binds its input UUID/hash, candidate hash,
+scenario digest, analysis hash and preflight time. `allScopedScenariosChecked` means
+performed checks, not successful requirements, full coverage or stored-report replay.
+Invalid comparisons/candidates withhold results; no-op comparisons cannot claim that
+any profiles were checked. This additional fresh calculation creates no durable receipt.
+
+The policies use source-controlled profiles and plans, not caller-supplied definitions
 or completeness flags. It contains no profile values, source bodies or actor identities.
 Parsed exact-proposal and validated exact-bootstrap-review preflights compute it at
 their own preflight time; raw drafts and unavailable/invalid exact inputs leave it
@@ -1169,8 +1193,9 @@ their own preflight time; raw drafts and unavailable/invalid exact inputs leave 
 version or receipt format is changed, no missing receipt is manufactured and no write
 or catalog activation occurs. The current manifest returns `INCOMPLETE`; the mandatory
 coverage, fresh-authorization and publication-workflow gates remain closed. This is
-the explicit coverage-policy prerequisite, not completion of deferred evaluators or
-permission to publish. The next slice must address the identified regression gaps.
+the coverage-policy and active scoped-regression prerequisites, not completion of
+deferred evaluators or permission to publish. Remaining architecture/configuration,
+auditability, assurance/compliance, operations/cost and lifecycle gaps remain explicit.
 
 Both modes always return `BLOCKED`. Curator authorization **at the eventual write** and
 a verified publication workflow remain mandatory blockers; baseline/source verification,
