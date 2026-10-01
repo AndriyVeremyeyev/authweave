@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/published-provider-catalog-snapshot.v1.schema.json",
+  "title": "Reserved published provider catalog snapshot format v1",
+  "description": "Immutable publication manifest format, not an active catalog or publication API. Declared REVIEWED statuses and publication metadata remain unauthenticated until resolved against authoritative Core storage. JSON Schema checks shape only; Core format inspection checks canonical hashes, complete fact targeting and semantic consistency. Neither grants trust, approval or publication. Content and manifest digests are different from the existing proposal v1 base-draft digest.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "snapshotId", "canonicalizationVersion", "catalog", "contentSha256", "snapshotSha256", "previousSnapshot", "publication", "factEvidenceStatuses"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "PUBLISHED_PROVIDER_CATALOG_SNAPSHOT" },
+    "snapshotId": { "type": "string", "format": "uuid" },
+    "canonicalizationVersion": { "const": "catalog-draft-canonical-json-1" },
+    "catalog": {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "catalogVersion", "options"],
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "catalogVersion": { "$ref": "provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+        "options": {
+          "type": "array", "minItems": 1, "maxItems": 100,
+          "items": { "$ref": "provider-catalog-draft.v1.schema.json#/$defs/option" }
+        }
+      }
+    },
+    "contentSha256": { "$ref": "catalog-baseline-reference.v1.schema.json#/properties/snapshotSha256" },
+    "snapshotSha256": { "$ref": "catalog-baseline-reference.v1.schema.json#/properties/snapshotSha256" },
+    "previousSnapshot": {
+      "description": "Null declares an initial publication, not a trusted bootstrap. Non-null identifies the previous manifest; identity/label cannot be reused. Parent authenticity and lineage require future Core storage.",
+      "anyOf": [{ "type": "null" }, { "$ref": "catalog-baseline-reference.v1.schema.json" }]
+    },
+    "publication": {
+      "type": "object", "additionalProperties": false, "required": ["decisionId", "publishedAt"],
+      "properties": {
+        "decisionId": { "type": "string", "format": "uuid" },
+        "publishedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "factEvidenceStatuses": {
+      "description": "Exactly one declared status per recorded catalog fact, no omitted or foreign targets. This sidecar is bound by the manifest hash; it is not the existing manual observation ledger and never promotes a draft by parsing alone.",
+      "type": "array", "minItems": 1, "maxItems": 6800,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["optionId", "factPath", "evidenceStatus"],
+        "properties": {
+          "optionId": { "$ref": "catalog-fact-review-request.v1.schema.json#/properties/optionId" },
+          "factPath": { "$ref": "catalog-fact-review-request.v1.schema.json#/properties/factPath" },
+          "evidenceStatus": { "const": "REVIEWED" }
+        }
+      }
+    }
+  }
+}

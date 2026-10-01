@@ -86,6 +86,35 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         Files.writeString(SAMPLES, mapper.writeValueAsString(samples));
     }
 
+    @Test
+    void reservedPublishedSnapshotUsesTheActualStrictCoreMapperWithoutBecomingAnActiveCatalog() throws Exception {
+        var type = io.authweave.core.catalog.publication.PublishedCatalogSnapshot.class;
+        var fixture = (ObjectNode) mapper.readTree(Path.of(System.getProperty("basedir", "."),
+                "../../packages/contracts/tests/fixtures/published-provider-catalog-snapshot.format-valid.json").toFile());
+        var snapshot = mapper.treeToValue(fixture, type);
+        var inspection = applicationContext.getBean(io.authweave.core.catalog.publication.CatalogSnapshotInspector.class).inspect(snapshot);
+        assertEquals(io.authweave.core.catalog.publication.CatalogSnapshotInspector.Status.VALID_SNAPSHOT_FORMAT, inspection.status());
+        assertFalse(inspection.baselineVerified()); assertFalse(inspection.approvalGranted());
+        for (String field : List.of("schemaVersion", "kind", "snapshotId", "canonicalizationVersion", "catalog", "contentSha256",
+                "snapshotSha256", "previousSnapshot", "publication", "factEvidenceStatuses")) {
+            var missing = fixture.deepCopy(); missing.remove(field);
+            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(missing, type), field);
+        }
+        for (String field : List.of("schemaVersion", "kind")) {
+            var malformed = fixture.deepCopy();
+            if (field.equals("schemaVersion")) malformed.put(field, "1"); else malformed.put(field, 0);
+            org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(malformed, type));
+        }
+        var declared = fixture.deepCopy(); ((ObjectNode) declared.at("/factEvidenceStatuses/0")).put("evidenceStatus", 0);
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(declared, type));
+        var authority = fixture.deepCopy(); authority.put("approvalGranted", true);
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(authority, type));
+        var privateActor = fixture.deepCopy(); ((ObjectNode) privateActor.get("publication")).put("actorSubject", "private");
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(privateActor, type));
+        var promotedDraft = fixture.deepCopy(); ((ObjectNode) promotedDraft.at("/catalog/options/0/facts/SCIM")).put("evidenceStatus", "REVIEWED");
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(promotedDraft, type));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
             "unknown-root", "unknown-section", "unknown-field", "fractional-version",

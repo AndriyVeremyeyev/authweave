@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -853,6 +854,80 @@ test("provider catalog drafts require scoped provenance but cannot claim review 
   maximum.options = Array.from({ length: 100 }, (_, i) => ({ ...structuredClone(fixture.options[0]), id: `example-${i}`, configuration: `Configuration ${i}` }));
   assert.equal(validate(maximum), true, validationMessage(validate));
   maximum.options.push(structuredClone(fixture.options[0])); assert.equal(validate(maximum), false);
+});
+
+test("reserved published snapshot format is distinct from draft and synthetic catalogs and requires explicit metadata", async () => {
+  const fixture = await readJson(path.join(fixturesRoot, "published-provider-catalog-snapshot.format-valid.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/published-provider-catalog-snapshot.v1.schema.json");
+  assert.equal(validate(fixture), true, validationMessage(validate));
+  for (const schema of ["provider-catalog-draft.v1", ...[1, 2, 3, 4].map(v => `synthetic-provider-catalog.v${v}`)]) {
+    assert.equal(ajv.getSchema(`https://authweave.dev/contracts/${schema}.schema.json`)(fixture), false);
+  }
+  for (const field of Object.keys(fixture)) {
+    const input = structuredClone(fixture); delete input[field]; assert.equal(validate(input), false, field);
+    if (field !== "previousSnapshot") { input[field] = null; assert.equal(validate(input), false, field); }
+  }
+  for (const change of [{ schemaVersion: 2 }, { schemaVersion: "1" }, { kind: "SYNTHETIC" },
+    { canonicalizationVersion: "other" }, { approvalGranted: true }, { curatorSubject: "private" },
+    { contentSha256: "A".repeat(64) }, { snapshotSha256: "a".repeat(63) }, { publication: { approved: true } },
+    { factEvidenceStatuses: [] }, { factEvidenceStatuses: Array(6801).fill(fixture.factEvidenceStatuses[0]) },
+    { factEvidenceStatuses: [{ ...fixture.factEvidenceStatuses[0], evidenceStatus: "UNREVIEWED" }] },
+    { factEvidenceStatuses: [{ ...fixture.factEvidenceStatuses[0], verdict: "SOURCE_SUPPORTS_CLAIM" }] },
+    { catalog: { ...fixture.catalog, kind: "PROVIDER_CATALOG_DRAFT" } }]) {
+    assert.equal(validate({ ...fixture, ...change }), false, JSON.stringify(change).slice(0, 150));
+  }
+  for (const field of ["providerId", "product", "plan", "region", "configuration"]) {
+    const input = structuredClone(fixture); delete input.catalog.options[0][field]; assert.equal(validate(input), false, field);
+  }
+  for (const select of [o => o.facts.SCIM, o => o.compatibility.clients.BROWSER, o => o.residency.USER_PROFILES,
+    o => o.authenticationControls.BROWSER.PARTNERS.PHISHING_RESISTANCE]) {
+    for (const field of ["sourceUrl", "observedAt", "summary"]) {
+      const input = structuredClone(fixture); delete select(input.catalog.options[0]).evidence[field];
+      assert.equal(validate(input), false, field);
+    }
+    const input = structuredClone(fixture); select(input.catalog.options[0]).evidenceStatus = "REVIEWED";
+    assert.equal(validate(input), false, "Declared statuses must not silently mutate draft fact shapes.");
+  }
+});
+
+test("baseline references pin immutable identity and manifest digest, not just a catalog label", async () => {
+  const fixture = await readJson(path.join(fixturesRoot, "published-provider-catalog-snapshot.format-valid.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-baseline-reference.v1.schema.json");
+  const reference = { snapshotId: fixture.snapshotId, catalogVersion: fixture.catalog.catalogVersion,
+    snapshotSha256: fixture.snapshotSha256 };
+  assert.equal(validate(reference), true, validationMessage(validate));
+  for (const field of Object.keys(reference)) {
+    const input = { ...reference }; delete input[field]; assert.equal(validate(input), false, field);
+  }
+  for (const change of [{ snapshotId: "label" }, { snapshotSha256: "bad" }, { catalogVersion: "" },
+    { approved: true }, { signature: "self-declared" }, { publicationDecisionId: fixture.publication.decisionId }]) {
+    assert.equal(validate({ ...reference, ...change }), false);
+  }
+  const snapshot = ajv.getSchema("https://authweave.dev/contracts/published-provider-catalog-snapshot.v1.schema.json");
+  assert.equal(snapshot({ ...fixture, previousSnapshot: reference }), true,
+    "Self-parent and reused version are Core semantic issues, not JSON shape rules or proof of trust.");
+});
+
+test("format-valid snapshot fixture has independent canonical content and manifest hashes, neither a signature", async () => {
+  const fixture = await readJson(path.join(fixturesRoot, "published-provider-catalog-snapshot.format-valid.json"));
+  // Fixture timestamps are already canonical UTC strings; Core's typed inspection normalizes equivalent instants.
+  const ordered = value => Array.isArray(value)
+    ? value.map(ordered).sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0)
+    : value && typeof value === "object"
+      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+  const sha = value => createHash("sha256").update(JSON.stringify(ordered(value))).digest("hex");
+  const { snapshotSha256, ...payload } = fixture;
+  assert.equal(sha(fixture.catalog), fixture.contentSha256); assert.equal(sha(payload), snapshotSha256);
+  const draft = { ...fixture.catalog, kind: "PROVIDER_CATALOG_DRAFT" };
+  assert.notEqual(sha(draft), fixture.contentSha256);
+  const proposal = await readJson(path.join(fixturesRoot, "catalog-change-preview-request.valid.json"));
+  const validateProposal = ajv.getSchema("https://authweave.dev/contracts/catalog-change-preview-request.v1.schema.json");
+  assert.equal(validateProposal({ ...proposal, base: fixture }), false);
+  assert.equal(validateProposal({ ...proposal, baselineReference: { snapshotId: fixture.snapshotId,
+    catalogVersion: fixture.catalog.catalogVersion, snapshotSha256 } }), false);
+  const corrupt = { ...fixture, contentSha256: "0".repeat(64), snapshotSha256: "0".repeat(64) };
+  assert.equal(ajv.getSchema("https://authweave.dev/contracts/published-provider-catalog-snapshot.v1.schema.json")(corrupt), true,
+    "Hash equality, targets, authentic publication and trust require Core checks, not JSON Schema alone.");
 });
 
 test("catalog draft shape and semantic review are deliberately separate", async () => {

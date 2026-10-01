@@ -885,6 +885,39 @@ atomic approval snapshot, an exhaustive checklist or a Core approval policy. No 
 evaluation, date refresh, trust promotion or catalog write is performed. Existing
 curator authorization and write preconditions remain authoritative.
 
+### Reserved published snapshot format
+
+`published-provider-catalog-snapshot.v1.schema.json` defines a separate, reserved
+immutable manifest; it is not an active catalog, publication endpoint or approval
+workflow. Scoped catalog content reuses the four draft fact families, preserving
+claims, conditions and provenance without adding authority to the draft types.
+A separate, declared `REVIEWED` status must address every recorded option/fact once.
+The manifest also includes a snapshot UUID, a claimed publication decision/time and
+an optional previous immutable snapshot reference. An initial null parent is not a
+trusted bootstrap. References pin UUID, catalog label and manifest SHA-256 together;
+a label alone is insufficient.
+
+Core's offline `CatalogSnapshotInspector` checks canonical content/manifest hashes,
+semantic catalog consistency, missing/duplicate/foreign status targets, self-parent
+or reused immediate-parent labels and evidence dates after the declared publication.
+The content hash covers the typed catalog data. The manifest hash excludes only
+itself and binds identity, content/hash, parent, decision/time and declared statuses.
+Both use the existing application-specific unordered-collection canonicalization,
+not a signature or RFC 8785. The existing proposal v1 base-draft hash is a different
+domain, including the draft kind; current proposals and synthetic evaluation remain
+unchanged and cannot accept this snapshot or a new baseline reference.
+
+Format validity and exact supplied-base agreement never set `baselineVerified`,
+source verification, approval, writes or evaluation readiness. An attacker can
+recompute every hash and declare a decision or reviewed evidence; authenticating
+publication and lineage requires future authoritative Core storage and a verified
+publication decision. That lookup is explicitly unavailable, even for a matching
+initial manifest. Historical format inspection does not assert current evidence
+freshness, impact coverage or eligibility. No source, database, publisher or evaluator
+is called by the inspector. The shared `.invalid` fixture is format-valid synthetic
+test data, not a real publication. Storage, trusted baseline resolution, approval,
+active catalog loading and assessment pinning are still unimplemented.
+
 ### Conditional catalog impact
 
 `POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview

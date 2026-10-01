@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-baseline-reference.v1.schema.json",
+  "title": "Immutable catalog baseline reference v1",
+  "description": "Reserved pin to an authoritative Core publication. A caller-supplied reference, matching hash or catalog label cannot establish trust; the future Core publication registry must authenticate identity, manifest and decision. Current proposal v1 remains a draft comparison and does not accept this reference.",
+  "type": "object", "additionalProperties": false,
+  "required": ["snapshotId", "catalogVersion", "snapshotSha256"],
+  "properties": {
+    "snapshotId": { "type": "string", "format": "uuid" },
+    "catalogVersion": { "$ref": "provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+    "snapshotSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
