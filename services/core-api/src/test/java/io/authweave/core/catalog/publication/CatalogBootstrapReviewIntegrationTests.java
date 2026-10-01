@@ -216,6 +216,11 @@ class CatalogBootstrapReviewIntegrationTests {
         var result = preflight.bootstrap(input.reviewId(), created.reviewSha256());
         assertTrue(result.facts().allFactsHaveSupportingObservation()); assertFalse(result.approvalGranted()); assertFalse(result.publicationReady());
         assertFalse(result.blockers().contains(CatalogPublicationPreflight.Blocker.BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE));
+        assertTrue(result.bootstrapImpact().allDeclaredFactPathsChecked()); assertEquals(68, result.bootstrapImpact().checkedFactPaths());
+        assertEquals(59, result.bootstrapImpact().missingFactPaths()); assertEquals(3, result.bootstrapImpact().checkedScenarios());
+        assertEquals(input.reviewId(), result.bootstrapImpact().reviewId()); assertEquals(created.reviewSha256(), result.bootstrapImpact().reviewSha256());
+        assertEquals(result.evaluatedAt(), result.bootstrapImpact().evaluatedAt()); assertFalse(result.bootstrapImpact().storedReportVerified());
+        assertTrue(result.blockers().contains(CatalogPublicationPreflight.Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE));
         var json = (ObjectNode) mapper.valueToTree(input.candidate());
         ((ObjectNode) json.at("/options/0/facts/SCIM/evidence")).put("observedAt", Instant.now().minusSeconds(91 * 86400L).toString());
         var draft = mapper.treeToValue(json, ProviderCatalogDraft.class);
@@ -224,6 +229,7 @@ class CatalogBootstrapReviewIntegrationTests {
         var staleReceipt = service.record(stale, actor()).review(); var blocked = preflight.bootstrap(stale.reviewId(), staleReceipt.reviewSha256());
         assertTrue(blocked.facts().allFactsHaveSupportingObservation()); assertTrue(blocked.blockers().contains(CatalogPublicationPreflight.Blocker.FACT_EVIDENCE_STALE));
         assertFalse(blocked.sourceVerificationPerformed()); assertFalse(blocked.writesPerformed());
+        assertTrue(blocked.bootstrapImpact().allDeclaredFactPathsChecked()); assertFalse(blocked.bootstrapImpact().coverageComplete());
         var stored = repository.find(input.reviewId());
         assertNull(repository.find(input.reviewId(), stored.requestBytes() - 1).request());
         assertNotNull(repository.find(input.reviewId(), stored.requestBytes()).request()); registryEmpty();

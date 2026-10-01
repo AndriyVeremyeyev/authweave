@@ -1047,7 +1047,7 @@ one. `VERIFIED_FACT_PATH_ANALYSIS` only establishes replayed changed-path covera
 Blocked or no-op reports can have valid stored integrity without that coverage.
 
 The 24-probe and three-profile HTTP/history formats remain unchanged. Full-profile
-deferred dimensions and a distinct bootstrap impact workflow still prevent complete
+deferred dimensions and a distinct durable bootstrap impact workflow still prevent complete
 publication coverage. The new local storage grants do not grant publication authority;
 no HTTP endpoint, registry write or catalog activation is added.
 
@@ -1059,6 +1059,27 @@ does not load or reuse a stored bootstrap review. The exact stored-review path d
 below can account for manual observations, but still cannot approve or publish.
 Both bootstrap paths retain `BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE` and never reuse
 proposal impact reports for the initial catalog version.
+
+The exact stored-review path now computes a separate **candidate-only bootstrap impact**
+at the same preflight time. Core loads and validates the review UUID/hash, then checks
+all 68 declared fact paths and all three frozen scenarios for each candidate option,
+including unchanged and absent facts. There is no fabricated empty baseline, proposal
+revision or before/after diff. The bound report identifies the review/candidate hashes,
+rule/case versions, definitions, conditional results and explicit gaps/deferred dimensions.
+At most 100 options produce 6,800 path checks and 300 scenario results. Shared rule
+evaluation preserves option/client/population isolation and does not infer residency
+from a region label or promote supporting manual observations to trusted facts.
+
+The body-free `bootstrapImpact` summary exposes bound identity/hash/time and bounded
+counts, including missing, violating and indeterminate paths. `allDeclaredFactPathsChecked`
+and `allFrozenScenariosChecked` describe checks performed, not successful outcomes,
+complete evidence or full-profile coverage; scenario dependency gaps remain explicit.
+Invalid candidates/digests yield no partial successful counts. Raw drafts, unavailable
+reviews and proposal mode leave this summary `NOT_CHECKED`; storage/kernel failures
+propagate. This is a fresh pure calculation, not a recorded bootstrap impact receipt:
+`storedReportVerified` is false and the workflow/coverage/authorization/publication
+blockers remain. No new migration, grant, HTTP endpoint, write or active-catalog change
+is introduced. Durable bootstrap receipts and their historical replay are the next step.
 
 Both modes always return `BLOCKED`. Curator authorization **at the eventual write** and
 a verified publication workflow remain mandatory blockers; baseline/source verification,

@@ -22,6 +22,8 @@ import io.authweave.core.catalog.proposal.CatalogFactReviewRequest.Verdict;
 import io.authweave.core.evaluation.EvidencePolicy;
 import io.authweave.core.catalog.impact.CatalogImpactService;
 import io.authweave.core.catalog.impact.CatalogFactPathRegressionService;
+import io.authweave.core.catalog.impact.CatalogBootstrapImpactService;
+import io.authweave.core.catalog.impact.CatalogScenarioCases;
 import static io.authweave.core.catalog.publication.CatalogPublicationPreflight.*;
 import static io.authweave.core.catalog.publication.CatalogPublicationLookupFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -41,9 +43,10 @@ class CatalogPublicationPreflightTests {
     private final CatalogBootstrapReviewService bootstrapReviews = mock(CatalogBootstrapReviewService.class);
     private final CatalogPublicationImpactVerifier impacts = mock(CatalogPublicationImpactVerifier.class);
     private final CatalogPublicationFactPathVerifier storedRegressions = mock(CatalogPublicationFactPathVerifier.class);
+    private final CatalogBootstrapImpactService bootstrapImpacts = spy(new CatalogBootstrapImpactService(validator, scenarioCases()));
     private final CatalogPublicationPreflight preflight = new CatalogPublicationPreflight(repository, reviews, publications,
             lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews, impacts,
-            new CatalogFactPathRegressionService(new CatalogImpactService(new CatalogChangePreviewService(validator, clock))), storedRegressions);
+            new CatalogFactPathRegressionService(new CatalogImpactService(new CatalogChangePreviewService(validator, clock))), storedRegressions, bootstrapImpacts);
     private CatalogChangePreviewRequest request;
     private CatalogPublicationPreflightRepository.Proposal row;
     private PublishedCatalogSnapshot.Reference baseline;
@@ -83,6 +86,8 @@ class CatalogPublicationPreflightTests {
         assertTrue(result.factPaths().changedFactPathsCovered()); assertEquals(68, result.factPaths().declaredFactPaths());
         assertEquals(1, result.factPaths().checkedCases()); assertEquals(AT, result.factPaths().evaluatedAt());
         assertFalse(result.factPaths().storedReportVerified()); assertFalse(result.factPaths().coverageComplete());
+        assertEquals(CatalogBootstrapImpactService.CheckStatus.NOT_CHECKED, result.bootstrapImpact().status());
+        verifyNoInteractions(bootstrapImpacts);
     }
 
     @Test
@@ -299,9 +304,10 @@ class CatalogPublicationPreflightTests {
         assertNull(result.proposalId()); assertNull(result.proposalVersion()); assertNull(result.proposalSha256());
         assertTrue(result.blockers().contains(Blocker.BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE));
         assertFalse(result.blockers().contains(Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY)); assertBlocked(result);
+        assertEquals(CatalogBootstrapImpactService.CheckStatus.NOT_CHECKED, result.bootstrapImpact().status());
         when(repository.registryEmpty()).thenReturn(false);
         assertTrue(preflight.bootstrap(request.candidate()).blockers().contains(Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY));
-        verifyNoInteractions(reviews, lookup, publications);
+        verifyNoInteractions(reviews, lookup, publications, bootstrapImpacts);
     }
 
     @Test
@@ -320,6 +326,14 @@ class CatalogPublicationPreflightTests {
         assertFalse(result.blockers().contains(Blocker.BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE));
         assertFalse(result.blockers().contains(Blocker.FACT_OBSERVATIONS_MISSING)); assertBlocked(result);
         assertEquals(CatalogFactPathRegressionService.Status.NOT_CHECKED, result.factPaths().status());
+        assertEquals(CatalogBootstrapImpactService.CheckStatus.ANALYZED, result.bootstrapImpact().status());
+        assertEquals(AT, result.bootstrapImpact().evaluatedAt()); assertEquals(id, result.bootstrapImpact().reviewId());
+        assertEquals(digest, result.bootstrapImpact().reviewSha256()); assertEquals(reviewRequest.expectedCandidateSha256(), result.bootstrapImpact().candidateSha256());
+        assertEquals(68, result.bootstrapImpact().checkedFactPaths()); assertEquals(59, result.bootstrapImpact().missingFactPaths());
+        assertEquals(3, result.bootstrapImpact().checkedScenarios()); assertTrue(result.bootstrapImpact().allDeclaredFactPathsChecked());
+        assertTrue(result.blockers().contains(Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE));
+        assertFalse(result.bootstrapImpact().coverageComplete()); assertFalse(result.bootstrapImpact().storedReportVerified());
+        verifyNoInteractions(impacts, storedRegressions, lookup, reviews, publications);
         when(repository.registryEmpty()).thenReturn(false);
         assertTrue(preflight.bootstrap(id, digest).blockers().contains(Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY));
     }
@@ -330,8 +344,32 @@ class CatalogPublicationPreflightTests {
         when(bootstrapReviews.reviewed(id, digest)).thenThrow(new CatalogBootstrapReviewException(CatalogBootstrapReviewException.Reason.NOT_FOUND));
         var result = preflight.bootstrap(id, digest);
         assertTrue(result.blockers().contains(Blocker.BOOTSTRAP_REVIEW_UNAVAILABLE)); assertEquals(0, result.facts().total()); assertBlocked(result);
+        assertEquals(CatalogBootstrapImpactService.CheckStatus.NOT_CHECKED, result.bootstrapImpact().status());
+        verifyNoInteractions(bootstrapImpacts);
         doThrow(new DataAccessException("Unavailable")).when(bootstrapReviews).reviewed(id, digest);
         assertThrows(DataAccessException.class, () -> preflight.bootstrap(id, digest));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"BLOCKED", "INCOMPLETE"})
+    void unavailableOrIncompleteBootstrapKernelCannotBeHiddenBySupportingManualObservations(String state) {
+        var candidate = request.candidate(); var id = UUID.randomUUID();
+        var observations = validator.validate(candidate).facts().stream().map(f -> new CatalogBootstrapReviewRequest.Observation(
+                f.optionId(), f.path(), Verdict.SOURCE_SUPPORTS_CLAIM)).toList();
+        var input = new CatalogBootstrapReviewRequest(1, id, CatalogDraftCanonicalizer.sha256(candidate), candidate,
+                observations, CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
+        var digest = CatalogDraftCanonicalizer.sha256(input);
+        var receipt = new CatalogBootstrapReview(id, input.expectedCandidateSha256(), digest, candidate.catalogVersion(),
+                9, new CatalogBootstrapReview.Counts(9, 0, 0), AT);
+        when(bootstrapReviews.reviewed(id, digest)).thenReturn(new CatalogBootstrapReviewService.ReviewedCandidate(input, receipt));
+        var check = new CatalogBootstrapImpactService.Check(state.equals("BLOCKED") ? CatalogBootstrapImpactService.CheckStatus.BLOCKED
+                : CatalogBootstrapImpactService.CheckStatus.ANALYZED, AT, id, digest, input.expectedCandidateSha256(), "c".repeat(64),
+                0, 0, 0, 0, 0, 0, 0, 0, 0);
+        doReturn(check).when(bootstrapImpacts).inspectAt(input, AT);
+        var result = preflight.bootstrap(id, digest); assertTrue(result.facts().allFactsHaveSupportingObservation());
+        assertEquals(check, result.bootstrapImpact()); assertTrue(result.blockers().contains(state.equals("BLOCKED")
+                ? Blocker.BOOTSTRAP_IMPACT_ANALYSIS_BLOCKED : Blocker.BOOTSTRAP_IMPACT_ANALYSIS_INCOMPLETE)); assertBlocked(result);
+        doThrow(new IllegalStateException("Kernel unavailable")).when(bootstrapImpacts).inspectAt(input, AT);
+        assertThrows(IllegalStateException.class, () -> preflight.bootstrap(id, digest));
     }
 
     @Test
@@ -355,6 +393,10 @@ class CatalogPublicationPreflightTests {
         verify(repository, never()).proposal(any(), anyLong());
         when(repository.proposal(any(), anyLong())).thenThrow(new DataAccessException("Unavailable"));
         assertThrows(DataAccessException.class, this::run);
+    }
+
+    private CatalogScenarioCases scenarioCases() {
+        try { return new CatalogScenarioCases(mapper); } catch (java.io.IOException failure) { throw new AssertionError(failure); }
     }
 
     private void store(CatalogChangePreviewRequest value) {
