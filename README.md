@@ -1023,8 +1023,9 @@ evaluator unchanged.
 
 Core now supports a separate whole-candidate manual source-review workflow for the
 first catalog version. This is not a proposal revision, curator approval, a published
-root or catalog activation. A BFF form is not implemented yet; do not send the
-server-only Core credential from a browser or expose this local service through a tunnel.
+root or catalog activation. The protected local BFF form at `/catalog/bootstrap` is
+linked from the curator review index. Never send the server-only Core credential from
+a browser or expose the local Core service through a tunnel.
 
 `POST /api/v1/catalog-bootstrap-reviews` requires the existing BFF credential and a
 fresh, singular, project/organization-scoped `catalog_curator` assertion, including on
@@ -1072,6 +1073,38 @@ impact coverage, fresh authorization at an eventual atomic write and the publica
 workflow remain unimplemented blockers. Source verification, approval, fact trust,
 catalog writes and publication/evaluation readiness are not granted. No real curator
 role, source fetch, account, paid call or deployment is created by this slice.
+
+The BFF first imports an explicit complete `provider-catalog-draft.v1` candidate,
+limited to 1 MiB of UTF-8 JSON. `POST /api/catalog-bootstrap-reviews/prepare` checks the
+server-side session and fresh scoped curator authorization before calling the existing
+read-only Core draft validator. Core's typed canonicalization supplies the draft digest;
+the browser does not hash raw JSON or infer a baseline from proposals. Preparation
+does not record a review. The form displays every recorded claim across all four
+families with option scope, conditions, unverified provenance and Core's current date
+assessment. Unknown, partial and availability/enforcement distinctions are preserved.
+Source links open separately without a referrer; neither BFF nor Core fetches sources.
+
+Every fact needs an explicit supporting, contradicting or insufficient-evidence
+conclusion; none is selected by default. A separate whole-review checkbox supplies
+`MANUAL_BOOTSTRAP_SOURCE_REVIEW`. `POST /api/catalog-bootstrap-reviews` enforces exact
+same-origin Origin, a server-side session, fresh scoped authorization, a closed request
+shape and the complete unique target set; Core recomputes hashes and enforces the
+empty-registry/immutable actor-bound retry policy. Browser-supplied actor/approval
+fields are rejected, and Core credentials are sent only by the server. Actual streamed
+request/response bodies are capped at 4 MiB, including chunked requests; malformed
+UTF-8 is rejected. Responses are no-store and do not disclose raw service errors.
+
+Before the first write, the browser freezes the UUID and full candidate/conclusion
+payload in memory. A timeout or uncertain/malformed write response never creates a
+new key, changes conclusions or claims success. Keep that tab open: reload loses the
+in-memory retry payload. Verify the same account in a separate tab if needed, then
+explicitly confirm retrying the exact review. Retries still require fresh authorization.
+After a validated receipt, the stored-receipt link pins UUID and **review** SHA-256,
+not the candidate digest. Both the page and
+`GET /api/catalog-bootstrap-reviews/{reviewId}?expectedSha256=<review-sha256>` require
+fresh scoped authorization and return only checked body-free receipt metadata/counts.
+No latest/label-only lookup, verdict inheritance, approval action or publication button
+is added. Existing impact/publication blockers and the active evaluator are unchanged.
 
 ### Conditional catalog impact
 

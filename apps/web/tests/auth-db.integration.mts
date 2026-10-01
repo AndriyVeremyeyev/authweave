@@ -11,6 +11,9 @@ import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
 import { POST as rejectProposalRoute } from "../src/app/api/catalog-change-proposals/[id]/rejection/route.ts";
 import { POST as factReviewRoute } from "../src/app/api/catalog-change-proposals/[id]/fact-reviews/route.ts";
+import { POST as prepareBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/prepare/route.ts";
+import { POST as recordBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/route.ts";
+import { GET as readBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/[id]/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { authDatabase, beginLogin, beginReauthentication, consumeLogin, createSession,
   revokeSession, touchSession } from
@@ -19,6 +22,97 @@ import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
+
+test("bootstrap routes use real DB sessions, exact curator scope and same-origin writes without publication or source fetch", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN",
+    "AUTHWEAVE_CORE_SERVICE_TOKEN", "AUTHWEAVE_OIDC_PROJECT_ID", "AUTHWEAVE_OIDC_ORG_ID"];
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  const previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-bootstrap-token-000000000000000000",
+    AUTHWEAVE_OIDC_PROJECT_ID: "123456789012345678", AUTHWEAVE_OIDC_ORG_ID: "987654321098765432" });
+  const scope = { projectId: process.env.AUTHWEAVE_OIDC_PROJECT_ID!, organizationId: process.env.AUTHWEAVE_OIDC_ORG_ID! };
+  const identity = { workspaceId: "70000000-0000-4000-8000-000000000001", issuer: "http://localhost:8081",
+    subject: "synthetic-bootstrap-curator", email: null, displayName: null, authenticatedAt: new Date(), curatorScope: scope };
+  const ids: string[] = [];
+  try {
+    const curator = await createSession(identity, undefined); ids.push(curator);
+    const ordinary = await createSession({ ...identity, curatorScope: null }, undefined); ids.push(ordinary);
+    const stale = await createSession({ ...identity, authenticatedAt: new Date(Date.now() - 900001) }, undefined); ids.push(stale);
+    const evidence = { sourceUrl: "https://bootstrap.example.invalid/source", observedAt: "2026-09-01T00:00:00Z", summary: "Fictional test claim only." };
+    const candidate = { schemaVersion: 1, kind: "PROVIDER_CATALOG_DRAFT", catalogVersion: "bootstrap-fixture-1", options: [{
+      id: "example-eu", providerId: "example", product: "Example Identity", plan: "Example Plan", deployment: "MANAGED",
+      region: "EU", configuration: "Example", facts: { SCIM: { availability: "UNKNOWN", conditions: [], evidence } },
+      compatibility: {}, residency: {}, authenticationControls: {},
+    }] };
+    const candidateSha256 = "a".repeat(64), reviewSha256 = "b".repeat(64);
+    const request = (path: string, id: string | null, body?: unknown, origin = "http://localhost:3000") => new NextRequest(
+      `http://localhost:3000${path}`, { method: body === undefined ? "GET" : "POST",
+        headers: { Origin: origin, "Content-Type": "application/json", "X-AuthWeave-Oidc-Subject": "browser-spoof",
+          ...(id ? { Cookie: `${sessionCookieName(false)}=${id}` } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const calls: string[] = [];
+    let stored: Record<string, unknown> | null = null, writeStatus = 201;
+    globalThis.fetch = async (url, init) => {
+      calls.push(String(url));
+      if (String(url).endsWith("/catalog-drafts/validate")) {
+        assert.deepEqual(JSON.parse(String(init?.body)), candidate);
+        return Response.json({ scope: "CATALOG_DRAFT_VALIDATION", policyVersion: "catalog-draft-validation-1",
+          canonicalizationVersion: "catalog-draft-canonical-json-1", catalogVersion: candidate.catalogVersion, catalogSchemaVersion: 1,
+          evaluatedAt: new Date().toISOString(), status: "VALID_DRAFT", contentSha256: candidateSha256, sourceVerificationPerformed: false,
+          approvalGranted: false, writesPerformed: false, evaluationReady: false, optionCount: 1, factCount: 1, issues: [],
+          facts: [{ optionId: "example-eu", path: "facts.SCIM", evidenceStatus: "UNREVIEWED", freshness: "CURRENT", conditions: [], evidence }] });
+      }
+      const headers = init?.headers as Record<string, string>;
+      assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject);
+      assert.equal(headers["X-AuthWeave-Curator-Project-Id"], scope.projectId);
+      assert.equal(headers["X-AuthWeave-Curator-Org-Id"], scope.organizationId);
+      assert.match(headers.Authorization, /^Bearer synthetic-bootstrap-token-/);
+      if (String(url).endsWith("/authorization")) return new Response(null, { status: 204 });
+      assert.ok(String(url).startsWith("http://127.0.0.1:8080/api/v1/catalog-bootstrap-reviews"));
+      if (init?.method === "POST") {
+        const input = JSON.parse(String(init.body));
+        stored = { reviewId: input.reviewId, candidateSha256, reviewSha256, catalogVersion: candidate.catalogVersion,
+          factCount: 1, counts: { supporting: 0, contradicting: 0, insufficient: 1 }, recordedAt: new Date().toISOString(),
+          policyVersion: "catalog-bootstrap-source-review-1", kind: "HUMAN_BOOTSTRAP_SOURCE_REVIEW",
+          sourceVerificationPerformed: false, approvalGranted: false, catalogWritesPerformed: false, factTrustChanged: false };
+        return Response.json(stored, { status: writeStatus });
+      }
+      assert.ok(String(url).endsWith(`?expectedSha256=${reviewSha256}`));
+      return Response.json(stored);
+    };
+    const path = "/api/catalog-bootstrap-reviews";
+    for (const [id, origin, status] of [[curator, "https://evil.invalid", 403], [null, "http://localhost:3000", 401],
+      [ordinary, "http://localhost:3000", 403], [stale, "http://localhost:3000", 403]] as const) {
+      assert.equal((await prepareBootstrapRoute(request(`${path}/prepare`, id, candidate, origin))).status, status);
+    }
+    assert.deepEqual(calls, []);
+    const preparation = await prepareBootstrapRoute(request(`${path}/prepare`, curator, candidate));
+    assert.equal(preparation.status, 200);
+    const prepared = await preparation.json();
+    assert.equal(prepared.facts[0].claim.availability, "UNKNOWN");
+    const input = { schemaVersion: 1, reviewId: prepared.reviewId, expectedCandidateSha256: candidateSha256, candidate,
+      observations: [{ optionId: "example-eu", factPath: "facts.SCIM", verdict: "INSUFFICIENT_EVIDENCE" }], confirmation: "MANUAL_BOOTSTRAP_SOURCE_REVIEW" };
+    calls.length = 0;
+    assert.equal((await recordBootstrapRoute(request(path, curator, { ...input, actor: "caller" }))).status, 400);
+    assert.equal((await recordBootstrapRoute(request(path, ordinary, input))).status, 403);
+    assert.equal((await recordBootstrapRoute(request(path, stale, input))).status, 403);
+    assert.deepEqual(calls, []);
+    const recorded = await recordBootstrapRoute(request(path, curator, input));
+    assert.equal(recorded.status, 201); assert.equal(recorded.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await recorded.json(), stored);
+    writeStatus = 200;
+    assert.equal((await recordBootstrapRoute(request(path, curator, input))).status, 200);
+    const context = { params: Promise.resolve({ id: prepared.reviewId }) };
+    assert.equal((await readBootstrapRoute(request(`${path}/${prepared.reviewId}?expectedSha256=${reviewSha256}`, ordinary), context)).status, 403);
+    const read = await readBootstrapRoute(request(`${path}/${prepared.reviewId}?expectedSha256=${reviewSha256}`, curator), context);
+    assert.equal(read.status, 200); assert.deepEqual(await read.json(), stored);
+    assert.ok(calls.every((url: string) => url.startsWith("http://127.0.0.1:8080/")));
+  } finally {
+    globalThis.fetch = previousFetch;
+    for (const id of ids) await revokeSession(id);
+    for (const name of names) { if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; }
+  }
+});
 
 test("login state is browser-bound, expires in the database and can be consumed only once", async () => {
   const pool = authDatabase();

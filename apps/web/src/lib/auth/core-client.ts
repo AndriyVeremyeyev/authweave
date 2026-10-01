@@ -1,7 +1,11 @@
 // This local-only server-to-server call never exposes its credential to the browser.
+import { randomUUID } from "node:crypto";
 import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
+import { bootstrapCandidate, bootstrapPreparationFromCore, bootstrapReviewInput, bootstrapReceiptFromCore,
+  bootstrapReceiptReference, boundedBootstrapJson, type BootstrapPreparation, type BootstrapReceipt,
+  type BootstrapReviewInput } from "../catalog/bootstrap-review.ts";
 import { factReviewInput, factReviewFromCore, type FactReviewInput, type FactReviewReceipt } from "../catalog/fact-review.ts";
 import { factReviewHistoryFromCore, type FactReviewHistoryCursor, type FactReviewHistoryPage } from "../catalog/fact-review-history.ts";
 import { factReviewSummaryFromCore, type FactReviewSummaryPage } from "../catalog/fact-review-summary.ts";
@@ -190,6 +194,73 @@ function curatorHeaders(session: BrowserSession, scope: NonNullable<AuthConfigur
     "X-AuthWeave-Curator-Org-Id": scope.organizationId,
     "X-AuthWeave-Authenticated-At": session.authenticatedAt.toISOString(),
   };
+}
+
+type BootstrapFailure = Exclude<CuratorProbeStatus, "ready"> | "invalid" | "not-found" | "conflict";
+export type BootstrapPreparationResult = { kind: "ready"; preparation: BootstrapPreparation } | { kind: BootstrapFailure };
+export type BootstrapRecordResult = { kind: "recorded"; receipt: BootstrapReceipt; created: boolean } | { kind: BootstrapFailure };
+export type BootstrapReadResult = { kind: "ready"; receipt: BootstrapReceipt } | { kind: BootstrapFailure };
+
+export async function prepareCatalogBootstrapReview(session: BrowserSession,
+  config: Pick<AuthConfiguration, "issuer" | "curatorScope">, value: unknown, now: Date = new Date()): Promise<BootstrapPreparationResult> {
+  const authorization = await readCuratorAuthorization(session, config, now);
+  if (authorization !== "ready") return { kind: authorization };
+  const candidate = bootstrapCandidate(value);
+  if (!candidate) return { kind: "invalid" };
+  try {
+    // Read-only validation owns the typed digest; it neither fetches sources nor stores reviews.
+    const response = await fetch(`${CORE_ORIGIN}/api/v1/catalog-drafts/validate`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(candidate),
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    });
+    if (response.status === 400) return { kind: "invalid" };
+    if (response.status !== 200) return { kind: "core-unavailable" };
+    const body = await boundedBootstrapJson(response);
+    if (body && typeof body === "object" && "status" in body && body.status === "INVALID_DRAFT") return { kind: "invalid" };
+    return { kind: "ready", preparation: bootstrapPreparationFromCore(body, candidate, randomUUID()) };
+  } catch { return { kind: "core-unavailable" }; }
+}
+
+export async function recordCatalogBootstrapReview(session: BrowserSession,
+  config: Pick<AuthConfiguration, "issuer" | "curatorScope">, value: BootstrapReviewInput, now: Date = new Date()): Promise<BootstrapRecordResult> {
+  const authorization = await readCuratorAuthorization(session, config, now);
+  if (authorization !== "ready") return { kind: authorization };
+  const input = bootstrapReviewInput(value);
+  if (!input) return { kind: "invalid" };
+  if (!config.curatorScope) return { kind: "not-configured" };
+  try {
+    const response = await fetch(`${CORE_ORIGIN}/api/v1/catalog-bootstrap-reviews`, {
+      method: "POST", headers: { ...curatorHeaders(session, config.curatorScope), "Content-Type": "application/json" },
+      body: JSON.stringify(input), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    });
+    if (response.status === 400) return { kind: "invalid" };
+    if (response.status === 409) return { kind: "conflict" };
+    if (response.status === 401 || response.status === 403) return { kind: "core-rejected" };
+    if (response.status !== 200 && response.status !== 201) return { kind: "core-unavailable" };
+    return { kind: "recorded", created: response.status === 201,
+      receipt: bootstrapReceiptFromCore(await boundedBootstrapJson(response), { id: input.reviewId }, input) };
+  } catch { return { kind: "core-unavailable" }; }
+}
+
+export async function readCatalogBootstrapReview(session: BrowserSession,
+  config: Pick<AuthConfiguration, "issuer" | "curatorScope">, id: unknown, digest: unknown, now: Date = new Date()): Promise<BootstrapReadResult> {
+  const authorization = await readCuratorAuthorization(session, config, now);
+  if (authorization !== "ready") return { kind: authorization };
+  const reference = bootstrapReceiptReference(id, digest);
+  if (!reference) return { kind: "invalid" };
+  if (!config.curatorScope) return { kind: "not-configured" };
+  try {
+    const url = new URL(`${CORE_ORIGIN}/api/v1/catalog-bootstrap-reviews/${reference.id}`);
+    url.searchParams.set("expectedSha256", reference.digest);
+    const response = await fetch(url, { headers: curatorHeaders(session, config.curatorScope),
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000) });
+    if (response.status === 404) return { kind: "not-found" };
+    if (response.status === 409) return { kind: "conflict" };
+    if (response.status === 400) return { kind: "invalid" };
+    if (response.status === 401 || response.status === 403) return { kind: "core-rejected" };
+    if (response.status !== 200) return { kind: "core-unavailable" };
+    return { kind: "ready", receipt: bootstrapReceiptFromCore(await boundedBootstrapJson(response), reference) };
+  } catch { return { kind: "core-unavailable" }; }
 }
 
 export type FactReviewResult =

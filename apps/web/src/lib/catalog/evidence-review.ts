@@ -39,7 +39,7 @@ function instant(value: unknown): value is string {
   return typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 
-function claimFromCore(value: unknown, path: string): CandidateClaim {
+export function claimFromCore(value: unknown, path: string): CandidateClaim {
   const claim = object(value);
   const support = (value: unknown): value is Support =>
     typeof value === "string" && ["SUPPORTED", "UNSUPPORTED", "UNKNOWN"].includes(value);

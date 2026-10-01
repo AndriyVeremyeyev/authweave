@@ -49,6 +49,7 @@ export default async function CatalogReviewIndex({ searchParams }: PageProps<"/c
           </form>}
         </section>
       ) : (<>
+        <Link href="/catalog/bootstrap" className="mt-6 inline-block text-cyan-200 hover:underline">Review the first bootstrap candidate →</Link>
         <section className="mt-8 rounded-xl border border-slate-700 p-6">
           <h2 className="text-xl font-semibold">Open a proposal</h2>
           <form action="/catalog/review" method="get" className="mt-4 flex flex-col gap-3 sm:flex-row">
