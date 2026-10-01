@@ -28,9 +28,9 @@ class CatalogProfileImpactCoverageTests {
     static Stream<Dimension> dimensions() { return DIMENSIONS.stream(); }
 
     @Test void manifestMatchesEveryIndependentProfileV5SemanticInputAndPinsTypesEnumsAndDependencies() {
-        assertEquals("catalog-profile-impact-coverage-3", POLICY_VERSION);
+        assertEquals("catalog-profile-impact-coverage-4", POLICY_VERSION);
         assertEquals(5, PROFILE_SCHEMA_VERSION);
-        assertEquals("89be2e9f4b0fc0a5d7af6a9bdc53d9c0d09854be23eacc75bef2595aa97efcce", MANIFEST_SHA256); // Review and version before changing dependencies or boundaries.
+        assertEquals("7f99cc54d24e8565eb724386e4e75aacabc2ab8fa7136dc2bb80522eb8d275ca", MANIFEST_SHA256); // Review and version before changing dependencies or boundaries.
         var schema = mapper.readTree(Path.of(System.getProperty("basedir", "."), "../../packages/contracts/schemas/application-identity-profile.v5.schema.json").toFile());
         var paths = new TreeSet<String>(); schemaPaths(schema, schema, "", paths);
         assertEquals(32, paths.size()); assertEquals(paths, new TreeSet<>(DIMENSIONS.stream().map(Dimension::profilePath).toList()));
@@ -131,7 +131,7 @@ class CatalogProfileImpactCoverageTests {
         if (variant.equals("not-checked")) architectureCheck = CatalogArchitectureImpactService.Check.notChecked();
         if (variant.equals("time") || variant.equals("digest")) architectureCheck = new CatalogArchitectureImpactService.Check(architectureCheck.status(),
                 variant.equals("time") ? AT.plusNanos(1) : AT, variant.equals("digest") ? "0".repeat(64) : scenarios.sha256(),
-                architectureCheck.analysisSha256(), 4, 20, 15, 3, 2);
+                architectureCheck.analysisSha256(), 4, 20, 15, 3, 2, architectureCheck.prerequisiteCounts());
         if (variant.equals("missing-config-gap")) gaps = gaps.stream().filter(g -> g.boundary() != Boundary.ARCHITECTURE_CONFIGURATION).toList();
         if (variant.equals("foreign-scenario")) {
             rows = rows.stream().map(d -> new DimensionCheck("foreign-" + d.scenarioId(), d.profilePath(), d.boundary(), d.state(), d.ruleCount(), d.activeFactRuleCount(), d.factPaths())).toList();

@@ -17,7 +17,7 @@ import io.authweave.core.evaluation.ArchitecturePatternEvaluator;
 /** Structural regression coverage, not provider support, source truth or permission to publish. */
 @Service
 public final class CatalogProfileImpactCoverageService {
-    public static final String POLICY_VERSION = "catalog-profile-impact-coverage-3";
+    public static final String POLICY_VERSION = "catalog-profile-impact-coverage-4";
     public static final int PROFILE_SCHEMA_VERSION = 5;
     public static final String PROFILE_SCHEMA_SHA256 = "c995122fdd206e90bdf8145ee76e0e85f657933bb4b91dfae39a6ef715e30561";
     public enum Boundary { CATALOG_CLAIM_RULE, REQUIREMENTS_SCOPE, ARCHITECTURE_PATTERN, ARCHITECTURE_CONFIGURATION, AUDITABILITY,
@@ -35,7 +35,7 @@ public final class CatalogProfileImpactCoverageService {
             new AdditionalBoundary("provisioning", Boundary.PROVISIONING_LIFECYCLE),
             new AdditionalBoundary("security.authenticationControls", Boundary.CONFIGURED_AUTHENTICATION_FLOW));
     public static final String MANIFEST_SHA256 = CatalogDraftCanonicalizer.sha256(List.of(PROFILE_SCHEMA_VERSION, PROFILE_SCHEMA_SHA256, DIMENSIONS, ADDITIONAL_BOUNDARIES,
-            ArchitecturePatternEvaluator.POLICY_VERSION, CatalogArchitectureImpactService.DEFINITIONS_SHA256));
+            ArchitecturePatternEvaluator.POLICY_VERSION, CatalogArchitectureImpactService.DEFINITIONS_SHA256, CatalogArchitectureImpactService.PREREQUISITES_SHA256));
     private final CatalogScopedProfileCases cases;
     private final CatalogArchitectureImpactService architecture;
     public CatalogProfileImpactCoverageService(CatalogScopedProfileCases cases, CatalogArchitectureImpactService architecture) { this.cases = cases; this.architecture = architecture; }

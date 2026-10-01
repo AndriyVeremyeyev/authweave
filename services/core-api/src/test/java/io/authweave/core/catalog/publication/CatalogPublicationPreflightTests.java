@@ -84,7 +84,7 @@ class CatalogPublicationPreflightTests {
     @Test
     void allSupportingFactsAndMatchingAdminAssertionsStillCannotAuthorizeAnyPublication() {
         var result = run();
-        assertEquals("catalog-publication-preflight-9", POLICY_VERSION);
+        assertEquals("catalog-publication-preflight-10", POLICY_VERSION);
         assertEquals(9, result.facts().total()); assertTrue(result.facts().allFactsHaveSupportingObservation());
         assertEquals(9, result.reviewThroughNumber()); assertTrue(result.baselineIntegrityValidated()); assertTrue(result.baselineContentMatches());
         assertEquals(List.of(Blocker.BASELINE_AUTHORITY_UNAVAILABLE, Blocker.IMPACT_COVERAGE_INCOMPLETE,
@@ -107,6 +107,7 @@ class CatalogPublicationPreflightTests {
         var patterns = result.profileImpactCoverage().architectureImpact();
         assertEquals(result.evaluatedAt(), patterns.evaluatedAt()); assertEquals(20, patterns.checkedPatterns());
         assertEquals(result.profileImpactCoverage().scenarioSetSha256(), patterns.scenarioSetSha256());
+        assertEquals(new CatalogArchitectureImpactService.PrerequisiteCounts(44, 0, 0, 38, 6), patterns.prerequisiteCounts());
         assertFalse(patterns.configurationVerified()); assertFalse(patterns.providerCompatibilityVerified()); assertFalse(patterns.publicationReady());
         assertTrue(result.profileImpactCoverage().unexercisedFactPaths().isEmpty());
         assertEquals(CatalogScopedProfileImpactService.Mode.PROPOSAL_COMPARISON, result.scopedProfileImpact().mode());

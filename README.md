@@ -1134,7 +1134,7 @@ write, catalog activation or existing HTTP/history format is changed.
 
 ### Profile impact coverage policy
 
-Internal preflight policy v9 combines a fresh `profileImpactCoverage` policy v3 with
+Internal preflight policy v10 combines a fresh `profileImpactCoverage` policy v4 with
 a separate `scopedProfileImpact` conditional regression.
 Passing a receipt replay or checking every catalog address does not establish that
 the frozen profiles exercise every decision-critical requirement. The versioned
@@ -1190,6 +1190,31 @@ is interpreted as observed configuration. The summary contains no profile values
 source URLs or actor identities, performs no network access and creates no durable
 receipt. Configuration, prerequisites, compatibility and recommendation readiness
 remain false, including when every selected pattern conditionally matches.
+
+Architecture impact policy v2 also evaluates a typed prerequisite inventory using
+`architecture-prerequisites-1`. Eleven source-owned IDs map one-to-one to the existing
+pattern prerequisites: BFF proxy/session defenses, session resource access/direct API
+assessment, SPA public-client/PKCE endpoints and token threat model, native user-agent/
+redirect/PKCE and storage/API authorization, and confidential workload client,
+authorization context and grant/API permissions. The grouped conditions retain their
+existing meanings; this is not an exhaustive security checklist or a live configuration
+model. Its fingerprint binds the IDs, pattern scopes and descriptions.
+
+The pure kernel accepts only typed, unverified design declarations: `SATISFIED`,
+`NOT_SATISFIED` or `UNKNOWN`. Missing declarations remain unknown. A declaration from
+another pattern is rejected; unknown client scope cannot become a match and an
+unselected pattern stays not applicable. An unmet condition produces a conditional
+non-match without erasing other unknown conditions. Even all-satisfied declarations
+cannot verify deployment, provider compatibility or recommendation readiness, and do
+not change the existing client/token-exposure pattern results.
+
+Current source profiles contain no configuration declarations. Fresh preflights pass
+none, producing 44 prerequisite cells: 38 unknown and six not applicable, zero declared
+successes. The full architecture analysis carries typed IDs/outcomes/reasons; its
+body-free `prerequisiteCounts` summary is bound by the same profile/library/time hashes.
+Source-only report constructors reject invented declarations and partial cells. The
+configuration gap remains mandatory; no public endpoint, historical receipt, catalog
+fact, source date or runtime configuration is changed or inferred from free text.
 
 The fresh conditional regression uses the same production rule kernel as the
 historical analysis. Proposals evaluate four profiles for every affected option,

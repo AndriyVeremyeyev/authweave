@@ -161,6 +161,8 @@ class CatalogPublicationPreflightIntegrationTests {
         var architecture = result.profileImpactCoverage().architectureImpact();
         assertEquals(result.evaluatedAt(), architecture.evaluatedAt()); assertEquals(20, architecture.checkedPatterns());
         assertEquals(result.profileImpactCoverage().scenarioSetSha256(), architecture.scenarioSetSha256());
+        assertEquals(44, architecture.prerequisiteCounts().checked()); assertEquals(38, architecture.prerequisiteCounts().unknown());
+        assertEquals(0, architecture.prerequisiteCounts().conditionallySatisfied());
         assertFalse(architecture.configurationVerified()); assertFalse(architecture.providerCompatibilityVerified()); assertFalse(architecture.storedReportVerified());
         assertEquals(result.evaluatedAt(), result.scopedProfileImpact().evaluatedAt()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
         assertEquals(result.profileImpactCoverage().scenarioSetSha256(), result.scopedProfileImpact().scenarioSetSha256());
@@ -309,6 +311,8 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(result.evaluatedAt(), architecture.evaluatedAt()); assertEquals(20, architecture.checkedPatterns());
         assertEquals(result.profileImpactCoverage().scenarioSetSha256(), architecture.scenarioSetSha256());
         assertFalse(architecture.configurationVerified()); assertFalse(architecture.prerequisitesVerified()); assertFalse(architecture.publicationReady());
+        assertEquals(44, architecture.prerequisiteCounts().checked()); assertEquals(38, architecture.prerequisiteCounts().unknown());
+        assertEquals(6, architecture.prerequisiteCounts().notApplicable());
         assertEquals(result.evaluatedAt(), result.scopedProfileImpact().evaluatedAt()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
         assertEquals(request.reviewId(), result.scopedProfileImpact().inputId()); assertEquals(receipt.reviewSha256(), result.scopedProfileImpact().inputSha256());
         var json = mapper.writeValueAsString(check); assertFalse(json.contains("sourceUrl")); assertFalse(json.contains("profile")); assertFalse(json.contains(actor.subject()));

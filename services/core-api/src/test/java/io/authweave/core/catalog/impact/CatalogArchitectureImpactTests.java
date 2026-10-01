@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,7 @@ import io.authweave.core.assessment.domain.profile.RequirementCriticality;
 import io.authweave.core.catalog.draft.CatalogDraftCanonicalizer;
 import io.authweave.core.evaluation.ArchitecturePatternEvaluator;
 import io.authweave.core.evaluation.ArchitecturePatternPreflight;
+import io.authweave.core.evaluation.ArchitecturePrerequisiteEvaluator;
 import static io.authweave.core.catalog.impact.CatalogArchitectureImpactService.*;
 import static io.authweave.core.evaluation.ArchitecturePatternPreflight.Outcome.*;
 import static io.authweave.core.evaluation.ArchitecturePatternPreflight.Reason.*;
@@ -32,7 +34,7 @@ class CatalogArchitectureImpactTests {
     private final CatalogArchitectureImpactService service = new CatalogArchitectureImpactService(cases, mapper);
 
     @Test void sourcePolicyAndLibraryAreFrozenWithoutRewritingHistoricalCasesOrExistingArchitectureRules() throws Exception {
-        assertEquals("catalog-architecture-impact-1", POLICY_VERSION);
+        assertEquals("catalog-architecture-impact-2", POLICY_VERSION);
         assertEquals("architecture-pattern-preflight-1", ArchitecturePatternEvaluator.POLICY_VERSION);
         assertEquals("761cf0336027f10560463ef09aae559b7539dea162fb13a50d080e7becead138", DEFINITIONS_SHA256); // Review and version the source-owned rule library before changing it.
         assertEquals("ce70ce85cbb2e5b1537f36e2120a5c4add5ef0ce5d64be46397436bbc1993ca1", cases.sha256());
@@ -49,6 +51,9 @@ class CatalogArchitectureImpactTests {
         assertEquals(4, report.scenarios().size()); assertEquals(CheckStatus.ANALYZED, summary.status());
         assertEquals(4, summary.checkedProfiles()); assertEquals(20, summary.checkedPatterns());
         assertEquals(15, summary.conditionalMatches()); assertEquals(3, summary.needsInformation()); assertEquals(2, summary.notApplicable());
+        assertEquals(new PrerequisiteCounts(44, 0, 0, 38, 6), summary.prerequisiteCounts());
+        assertEquals("architecture-prerequisites-1", summary.prerequisitePolicyVersion());
+        assertEquals("9e98ff927c1fd038f8dd991c34f261c1768da3e9f8deffc0849d4aad755fadbd", PREREQUISITES_SHA256); // Review and version prerequisite IDs, meanings and pattern scope together.
         assertTrue(summary.allDeclaredPatternsChecked()); assertEquals(CatalogDraftCanonicalizer.sha256(report), summary.analysisSha256());
         assertEquals(cases.sha256(), summary.scenarioSetSha256()); assertEquals(AT, summary.evaluatedAt());
         assertEquals("CONDITIONAL_PATTERN_PREREQUISITES_NOT_VERIFIED", report.analysisBasis());
@@ -84,10 +89,15 @@ class CatalogArchitectureImpactTests {
             var patterns = report.scenarios().get(i).patterns();
             var expected = ArchitecturePatternEvaluator.evaluate(mapper.treeToValue(definitions.get(i).profile(), ApplicationIdentityProfile.class));
             assertEquals(expected.stream().map(p -> new PatternResult(p.patternId(), p.status(),
-                    p.checks().stream().map(c -> new RuleCheck(c.profilePath(), c.outcome(), c.reasonCode())).toList())).toList(), patterns);
+                    p.checks().stream().map(c -> new RuleCheck(c.profilePath(), c.outcome(), c.reasonCode())).toList(),
+                    ArchitecturePrerequisiteEvaluator.evaluate(p.patternId(), ArchitecturePrerequisiteEvaluator.scope(p), Map.of()))).toList(), patterns);
             for (int j = 0; j < patterns.size(); j++) {
                 var pattern = patterns.get(j); var definition = DEFINITIONS.get(j); var token = pattern.checks().get(1);
                 boolean selected = clients.contains(definition.clientType());
+                assertEquals(clients.isEmpty() ? ArchitecturePrerequisiteEvaluator.ClientScope.UNKNOWN : selected
+                        ? ArchitecturePrerequisiteEvaluator.ClientScope.SELECTED : ArchitecturePrerequisiteEvaluator.ClientScope.NOT_SELECTED, pattern.prerequisites().clientScope());
+                assertTrue(pattern.prerequisites().checks().stream().allMatch(c -> c.outcome() == (!clients.isEmpty() && !selected
+                        ? ArchitecturePrerequisiteEvaluator.Outcome.NOT_APPLICABLE : ArchitecturePrerequisiteEvaluator.Outcome.UNKNOWN)));
                 if (clients.isEmpty()) {
                     assertEquals(NEEDS_INFORMATION, pattern.status()); assertEquals(UNKNOWN, token.outcome()); assertEquals(CLIENT_CONTEXT_UNKNOWN, token.reasonCode());
                 } else if (!selected) {
@@ -170,7 +180,7 @@ class CatalogArchitectureImpactTests {
                     var checks = new ArrayList<>(pattern.checks());
                     if (variant.equals("missing-check")) checks.removeLast();
                     else checks.set(1, variant.equals("duplicate-check") ? checks.getFirst() : new RuleCheck("security.auditability", PASS, TOKENS_HELD_SERVER_SIDE));
-                    new PatternResult(pattern.patternId(), pattern.status(), checks);
+                    new PatternResult(pattern.patternId(), pattern.status(), checks, pattern.prerequisites());
                 }
                 case "foreign-scenario" -> new Scenario("foreign", scenario.patterns());
                 case "missing-scenario", "duplicate-scenario" -> {
@@ -191,7 +201,36 @@ class CatalogArchitectureImpactTests {
                 variant.equals("time") ? null : AT, cases.sha256(), variant.equals("hash") ? "no-hash" : "a".repeat(64),
                 variant.equals("missing-profile") ? 3 : variant.equals("empty") ? 0 : 4,
                 variant.equals("partial-patterns") ? 19 : variant.equals("empty") ? 0 : 20,
-                variant.equals("overflow") ? Integer.MAX_VALUE : variant.equals("negative") ? -1 : variant.equals("sum") ? 16 : 15, 3, 2));
+                variant.equals("overflow") ? Integer.MAX_VALUE : variant.equals("negative") ? -1 : variant.equals("sum") ? 16 : 15, 3, 2, new PrerequisiteCounts(44, 0, 0, 38, 6)));
+    }
+
+    @Test void sourceOnlyReportsCannotInventDesignDeclarationsThatWereNeverPartOfTheirInputs() {
+        var report = service.analyzeAt(AT); var scenario = report.scenarios().getFirst(); var first = scenario.patterns().getFirst();
+        var declarations = ArchitecturePrerequisiteEvaluator.DEFINITIONS.stream().filter(d -> d.patternId() == first.patternId())
+                .collect(java.util.stream.Collectors.toMap(ArchitecturePrerequisiteEvaluator.Definition::prerequisiteId, d -> ArchitecturePrerequisiteEvaluator.Declaration.SATISFIED));
+        var declared = ArchitecturePrerequisiteEvaluator.evaluate(first.patternId(), ArchitecturePrerequisiteEvaluator.ClientScope.SELECTED, declarations);
+        var patterns = new ArrayList<>(scenario.patterns()); patterns.set(0, new PatternResult(first.patternId(), first.status(), first.checks(), declared));
+        var scenarios = new ArrayList<>(report.scenarios()); scenarios.set(0, new Scenario(scenario.scenarioId(), patterns));
+        assertThrows(IllegalArgumentException.class, () -> new Analysis(AT, cases.sha256(), DEFINITIONS, scenarios));
+        assertEquals(new PrerequisiteCounts(44, 0, 0, 38, 6), service.inspectAt(AT).prerequisiteCounts());
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"foreign-pattern", "wrong-scope", "partial-count", "false-not-checked", "negative-count", "overflow-count", "invented-declaration", "wrong-skipped-count"})
+    void prerequisiteBindingAndCountForgeryCannotBeHiddenInAnArchitectureReport(String variant) {
+        var report = service.analyzeAt(AT); var first = report.scenarios().getFirst().patterns().getFirst();
+        assertThrows(IllegalArgumentException.class, () -> {
+            if (variant.equals("foreign-pattern") || variant.equals("wrong-scope")) {
+                var prerequisite = ArchitecturePrerequisiteEvaluator.evaluate(variant.equals("foreign-pattern")
+                        ? ArchitecturePatternPreflight.PatternId.SPA_CODE_PKCE : first.patternId(), ArchitecturePrerequisiteEvaluator.ClientScope.NOT_SELECTED, Map.of());
+                new PatternResult(first.patternId(), first.status(), first.checks(), prerequisite);
+            } else if (variant.equals("negative-count") || variant.equals("overflow-count")) {
+                new PrerequisiteCounts(44, variant.equals("negative-count") ? -1 : Integer.MAX_VALUE, 0, 38, 6);
+            } else {
+                new Check(variant.equals("false-not-checked") ? CheckStatus.NOT_CHECKED : CheckStatus.ANALYZED, AT, cases.sha256(), "a".repeat(64), 4, 20, 15, 3, 2,
+                        variant.equals("partial-count") ? PrerequisiteCounts.notChecked() : variant.equals("invented-declaration") ? new PrerequisiteCounts(44, 38, 0, 0, 6)
+                            : variant.equals("wrong-skipped-count") ? new PrerequisiteCounts(44, 0, 0, 44, 0) : new PrerequisiteCounts(44, 0, 0, 38, 6));
+            }
+        });
     }
 
     private CatalogScopedProfileCases cases() { try { return new CatalogScopedProfileCases(mapper); } catch (java.io.IOException e) { throw new AssertionError(e); } }
