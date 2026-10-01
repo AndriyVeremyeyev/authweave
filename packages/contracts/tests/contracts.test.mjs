@@ -50,6 +50,33 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("temporary architecture declarations accept only one pattern's typed conditions without caller authority", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/architecture-prerequisite-request.v1.schema.json");
+  const preview = ajv.getSchema("https://authweave.dev/contracts/architecture-prerequisite-preview.v1.schema.json");
+  assert.equal(preview({}), false); // Compile the complete strict response schema, even without HTTP samples.
+  const groups = {
+    BFF_SESSION: ["BFF_BACKEND_API_PROXY", "BFF_SESSION_DEFENSES"],
+    SERVER_SIDE_SESSION: ["SERVER_SESSION_RESOURCE_ACCESS", "DIRECT_BROWSER_API_ACCESS_ASSESSED"],
+    SPA_CODE_PKCE: ["SPA_PUBLIC_PKCE_BROWSER_ENDPOINTS", "SPA_TOKEN_THREAT_MODEL"],
+    NATIVE_CODE_PKCE: ["NATIVE_EXTERNAL_AGENT_REDIRECT_PKCE", "NATIVE_STORAGE_API_AUTHORIZATION"],
+    M2M_CLIENT_CREDENTIALS: ["WORKLOAD_CONFIDENTIAL_CLIENT", "WORKLOAD_AUTHORIZATION_CONTEXT", "WORKLOAD_GRANT_API_PERMISSIONS"],
+  };
+  for (const [patternId, ids] of Object.entries(groups)) {
+    for (const declaration of ["SATISFIED", "NOT_SATISFIED", "UNKNOWN"]) {
+      const input = { expectedVersion: 0, patternId, declarations: Object.fromEntries(ids.map(id => [id, declaration])) };
+      assert.equal(validate(input), true, validationMessage(validate));
+      assert.equal(validate({ ...input, declarations: {} }), true, validationMessage(validate));
+      for (const foreign of Object.values(groups).flat().filter(id => !ids.includes(id))) {
+        assert.equal(validate({ ...input, declarations: { [foreign]: declaration } }), false);
+      }
+      for (const invalid of [{ ...input, clientScope: "SELECTED" }, { ...input, approvalGranted: true },
+        { ...input, configurationVerified: true }, { ...input, expectedVersion: "0" }, { ...input, expectedVersion: -1 },
+        { ...input, expectedVersion: 9007199254740992 }, { ...input, declarations: { [ids[0]]: null } },
+        { ...input, declarations: { [ids[0]]: "VERIFIED" } }]) assert.equal(validate(invalid), false);
+    }
+  }
+});
+
 test("additional scoped regression profiles independently validate against profile v5 without replacing frozen v1", async () => {
   const resourceRoot = path.resolve(contractsRoot, "../../services/core-api/src/main/resources/catalog");
   const scoped = await readJson(path.join(resourceRoot, "scoped-impact-scenarios.v1.json"));

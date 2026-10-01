@@ -6,6 +6,9 @@ import { POST as createAssessmentRoute } from "../src/app/api/assessments/route.
 import { POST as reauthenticateRoute } from "../src/app/api/auth/reauth/route.ts";
 import { POST as updateCapabilitiesRoute } from "../src/app/api/assessments/[id]/capabilities/route.ts";
 import { POST as weightedPreviewRoute } from "../src/app/api/assessments/[id]/weighted-preview/route.ts";
+import { POST as prerequisitePreviewRoute } from "../src/app/api/assessments/[id]/architecture-prerequisites/route.ts";
+import { prerequisiteAssessmentId, prerequisiteWorkspaceId, prerequisiteFixture, prerequisiteInput,
+  prerequisiteProfile } from "./fixtures/architecture-prerequisites.mts";
 import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
@@ -22,6 +25,71 @@ import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
+
+test("prerequisite preview uses a real DB session, same origin and server-only identity without assessment writes", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]]));
+  const previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-prerequisite-token-000000000000000000" });
+  const identity = { workspaceId: prerequisiteWorkspaceId, issuer: "http://localhost:8081", subject: "synthetic-prerequisite-owner",
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined);
+  const context = { params: Promise.resolve({ id: prerequisiteAssessmentId }) };
+  const form = "expectedVersion=2&patternId=BFF_SESSION&BFF_BACKEND_API_PROXY=SATISFIED&BFF_SESSION_DEFENSES=UNKNOWN";
+  const request = (body = form, cookie: string | null = sessionId, origin = "http://localhost:3000", contentType = "application/x-www-form-urlencoded") =>
+    new NextRequest(`http://localhost:3000/api/assessments/${prerequisiteAssessmentId}/architecture-prerequisites`, {
+      method: "POST", headers: { Origin: origin, "Content-Type": contentType,
+        "X-AuthWeave-Oidc-Subject": "browser-spoof", "X-AuthWeave-Oidc-Issuer": "https://wrong.example.invalid",
+        ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}) }, body });
+  let upstreamStatus = 200, version = 2;
+  const calls: string[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push(`${init?.method} ${url}`);
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal(headers["X-AuthWeave-Oidc-Issuer"], identity.issuer);
+    assert.equal(headers.Authorization, `Bearer ${process.env.AUTHWEAVE_CORE_SERVICE_TOKEN}`);
+    assert.ok(String(url).startsWith(`http://127.0.0.1:8080/api/v`));
+    assert.ok(String(url).includes(`/workspaces/${identity.workspaceId}/assessments/${prerequisiteAssessmentId}`));
+    if (init?.method === "GET") return Response.json({ id: prerequisiteAssessmentId, workspaceId: identity.workspaceId,
+      status: "DRAFT", version, profileSchemaVersion: 5, profile: prerequisiteProfile });
+    assert.equal(init?.method, "POST"); assert.ok(String(url).endsWith("/architecture-prerequisite-preview"));
+    assert.deepEqual(JSON.parse(String(init?.body)), prerequisiteInput);
+    return upstreamStatus === 200 ? Response.json(prerequisiteFixture()) : new Response("Private upstream details", { status: upstreamStatus });
+  };
+  try {
+    for (const [req, code] of [[request(form, null), 401], [request(form, sessionId, "https://other.example.invalid"), 403],
+      [request(form + "&clientScope=SELECTED"), 400], [request(form + "&workspaceId=" + identity.workspaceId), 400],
+      [request(form + "&BFF_SESSION_DEFENSES=SATISFIED"), 400], [request(form + "&SPA_TOKEN_THREAT_MODEL=UNKNOWN"), 400],
+      [request("x".repeat(2049)), 413], [request(form, sessionId, "http://localhost:3000", "application/json"), 415]] as const) {
+      const result = await prerequisitePreviewRoute(req, context);
+      assert.equal(result.status, code); assert.equal(result.headers.get("cache-control"), "no-store");
+    }
+    assert.equal(calls.length, 0);
+    const result = await prerequisitePreviewRoute(request(), context);
+    assert.equal(result.status, 200); assert.equal(result.headers.get("cache-control"), "no-store");
+    const preview = await result.json();
+    assert.equal(preview.analysis.status, "NEEDS_INFORMATION");
+    assert.deepEqual(Object.keys(preview).sort(), ["analysis", "assessmentVersion"]);
+    assert.equal(JSON.stringify(preview).includes(identity.subject), false);
+    for (const [upstream, code] of [[400, 400], [404, 404], [409, 409], [403, 503], [503, 503]] as const) {
+      upstreamStatus = upstream;
+      const failed = await prerequisitePreviewRoute(request(), context);
+      assert.equal(failed.status, code); assert.equal((await failed.text()).includes("Private upstream"), false);
+    }
+    upstreamStatus = 200; version = 3;
+    const count = calls.length;
+    assert.equal((await prerequisitePreviewRoute(request(), context)).status, 409);
+    assert.equal(calls.length, count + 1);
+    await revokeSession(sessionId);
+    assert.equal((await prerequisitePreviewRoute(request(), context)).status, 401);
+    assert.equal(calls.length, count + 1);
+  } finally {
+    await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
+  }
+});
 
 test("bootstrap routes use real DB sessions, exact curator scope and same-origin writes without publication or source fetch", async () => {
   const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN",

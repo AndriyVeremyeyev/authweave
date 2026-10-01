@@ -314,6 +314,29 @@ are versioned with the policy; references are never fetched during evaluation. S
 [native apps](https://www.rfc-editor.org/rfc/rfc8252.html) and
 [client credentials](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.4).
 
+### Temporary architecture prerequisite preview
+
+Each pattern card on a personal assessment offers a prerequisite what-if form.
+Choose `SATISFIED`, `NOT_SATISFIED` or `UNKNOWN` for conditions in your proposed design;
+every control defaults to unknown. Answers and results are temporary, never saved.
+The form does not read or change IdP settings, tokens or credentials.
+
+The same-origin BFF POST `/api/assessments/{id}/architecture-prerequisites` requires a
+live database-backed session. It calls the separate Core POST
+`/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-prerequisite-preview`
+using only server-held credentials and session identity. Core binds the exact
+`expectedVersion`, derives client scope from the stored assessment and accepts only
+typed prerequisites belonging to the selected `patternId`. Missing declarations
+remain unknown; stale versions return 409. Neither call changes assessment state,
+revisions or events.
+
+Results explain each condition independently and stay explicitly conditional on
+unverified design declarations. Unknown or unselected client scope cannot become a
+match. An unmet condition preserves other unknown conditions. Even an all-met design
+cannot override the separate client/token-exposure preflight, verify configuration or
+provider compatibility, or establish recommendation/approval/deployment readiness.
+The existing GET response and historical impact receipts remain unchanged.
+
 ### Residency inputs and profile versions
 
 The local API v2 records where identity data may be stored at rest. Under
@@ -1213,8 +1236,9 @@ none, producing 44 prerequisite cells: 38 unknown and six not applicable, zero d
 successes. The full architecture analysis carries typed IDs/outcomes/reasons; its
 body-free `prerequisiteCounts` summary is bound by the same profile/library/time hashes.
 Source-only report constructors reject invented declarations and partial cells. The
-configuration gap remains mandatory; no public endpoint, historical receipt, catalog
-fact, source date or runtime configuration is changed or inferred from free text.
+configuration gap remains mandatory; no existing public endpoint or historical receipt
+is changed. The separate personal what-if preview above does not alter source profiles,
+catalog facts, source dates or runtime configuration, or infer them from free text.
 
 The fresh conditional regression uses the same production rule kernel as the
 historical analysis. Proposals evaluate four profiles for every affected option,

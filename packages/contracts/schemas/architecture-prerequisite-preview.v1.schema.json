@@ -1,0 +1,658 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/architecture-prerequisite-preview.v1.schema.json",
+  "title": "Read-only personal assessment architecture prerequisite preview",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "preflight",
+    "declarations",
+    "analysis"
+  ],
+  "properties": {
+    "preflight": {
+      "$ref": "architecture-pattern-preflight.v1.schema.json"
+    },
+    "declarations": {
+      "type": "object",
+      "maxProperties": 3
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patternId",
+        "clientScope",
+        "checks",
+        "status",
+        "policyVersion",
+        "analysisBasis",
+        "configurationVerified",
+        "providerCompatibilityVerified",
+        "recommendationReady"
+      ],
+      "properties": {
+        "patternId": {
+          "type": "string",
+          "enum": [
+            "BFF_SESSION",
+            "SERVER_SIDE_SESSION",
+            "SPA_CODE_PKCE",
+            "NATIVE_CODE_PKCE",
+            "M2M_CLIENT_CREDENTIALS"
+          ]
+        },
+        "clientScope": {
+          "type": "string",
+          "enum": [
+            "SELECTED",
+            "NOT_SELECTED",
+            "UNKNOWN"
+          ]
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "CONDITIONALLY_MATCHES",
+            "CONDITIONALLY_DOES_NOT_MATCH",
+            "NEEDS_INFORMATION",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "policyVersion": {
+          "const": "architecture-prerequisites-1"
+        },
+        "analysisBasis": {
+          "const": "UNVERIFIED_DESIGN_DECLARATIONS"
+        },
+        "configurationVerified": {
+          "const": false
+        },
+        "providerCompatibilityVerified": {
+          "const": false
+        },
+        "recommendationReady": {
+          "const": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "clientScope": {
+                "const": "NOT_SELECTED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "NOT_APPLICABLE"
+              },
+              "checks": {
+                "items": {
+                  "properties": {
+                    "reasonCode": {
+                      "const": "PATTERN_NOT_APPLICABLE"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "clientScope": {
+                "const": "UNKNOWN"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "NEEDS_INFORMATION"
+              },
+              "checks": {
+                "items": {
+                  "properties": {
+                    "reasonCode": {
+                      "const": "CLIENT_SCOPE_UNKNOWN"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "clientScope": {
+                "const": "SELECTED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "items": {
+                  "properties": {
+                    "reasonCode": {
+                      "enum": [
+                        "DECLARED_CONDITION_SATISFIED",
+                        "DECLARED_CONDITION_NOT_SATISFIED",
+                        "CONDITION_UNKNOWN"
+                      ]
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "checks": {
+                      "contains": {
+                        "properties": {
+                          "outcome": {
+                            "const": "CONDITIONALLY_NOT_SATISFIED"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                },
+                "then": {
+                  "properties": {
+                    "status": {
+                      "const": "CONDITIONALLY_DOES_NOT_MATCH"
+                    }
+                  },
+                  "type": "object"
+                },
+                "else": {
+                  "if": {
+                    "properties": {
+                      "checks": {
+                        "contains": {
+                          "properties": {
+                            "outcome": {
+                              "const": "UNKNOWN"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "then": {
+                    "properties": {
+                      "status": {
+                        "const": "NEEDS_INFORMATION"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "else": {
+                    "properties": {
+                      "status": {
+                        "const": "CONDITIONALLY_MATCHES"
+                      }
+                    },
+                    "type": "object"
+                  }
+                }
+              }
+            ],
+            "type": "object"
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "BFF_BACKEND_API_PROXY": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "BFF_SESSION_DEFENSES": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "BFF_SESSION"
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "BFF_BACKEND_API_PROXY"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "BFF_SESSION_DEFENSES"
+                    }
+                  }
+                }
+              ],
+              "items": false
+            }
+          }
+        }
+      },
+      "type": "object"
+    },
+    {
+      "properties": {
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "SERVER_SESSION_RESOURCE_ACCESS": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "DIRECT_BROWSER_API_ACCESS_ASSESSED": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "SERVER_SIDE_SESSION"
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "SERVER_SESSION_RESOURCE_ACCESS"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "DIRECT_BROWSER_API_ACCESS_ASSESSED"
+                    }
+                  }
+                }
+              ],
+              "items": false
+            }
+          }
+        }
+      },
+      "type": "object"
+    },
+    {
+      "properties": {
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "SPA_PUBLIC_PKCE_BROWSER_ENDPOINTS": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "SPA_TOKEN_THREAT_MODEL": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "SPA_CODE_PKCE"
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "SPA_PUBLIC_PKCE_BROWSER_ENDPOINTS"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "SPA_TOKEN_THREAT_MODEL"
+                    }
+                  }
+                }
+              ],
+              "items": false
+            }
+          }
+        }
+      },
+      "type": "object"
+    },
+    {
+      "properties": {
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "NATIVE_EXTERNAL_AGENT_REDIRECT_PKCE": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "NATIVE_STORAGE_API_AUTHORIZATION": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "NATIVE_CODE_PKCE"
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "NATIVE_EXTERNAL_AGENT_REDIRECT_PKCE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "NATIVE_STORAGE_API_AUTHORIZATION"
+                    }
+                  }
+                }
+              ],
+              "items": false
+            }
+          }
+        }
+      },
+      "type": "object"
+    },
+    {
+      "properties": {
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "WORKLOAD_CONFIDENTIAL_CLIENT": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "WORKLOAD_AUTHORIZATION_CONTEXT": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "WORKLOAD_GRANT_API_PERMISSIONS": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        },
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "M2M_CLIENT_CREDENTIALS"
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "WORKLOAD_CONFIDENTIAL_CLIENT"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "WORKLOAD_AUTHORIZATION_CONTEXT"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "prerequisiteId": {
+                      "const": "WORKLOAD_GRANT_API_PERMISSIONS"
+                    }
+                  }
+                }
+              ],
+              "items": false
+            }
+          }
+        }
+      },
+      "type": "object"
+    }
+  ],
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prerequisiteId",
+        "outcome",
+        "reasonCode"
+      ],
+      "properties": {
+        "prerequisiteId": {
+          "type": "string",
+          "enum": [
+            "BFF_BACKEND_API_PROXY",
+            "BFF_SESSION_DEFENSES",
+            "SERVER_SESSION_RESOURCE_ACCESS",
+            "DIRECT_BROWSER_API_ACCESS_ASSESSED",
+            "SPA_PUBLIC_PKCE_BROWSER_ENDPOINTS",
+            "SPA_TOKEN_THREAT_MODEL",
+            "NATIVE_EXTERNAL_AGENT_REDIRECT_PKCE",
+            "NATIVE_STORAGE_API_AUTHORIZATION",
+            "WORKLOAD_CONFIDENTIAL_CLIENT",
+            "WORKLOAD_AUTHORIZATION_CONTEXT",
+            "WORKLOAD_GRANT_API_PERMISSIONS"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "CONDITIONALLY_SATISFIED",
+            "CONDITIONALLY_NOT_SATISFIED",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "DECLARED_CONDITION_SATISFIED",
+            "DECLARED_CONDITION_NOT_SATISFIED",
+            "CONDITION_UNKNOWN",
+            "CLIENT_SCOPE_UNKNOWN",
+            "PATTERN_NOT_APPLICABLE"
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "outcome": {
+              "const": "CONDITIONALLY_SATISFIED"
+            },
+            "reasonCode": {
+              "const": "DECLARED_CONDITION_SATISFIED"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "outcome": {
+              "const": "CONDITIONALLY_NOT_SATISFIED"
+            },
+            "reasonCode": {
+              "const": "DECLARED_CONDITION_NOT_SATISFIED"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "outcome": {
+              "const": "UNKNOWN"
+            },
+            "reasonCode": {
+              "const": "CONDITION_UNKNOWN"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "outcome": {
+              "const": "UNKNOWN"
+            },
+            "reasonCode": {
+              "const": "CLIENT_SCOPE_UNKNOWN"
+            }
+          },
+          "type": "object"
+        },
+        {
+          "properties": {
+            "outcome": {
+              "const": "NOT_APPLICABLE"
+            },
+            "reasonCode": {
+              "const": "PATTERN_NOT_APPLICABLE"
+            }
+          },
+          "type": "object"
+        }
+      ]
+    }
+  }
+}

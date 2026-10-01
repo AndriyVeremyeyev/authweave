@@ -154,7 +154,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
         </section>
       )}
-      {patterns ? <ArchitecturePatterns preview={patterns} /> : (
+      {patterns ? <ArchitecturePatterns preview={patterns} assessmentId={assessment.id} /> : (
         <section className="mt-10 rounded-xl border border-amber-700 p-6" aria-labelledby="patterns-heading">
           <h2 id="patterns-heading" className="text-xl font-semibold">Architecture pattern preflight unavailable</h2>
           <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>

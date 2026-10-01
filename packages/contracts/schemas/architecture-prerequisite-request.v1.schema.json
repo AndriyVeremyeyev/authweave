@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/architecture-prerequisite-request.v1.schema.json",
+  "title": "Temporary architecture prerequisite design declarations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "expectedVersion",
+    "patternId",
+    "declarations"
+  ],
+  "properties": {
+    "expectedVersion": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "patternId": {
+      "type": "string",
+      "enum": [
+        "BFF_SESSION",
+        "SERVER_SIDE_SESSION",
+        "SPA_CODE_PKCE",
+        "NATIVE_CODE_PKCE",
+        "M2M_CLIENT_CREDENTIALS"
+      ]
+    },
+    "declarations": {
+      "type": "object",
+      "maxProperties": 3
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "patternId": {
+          "const": "BFF_SESSION"
+        },
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "BFF_BACKEND_API_PROXY": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "BFF_SESSION_DEFENSES": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "patternId": {
+          "const": "SERVER_SIDE_SESSION"
+        },
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "SERVER_SESSION_RESOURCE_ACCESS": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "DIRECT_BROWSER_API_ACCESS_ASSESSED": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "patternId": {
+          "const": "SPA_CODE_PKCE"
+        },
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "SPA_PUBLIC_PKCE_BROWSER_ENDPOINTS": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "SPA_TOKEN_THREAT_MODEL": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "patternId": {
+          "const": "NATIVE_CODE_PKCE"
+        },
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "NATIVE_EXTERNAL_AGENT_REDIRECT_PKCE": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "NATIVE_STORAGE_API_AUTHORIZATION": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "patternId": {
+          "const": "M2M_CLIENT_CREDENTIALS"
+        },
+        "declarations": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "WORKLOAD_CONFIDENTIAL_CLIENT": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "WORKLOAD_AUTHORIZATION_CONTEXT": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            },
+            "WORKLOAD_GRANT_API_PERMISSIONS": {
+              "type": "string",
+              "enum": [
+                "SATISFIED",
+                "NOT_SATISFIED",
+                "UNKNOWN"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

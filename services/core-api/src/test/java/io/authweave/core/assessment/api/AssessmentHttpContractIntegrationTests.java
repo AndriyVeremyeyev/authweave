@@ -42,6 +42,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /** Exports actual MVC requests/responses for independent AJV checks in make check-core and CI. */
@@ -502,6 +503,100 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                     mapper.readTree(result.getResponse().getContentAsString()));
             assertHistorySize(assessment, 2);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "SELECTED", "NOT_SELECTED", "UNKNOWN" })
+    void prerequisitePreviewIsVersionBoundConditionalAndReadOnly(String scope) throws Exception {
+        var definitions = io.authweave.core.evaluation.ArchitecturePrerequisiteEvaluator.DEFINITIONS;
+        for (var pattern : io.authweave.core.evaluation.ArchitecturePatternEvaluator.evaluate(ApplicationIdentityProfile.unknown())) {
+            var assessment = create();
+            var update = request();
+            var profile = (ObjectNode) update.get("profile");
+            var clients = ((ObjectNode) profile.get("application")).putArray("clients");
+            if (scope.equals("SELECTED")) clients.add(pattern.clientType().name());
+            if (scope.equals("NOT_SELECTED")) clients.add(pattern.clientType().name().equals("BROWSER") ? "NATIVE_MOBILE" : "BROWSER");
+            ((ObjectNode) profile.get("security")).put("browserTokenExposureMinimization", "REQUIRED");
+            var before = response("prerequisite-profile", mvc.perform(put(assessment.path() + "/profile")
+                    .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(update)))
+                    .andExpect(status().isOk()).andReturn());
+            for (String declaration : List.of("SATISFIED", "NOT_SATISFIED", "UNKNOWN")) {
+                var input = mapper.createObjectNode().put("expectedVersion", 1).put("patternId", pattern.patternId().name());
+                var declarations = input.putObject("declarations");
+                definitions.stream().filter(d -> d.patternId() == pattern.patternId())
+                        .forEach(d -> declarations.put(d.prerequisiteId().name(), declaration));
+                sample("prerequisite-input-" + scope + pattern.patternId() + declaration,
+                        "architecture-prerequisite-request", true, input);
+                var result = mvc.perform(post(assessment.path() + "/architecture-prerequisite-preview")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(input)))
+                        .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                        .andExpect(jsonPath("$.analysis.clientScope").value(scope))
+                        .andExpect(jsonPath("$.analysis.configurationVerified").value(false))
+                        .andExpect(jsonPath("$.analysis.providerCompatibilityVerified").value(false))
+                        .andExpect(jsonPath("$.analysis.recommendationReady").value(false))
+                        .andExpect(jsonPath("$.analysis.status").value(scope.equals("NOT_SELECTED") ? "NOT_APPLICABLE" :
+                                scope.equals("UNKNOWN") || declaration.equals("UNKNOWN") ? "NEEDS_INFORMATION" :
+                                declaration.equals("SATISFIED") ? "CONDITIONALLY_MATCHES" : "CONDITIONALLY_DOES_NOT_MATCH"))
+                        .andReturn();
+                var payload = mapper.readTree(result.getResponse().getContentAsString());
+                sample("prerequisite-output-" + scope + pattern.patternId() + declaration,
+                        "architecture-prerequisite-preview", true, payload);
+                assertEquals(input.get("declarations"), payload.get("declarations"));
+                assertEquals(1, payload.get("preflight").get("assessmentVersion").asLong());
+                if (scope.equals("SELECTED") && pattern.patternId().name().equals("SPA_CODE_PKCE")) {
+                    assertEquals("NEEDS_INFORMATION", payload.get("preflight").get("patterns").get(2).get("status").asText());
+                }
+                for (String claim : List.of("configurationVerified", "providerCompatibilityVerified", "recommendationReady", "approvalGranted")) {
+                    var forged = (ObjectNode) payload.deepCopy();
+                    ((ObjectNode) forged.get("analysis")).put(claim, true);
+                    sample("prerequisite-cannot-claim-" + claim, "architecture-prerequisite-preview", false, forged);
+                }
+                var wrongStatus = (ObjectNode) payload.deepCopy();
+                ((ObjectNode) wrongStatus.get("analysis")).put("status", "NOT_APPLICABLE");
+                if (!scope.equals("NOT_SELECTED")) sample("prerequisite-inconsistent-status", "architecture-prerequisite-preview", false, wrongStatus);
+            }
+            assertEquals(before, response("prerequisite-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+            assertHistorySize(assessment, 2);
+        }
+    }
+
+    @Test
+    void prerequisitePreviewRejectsStaleForeignAndMalformedRequests() throws Exception {
+        var assessment = create();
+        String path = assessment.path() + "/architecture-prerequisite-preview";
+        var input = mapper.createObjectNode().put("expectedVersion", 0).put("patternId", "BFF_SESSION");
+        input.putObject("declarations");
+        var result = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(input.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.analysis.status").value("NEEDS_INFORMATION")).andReturn();
+        sample("prerequisite-empty-input", "architecture-prerequisite-request", true, input.deepCopy());
+        sample("prerequisite-empty-output", "architecture-prerequisite-preview", true, mapper.readTree(result.getResponse().getContentAsString()));
+        for (String invalid : List.of(
+                "{\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\",\"declarations\":{\"SPA_TOKEN_THREAT_MODEL\":\"SATISFIED\"}}",
+                "{\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\",\"declarations\":{\"BFF_SESSION_DEFENSES\":null}}",
+                "{\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\",\"declarations\":{\"BFF_SESSION_DEFENSES\":\"VERIFIED\"}}",
+                "{\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\",\"declarations\":{},\"clientScope\":\"SELECTED\"}",
+                "{\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\",\"declarations\":{},\"approvalGranted\":true}",
+                "{\"expectedVersion\":-1,\"patternId\":\"BFF_SESSION\",\"declarations\":{}}",
+                "{\"expectedVersion\":9007199254740992,\"patternId\":\"BFF_SESSION\",\"declarations\":{}}",
+                "{\"expectedVersion\":\"0\",\"patternId\":\"BFF_SESSION\",\"declarations\":{}}",
+                "{\"expectedVersion\":0,\"patternId\":null,\"declarations\":{}}",
+                "{\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\"}")) {
+            sample("prerequisite-invalid-input", "architecture-prerequisite-request", false, mapper.readTree(invalid));
+            response("prerequisite-invalid-problem", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(invalid))
+                    .andExpect(status().isBadRequest()).andReturn());
+        }
+        mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"expectedVersion\":0,\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\",\"declarations\":{}}"))
+                .andExpect(status().isBadRequest());
+        input.put("expectedVersion", 1);
+        response("prerequisite-stale", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(input.toString()))
+                .andExpect(status().isConflict()).andReturn());
+        input.put("expectedVersion", 0);
+        response("prerequisite-other-workspace", mvc.perform(post("/api/v1/workspaces/" + UUID.randomUUID() +
+                        "/assessments/" + assessment.id().value() + "/architecture-prerequisite-preview")
+                .contentType(MediaType.APPLICATION_JSON).content(input.toString())).andExpect(status().isNotFound()).andReturn());
+        assertEquals(assessment.created(), response("prerequisite-original", mvc.perform(get(assessment.path())).andReturn()));
+        assertHistorySize(assessment, 1);
     }
 
     @Test

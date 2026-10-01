@@ -16,7 +16,9 @@ import { parseProposalReviewCursor, proposalIndexFromCore,
   type ProposalReviewIndexPage } from "../catalog/proposal-index.ts";
 import { proposalReviewFromCore, type CatalogProposalReview } from "../catalog/proposal-review.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
-import { withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
+import { evaluationContextValues, withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
+import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
+  type PrerequisiteInput, type PrerequisitePreview } from "../assessment/architecture-prerequisites.ts";
 import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
   type UsageMetric, type UsagePlanningValues } from "../assessment/usage-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
@@ -849,6 +851,42 @@ export async function readPersonalArchitecturePatterns(session: BrowserSession, 
   });
   if (response.status !== 200) throw new Error("Core architecture pattern read failed");
   return architecturePatternsFromCore(await response.json(), session, id, expectedVersion, context);
+}
+
+export async function previewPersonalArchitecturePrerequisites(session: BrowserSession, id: string,
+  input: PrerequisiteInput): Promise<{ kind: "preview"; preview: PrerequisitePreview } |
+  { kind: "not-found" | "conflict" | "invalid" }> {
+  if (!UUID.test(id)) throw new Error("Invalid prerequisite request");
+  // Recheck typed input for callers other than the form route.
+  const params = new URLSearchParams({ expectedVersion: String(input.expectedVersion), patternId: input.patternId });
+  for (const [key, value] of Object.entries(input.declarations)) params.append(key, value);
+  parsePrerequisiteForm(params);
+  const assessment = await readPersonalAssessment(session, id);
+  if (!assessment) return { kind: "not-found" };
+  if (assessment.version !== input.expectedVersion) return { kind: "conflict" };
+  const context = evaluationContextValues(assessment.profile);
+  if (!context) throw new Error("Core profile cannot be read safely");
+  const response = await fetch(`${CORE_ORIGIN}/api/v1/workspaces/${session.workspaceId}/assessments/${id}/architecture-prerequisite-preview`, {
+    method: "POST", headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
+    body: JSON.stringify(input), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status === 404) return { kind: "not-found" };
+  if (response.status === 409) return { kind: "conflict" };
+  if (response.status === 400) return { kind: "invalid" };
+  if (response.status !== 200) throw new Error("Core prerequisite preview failed");
+  const body = object(JSON.parse(await boundedPrerequisiteText(response, 32_768)));
+  exactKeys(body, ["preflight", "declarations", "analysis"]);
+  const declared = object(body.declarations);
+  exactKeys(declared, Object.keys(input.declarations));
+  if (Object.keys(declared).some(key => declared[key] !== input.declarations[key as keyof typeof input.declarations])) {
+    throw new Error("Core prerequisite declaration binding is invalid");
+  }
+  const preflight = architecturePatternsFromCore(body.preflight, session, id, input.expectedVersion, context);
+  const pattern = preflight.patterns.find(p => p.patternId === input.patternId)!;
+  const scope = context.clients.length === 0 ? "UNKNOWN" :
+    context.clients.includes(pattern.clientType) ? "SELECTED" : "NOT_SELECTED";
+  return { kind: "preview", preview: { assessmentVersion: input.expectedVersion,
+    analysis: prerequisiteAnalysis(body.analysis, input, scope) } };
 }
 
 function usagePlanningFromCore(value: unknown, session: BrowserSession, id: string,

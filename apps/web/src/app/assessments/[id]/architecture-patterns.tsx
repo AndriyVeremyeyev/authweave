@@ -1,4 +1,5 @@
 import type { ArchitecturePatternPreflightSummary, ArchitecturePatternSummary } from "@/lib/auth/core-client";
+import { ArchitecturePrerequisites } from "./architecture-prerequisites";
 
 const statusText: Record<ArchitecturePatternSummary["status"], string> = {
   MATCHES_CHECKED_REQUIREMENTS: "Matches the two checked criteria only",
@@ -6,7 +7,7 @@ const statusText: Record<ArchitecturePatternSummary["status"], string> = {
   NOT_APPLICABLE: "Client type not selected",
 };
 
-export function ArchitecturePatterns({ preview }: { preview: ArchitecturePatternPreflightSummary }) {
+export function ArchitecturePatterns({ preview, assessmentId }: { preview: ArchitecturePatternPreflightSummary; assessmentId: string }) {
   return (
     <section className="mt-10" aria-labelledby="patterns-heading">
       <h2 id="patterns-heading" className="text-2xl font-semibold">Architecture pattern preflight</h2>
@@ -36,6 +37,10 @@ export function ArchitecturePatterns({ preview }: { preview: ArchitecturePattern
               </a>
             </span>)}</p>
           </details>
+          <ArchitecturePrerequisites key={`${assessmentId}-${preview.assessmentVersion}-${pattern.patternId}`} assessmentId={assessmentId}
+            version={preview.assessmentVersion} patternId={pattern.patternId} descriptions={pattern.prerequisites}
+            clientScope={preview.selectedClients.length === 0 ? "UNKNOWN" :
+              preview.selectedClients.includes(pattern.clientType) ? "SELECTED" : "NOT_SELECTED"} />
         </li>)}
       </ul>
       <details className="mt-5 rounded-xl border border-slate-700 p-5 text-sm text-slate-300">

@@ -16,6 +16,27 @@ class InternalServiceCredentialFilterTests {
     private static final String ORGANIZATION = "987654321098765432";
 
     @Test
+    void prerequisitePreviewRequiresServiceIdentityAndPersonalWorkspaceOwnership() throws Exception {
+        var workspaceId = java.util.UUID.fromString("60000000-0000-4000-8000-000000000001");
+        var workspaces = org.mockito.Mockito.mock(io.authweave.core.assessment.application.PersonalWorkspaceService.class);
+        org.mockito.Mockito.when(workspaces.owns("http://localhost:8081", "owner", workspaceId)).thenReturn(true);
+        String path = "/api/v1/workspaces/" + workspaceId + "/assessments/80000000-0000-4000-8000-000000000001/architecture-prerequisite-preview";
+        for (String subject : java.util.List.of("", "other-owner", "owner")) {
+            var request = new MockHttpServletRequest("POST", path);
+            request.addHeader("Authorization", "Bearer " + TOKEN);
+            request.addHeader("X-AuthWeave-Oidc-Issuer", "http://localhost:8081");
+            if (!subject.isEmpty()) request.addHeader("X-AuthWeave-Oidc-Subject", subject);
+            var response = new MockHttpServletResponse();
+            new InternalServiceCredentialFilter(TOKEN, workspaces, "", "").doFilter(request, response, new MockFilterChain());
+            assertEquals(subject.isEmpty() ? 401 : subject.equals("owner") ? 200 : 403, response.getStatus());
+        }
+        var missingToken = new MockHttpServletRequest("POST", path);
+        var response = new MockHttpServletResponse();
+        new InternalServiceCredentialFilter(TOKEN, workspaces, "", "").doFilter(missingToken, response, new MockFilterChain());
+        assertEquals(401, response.getStatus());
+    }
+
+    @Test
     void refusesProvisioningWhenNoServiceCredentialIsConfigured() throws Exception {
         var request = request();
         request.addHeader("Authorization", "Bearer " + TOKEN);

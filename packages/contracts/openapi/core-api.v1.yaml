@@ -1109,6 +1109,48 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-prerequisite-preview:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    post:
+      tags: [Assessments]
+      summary: Preview unverified design declarations for one client pattern
+      description: >-
+        Read-only what-if preview bound to the exact assessment version. Core derives
+        client applicability from the stored profile, never from caller assertions.
+        Missing declarations are UNKNOWN. Foreign-pattern prerequisites are rejected.
+        Conditional matches do not verify a deployment or provider compatibility and
+        cannot override the separate two-criterion preflight. No recommendation,
+        approval, configuration access, persistence, history event or paid call.
+      operationId: previewArchitecturePrerequisitesV1
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/architecture-prerequisite-request.v1.schema.json
+      responses:
+        "200":
+          description: Conditional results only; response is not cacheable.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/architecture-prerequisite-preview.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          description: Service credential or verified session identity is missing or invalid.
+        "403":
+          description: The verified identity does not own the requested workspace.
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
   /api/v2/workspaces/{workspaceId}/assessments:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"

@@ -29,6 +29,11 @@ import tools.jackson.core.JacksonException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
 
+    @ExceptionHandler(io.authweave.core.evaluation.InvalidArchitecturePrerequisiteRequestException.class)
+    ProblemDetail invalidArchitecturePrerequisites(RuntimeException exception, HttpServletRequest request) {
+        return invalidRequest(List.of(new RequestViolation("declarations", exception.getMessage())), request);
+    }
+
     @ExceptionHandler(io.authweave.core.catalog.publication.CatalogBootstrapReviewException.class)
     ProblemDetail bootstrapReview(io.authweave.core.catalog.publication.CatalogBootstrapReviewException exception, HttpServletRequest request) {
         return switch (exception.reason()) {
