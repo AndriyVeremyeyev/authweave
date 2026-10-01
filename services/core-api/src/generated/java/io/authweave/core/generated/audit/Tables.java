@@ -9,6 +9,7 @@ import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
+import io.authweave.core.generated.audit.tables.CatalogPublicationEvents;
 
 import javax.annotation.processing.Generated;
 
@@ -55,4 +56,10 @@ public class Tables {
      * verified human curator. No raw proposal text.
      */
     public static final CatalogProposalEvents CATALOG_PROPOSAL_EVENTS = CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS;
+
+    /**
+     * Reserved atomic curator assertion event, without raw source or
+     * credentials. SQL does not authenticate an OIDC actor.
+     */
+    public static final CatalogPublicationEvents CATALOG_PUBLICATION_EVENTS = CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS;
 }

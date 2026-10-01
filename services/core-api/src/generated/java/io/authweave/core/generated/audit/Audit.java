@@ -9,6 +9,7 @@ import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
+import io.authweave.core.generated.audit.tables.CatalogPublicationEvents;
 
 import java.util.Arrays;
 import java.util.List;
@@ -72,6 +73,12 @@ public class Audit extends SchemaImpl {
     public final CatalogProposalEvents CATALOG_PROPOSAL_EVENTS = CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS;
 
     /**
+     * Reserved atomic curator assertion event, without raw source or
+     * credentials. SQL does not authenticate an OIDC actor.
+     */
+    public final CatalogPublicationEvents CATALOG_PUBLICATION_EVENTS = CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS;
+
+    /**
      * No further instances allowed
      */
     private Audit() {
@@ -91,7 +98,8 @@ public class Audit extends SchemaImpl {
             CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS,
             CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS,
             CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS,
-            CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS
+            CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS,
+            CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS
         );
     }
 }

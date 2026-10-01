@@ -11,6 +11,8 @@ import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
+import io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions;
+import io.authweave.core.generated.jooq.tables.CatalogPublishedSnapshots;
 import io.authweave.core.generated.jooq.tables.PersonalWorkspaces;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 
@@ -88,6 +90,18 @@ public class Core extends SchemaImpl {
     public final CatalogProposals CATALOG_PROPOSALS = CatalogProposals.CATALOG_PROPOSALS;
 
     /**
+     * Reserved exact-revision publication decision binding. No runtime INSERT
+     * until verified curator workflow exists.
+     */
+    public final CatalogPublicationDecisions CATALOG_PUBLICATION_DECISIONS = CatalogPublicationDecisions.CATALOG_PUBLICATION_DECISIONS;
+
+    /**
+     * Reserved immutable manifest registry, not active catalog. SQL binds
+     * metadata, not canonical hashes or source truth.
+     */
+    public final CatalogPublishedSnapshots CATALOG_PUBLISHED_SNAPSHOTS = CatalogPublishedSnapshots.CATALOG_PUBLISHED_SNAPSHOTS;
+
+    /**
      * Immutable OIDC issuer/subject ownership binding. Other Core API routes
      * still require future workspace authorization.
      */
@@ -122,6 +136,8 @@ public class Core extends SchemaImpl {
             CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS,
             CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS,
             CatalogProposals.CATALOG_PROPOSALS,
+            CatalogPublicationDecisions.CATALOG_PUBLICATION_DECISIONS,
+            CatalogPublishedSnapshots.CATALOG_PUBLISHED_SNAPSHOTS,
             PersonalWorkspaces.PERSONAL_WORKSPACES,
             Workspaces.WORKSPACES
         );

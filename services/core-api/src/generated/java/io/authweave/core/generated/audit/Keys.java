@@ -9,11 +9,13 @@ import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
+import io.authweave.core.generated.audit.tables.CatalogPublicationEvents;
 import io.authweave.core.generated.audit.tables.records.AssessmentEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CatalogFactReviewEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CatalogImpactReportEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CatalogProposalDecisionEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CatalogProposalEventsRecord;
+import io.authweave.core.generated.audit.tables.records.CatalogPublicationEventsRecord;
 
 import javax.annotation.processing.Generated;
 
@@ -51,4 +53,7 @@ public class Keys {
     public static final UniqueKey<CatalogProposalDecisionEventsRecord> CATALOG_PROPOSAL_DECISION_EVENTS_PKEY = Internal.createUniqueKey(CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS, DSL.name("catalog_proposal_decision_events_pkey"), new TableField[] { CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS.ID }, true);
     public static final UniqueKey<CatalogProposalEventsRecord> CATALOG_PROPOSAL_EVENTS_ID_KEY = Internal.createUniqueKey(CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS, DSL.name("catalog_proposal_events_id_key"), new TableField[] { CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS.ID }, true);
     public static final UniqueKey<CatalogProposalEventsRecord> CATALOG_PROPOSAL_EVENTS_PK = Internal.createUniqueKey(CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS, DSL.name("catalog_proposal_events_pk"), new TableField[] { CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS.PROPOSAL_ID, CatalogProposalEvents.CATALOG_PROPOSAL_EVENTS.VERSION }, true);
+    public static final UniqueKey<CatalogPublicationEventsRecord> CATALOG_PUBLICATION_EVENTS_DECISION_ID_KEY = Internal.createUniqueKey(CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS, DSL.name("catalog_publication_events_decision_id_key"), new TableField[] { CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS.DECISION_ID }, true);
+    public static final UniqueKey<CatalogPublicationEventsRecord> CATALOG_PUBLICATION_EVENTS_PKEY = Internal.createUniqueKey(CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS, DSL.name("catalog_publication_events_pkey"), new TableField[] { CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS.ID }, true);
+    public static final UniqueKey<CatalogPublicationEventsRecord> CATALOG_PUBLICATION_EVENTS_SNAPSHOT_ID_KEY = Internal.createUniqueKey(CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS, DSL.name("catalog_publication_events_snapshot_id_key"), new TableField[] { CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS.SNAPSHOT_ID }, true);
 }

@@ -10,6 +10,7 @@ import io.authweave.core.generated.jooq.tables.CatalogFactReviews.CatalogFactRev
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports.CatalogImpactReportsPath;
 import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions.CatalogProposalDecisionsPath;
 import io.authweave.core.generated.jooq.tables.CatalogProposals.CatalogProposalsPath;
+import io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions.CatalogPublicationDecisionsPath;
 import io.authweave.core.generated.jooq.tables.records.CatalogProposalRevisionsRecord;
 
 import java.time.OffsetDateTime;
@@ -256,6 +257,19 @@ public class CatalogProposalRevisions extends TableImpl<CatalogProposalRevisions
             _catalogProposalDecisions = new CatalogProposalDecisionsPath(this, null, Keys.CATALOG_PROPOSAL_DECISIONS__CATALOG_PROPOSAL_DECISION_REVISION_FK.getInverseKey());
 
         return _catalogProposalDecisions;
+    }
+
+    private transient CatalogPublicationDecisionsPath _catalogPublicationDecisions;
+
+    /**
+     * Get the implicit to-many join path to the
+     * <code>core.catalog_publication_decisions</code> table
+     */
+    public CatalogPublicationDecisionsPath catalogPublicationDecisions() {
+        if (_catalogPublicationDecisions == null)
+            _catalogPublicationDecisions = new CatalogPublicationDecisionsPath(this, null, Keys.CATALOG_PUBLICATION_DECISIONS__CATALOG_PUBLICATION_DECISION_REVISION_FK.getInverseKey());
+
+        return _catalogPublicationDecisions;
     }
 
     @Override

@@ -910,13 +910,41 @@ unchanged and cannot accept this snapshot or a new baseline reference.
 Format validity and exact supplied-base agreement never set `baselineVerified`,
 source verification, approval, writes or evaluation readiness. An attacker can
 recompute every hash and declare a decision or reviewed evidence; authenticating
-publication and lineage requires future authoritative Core storage and a verified
-publication decision. That lookup is explicitly unavailable, even for a matching
+publication and lineage requires authoritative Core records written through a verified
+publication workflow. That lookup is explicitly unavailable, even for a matching
 initial manifest. Historical format inspection does not assert current evidence
 freshness, impact coverage or eligibility. No source, database, publisher or evaluator
 is called by the inspector. The shared `.invalid` fixture is format-valid synthetic
-test data, not a real publication. Storage, trusted baseline resolution, approval,
+test data, not a real publication. Trusted baseline resolution, approval,
 active catalog loading and assessment pinning are still unimplemented.
+
+### Reserved publication registry storage
+
+Flyway V14 reserves `core.catalog_publication_decisions`, `core.catalog_published_snapshots`
+and `audit.catalog_publication_events`. Core runtime has SELECT only; Web has no access,
+including through schema default privileges. No runtime INSERT, writer, publication CLI,
+HTTP approval action, active catalog pointer or seed publication is available.
+
+A reserved decision binds either an explicit `CURATED_BOOTSTRAP` origin or one exact
+`PROPOSAL_APPROVAL` revision/digest. The latter locks the current proposal head and cannot
+coexist with a rejection; the existing rejection insert now shares that database guard.
+Decision, manifest and matching minimal curator-assertion audit must commit together.
+After inserting the decision, manifest and event can be inserted in either order.
+The manifest metadata must match the stored identity, catalog label, digests, decision,
+publication time and full parent tuple. The supplied manifest time is bounded against a
+separate DB receipt time. Audit authentication-time bounds and actor shape follow the
+existing curator audit boundary, without copying raw sources, tokens or rationale.
+
+A unique bootstrap root, globally unique catalog labels and one successor per exact parent
+reserve a linear immutable history. Conflicting concurrent successors cannot fork it.
+Runtime roles cannot rewrite, delete, truncate or reparent these records; a database
+administrator remains outside that protection. This is not catalog activation or a
+tamper-proof signature chain. SQL checks structural bindings, not full catalog semantics,
+canonical hash correctness, evidence review, applicable impact coverage or OIDC identity.
+Those checks and an authorized publication workflow remain required before runtime writes
+or trusted baseline resolution can be enabled. Testcontainers fixtures use an admin role
+with fictional data solely to exercise these constraints; they do not authenticate a curator
+or grant publication authority. The offline inspector and synthetic evaluator are unchanged.
 
 ### Conditional catalog impact
 
