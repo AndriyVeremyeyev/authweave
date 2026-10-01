@@ -21,12 +21,25 @@ import static io.authweave.core.catalog.impact.CatalogImpactPreview.Reason.*;
 @Service
 public final class CatalogImpactService {
     public static final String POLICY_VERSION = "catalog-impact-preview-1";
+    public static final String FACT_PATH_POLICY_VERSION = "catalog-fact-path-impact-1";
     private final CatalogChangePreviewService previews;
     public CatalogImpactService(CatalogChangePreviewService previews) { this.previews = previews; }
     public CatalogImpactPreview analyze(CatalogChangePreviewRequest request) { return analyze(request, null, null); }
 
     CatalogImpactPreview analyze(CatalogChangePreviewRequest request, Long storedVersion, String storedDigest) {
-        var preview = previews.preview(request);
+        return analyze(request, storedVersion, storedDigest, previews.preview(request), "CATALOG_RULE_PROBE_IMPACT", POLICY_VERSION,
+                CatalogImpactCases.VERSION, CatalogImpactCases.SHA256, CatalogImpactCases.PROBES);
+    }
+
+    /** Internal current-time regression; does not replace, migrate or refresh the historical 24-probe/3-profile reports. */
+    public CatalogImpactPreview analyzeFactPathsAt(CatalogChangePreviewRequest request, Instant at) {
+        return analyze(request, null, null, previews.previewAt(request, at), "CATALOG_FACT_PATH_REGRESSION_IMPACT", FACT_PATH_POLICY_VERSION,
+                CatalogFactPathRegressionCases.VERSION, CatalogFactPathRegressionCases.SHA256, CatalogFactPathRegressionCases.PROBES);
+    }
+
+    private CatalogImpactPreview analyze(CatalogChangePreviewRequest request, Long storedVersion, String storedDigest,
+            CatalogChangePreview preview, String scope, String policyVersion, String caseSetVersion, String caseSetSha256,
+            List<CatalogImpactCases.Probe> probes) {
         if (storedDigest != null && !storedDigest.equals(preview.proposalSha256())) {
             throw new CatalogProposalException(CatalogProposalException.Reason.REPLAY_UNAVAILABLE);
         }
@@ -37,7 +50,7 @@ public final class CatalogImpactService {
             var scopes = preview.optionChanges().stream().map(CatalogChangePreview.OptionChange::optionId).collect(Collectors.toSet());
             var changes = new TreeMap<String, Map<String, CatalogChangePreview.FactChange>>();
             for (var change : preview.factChanges()) changes.computeIfAbsent(change.optionId(), ignored -> new TreeMap<>()).put(change.path(), change);
-            var coveredPaths = CatalogImpactCases.PROBES.stream().map(CatalogImpactCases.Probe::factPath).collect(Collectors.toSet());
+            var coveredPaths = probes.stream().map(CatalogImpactCases.Probe::factPath).collect(Collectors.toSet());
             for (var change : preview.factChanges()) if (!scopes.contains(change.optionId()) && !coveredPaths.contains(change.path())) {
                 uncovered.add(new UncoveredChange(change.optionId(), change.path(), "NO_PROBE_FOR_FACT_PATH"));
             }
@@ -49,7 +62,7 @@ public final class CatalogImpactService {
                     var allPaths = new TreeSet<>(oldFacts.keySet()); allPaths.addAll(newFacts.keySet());
                     for (var path : allPaths) if (!coveredPaths.contains(path)) uncovered.add(new UncoveredChange(id, path, "NO_PROBE_FOR_FACT_PATH"));
                 }
-                for (var probe : CatalogImpactCases.PROBES) {
+                for (var probe : probes) {
                     var change = changes.getOrDefault(id, Map.of()).get(probe.factPath());
                     boolean scopeChanged = scopes.contains(id);
                     if (!scopeChanged && change == null) continue;
@@ -62,11 +75,11 @@ public final class CatalogImpactService {
             }
             uncovered.sort(java.util.Comparator.comparing(UncoveredChange::optionId).thenComparing(UncoveredChange::factPath));
         }
-        return new CatalogImpactPreview("CATALOG_RULE_PROBE_IMPACT", POLICY_VERSION, ClaimRules.VERSION,
-                CatalogImpactCases.VERSION, CatalogImpactCases.SHA256, "ASSUMED_TRUE_CLAIMS_AND_APPLICABLE_CONDITIONS", preview.evaluatedAt(),
+        return new CatalogImpactPreview(scope, policyVersion, ClaimRules.VERSION,
+                caseSetVersion, caseSetSha256, "ASSUMED_TRUE_CLAIMS_AND_APPLICABLE_CONDITIONS", preview.evaluatedAt(),
                 request.proposalId(), preview.proposalSha256(), storedVersion, storedDigest != null,
                 blocked ? Status.BLOCKED : Status.ANALYZED, !blocked, !blocked,
-                false, false, false, false, false, false, false, preview, CatalogImpactCases.PROBES, cases, uncovered);
+                false, false, false, false, false, false, false, preview, probes, cases, uncovered);
     }
 
     private static Map<String, Option> options(ProviderCatalogDraft draft) {

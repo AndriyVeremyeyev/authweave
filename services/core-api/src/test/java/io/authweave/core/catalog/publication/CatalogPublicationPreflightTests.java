@@ -20,6 +20,8 @@ import io.authweave.core.catalog.proposal.CatalogFactReview;
 import io.authweave.core.catalog.proposal.CatalogFactReviewRepository;
 import io.authweave.core.catalog.proposal.CatalogFactReviewRequest.Verdict;
 import io.authweave.core.evaluation.EvidencePolicy;
+import io.authweave.core.catalog.impact.CatalogImpactService;
+import io.authweave.core.catalog.impact.CatalogFactPathRegressionService;
 import static io.authweave.core.catalog.publication.CatalogPublicationPreflight.*;
 import static io.authweave.core.catalog.publication.CatalogPublicationLookupFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,7 +41,8 @@ class CatalogPublicationPreflightTests {
     private final CatalogBootstrapReviewService bootstrapReviews = mock(CatalogBootstrapReviewService.class);
     private final CatalogPublicationImpactVerifier impacts = mock(CatalogPublicationImpactVerifier.class);
     private final CatalogPublicationPreflight preflight = new CatalogPublicationPreflight(repository, reviews, publications,
-            lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews, impacts);
+            lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews, impacts,
+            new CatalogFactPathRegressionService(new CatalogImpactService(new CatalogChangePreviewService(validator, clock))));
     private CatalogChangePreviewRequest request;
     private CatalogPublicationPreflightRepository.Proposal row;
     private PublishedCatalogSnapshot.Reference baseline;
@@ -74,6 +77,9 @@ class CatalogPublicationPreflightTests {
         assertEquals(POLICY_VERSION, json.get("policyVersion").asText()); assertEquals("BLOCKED", json.get("status").asText());
         assertFalse(json.get("approvalGranted").asBoolean()); assertFalse(json.get("baselineVerified").asBoolean());
         assertFalse(mapper.writeValueAsString(result).contains("Fictional registry"));
+        assertTrue(result.factPaths().changedFactPathsCovered()); assertEquals(68, result.factPaths().declaredFactPaths());
+        assertEquals(1, result.factPaths().checkedCases()); assertEquals(AT, result.factPaths().evaluatedAt());
+        assertFalse(result.factPaths().storedReportVerified()); assertFalse(result.factPaths().coverageComplete());
     }
 
     @Test
@@ -195,11 +201,13 @@ class CatalogPublicationPreflightTests {
     @Test
     void noRealChangesOrInvalidCandidateRemainBlocked() {
         store(with(request, "candidate", request.base()));
-        assertTrue(run().blockers().contains(Blocker.CHANGE_NOT_REVIEWABLE));
+        var noOp = run(); assertTrue(noOp.blockers().contains(Blocker.CHANGE_NOT_REVIEWABLE));
+        assertTrue(noOp.blockers().contains(Blocker.FACT_PATH_REGRESSION_INCOMPLETE)); assertFalse(noOp.factPaths().changedFactPathsCovered());
         var json = (ObjectNode) mapper.valueToTree(request);
         ((tools.jackson.databind.node.ArrayNode) json.at("/candidate/options")).add(json.at("/candidate/options/0").deepCopy());
         store(mapper.treeToValue(json, CatalogChangePreviewRequest.class)); observe(List.of());
-        assertTrue(run().blockers().contains(Blocker.CANDIDATE_INVALID));
+        var invalid = run(); assertTrue(invalid.blockers().contains(Blocker.CANDIDATE_INVALID));
+        assertTrue(invalid.blockers().contains(Blocker.FACT_PATH_REGRESSION_BLOCKED)); assertEquals(0, invalid.factPaths().checkedCases());
     }
 
     @Test
@@ -235,6 +243,7 @@ class CatalogPublicationPreflightTests {
         var result = preflight.bootstrap(request.candidate());
         assertTrue(result.blockers().contains(Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE));
         assertEquals(CatalogPublicationImpactVerifier.Status.NOT_CHECKED, result.impact().status());
+        assertEquals(CatalogFactPathRegressionService.Status.NOT_CHECKED, result.factPaths().status());
         verifyNoInteractions(impacts); assertBlocked(result);
     }
 
@@ -278,6 +287,7 @@ class CatalogPublicationPreflightTests {
         assertTrue(result.facts().allFactsHaveSupportingObservation());
         assertFalse(result.blockers().contains(Blocker.BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE));
         assertFalse(result.blockers().contains(Blocker.FACT_OBSERVATIONS_MISSING)); assertBlocked(result);
+        assertEquals(CatalogFactPathRegressionService.Status.NOT_CHECKED, result.factPaths().status());
         when(repository.registryEmpty()).thenReturn(false);
         assertTrue(preflight.bootstrap(id, digest).blockers().contains(Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY));
     }

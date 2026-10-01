@@ -22,12 +22,13 @@ import io.authweave.core.catalog.draft.CatalogDraftValidator;
 import io.authweave.core.catalog.draft.ProviderCatalogDraft;
 import io.authweave.core.catalog.proposal.CatalogFactReview;
 import io.authweave.core.catalog.proposal.CatalogFactReviewRepository;
+import io.authweave.core.catalog.impact.CatalogFactPathRegressionService;
 
 /** Core-owned denial policy, not authorization, a prepared publication token or a publisher. */
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class CatalogPublicationPreflight {
-    public static final String POLICY_VERSION = "catalog-publication-preflight-2";
+    public static final String POLICY_VERSION = "catalog-publication-preflight-3";
     private static final long MAX_SAFE_INTEGER = 9007199254740991L;
     private final CatalogPublicationPreflightRepository repository;
     private final CatalogFactReviewRepository reviews;
@@ -39,15 +40,17 @@ public class CatalogPublicationPreflight {
     private final Clock clock;
     private final CatalogBootstrapReviewService bootstrapReviews;
     private final CatalogPublicationImpactVerifier impacts;
+    private final CatalogFactPathRegressionService regressions;
 
     CatalogPublicationPreflight(CatalogPublicationPreflightRepository repository, CatalogFactReviewRepository reviews,
             CatalogPublicationRepository publications, CatalogPublicationLookup lookup, CatalogDraftValidator validator,
             CatalogChangePreviewService preview, ObjectMapper mapper, Clock clock, CatalogBootstrapReviewService bootstrapReviews,
-            CatalogPublicationImpactVerifier impacts) {
+            CatalogPublicationImpactVerifier impacts, CatalogFactPathRegressionService regressions) {
         this.repository = repository; this.reviews = reviews; this.publications = publications; this.lookup = lookup;
         this.validator = validator; this.preview = preview; this.mapper = mapper; this.clock = clock;
         this.bootstrapReviews = bootstrapReviews;
         this.impacts = impacts;
+        this.regressions = regressions;
     }
 
     public enum Mode { PROPOSAL_APPROVAL, CURATED_BOOTSTRAP }
@@ -61,7 +64,8 @@ public class CatalogPublicationPreflight {
         BASELINE_NOT_TIP, BASELINE_AUTHORITY_UNAVAILABLE, BOOTSTRAP_REGISTRY_NOT_EMPTY,
         BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE, BOOTSTRAP_REVIEW_UNAVAILABLE, BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE,
         IMPACT_RECEIPT_MISSING, IMPACT_REPORT_READ_BUDGET_EXCEEDED, IMPACT_RECEIPT_INVALID,
-        IMPACT_RULES_INCOMPATIBLE, IMPACT_REPLAY_MISMATCH, IMPACT_ANALYSIS_BLOCKED, IMPACT_COVERAGE_INCOMPLETE,
+        IMPACT_RULES_INCOMPATIBLE, IMPACT_REPLAY_MISMATCH, IMPACT_ANALYSIS_BLOCKED,
+        FACT_PATH_REGRESSION_BLOCKED, FACT_PATH_REGRESSION_INCOMPLETE, IMPACT_COVERAGE_INCOMPLETE,
         CURATOR_AUTHORIZATION_NOT_PERFORMED, PUBLICATION_WORKFLOW_UNAVAILABLE
     }
 
@@ -80,10 +84,12 @@ public class CatalogPublicationPreflight {
     public record Result(Mode mode, Instant evaluatedAt, UUID proposalId, Long proposalVersion,
             String proposalSha256, FactCounts facts, long reviewThroughNumber,
             boolean baselineIntegrityValidated, boolean baselineContentMatches, CatalogPublicationImpactVerifier.Check impact,
+            CatalogFactPathRegressionService.Check factPaths,
             List<Blocker> blockers) {
         public Result {
             Objects.requireNonNull(mode); Objects.requireNonNull(evaluatedAt); Objects.requireNonNull(facts);
             Objects.requireNonNull(impact);
+            Objects.requireNonNull(factPaths);
             blockers = List.copyOf(blockers);
             if (blockers.isEmpty() || new HashSet<>(blockers).size() != blockers.size()
                     || !blockers.contains(Blocker.PUBLICATION_WORKFLOW_UNAVAILABLE)
@@ -92,6 +98,7 @@ public class CatalogPublicationPreflight {
                     || reviewThroughNumber < 0 || reviewThroughNumber > MAX_SAFE_INTEGER
                     || baselineContentMatches && !baselineIntegrityValidated
                     || mode == Mode.CURATED_BOOTSTRAP && impact.status() != CatalogPublicationImpactVerifier.Status.NOT_CHECKED
+                    || mode == Mode.CURATED_BOOTSTRAP && factPaths.status() != CatalogFactPathRegressionService.Status.NOT_CHECKED
                     || (mode == Mode.CURATED_BOOTSTRAP ? proposalId != null || proposalVersion != null || proposalSha256 != null
                         : proposalId == null || proposalVersion == null || proposalSha256 == null)) {
                 throw new IllegalArgumentException("Inconsistent preflight result");
@@ -147,8 +154,11 @@ public class CatalogPublicationPreflight {
         }
         var validation = validator.validateAt(request.candidate(), at);
         candidate(validation, blockers);
-        if (preview.preview(request).status() != CatalogChangePreview.Status.REVIEW_REQUIRED) blockers.add(Blocker.CHANGE_NOT_REVIEWABLE);
+        if (preview.previewAt(request, at).status() != CatalogChangePreview.Status.REVIEW_REQUIRED) blockers.add(Blocker.CHANGE_NOT_REVIEWABLE);
         var observed = observations(row, validation, at, blockers);
+        var factPaths = regressions.inspect(request, at);
+        if (factPaths.status() != CatalogFactPathRegressionService.Status.ANALYZED) blockers.add(Blocker.FACT_PATH_REGRESSION_BLOCKED);
+        else if (!factPaths.changedFactPathsCovered()) blockers.add(Blocker.FACT_PATH_REGRESSION_INCOMPLETE);
         var impact = impacts.verify(request, version, row.recordedAt(), at);
         switch (impact.status()) {
             case MISSING -> blockers.add(Blocker.IMPACT_RECEIPT_MISSING);
@@ -171,7 +181,7 @@ public class CatalogPublicationPreflight {
                 if (publications.successors(baseline.snapshotId()) != 0) blockers.add(Blocker.BASELINE_NOT_TIP);
             }
         }
-        return result(Mode.PROPOSAL_APPROVAL, at, id, version, row.sha256(), observed.counts(), observed.through(), integrity, matches, impact, blockers);
+        return result(Mode.PROPOSAL_APPROVAL, at, id, version, row.sha256(), observed.counts(), observed.through(), integrity, matches, impact, factPaths, blockers);
         // Storage errors propagate. This read is never reused as authorization for a later write.
     }
 
@@ -263,11 +273,13 @@ public class CatalogPublicationPreflight {
     private static Result result(Mode mode, Instant at, UUID id, Long version, String digest, FactCounts facts,
             long through, boolean integrity, boolean matches, EnumSet<Blocker> blockers) {
         return result(mode, at, id, version, digest, facts, through, integrity, matches,
-                CatalogPublicationImpactVerifier.Check.unavailable(CatalogPublicationImpactVerifier.Status.NOT_CHECKED), blockers);
+                CatalogPublicationImpactVerifier.Check.unavailable(CatalogPublicationImpactVerifier.Status.NOT_CHECKED),
+                CatalogFactPathRegressionService.Check.notChecked(), blockers);
     }
     private static Result result(Mode mode, Instant at, UUID id, Long version, String digest, FactCounts facts,
-            long through, boolean integrity, boolean matches, CatalogPublicationImpactVerifier.Check impact, EnumSet<Blocker> blockers) {
-        return new Result(mode, at, id, version, digest, facts, through, integrity, matches, impact, List.copyOf(blockers));
+            long through, boolean integrity, boolean matches, CatalogPublicationImpactVerifier.Check impact,
+            CatalogFactPathRegressionService.Check factPaths, EnumSet<Blocker> blockers) {
+        return new Result(mode, at, id, version, digest, facts, through, integrity, matches, impact, factPaths, List.copyOf(blockers));
     }
     private record FactKey(String optionId, String path) { }
     private record Observations(FactCounts counts, long through) { }

@@ -1018,8 +1018,30 @@ or refreshed, and the historical display API remains unchanged.
 `VERIFIED_PARTIAL_ANALYSIS` means recorded integrity and historical replay, not complete
 evaluation or trusted evidence. The current three-profile report still defers seven
 dimensions and cannot satisfy the mandatory `IMPACT_COVERAGE_INCOMPLETE` blocker.
-Full fact-path regression coverage and a separate bootstrap impact workflow remain
-unimplemented. Even a verified blocked analysis does not provide coverage or authority.
+Even a verified blocked analysis does not provide coverage or authority.
+
+Preflight separately computes a **fresh fact-path regression** for all changed addresses
+in draft v1. Its versioned suite declares all 68 supported paths: nine capabilities,
+19 compatibility categories, four residency categories and 36 human authentication
+control scopes (browser/native mobile, six populations, three controls). Scope changes,
+option additions and removals run all 68 probes for each affected option; renames are distinct
+removed/added options, with at most 200 option IDs and 13,600 checks. Ordinary fact or
+provenance changes run the exact affected probes. Missing facts remain unknown rather
+than borrowing another client/population's assertion or inferring residency from a label.
+
+These are fixed **required-rule** probes, not user requirements or full-profile decisions.
+The residency probe's DE allowlist is a synthetic test input, not a hosting recommendation.
+`changedFactPathsCovered` means the changed addresses have probes, not that outcomes
+passed or sources were verified. Blocked, no-op, gap or incomplete-count summaries
+cannot claim that coverage. The body-free `factPaths` summary has the current time,
+report/case-set hashes and bounded counts; it is independent of the historical `impact`
+receipt and does not refresh it. Contract/schema drift and a pinned suite digest require
+an explicit suite review rather than silently expanding coverage.
+
+The 24-probe and three-profile HTTP/history formats remain unchanged. Full-profile
+deferred dimensions, durable full-regression receipt policy and a distinct bootstrap
+impact workflow still prevent complete publication coverage. No new endpoint,
+registry write, runtime grant or catalog activation is added.
 
 First publication uses the distinct `CURATED_BOOTSTRAP` preflight: all three publication
 tables must be empty, the candidate valid and its evidence current. Empty storage or a
