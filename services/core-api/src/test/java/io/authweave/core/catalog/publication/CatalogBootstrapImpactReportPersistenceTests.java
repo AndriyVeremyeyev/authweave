@@ -75,6 +75,8 @@ class CatalogBootstrapImpactReportPersistenceTests {
         assertEquals(Instant.parse(saved.report().get("evaluatedAt").asText()), preflightResult.storedBootstrapImpact().analysis().evaluatedAt());
         assertFalse(preflightResult.blockers().contains(CatalogPublicationPreflight.Blocker.BOOTSTRAP_IMPACT_RECEIPT_MISSING));
         assertTrue(preflightResult.blockers().contains(CatalogPublicationPreflight.Blocker.IMPACT_COVERAGE_INCOMPLETE));
+        assertEquals(io.authweave.core.catalog.impact.CatalogProfileImpactCoverageService.Status.INCOMPLETE, preflightResult.profileImpactCoverage().status());
+        assertEquals(96, preflightResult.profileImpactCoverage().dimensions().size()); assertFalse(preflightResult.profileImpactCoverage().coverageComplete());
         assertFalse(preflightResult.publicationReady()); assertFalse(preflightResult.writesPerformed()); assertEquals(count, dsl.fetchCount(CATALOG_BOOTSTRAP_IMPACT_REPORTS));
     }
     @Test void retryDoesNotRerunKernelAndWrongIdentityOrHashCannotRebindStoredReport() {

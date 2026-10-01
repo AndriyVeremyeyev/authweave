@@ -23,6 +23,7 @@ import io.authweave.core.catalog.impact.CatalogFactPathRegressionService;
 import io.authweave.core.catalog.impact.CatalogFactPathReportRepository;
 import io.authweave.core.catalog.impact.LocalCatalogFactPathReportWriter;
 import io.authweave.core.catalog.impact.CatalogBootstrapImpactService;
+import io.authweave.core.catalog.impact.CatalogProfileImpactCoverageService;
 import io.authweave.core.catalog.proposal.CatalogFactReviewRequest;
 import io.authweave.core.catalog.proposal.CatalogFactReviewWriter;
 import io.authweave.core.catalog.proposal.LocalCatalogProposalWriter;
@@ -80,6 +81,7 @@ class CatalogPublicationPreflightIntegrationTests {
         assertFalse(result.blockers().contains(BOOTSTRAP_REGISTRY_NOT_EMPTY));
         assertTrue(result.blockers().contains(BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE));
         assertEquals(9, result.facts().unobserved()); assertFalse(result.publicationReady()); registryStillEmpty();
+        assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, result.profileImpactCoverage().status());
     }
 
     @Test
@@ -151,6 +153,9 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(Instant.parse(regression.report().get("evaluatedAt").asText()), result.storedFactPaths().evaluatedAt());
         assertFalse(result.blockers().contains(FACT_PATH_RECEIPT_MISSING));
         assertTrue(result.blockers().contains(IMPACT_COVERAGE_INCOMPLETE)); assertFalse(result.coverageComplete());
+        assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
+        assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(96, result.profileImpactCoverage().dimensions().size());
+        assertEquals(44, result.profileImpactCoverage().unexercisedFactPaths().size());
         assertFalse(result.blockers().contains(IMPACT_RECEIPT_MISSING)); assertFalse(result.approvalGranted());
         assertEquals(count, dsl.fetchCount(CATALOG_IMPACT_REPORTS)); assertEquals(report, impacts.get(saved.proposalId(), saved.version(), report.reportId()));
         registryStillEmpty();
@@ -285,6 +290,8 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(oldReportCount, dsl.fetchCount(CATALOG_IMPACT_REPORTS)); registryStillEmpty();
         assertEquals(bootstrapReportCount, dsl.fetchCount(io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS));
         assertEquals(CatalogPublicationBootstrapImpactVerifier.Status.MISSING, result.storedBootstrapImpact().status());
+        assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
+        assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(6, result.profileImpactCoverage().additionalGaps().size());
         var json = mapper.writeValueAsString(check); assertFalse(json.contains("sourceUrl")); assertFalse(json.contains("profile")); assertFalse(json.contains(actor.subject()));
     }
 

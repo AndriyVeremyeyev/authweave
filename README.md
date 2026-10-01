@@ -1132,6 +1132,46 @@ gaps and seven deferred profile dimensions disappeared. Full coverage, source tr
 baseline/approval/publication/evaluation readiness and writes remain false. No registry
 write, catalog activation or existing HTTP/history format is changed.
 
+### Profile impact coverage policy
+
+Internal preflight policy v7 adds a separate, fresh `profileImpactCoverage` check.
+Passing a receipt replay or checking every catalog address does not establish that
+the frozen profiles exercise every decision-critical requirement. The versioned
+coverage manifest maps **all 32 semantic inputs of profile v5** to their rule and
+permitted fact dependencies. Array/map inputs remain bounded semantic inputs, not
+invented provider billing units or a count of individual user values. Independent
+schema-path and canonical-schema fingerprint tests require review when fields,
+types, vocabulary or scope change. Unknown profile paths, duplicate rules or facts
+borrowed from another requirement fail closed, rather than silently widening coverage.
+
+The check emits one body-free row per input and frozen scenario: 96 rows for the
+three existing profiles. `CONDITIONAL_RULE_PRESENT` means that scenario exercises an
+evidence-dependent rule, not that the provider meets it. `SCOPE_GUARD_ONLY` means the
+rule handles an unknown/not-applied scope or criticality without exercising a fact
+dependency; it is not evidence of support. `DEFERRED_DIMENSION` identifies an input
+not yet evaluated by the profile regression. `MISSING_RULE` distinguishes an omitted
+expected rule from an intentionally deferred dimension.
+
+The current suite has 11 deferred inputs per scenario: browser token architecture/
+configuration, auditability, full assurance, compliance evidence and operational/cost
+planning. Additional gaps explicitly distinguish **provisioning lifecycle** and
+**configured human authentication flows** from feature/enforceability availability.
+The 44 `unexercisedFactPaths` are addresses not actively consumed by these three frozen
+profiles, not omissions from the separate 68-path required-rule probe suite. Empty gaps,
+positive conditional outcomes, owner labels, recorded usage values or a successful
+historical replay cannot erase the other coverage boundaries.
+
+The policy uses source-controlled profiles and plans, not caller-supplied definitions
+or completeness flags. It contains no profile values, source bodies or actor identities.
+Parsed exact-proposal and validated exact-bootstrap-review preflights compute it at
+their own preflight time; raw drafts and unavailable/invalid exact inputs leave it
+`NOT_CHECKED`. Schema/rule-policy failures propagate. No historical JSON, rule/case
+version or receipt format is changed, no missing receipt is manufactured and no write
+or catalog activation occurs. The current manifest returns `INCOMPLETE`; the mandatory
+coverage, fresh-authorization and publication-workflow gates remain closed. This is
+the explicit coverage-policy prerequisite, not completion of deferred evaluators or
+permission to publish. The next slice must address the identified regression gaps.
+
 Both modes always return `BLOCKED`. Curator authorization **at the eventual write** and
 a verified publication workflow remain mandatory blockers; baseline/source verification,
 coverage, approval, publication/evaluation readiness and writes remain false. A future
