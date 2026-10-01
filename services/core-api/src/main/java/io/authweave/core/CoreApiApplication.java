@@ -12,6 +12,25 @@ import io.authweave.core.assessment.seed.SyntheticAssessmentSeeder;
 public class CoreApiApplication {
 
     public static void main(String[] args) {
+        if (Arrays.asList(args).contains("--store-catalog-bootstrap-impact")) {
+            SpringApplication application = new SpringApplication(CoreApiApplication.class);
+            application.setWebApplicationType(WebApplicationType.NONE);
+            application.setAdditionalProfiles("local-catalog-bootstrap-impact-write");
+            int exitCode = 0;
+            try (var context = application.run(args)) {
+                var result = context.getBean(io.authweave.core.catalog.publication.LocalCatalogBootstrapImpactCommand.class).store(System.getenv());
+                var report = result.report();
+                System.out.printf("%s bootstrap-impact=%s review=%s status=%s approval=false activation=false%n",
+                        result.changed() ? "SAVED" : "UNCHANGED", report.reportId(), report.reviewId(), report.report().get("status").asText());
+            } catch (io.authweave.core.catalog.publication.CatalogBootstrapImpactReportException | io.authweave.core.catalog.publication.CatalogBootstrapReviewException failure) {
+                System.err.println("Bootstrap impact command rejected: " + failure.getMessage()); exitCode = 2;
+            } catch (IllegalArgumentException failure) {
+                System.err.println("Invalid bootstrap impact command: " + failure.getMessage()); exitCode = 2;
+            } catch (RuntimeException failure) {
+                System.err.println("Bootstrap impact command failed (" + failure.getClass().getSimpleName() + "). No success is claimed."); exitCode = 1;
+            }
+            System.exit(exitCode); return;
+        }
         if (Arrays.asList(args).contains("--store-catalog-regression")) {
             SpringApplication application = new SpringApplication(CoreApiApplication.class);
             application.setWebApplicationType(WebApplicationType.NONE);

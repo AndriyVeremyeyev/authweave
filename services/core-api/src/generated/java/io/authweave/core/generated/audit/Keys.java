@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogBootstrapImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogBootstrapReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogFactPathReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
@@ -13,6 +14,7 @@ import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 import io.authweave.core.generated.audit.tables.CatalogPublicationEvents;
 import io.authweave.core.generated.audit.tables.records.AssessmentEventsRecord;
+import io.authweave.core.generated.audit.tables.records.CatalogBootstrapImpactReportEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CatalogBootstrapReviewEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CatalogFactPathReportEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CatalogFactReviewEventsRecord;
@@ -49,6 +51,8 @@ public class Keys {
 
     public static final UniqueKey<AssessmentEventsRecord> ASSESSMENT_EVENTS_ID_KEY = Internal.createUniqueKey(AssessmentEvents.ASSESSMENT_EVENTS, DSL.name("assessment_events_id_key"), new TableField[] { AssessmentEvents.ASSESSMENT_EVENTS.ID }, true);
     public static final UniqueKey<AssessmentEventsRecord> ASSESSMENT_EVENTS_PK = Internal.createUniqueKey(AssessmentEvents.ASSESSMENT_EVENTS, DSL.name("assessment_events_pk"), new TableField[] { AssessmentEvents.ASSESSMENT_EVENTS.WORKSPACE_ID, AssessmentEvents.ASSESSMENT_EVENTS.ASSESSMENT_ID, AssessmentEvents.ASSESSMENT_EVENTS.VERSION }, true);
+    public static final UniqueKey<CatalogBootstrapImpactReportEventsRecord> CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS_PKEY = Internal.createUniqueKey(CatalogBootstrapImpactReportEvents.CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS, DSL.name("catalog_bootstrap_impact_report_events_pkey"), new TableField[] { CatalogBootstrapImpactReportEvents.CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS.ID }, true);
+    public static final UniqueKey<CatalogBootstrapImpactReportEventsRecord> CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS_REPORT_ID_KEY = Internal.createUniqueKey(CatalogBootstrapImpactReportEvents.CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS, DSL.name("catalog_bootstrap_impact_report_events_report_id_key"), new TableField[] { CatalogBootstrapImpactReportEvents.CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS.REPORT_ID }, true);
     public static final UniqueKey<CatalogBootstrapReviewEventsRecord> CATALOG_BOOTSTRAP_REVIEW_EVENTS_PKEY = Internal.createUniqueKey(CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS, DSL.name("catalog_bootstrap_review_events_pkey"), new TableField[] { CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS.ID }, true);
     public static final UniqueKey<CatalogBootstrapReviewEventsRecord> CATALOG_BOOTSTRAP_REVIEW_EVENTS_REVIEW_ID_KEY = Internal.createUniqueKey(CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS, DSL.name("catalog_bootstrap_review_events_review_id_key"), new TableField[] { CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS.REVIEW_ID }, true);
     public static final UniqueKey<CatalogFactPathReportEventsRecord> CATALOG_FACT_PATH_REPORT_EVENTS_PKEY = Internal.createUniqueKey(CatalogFactPathReportEvents.CATALOG_FACT_PATH_REPORT_EVENTS, DSL.name("catalog_fact_path_report_events_pkey"), new TableField[] { CatalogFactPathReportEvents.CATALOG_FACT_PATH_REPORT_EVENTS.ID }, true);

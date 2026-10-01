@@ -1047,8 +1047,8 @@ one. `VERIFIED_FACT_PATH_ANALYSIS` only establishes replayed changed-path covera
 Blocked or no-op reports can have valid stored integrity without that coverage.
 
 The 24-probe and three-profile HTTP/history formats remain unchanged. Full-profile
-deferred dimensions and a distinct durable bootstrap impact workflow still prevent complete
-publication coverage. The new local storage grants do not grant publication authority;
+deferred dimensions still prevent complete publication coverage. The local report
+storage grants do not grant publication authority;
 no HTTP endpoint, registry write or catalog activation is added.
 
 First publication uses the distinct `CURATED_BOOTSTRAP` preflight: all three publication
@@ -1057,7 +1057,7 @@ null parent cannot bypass `BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE`; proposal revi
 observations are not silently repurposed as bootstrap approval. This raw-draft path
 does not load or reuse a stored bootstrap review. The exact stored-review path described
 below can account for manual observations, but still cannot approve or publish.
-Both bootstrap paths retain `BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE` and never reuse
+The raw-draft path retains `BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE`. Neither path reuses
 proposal impact reports for the initial catalog version.
 
 The exact stored-review path now computes a separate **candidate-only bootstrap impact**
@@ -1076,10 +1076,61 @@ and `allFrozenScenariosChecked` describe checks performed, not successful outcom
 complete evidence or full-profile coverage; scenario dependency gaps remain explicit.
 Invalid candidates/digests yield no partial successful counts. Raw drafts, unavailable
 reviews and proposal mode leave this summary `NOT_CHECKED`; storage/kernel failures
-propagate. This is a fresh pure calculation, not a recorded bootstrap impact receipt:
-`storedReportVerified` is false and the workflow/coverage/authorization/publication
-blockers remain. No new migration, grant, HTTP endpoint, write or active-catalog change
-is introduced. Durable bootstrap receipts and their historical replay are the next step.
+propagate. This remains a fresh pure calculation, not a recorded receipt:
+`storedReportVerified` is false. The separate `storedBootstrapImpact` verifies the
+latest durable receipt for the exact stored review, not a caller-supplied summary.
+Coverage/authorization/publication blockers remain.
+
+### Stored bootstrap impact receipts
+
+An explicit local command records candidate-only analysis for an existing, validated
+bootstrap source review. Start local PostgreSQL and supply the exact review UUID and
+`reviewSha256` returned by the protected source-review workflow, plus a fresh report UUID:
+
+```sh
+AUTHWEAVE_CATALOG_BOOTSTRAP_IMPACT_REPORT_ID='<canonical report UUID>' \
+AUTHWEAVE_CATALOG_BOOTSTRAP_REVIEW_ID='<exact stored review UUID>' \
+AUTHWEAVE_CATALOG_BOOTSTRAP_REVIEW_SHA256='<exact lowercase review SHA-256>' \
+  make store-catalog-bootstrap-impact
+```
+
+These are placeholders, not runnable sample identities. No JSON file, timestamp,
+verdict, trusted flag, publication decision or fabricated proposal is accepted. The
+`local-catalog-bootstrap-impact-write` profile is only enabled by this explicit command;
+normal startup never records a receipt or opens an HTTP report-writing action.
+
+V17 stores immutable raw JSON, format/canonicalization/hash, exact review/candidate
+bindings, a database sequence number and receipt time. A mandatory body-free **SERVICE**
+audit is committed in the same transaction; it is not a fresh curator/OIDC/source-truth
+assertion. Reciprocal foreign keys prevent an unaudited commit. Core has bounded reads
+and column-limited inserts, not update/delete, caller-controlled times/numbers or
+publication writes; Web/PUBLIC have no access. The writer acquires the shared bootstrap
+boundary before allocating a number. The database insert guard also requires an empty
+publication registry under that lock. New reports stop after publication, while a retry
+with the same report/review/hash returns the original snapshot/audit without recalculating
+under new rules. A new report UUID requests a new analysis. Historical reads never rewrite
+JSON, refresh evidence dates or create a missing receipt.
+
+Internal preflight policy v6 verifies `storedBootstrapImpact` in the same read-only,
+repeatable-read snapshot as the exact source review and fresh checks. It reads the latest
+report by review UUID without filtering hashes/validity to expose an older successful
+report. Bounded JSON, schema, canonical hash, review/candidate bindings, database/audit
+times, service identity and policy/rule/profile/case/scenario versions must match.
+The entire report is regenerated at its **original** `evaluatedAt` and canonically
+compared, including definitions, all path/scenario results, gaps and false trust flags.
+Self-consistent body/hash/audit tampering cannot hide an omitted result or inflated claim.
+
+Missing, oversized, invalid, incompatible, replay-mismatched, blocked or incomplete
+receipts have distinct blockers; fresh calculation cannot substitute for one. Invalid
+receipts expose no partial identity or successful counts. Database failures propagate.
+Raw drafts, unavailable source reviews and proposal mode leave this check `NOT_CHECKED`.
+The verified check exposes receipt identity/hash plus a body-free historical `analysis`
+summary; its nested kernel summary is not another stored receipt. A successful
+`VERIFIED_BOOTSTRAP_ANALYSIS` means all 68 declared paths and three frozen scenarios were
+replayed, not that their outcomes succeeded or that missing facts, scenario dependency
+gaps and seven deferred profile dimensions disappeared. Full coverage, source truth,
+baseline/approval/publication/evaluation readiness and writes remain false. No registry
+write, catalog activation or existing HTTP/history format is changed.
 
 Both modes always return `BLOCKED`. Curator authorization **at the eventual write** and
 a verified publication workflow remain mandatory blockers; baseline/source verification,

@@ -70,6 +70,7 @@ class CatalogPublicationPreflightIntegrationTests {
     @MockitoSpyBean private CatalogFactPathReportRepository regressions;
     @MockitoSpyBean private CatalogPublicationPreflightRepository repository;
     @MockitoSpyBean private CatalogBootstrapReviewService bootstrapReviews;
+    @MockitoSpyBean private CatalogBootstrapImpactReportRepository bootstrapReports;
 
     @Test
     void emptyBootstrapIsReadOnlyRepeatableReadAndDoesNotPublishOrSeed() {
@@ -259,8 +260,10 @@ class CatalogPublicationPreflightIntegrationTests {
         var actor = new CuratorActor("http://localhost:8081", "synthetic-bootstrap-impact-curator", "123456789012345678", "987654321098765432", Instant.now());
         var receipt = bootstrapReviews.record(request, actor).review();
         doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(bootstrapReviews).reviewed(any(UUID.class), anyString());
+        doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(bootstrapReports).latest(any(UUID.class));
         int reportCount = dsl.fetchCount(io.authweave.core.generated.jooq.tables.CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS);
         int oldReportCount = dsl.fetchCount(CATALOG_IMPACT_REPORTS);
+        int bootstrapReportCount = dsl.fetchCount(io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS);
         var result = preflight.bootstrap(request.reviewId(), receipt.reviewSha256()); var check = result.bootstrapImpact();
         assertEquals(CatalogBootstrapImpactService.CheckStatus.ANALYZED, check.status()); assertEquals(result.evaluatedAt(), check.evaluatedAt());
         assertEquals(request.reviewId(), check.reviewId()); assertEquals(receipt.reviewSha256(), check.reviewSha256());
@@ -269,7 +272,7 @@ class CatalogPublicationPreflightIntegrationTests {
         assertTrue(check.allDeclaredFactPathsChecked()); assertTrue(check.allFrozenScenariosChecked());
         assertFalse(check.storedReportVerified()); assertFalse(check.coverageComplete());
         assertFalse(result.approvalGranted()); assertFalse(result.publicationReady()); assertFalse(result.writesPerformed());
-        assertTrue(result.blockers().contains(BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE)); assertTrue(result.blockers().contains(IMPACT_COVERAGE_INCOMPLETE));
+        assertTrue(result.blockers().contains(BOOTSTRAP_IMPACT_RECEIPT_MISSING)); assertTrue(result.blockers().contains(IMPACT_COVERAGE_INCOMPLETE));
         assertEquals(CatalogPublicationImpactVerifier.Status.NOT_CHECKED, result.impact().status());
         assertEquals(CatalogPublicationFactPathVerifier.Status.NOT_CHECKED, result.storedFactPaths().status());
         var missing = preflight.bootstrap(UUID.randomUUID(), receipt.reviewSha256());
@@ -280,6 +283,8 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(receipt, bootstrapReviews.get(request.reviewId(), receipt.reviewSha256()));
         assertEquals(reportCount, dsl.fetchCount(io.authweave.core.generated.jooq.tables.CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS));
         assertEquals(oldReportCount, dsl.fetchCount(CATALOG_IMPACT_REPORTS)); registryStillEmpty();
+        assertEquals(bootstrapReportCount, dsl.fetchCount(io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS));
+        assertEquals(CatalogPublicationBootstrapImpactVerifier.Status.MISSING, result.storedBootstrapImpact().status());
         var json = mapper.writeValueAsString(check); assertFalse(json.contains("sourceUrl")); assertFalse(json.contains("profile")); assertFalse(json.contains(actor.subject()));
     }
 

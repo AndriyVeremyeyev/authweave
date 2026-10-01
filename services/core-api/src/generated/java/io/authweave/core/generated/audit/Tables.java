@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogBootstrapImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogBootstrapReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogFactPathReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
@@ -34,6 +35,12 @@ public class Tables {
      * update or delete events.
      */
     public static final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
+
+    /**
+     * Mandatory body-free local service receipt; separate from the human
+     * bootstrap source-review assertion.
+     */
+    public static final CatalogBootstrapImpactReportEvents CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS = CatalogBootstrapImpactReportEvents.CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS;
 
     /**
      * Mandatory body-free curator assertion audit; DB constraints do not

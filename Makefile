@@ -6,7 +6,7 @@ PYTHON ?= python3.13
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
 	check check-policy check-core check-web check-web-auth-db check-ai check-contracts \
 	setup-auth setup-core-service-token check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
-	generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact store-catalog-regression dev-core dev-web dev-ai
+	generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact store-catalog-regression store-catalog-bootstrap-impact dev-core dev-web dev-ai
 
 help:
 	@printf '%s\n' \
@@ -26,6 +26,7 @@ help:
 		'  make store-catalog-proposal  Store an unreviewed proposal from an explicit local JSON file' \
 		'  make store-catalog-impact    Save a conditional scenario report for an exact proposal revision' \
 		'  make store-catalog-regression  Save a 68-path conditional regression for an exact proposal revision' \
+		'  make store-catalog-bootstrap-impact  Save candidate-only analysis for an exact bootstrap source review' \
 		'  make infra-up        Start local PostgreSQL' \
 		'  make infra-status    Show local infrastructure status' \
 		'  make infra-down      Stop local infrastructure' \
@@ -148,6 +149,11 @@ store-catalog-regression:
 	@set -a; . ./infra/.env; set +a; cd services/core-api; \
 		exec ./mvnw --batch-mode --no-transfer-progress spring-boot:run \
 		-Dspring-boot.run.arguments="--store-catalog-regression --spring.main.web-application-type=none"
+
+store-catalog-bootstrap-impact:
+	@set -a; . ./infra/.env; set +a; cd services/core-api; \
+		exec ./mvnw --batch-mode --no-transfer-progress spring-boot:run \
+		-Dspring-boot.run.arguments="--store-catalog-bootstrap-impact --spring.main.web-application-type=none"
 
 dev-core:
 	@set -a; . ./infra/.env; set +a; \

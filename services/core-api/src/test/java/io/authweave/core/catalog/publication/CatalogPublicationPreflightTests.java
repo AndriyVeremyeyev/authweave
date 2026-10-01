@@ -44,9 +44,10 @@ class CatalogPublicationPreflightTests {
     private final CatalogPublicationImpactVerifier impacts = mock(CatalogPublicationImpactVerifier.class);
     private final CatalogPublicationFactPathVerifier storedRegressions = mock(CatalogPublicationFactPathVerifier.class);
     private final CatalogBootstrapImpactService bootstrapImpacts = spy(new CatalogBootstrapImpactService(validator, scenarioCases()));
+    private final CatalogPublicationBootstrapImpactVerifier storedBootstrapImpacts = mock(CatalogPublicationBootstrapImpactVerifier.class);
     private final CatalogPublicationPreflight preflight = new CatalogPublicationPreflight(repository, reviews, publications,
             lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews, impacts,
-            new CatalogFactPathRegressionService(new CatalogImpactService(new CatalogChangePreviewService(validator, clock))), storedRegressions, bootstrapImpacts);
+            new CatalogFactPathRegressionService(new CatalogImpactService(new CatalogChangePreviewService(validator, clock))), storedRegressions, bootstrapImpacts, storedBootstrapImpacts);
     private CatalogChangePreviewRequest request;
     private CatalogPublicationPreflightRepository.Proposal row;
     private PublishedCatalogSnapshot.Reference baseline;
@@ -55,6 +56,7 @@ class CatalogPublicationPreflightTests {
 
     @BeforeEach
     void stored() {
+        when(storedBootstrapImpacts.verify(any(), any(), any())).thenReturn(CatalogPublicationBootstrapImpactVerifier.Check.unavailable(CatalogPublicationBootstrapImpactVerifier.Status.MISSING));
         var fixtures = new CatalogPublicationLookupFixtures(mapper);
         var root = fixtures.root(AT.minusSeconds(60)); var child = fixtures.child(root);
         request = child.request(); baseline = reference(root.snapshot());
@@ -331,7 +333,8 @@ class CatalogPublicationPreflightTests {
         assertEquals(digest, result.bootstrapImpact().reviewSha256()); assertEquals(reviewRequest.expectedCandidateSha256(), result.bootstrapImpact().candidateSha256());
         assertEquals(68, result.bootstrapImpact().checkedFactPaths()); assertEquals(59, result.bootstrapImpact().missingFactPaths());
         assertEquals(3, result.bootstrapImpact().checkedScenarios()); assertTrue(result.bootstrapImpact().allDeclaredFactPathsChecked());
-        assertTrue(result.blockers().contains(Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE));
+        assertTrue(result.blockers().contains(Blocker.BOOTSTRAP_IMPACT_RECEIPT_MISSING));
+        assertFalse(result.blockers().contains(Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE));
         assertFalse(result.bootstrapImpact().coverageComplete()); assertFalse(result.bootstrapImpact().storedReportVerified());
         verifyNoInteractions(impacts, storedRegressions, lookup, reviews, publications);
         when(repository.registryEmpty()).thenReturn(false);
@@ -397,6 +400,47 @@ class CatalogPublicationPreflightTests {
 
     private CatalogScenarioCases scenarioCases() {
         try { return new CatalogScenarioCases(mapper); } catch (java.io.IOException failure) { throw new AssertionError(failure); }
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(CatalogPublicationBootstrapImpactVerifier.Status.class)
+    void storedBootstrapReceiptStatesAreSeparateFromFreshCalculationAndCannotOpenPublication(CatalogPublicationBootstrapImpactVerifier.Status status) {
+        var candidate = request.candidate(); var id = UUID.randomUUID();
+        var input = new CatalogBootstrapReviewRequest(1, id, CatalogDraftCanonicalizer.sha256(candidate), candidate,
+                validator.validate(candidate).facts().stream().map(f -> new CatalogBootstrapReviewRequest.Observation(f.optionId(), f.path(), Verdict.SOURCE_SUPPORTS_CLAIM)).toList(),
+                CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
+        var digest = CatalogDraftCanonicalizer.sha256(input);
+        var receipt = new CatalogBootstrapReview(id, input.expectedCandidateSha256(), digest, candidate.catalogVersion(), 9, new CatalogBootstrapReview.Counts(9, 0, 0), AT);
+        when(bootstrapReviews.reviewed(id, digest)).thenReturn(new CatalogBootstrapReviewService.ReviewedCandidate(input, receipt));
+        CatalogPublicationBootstrapImpactVerifier.Check check;
+        if (status.name().startsWith("VERIFIED")) {
+            var analysis = bootstrapImpacts.inspectAt(input, AT);
+            if (status == CatalogPublicationBootstrapImpactVerifier.Status.VERIFIED_BLOCKED_ANALYSIS
+                    || status == CatalogPublicationBootstrapImpactVerifier.Status.VERIFIED_INCOMPLETE_ANALYSIS) {
+                analysis = new CatalogBootstrapImpactService.Check(status == CatalogPublicationBootstrapImpactVerifier.Status.VERIFIED_BLOCKED_ANALYSIS
+                        ? CatalogBootstrapImpactService.CheckStatus.BLOCKED : CatalogBootstrapImpactService.CheckStatus.ANALYZED,
+                        AT, id, digest, input.expectedCandidateSha256(), "a".repeat(64), 0, 0, 0, 0, 0, 0, 0, 0, 0);
+            }
+            check = new CatalogPublicationBootstrapImpactVerifier.Check(status, UUID.randomUUID(), 1, analysis.reportSha256(), analysis);
+        } else check = CatalogPublicationBootstrapImpactVerifier.Check.unavailable(status);
+        when(storedBootstrapImpacts.verify(any(), any(), any())).thenReturn(check);
+        var result = preflight.bootstrap(id, digest); assertEquals(check, result.storedBootstrapImpact()); assertBlocked(result);
+        var expected = switch (status) {
+            case MISSING -> Blocker.BOOTSTRAP_IMPACT_RECEIPT_MISSING;
+            case READ_BUDGET_EXCEEDED -> Blocker.BOOTSTRAP_IMPACT_REPORT_READ_BUDGET_EXCEEDED;
+            case INVALID_RECEIPT, NOT_CHECKED -> Blocker.BOOTSTRAP_IMPACT_RECEIPT_INVALID;
+            case INCOMPATIBLE_RULES -> Blocker.BOOTSTRAP_IMPACT_RULES_INCOMPATIBLE;
+            case REPLAY_MISMATCH -> Blocker.BOOTSTRAP_IMPACT_REPLAY_MISMATCH;
+            case VERIFIED_BLOCKED_ANALYSIS -> Blocker.STORED_BOOTSTRAP_IMPACT_ANALYSIS_BLOCKED;
+            case VERIFIED_INCOMPLETE_ANALYSIS -> Blocker.STORED_BOOTSTRAP_IMPACT_ANALYSIS_INCOMPLETE;
+            case VERIFIED_BOOTSTRAP_ANALYSIS -> null;
+        };
+        if (expected != null) assertTrue(result.blockers().contains(expected));
+        assertTrue(result.bootstrapImpact().allDeclaredFactPathsChecked());
+        when(storedBootstrapImpacts.verify(any(), any(), any())).thenThrow(new DataAccessException("Unavailable"));
+        assertThrows(DataAccessException.class, () -> preflight.bootstrap(id, digest)); clearInvocations(storedBootstrapImpacts);
+        assertEquals(CatalogPublicationBootstrapImpactVerifier.Status.NOT_CHECKED, preflight.bootstrap(candidate).storedBootstrapImpact().status());
+        verifyNoInteractions(storedBootstrapImpacts);
     }
 
     private void store(CatalogChangePreviewRequest value) {

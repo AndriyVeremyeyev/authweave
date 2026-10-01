@@ -220,7 +220,7 @@ class CatalogBootstrapReviewIntegrationTests {
         assertEquals(59, result.bootstrapImpact().missingFactPaths()); assertEquals(3, result.bootstrapImpact().checkedScenarios());
         assertEquals(input.reviewId(), result.bootstrapImpact().reviewId()); assertEquals(created.reviewSha256(), result.bootstrapImpact().reviewSha256());
         assertEquals(result.evaluatedAt(), result.bootstrapImpact().evaluatedAt()); assertFalse(result.bootstrapImpact().storedReportVerified());
-        assertTrue(result.blockers().contains(CatalogPublicationPreflight.Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE));
+        assertTrue(result.blockers().contains(CatalogPublicationPreflight.Blocker.BOOTSTRAP_IMPACT_RECEIPT_MISSING));
         var json = (ObjectNode) mapper.valueToTree(input.candidate());
         ((ObjectNode) json.at("/options/0/facts/SCIM/evidence")).put("observedAt", Instant.now().minusSeconds(91 * 86400L).toString());
         var draft = mapper.treeToValue(json, ProviderCatalogDraft.class);

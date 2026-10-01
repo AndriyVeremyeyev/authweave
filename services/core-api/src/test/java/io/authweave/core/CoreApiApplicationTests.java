@@ -40,6 +40,10 @@ class CoreApiApplicationTests extends PostgresIntegrationTest {
 
 	@Test
 	void contextLoads() {
+		assertTrue(context.getBeansOfType(io.authweave.core.catalog.publication.LocalCatalogBootstrapImpactWriter.class).isEmpty(),
+				"Normal startup must not enable local bootstrap impact writes");
+		assertTrue(context.getBeansOfType(io.authweave.core.catalog.publication.LocalCatalogBootstrapImpactCommand.class).isEmpty(),
+				"Normal startup must not enable the explicit bootstrap impact command");
 		assertTrue(context.getBeansOfType(SyntheticAssessmentSeeder.class).isEmpty(),
 				"Normal application startup must not activate development seeding");
 		assertTrue(context.getBeansOfType(io.authweave.core.catalog.impact.LocalCatalogFactPathReportWriter.class).isEmpty(),

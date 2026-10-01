@@ -97,8 +97,12 @@ public final class CatalogBootstrapImpactService {
         private static boolean hash(String value) { return value != null && value.matches("[a-f0-9]{64}"); }
     }
     public Check inspectAt(CatalogBootstrapReviewRequest request, Instant at) {
-        var report = analyzeAt(request, at); boolean analyzed = report.status() == Status.ANALYZED;
-        return new Check(analyzed ? CheckStatus.ANALYZED : CheckStatus.BLOCKED, at, report.reviewId(), report.reviewSha256(), report.candidateSha256(),
+        return summarize(analyzeAt(request, at));
+    }
+    /** Body-free summary of an already computed report; never refreshes its evaluation time. */
+    public Check summarize(CatalogBootstrapImpact report) {
+        boolean analyzed = report.status() == Status.ANALYZED;
+        return new Check(analyzed ? CheckStatus.ANALYZED : CheckStatus.BLOCKED, report.evaluatedAt(), report.reviewId(), report.reviewSha256(), report.candidateSha256(),
                 CatalogDraftCanonicalizer.sha256(report), analyzed ? report.validation().optionCount() : 0, analyzed ? report.validation().factCount() : 0,
                 report.cases().size(), (int) report.cases().stream().filter(c -> !c.result().factPresent()).count(),
                 (int) report.cases().stream().filter(c -> c.result().conditionalOutcome() == CatalogImpactPreview.Outcome.WOULD_VIOLATE).count(),
