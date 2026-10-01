@@ -82,6 +82,8 @@ class CatalogPublicationPreflightIntegrationTests {
         assertTrue(result.blockers().contains(BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE));
         assertEquals(9, result.facts().unobserved()); assertFalse(result.publicationReady()); registryStillEmpty();
         assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, result.profileImpactCoverage().status());
+        assertEquals(io.authweave.core.catalog.impact.CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED,
+                result.profileImpactCoverage().architectureImpact().status());
     }
 
     @Test
@@ -156,6 +158,10 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
         assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(128, result.profileImpactCoverage().dimensions().size());
         assertTrue(result.profileImpactCoverage().unexercisedFactPaths().isEmpty());
+        var architecture = result.profileImpactCoverage().architectureImpact();
+        assertEquals(result.evaluatedAt(), architecture.evaluatedAt()); assertEquals(20, architecture.checkedPatterns());
+        assertEquals(result.profileImpactCoverage().scenarioSetSha256(), architecture.scenarioSetSha256());
+        assertFalse(architecture.configurationVerified()); assertFalse(architecture.providerCompatibilityVerified()); assertFalse(architecture.storedReportVerified());
         assertEquals(result.evaluatedAt(), result.scopedProfileImpact().evaluatedAt()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
         assertEquals(result.profileImpactCoverage().scenarioSetSha256(), result.scopedProfileImpact().scenarioSetSha256());
         assertEquals(saved.proposalId(), result.scopedProfileImpact().inputId()); assertEquals(saved.proposalSha256(), result.scopedProfileImpact().inputSha256());
@@ -288,13 +294,21 @@ class CatalogPublicationPreflightIntegrationTests {
         assertTrue(missing.blockers().contains(BOOTSTRAP_REVIEW_UNAVAILABLE));
         var wrong = preflight.bootstrap(request.reviewId(), "0".repeat(64));
         assertEquals(CatalogBootstrapImpactService.CheckStatus.NOT_CHECKED, wrong.bootstrapImpact().status());
+        assertEquals(io.authweave.core.catalog.impact.CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED,
+                missing.profileImpactCoverage().architectureImpact().status());
+        assertEquals(io.authweave.core.catalog.impact.CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED,
+                wrong.profileImpactCoverage().architectureImpact().status());
         assertEquals(receipt, bootstrapReviews.get(request.reviewId(), receipt.reviewSha256()));
         assertEquals(reportCount, dsl.fetchCount(io.authweave.core.generated.jooq.tables.CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS));
         assertEquals(oldReportCount, dsl.fetchCount(CATALOG_IMPACT_REPORTS)); registryStillEmpty();
         assertEquals(bootstrapReportCount, dsl.fetchCount(io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS));
         assertEquals(CatalogPublicationBootstrapImpactVerifier.Status.MISSING, result.storedBootstrapImpact().status());
         assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
-        assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(8, result.profileImpactCoverage().additionalGaps().size());
+        assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(12, result.profileImpactCoverage().additionalGaps().size());
+        var architecture = result.profileImpactCoverage().architectureImpact();
+        assertEquals(result.evaluatedAt(), architecture.evaluatedAt()); assertEquals(20, architecture.checkedPatterns());
+        assertEquals(result.profileImpactCoverage().scenarioSetSha256(), architecture.scenarioSetSha256());
+        assertFalse(architecture.configurationVerified()); assertFalse(architecture.prerequisitesVerified()); assertFalse(architecture.publicationReady());
         assertEquals(result.evaluatedAt(), result.scopedProfileImpact().evaluatedAt()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
         assertEquals(request.reviewId(), result.scopedProfileImpact().inputId()); assertEquals(receipt.reviewSha256(), result.scopedProfileImpact().inputSha256());
         var json = mapper.writeValueAsString(check); assertFalse(json.contains("sourceUrl")); assertFalse(json.contains("profile")); assertFalse(json.contains(actor.subject()));

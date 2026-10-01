@@ -1134,7 +1134,7 @@ write, catalog activation or existing HTTP/history format is changed.
 
 ### Profile impact coverage policy
 
-Internal preflight policy v8 combines a fresh `profileImpactCoverage` policy v2 with
+Internal preflight policy v9 combines a fresh `profileImpactCoverage` policy v3 with
 a separate `scopedProfileImpact` conditional regression.
 Passing a receipt replay or checking every catalog address does not establish that
 the frozen profiles exercise every decision-critical requirement. The versioned
@@ -1152,23 +1152,44 @@ population scope, machine-client compatibility and four residency categories.
 They are not customer defaults or configured authentication flows. The original
 three frozen profiles, their digests and all historical receipts remain unchanged.
 `CONDITIONAL_RULE_PRESENT` means that scenario exercises an
-evidence-dependent rule, not that the provider meets it. `SCOPE_GUARD_ONLY` means the
+evidence-dependent rule, not that the provider meets it. `PATTERN_RULE_PRESENT` means
+the existing five profile-only architecture patterns were evaluated, without catalog
+fact dependencies or verified prerequisites. `SCOPE_GUARD_ONLY` means the
 rule handles an unknown/not-applied scope or criticality without exercising a fact
 dependency; it is not evidence of support. `DEFERRED_DIMENSION` identifies an input
 not yet evaluated by the profile regression. `MISSING_RULE` distinguishes an omitted
 expected rule from an intentionally deferred dimension.
 
-The current suite has 11 deferred inputs per scenario: browser token architecture/
-configuration, auditability, full assurance, compliance evidence and operational/cost
-planning. Additional gaps explicitly distinguish **provisioning lifecycle** and
-**configured human authentication flows** from feature/enforceability availability.
+The current suite has ten deferred inputs per scenario: auditability, full assurance,
+compliance evidence and operational/cost planning. Additional gaps explicitly retain
+**observed architecture configuration**, **provisioning lifecycle** and **configured
+human authentication flows**; conditional pattern suitability or feature/enforceability
+availability cannot verify these behaviors.
 The new scoped suite actively consumes all 68 declared fact addresses across its
 profiles, leaving no `unexercisedFactPaths`. The earlier three frozen profiles still
 leave 44 such addresses unconsumed; old receipts are not upgraded or reinterpreted.
-Four profiles leave 44 deferred-input rows and eight additional behavior gaps.
+Four profiles leave 40 deferred-input rows, four pattern-rule rows and twelve additional
+behavior gaps.
 Empty fact-address gaps,
 positive conditional outcomes, owner labels, recorded usage values or a successful
 historical replay cannot erase the other coverage boundaries.
+
+The nested body-free `architectureImpact` summary evaluates BFF/session, server-side
+session, SPA Code+PKCE, native Code+PKCE and M2M client credentials for each scoped
+profile. It reuses the unchanged `architecture-pattern-preflight-1` evaluator; a
+fingerprint binds its source-owned pattern metadata, prerequisites and references.
+The fixed suite produces 20 pattern results: 15 conditional matches, three needing
+information and two not applicable. Its source/profile digest, full analysis hash and
+time are bound to the coverage check. `allDeclaredPatternsChecked` denotes performed
+rules, not successful configuration verification, protocol/provider compatibility or
+a chosen winner. For example, required browser-token minimization leaves SPA exposure
+unknown rather than inventing a token ban; BFF/session matches remain conditional on
+unverified prerequisites. Unknown/prohibited minimization is not interpreted as an
+instruction to expose tokens. No catalog label, provenance text or owner declaration
+is interpreted as observed configuration. The summary contains no profile values,
+source URLs or actor identities, performs no network access and creates no durable
+receipt. Configuration, prerequisites, compatibility and recommendation readiness
+remain false, including when every selected pattern conditionally matches.
 
 The fresh conditional regression uses the same production rule kernel as the
 historical analysis. Proposals evaluate four profiles for every affected option,
@@ -1193,8 +1214,8 @@ their own preflight time; raw drafts and unavailable/invalid exact inputs leave 
 version or receipt format is changed, no missing receipt is manufactured and no write
 or catalog activation occurs. The current manifest returns `INCOMPLETE`; the mandatory
 coverage, fresh-authorization and publication-workflow gates remain closed. This is
-the coverage-policy and active scoped-regression prerequisites, not completion of
-deferred evaluators or permission to publish. Remaining architecture/configuration,
+the coverage-policy, active scoped-regression and architecture-pattern prerequisites,
+not completion of deferred evaluators or permission to publish. Remaining configuration,
 auditability, assurance/compliance, operations/cost and lifecycle gaps remain explicit.
 
 Both modes always return `BLOCKED`. Curator authorization **at the eventual write** and

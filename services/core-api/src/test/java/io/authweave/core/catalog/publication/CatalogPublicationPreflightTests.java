@@ -27,6 +27,7 @@ import io.authweave.core.catalog.impact.CatalogScenarioCases;
 import io.authweave.core.catalog.impact.CatalogProfileImpactCoverageService;
 import io.authweave.core.catalog.impact.CatalogScopedProfileCases;
 import io.authweave.core.catalog.impact.CatalogScopedProfileImpactService;
+import io.authweave.core.catalog.impact.CatalogArchitectureImpactService;
 import static io.authweave.core.catalog.publication.CatalogPublicationPreflight.*;
 import static io.authweave.core.catalog.publication.CatalogPublicationLookupFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,7 +50,8 @@ class CatalogPublicationPreflightTests {
     private final CatalogBootstrapImpactService bootstrapImpacts = spy(new CatalogBootstrapImpactService(validator, scenarioCases()));
     private final CatalogPublicationBootstrapImpactVerifier storedBootstrapImpacts = mock(CatalogPublicationBootstrapImpactVerifier.class);
     private final CatalogScopedProfileCases scopedCases = scopedCases();
-    private final CatalogProfileImpactCoverageService profileCoverage = spy(new CatalogProfileImpactCoverageService(scopedCases));
+    private final CatalogArchitectureImpactService architecture = spy(new CatalogArchitectureImpactService(scopedCases, mapper));
+    private final CatalogProfileImpactCoverageService profileCoverage = spy(new CatalogProfileImpactCoverageService(scopedCases, architecture));
     private final CatalogScopedProfileImpactService scopedImpacts = spy(new CatalogScopedProfileImpactService(scopedCases, new CatalogChangePreviewService(validator, clock), validator));
     private final CatalogPublicationPreflight preflight = new CatalogPublicationPreflight(repository, reviews, publications,
             lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews, impacts,
@@ -82,6 +84,7 @@ class CatalogPublicationPreflightTests {
     @Test
     void allSupportingFactsAndMatchingAdminAssertionsStillCannotAuthorizeAnyPublication() {
         var result = run();
+        assertEquals("catalog-publication-preflight-9", POLICY_VERSION);
         assertEquals(9, result.facts().total()); assertTrue(result.facts().allFactsHaveSupportingObservation());
         assertEquals(9, result.reviewThroughNumber()); assertTrue(result.baselineIntegrityValidated()); assertTrue(result.baselineContentMatches());
         assertEquals(List.of(Blocker.BASELINE_AUTHORITY_UNAVAILABLE, Blocker.IMPACT_COVERAGE_INCOMPLETE,
@@ -98,8 +101,13 @@ class CatalogPublicationPreflightTests {
         assertEquals(CatalogBootstrapImpactService.CheckStatus.NOT_CHECKED, result.bootstrapImpact().status());
         assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
         assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt());
-        assertEquals(128, result.profileImpactCoverage().dimensions().size()); assertEquals(8, result.profileImpactCoverage().additionalGaps().size());
-        assertEquals(44, result.profileImpactCoverage().deferredDimensions()); assertFalse(result.profileImpactCoverage().coverageComplete());
+        assertEquals(128, result.profileImpactCoverage().dimensions().size()); assertEquals(12, result.profileImpactCoverage().additionalGaps().size());
+        assertEquals(40, result.profileImpactCoverage().deferredDimensions()); assertFalse(result.profileImpactCoverage().coverageComplete());
+        assertEquals(4, result.profileImpactCoverage().patternDimensions());
+        var patterns = result.profileImpactCoverage().architectureImpact();
+        assertEquals(result.evaluatedAt(), patterns.evaluatedAt()); assertEquals(20, patterns.checkedPatterns());
+        assertEquals(result.profileImpactCoverage().scenarioSetSha256(), patterns.scenarioSetSha256());
+        assertFalse(patterns.configurationVerified()); assertFalse(patterns.providerCompatibilityVerified()); assertFalse(patterns.publicationReady());
         assertTrue(result.profileImpactCoverage().unexercisedFactPaths().isEmpty());
         assertEquals(CatalogScopedProfileImpactService.Mode.PROPOSAL_COMPARISON, result.scopedProfileImpact().mode());
         assertEquals(AT, result.scopedProfileImpact().evaluatedAt()); assertEquals(request.proposalId(), result.scopedProfileImpact().inputId());
@@ -352,6 +360,9 @@ class CatalogPublicationPreflightTests {
         assertEquals(digest, result.bootstrapImpact().reviewSha256()); assertEquals(reviewRequest.expectedCandidateSha256(), result.bootstrapImpact().candidateSha256());
         assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
         assertEquals(AT, result.profileImpactCoverage().evaluatedAt()); assertEquals(128, result.profileImpactCoverage().dimensions().size());
+        assertEquals(20, result.profileImpactCoverage().architectureImpact().checkedPatterns());
+        assertEquals(AT, result.profileImpactCoverage().architectureImpact().evaluatedAt());
+        assertFalse(result.profileImpactCoverage().architectureImpact().configurationVerified());
         assertEquals(CatalogScopedProfileImpactService.Mode.CURATED_BOOTSTRAP, result.scopedProfileImpact().mode());
         assertEquals(AT, result.scopedProfileImpact().evaluatedAt()); assertEquals(id, result.scopedProfileImpact().inputId());
         assertEquals(digest, result.scopedProfileImpact().inputSha256()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
@@ -436,14 +447,21 @@ class CatalogPublicationPreflightTests {
         assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, raw.profileImpactCoverage().status());
         assertEquals(CatalogScopedProfileImpactService.Status.NOT_CHECKED, missing.scopedProfileImpact().status());
         assertEquals(CatalogScopedProfileImpactService.Status.NOT_CHECKED, raw.scopedProfileImpact().status());
-        verifyNoInteractions(profileCoverage, scopedImpacts);
+        assertEquals(CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED, raw.profileImpactCoverage().architectureImpact().status());
+        assertEquals(CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED, missing.profileImpactCoverage().architectureImpact().status());
+        verifyNoInteractions(profileCoverage, scopedImpacts, architecture);
         when(repository.proposal(any(), anyLong())).thenReturn(row);
         doThrow(new IllegalStateException("Unreviewed schema drift")).when(profileCoverage).inspectAt(any());
         assertThrows(IllegalStateException.class, this::run);
-        verifyNoInteractions(scopedImpacts);
+        verifyNoInteractions(scopedImpacts, architecture);
         var id = java.util.UUID.randomUUID();
         when(bootstrapReviews.reviewed(any(), any())).thenThrow(new CatalogBootstrapReviewException(CatalogBootstrapReviewException.Reason.NOT_FOUND));
         assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, preflight.bootstrap(id, "a".repeat(64)).profileImpactCoverage().status());
+    }
+
+    @Test void architecturePolicyFailureCannotBecomeSuccessfulCoverageOrATrustPromotion() {
+        doThrow(new IllegalStateException("Architecture policy unavailable")).when(architecture).summarize(any());
+        assertThrows(IllegalStateException.class, this::run); verifyNoInteractions(scopedImpacts);
     }
 
     @Test void scopedKernelFailuresAndIncorrectTimeOrInputBindingsNeverBecomeSuccessfulPreflights() {

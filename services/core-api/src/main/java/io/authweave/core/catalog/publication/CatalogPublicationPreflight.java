@@ -31,7 +31,7 @@ import io.authweave.core.catalog.impact.CatalogScopedProfileImpactService;
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class CatalogPublicationPreflight {
-    public static final String POLICY_VERSION = "catalog-publication-preflight-8";
+    public static final String POLICY_VERSION = "catalog-publication-preflight-9";
     private static final long MAX_SAFE_INTEGER = 9007199254740991L;
     private final CatalogPublicationPreflightRepository repository;
     private final CatalogFactReviewRepository reviews;
