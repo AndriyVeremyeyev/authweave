@@ -337,6 +337,40 @@ cannot override the separate client/token-exposure preflight, verify configurati
 provider compatibility, or establish recommendation/approval/deployment readiness.
 The existing GET response and historical impact receipts remain unchanged.
 
+### Auditability capability rule kernel
+
+The separate `auditability-capability-preflight-1` kernel evaluates explicit requirements
+against synthetic, dated identity-provider capability evidence. Six separately selectable criteria
+cover successful authentication events, failed authentication events, administrative changes,
+provisioning changes, log export and minimum log retention. No criterion is selected by
+default. Requiring auditability without selecting its scope remains unknown.
+
+Evidence is bound to an exact option ID, plan, region and configuration; application
+logs, foreign scope and duplicate facts cannot supply provider evidence. Existing
+review/future-date/90-day freshness gates apply before support or incompatibility is
+considered. Missing or unusable evidence stays unknown. A documented unavailable
+required capability fails without hiding other unknowns. Preferences are not scored,
+and an ambiguous prohibition is not interpreted as an instruction to weaken logging.
+
+Retention requires an explicit positive minimum in days. A supported retention capability
+with no documented minimum remains unknown. A documented minimum below the requested
+threshold fails; equal or greater satisfies only that check. Provider retention is not
+inferred from source age, a configurable maximum or an external export sink. The 36,500-day
+input ceiling is a project validation bound, not a default or compliance requirement.
+
+The distinction between chosen event scope and explicit retention parameters is informed
+by [NIST SP 800-53 AU-2 and AU-11](https://csrc.nist.gov/CSRC/media/Projects/risk-management/800-53%20Downloads/800-53r5/SP_800-53_v5_1-derived-OSCAL.pdf).
+These project criteria are not a NIST baseline or a compliance assessment. Record content
+and client/population coverage, integrity, access controls, failure handling, export
+delivery, deployed configuration and compliance evidence remain unverified even when all
+selected capability checks pass. Configuration/compliance/recommendation readiness stay false.
+
+This step is a pure rule kernel and fixtures only: no endpoint, UI, persistence or live
+provider access. Profile v5 and catalog v4 do not yet carry these detailed inputs/facts;
+existing preflights, source profiles, impact coverage and historical receipts are unchanged.
+Auditability remains deferred in those existing reports until explicitly integrated.
+AuthWeave's own append-only decision/audit history is a separate responsibility.
+
 ### Residency inputs and profile versions
 
 The local API v2 records where identity data may be stored at rest. Under

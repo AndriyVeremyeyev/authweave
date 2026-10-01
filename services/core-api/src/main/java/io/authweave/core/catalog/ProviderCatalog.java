@@ -153,7 +153,7 @@ public record ProviderCatalog(int schemaVersion, String catalogVersion, Kind kin
         }
     }
 
-    private static void validateEvidence(EvidenceStatus status, URI sourceUrl, Instant observedAt) {
+    static void validateEvidence(EvidenceStatus status, URI sourceUrl, Instant observedAt) {
         Objects.requireNonNull(status);
         Objects.requireNonNull(sourceUrl);
         Objects.requireNonNull(observedAt);
