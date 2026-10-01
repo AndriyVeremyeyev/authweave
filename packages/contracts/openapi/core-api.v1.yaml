@@ -9,7 +9,7 @@ info:
     Every versioned workspace route requires a server-only BFF bearer credential and
     a validated OIDC issuer/subject pair mapped to the requested personal workspace.
     Catalog draft routes remain unauthenticated and local-only, except the scoped
-    curator review index, evidence review and decision routes. Do not expose this
+    curator review index, evidence review, bootstrap source review and decision routes. Do not expose this
     service through a proxy or tunnel; this is not a hosted authentication boundary.
 servers:
   - url: http://127.0.0.1:8080
@@ -23,6 +23,94 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/catalog-bootstrap-reviews:
+    post:
+      tags: [Catalog drafts]
+      summary: Record a distinct whole-candidate manual bootstrap source review
+      operationId: recordCatalogBootstrapSourceReview
+      description: >-
+        BFF-to-Core only, requiring a fresh scoped curator assertion. Every recorded
+        candidate fact requires exactly one explicit human verdict and a separate
+        MANUAL_BOOTSTRAP_SOURCE_REVIEW confirmation. Core verifies the full candidate
+        digest and target set, then atomically stores an immutable review and body-free
+        audit. No source is fetched or independently verified. Stale/future evidence
+        can be reviewed but is not refreshed or made publishable. A new review requires
+        an empty publication registry; exact retries by the same actor remain possible
+        after publication with fresh authorization. Canonical typed arrays are unordered.
+        Changed observations/candidate or another actor must use a fresh UUID. This is
+        not approval, a proposal revision, a published root or catalog activation.
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-bootstrap-review-request.v1.schema.json
+      responses:
+        '201':
+          description: New manual assertion with an atomic audit, never publication.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+        '200':
+          description: Equivalent retry by the same actor; original receipt retained.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Missing or invalid server credential or OIDC principal.
+        '403':
+          description: Curator role, scope or recent authentication missing.
+        '409':
+          description: Nonempty publication registry, conflicting review key, or unreadable stored review.
+        '503':
+          description: Curator scope or server credential is not configured.
+  /api/v1/catalog-bootstrap-reviews/{reviewId}:
+    get:
+      tags: [Catalog drafts]
+      summary: Read an exact immutable bootstrap source review receipt
+      operationId: getCatalogBootstrapSourceReview
+      description: >-
+        Fresh scoped curator assertion required. Pins UUID and review SHA-256 together,
+        strictly validates stored format, hashes, target set and historical audit binding,
+        and returns only a body-free receipt. No latest or catalog-label fallback,
+        evidence refresh, source verification, approval or registry write occurs.
+        Self-consistent administrator assertions are not proof of an authenticated publication.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: expectedSha256
+          in: query
+          required: true
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: Original manual source-review receipt without actor or source bodies.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          description: Missing or invalid server credential or OIDC principal.
+        '403':
+          description: Curator role, scope or recent authentication missing.
+        '404':
+          description: The requested review does not exist.
+        '409':
+          description: Exact digest mismatch or invalid stored format/integrity assertions.
+        '503':
+          description: Curator scope or server credential is not configured.
   /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/evidence-review:
     get:
       tags: [Catalog drafts]

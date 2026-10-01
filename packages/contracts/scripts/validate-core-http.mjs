@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 
-const samplesPath = process.argv[2];
-assert.ok(samplesPath, "Pass the samples exported by the current Core API integration test run.");
+const samplePaths = process.argv.slice(2);
+assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
 const schemasRoot = fileURLToPath(new URL("../schemas/", import.meta.url));
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
@@ -17,7 +17,11 @@ for (const file of await readdir(schemasRoot)) {
   }
 }
 
-const samples = JSON.parse(await readFile(samplesPath, "utf8"));
+const samples = (await Promise.all(samplePaths.map(async (file) => {
+  const values = JSON.parse(await readFile(file, "utf8"));
+  assert.ok(Array.isArray(values) && values.length > 0, `${file}: HTTP samples must not be empty.`);
+  return values;
+}))).flat();
 assert.ok(Array.isArray(samples) && samples.length > 0, "HTTP contract samples must not be empty.");
 const covered = new Set();
 for (const { name, schema, valid, payload } of samples) {
@@ -30,6 +34,8 @@ for (const { name, schema, valid, payload } of samples) {
   covered.add(`${schema}:${valid}`);
 }
 for (const required of ["assessment-response:true", "core-problem:true",
+  "catalog-bootstrap-review-request:true", "catalog-bootstrap-review-request:false",
+  "catalog-bootstrap-review:true", "catalog-bootstrap-review:false",
   "catalog-fact-review-request:true", "catalog-fact-review-request:false",
   "catalog-fact-review:true", "catalog-fact-review:false",
   "catalog-fact-review-page:true", "catalog-fact-review-page:false",

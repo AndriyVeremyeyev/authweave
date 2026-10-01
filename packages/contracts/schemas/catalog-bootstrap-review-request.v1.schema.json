@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-bootstrap-review-request.v1.schema.json",
+  "title": "Whole-candidate manual bootstrap source review v1",
+  "description": "Scoped curator assertion only, not publication or approval. Every recorded candidate fact needs exactly one explicit verdict. Hash and full target-set agreement are enforced by Core. Reuse reviewId only for an equivalent exact-candidate retry by the same actor.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "reviewId", "expectedCandidateSha256", "candidate", "observations", "confirmation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "reviewId": { "type": "string", "format": "uuid" },
+    "expectedCandidateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "candidate": { "$ref": "provider-catalog-draft.v1.schema.json" },
+    "confirmation": { "const": "MANUAL_BOOTSTRAP_SOURCE_REVIEW" },
+    "observations": {
+      "type": "array", "minItems": 1, "maxItems": 6800,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["optionId", "factPath", "verdict"],
+        "properties": {
+          "optionId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+          "factPath": { "type": "string", "maxLength": 200, "pattern": "^(facts\\.[A-Z0-9_]+|compatibility\\.(applications|clients|populations|tenancy|membership)\\.[A-Z0-9_]+|residency\\.[A-Z0-9_]+|authenticationControls\\.[A-Z0-9_]+\\.[A-Z0-9_]+\\.[A-Z0-9_]+)$" },
+          "verdict": { "type": "string", "enum": ["SOURCE_SUPPORTS_CLAIM", "SOURCE_DOES_NOT_SUPPORT_CLAIM", "INSUFFICIENT_EVIDENCE"] }
+        }
+      }
+    }
+  }
+}

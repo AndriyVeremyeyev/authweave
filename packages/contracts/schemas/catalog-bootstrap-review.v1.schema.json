@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-bootstrap-review.v1.schema.json",
+  "title": "Manual bootstrap source review receipt v1",
+  "description": "Immutable body-free receipt. Supporting verdicts do not prove source truth, freshness, missing facts, complete impact coverage or authorization to publish. Audit identities and candidate/source bodies are not exposed.",
+  "type": "object", "additionalProperties": false,
+  "required": ["reviewId", "candidateSha256", "reviewSha256", "catalogVersion", "factCount", "counts", "recordedAt", "policyVersion", "kind", "sourceVerificationPerformed", "approvalGranted", "catalogWritesPerformed", "factTrustChanged"],
+  "properties": {
+    "reviewId": { "type": "string", "format": "uuid" },
+    "candidateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "reviewSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "catalogVersion": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+    "factCount": { "type": "integer", "minimum": 1, "maximum": 6800 },
+    "counts": {
+      "type": "object", "additionalProperties": false, "required": ["supporting", "contradicting", "insufficient"],
+      "properties": {
+        "supporting": { "type": "integer", "minimum": 0, "maximum": 6800 },
+        "contradicting": { "type": "integer", "minimum": 0, "maximum": 6800 },
+        "insufficient": { "type": "integer", "minimum": 0, "maximum": 6800 }
+      }
+    },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "policyVersion": { "const": "catalog-bootstrap-source-review-1" },
+    "kind": { "const": "HUMAN_BOOTSTRAP_SOURCE_REVIEW" },
+    "sourceVerificationPerformed": { "const": false },
+    "approvalGranted": { "const": false },
+    "catalogWritesPerformed": { "const": false },
+    "factTrustChanged": { "const": false }
+  }
+}

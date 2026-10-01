@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CatalogBootstrapReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogFactReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
@@ -47,6 +48,12 @@ public class Audit extends SchemaImpl {
      * update or delete events.
      */
     public final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
+
+    /**
+     * Mandatory body-free curator assertion audit; DB constraints do not
+     * authenticate an OIDC principal.
+     */
+    public final CatalogBootstrapReviewEvents CATALOG_BOOTSTRAP_REVIEW_EVENTS = CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS;
 
     /**
      * Atomic curator assertion audit. No source content or credentials;
@@ -95,6 +102,7 @@ public class Audit extends SchemaImpl {
     public final List<Table<?>> getTables() {
         return Arrays.asList(
             AssessmentEvents.ASSESSMENT_EVENTS,
+            CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS,
             CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS,
             CatalogImpactReportEvents.CATALOG_IMPACT_REPORT_EVENTS,
             CatalogProposalDecisionEvents.CATALOG_PROPOSAL_DECISION_EVENTS,

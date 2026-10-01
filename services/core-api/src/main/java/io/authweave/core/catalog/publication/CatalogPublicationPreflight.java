@@ -37,12 +37,14 @@ public class CatalogPublicationPreflight {
     private final CatalogChangePreviewService preview;
     private final ObjectMapper mapper;
     private final Clock clock;
+    private final CatalogBootstrapReviewService bootstrapReviews;
 
     CatalogPublicationPreflight(CatalogPublicationPreflightRepository repository, CatalogFactReviewRepository reviews,
             CatalogPublicationRepository publications, CatalogPublicationLookup lookup, CatalogDraftValidator validator,
-            CatalogChangePreviewService preview, ObjectMapper mapper, Clock clock) {
+            CatalogChangePreviewService preview, ObjectMapper mapper, Clock clock, CatalogBootstrapReviewService bootstrapReviews) {
         this.repository = repository; this.reviews = reviews; this.publications = publications; this.lookup = lookup;
         this.validator = validator; this.preview = preview; this.mapper = mapper; this.clock = clock;
+        this.bootstrapReviews = bootstrapReviews;
     }
 
     public enum Mode { PROPOSAL_APPROVAL, CURATED_BOOTSTRAP }
@@ -54,7 +56,7 @@ public class CatalogPublicationPreflight {
         FACT_EVIDENCE_STALE, FACT_EVIDENCE_FUTURE,
         BASELINE_REFERENCE_MISSING, BASELINE_INTEGRITY_UNAVAILABLE, BASELINE_CONTENT_MISMATCH,
         BASELINE_NOT_TIP, BASELINE_AUTHORITY_UNAVAILABLE, BOOTSTRAP_REGISTRY_NOT_EMPTY,
-        BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE, IMPACT_RECEIPT_MISSING, IMPACT_COVERAGE_INCOMPLETE,
+        BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE, BOOTSTRAP_REVIEW_UNAVAILABLE, IMPACT_RECEIPT_MISSING, IMPACT_COVERAGE_INCOMPLETE,
         CURATOR_AUTHORIZATION_NOT_PERFORMED, PUBLICATION_WORKFLOW_UNAVAILABLE
     }
 
@@ -165,6 +167,24 @@ public class CatalogPublicationPreflight {
         var validation = validator.validateAt(candidate, at); candidate(validation, blockers);
         var facts = counts(validation, 0, 0, 0); observationBlockers(facts, blockers);
         return result(Mode.CURATED_BOOTSTRAP, at, null, null, null, facts, 0, false, false, blockers);
+    }
+
+    /** Stored review is loaded by exact UUID/digest; caller-supplied supporting totals never enter this boundary. */
+    public Result bootstrap(UUID reviewId, String expectedReviewSha256) {
+        var at = clock.instant(); var blockers = mandatory();
+        CatalogBootstrapReviewService.ReviewedCandidate reviewed;
+        try { reviewed = bootstrapReviews.reviewed(reviewId, expectedReviewSha256); }
+        catch (CatalogBootstrapReviewException invalid) {
+            blockers.add(Blocker.BOOTSTRAP_REVIEW_UNAVAILABLE);
+            return result(Mode.CURATED_BOOTSTRAP, at, null, null, null, empty(), 0, false, false, blockers);
+        }
+        if (!repository.registryEmpty()) blockers.add(Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY);
+        var validation = validator.validateAt(reviewed.request().candidate(), at); candidate(validation, blockers);
+        var counts = reviewed.review().counts();
+        var facts = counts(validation, counts.supporting(), counts.contradicting(), counts.insufficient());
+        observationBlockers(facts, blockers);
+        return result(Mode.CURATED_BOOTSTRAP, at, null, null, null, facts, 0, false, false, blockers);
+        // Even supporting stored observations cannot replace fresh write authorization, full coverage or a publication workflow.
     }
 
     private void candidate(CatalogDraftValidation validation, EnumSet<Blocker> blockers) {

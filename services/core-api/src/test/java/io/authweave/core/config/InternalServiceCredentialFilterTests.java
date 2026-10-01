@@ -61,6 +61,18 @@ class InternalServiceCredentialFilterTests {
     }
 
     @Test
+    void bootstrapReviewRoutesFailClosedWhenCredentialOrCuratorScopeIsMissing() throws Exception {
+        for (String path : java.util.List.of("/api/v1/catalog-bootstrap-reviews", "/api/v2/catalog-bootstrap-reviews/unknown")) {
+            var request = curatorRequest(path, Instant.now());
+            assertEquals(503, status(request, "", ORGANIZATION));
+            assertEquals(503, status(request, PROJECT, ""));
+            var response = new MockHttpServletResponse();
+            new InternalServiceCredentialFilter("", null, PROJECT, ORGANIZATION).doFilter(request, response, new MockFilterChain());
+            assertEquals(503, response.getStatus());
+        }
+    }
+
+    @Test
     void curatorBoundaryRejectsMissingWrongDuplicateAndStaleAssertions() throws Exception {
         String path = "/api/v2/catalog-change-proposals/33333333-3333-4333-8333-333333333333/decisions";
         var request = curatorRequest(path, Instant.now());

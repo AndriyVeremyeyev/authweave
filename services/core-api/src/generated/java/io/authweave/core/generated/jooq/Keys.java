@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq;
 
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
+import io.authweave.core.generated.jooq.tables.CatalogBootstrapReviews;
 import io.authweave.core.generated.jooq.tables.CatalogFactReviews;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions;
@@ -17,6 +18,7 @@ import io.authweave.core.generated.jooq.tables.PersonalWorkspaces;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 import io.authweave.core.generated.jooq.tables.records.AssessmentRevisionsRecord;
 import io.authweave.core.generated.jooq.tables.records.AssessmentsRecord;
+import io.authweave.core.generated.jooq.tables.records.CatalogBootstrapReviewsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogFactReviewsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogImpactReportsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogProposalDecisionsRecord;
@@ -57,6 +59,8 @@ public class Keys {
 
     public static final UniqueKey<AssessmentRevisionsRecord> ASSESSMENT_REVISIONS_PK = Internal.createUniqueKey(AssessmentRevisions.ASSESSMENT_REVISIONS, DSL.name("assessment_revisions_pk"), new TableField[] { AssessmentRevisions.ASSESSMENT_REVISIONS.WORKSPACE_ID, AssessmentRevisions.ASSESSMENT_REVISIONS.ASSESSMENT_ID, AssessmentRevisions.ASSESSMENT_REVISIONS.VERSION }, true);
     public static final UniqueKey<AssessmentsRecord> ASSESSMENTS_PK = Internal.createUniqueKey(Assessments.ASSESSMENTS, DSL.name("assessments_pk"), new TableField[] { Assessments.ASSESSMENTS.WORKSPACE_ID, Assessments.ASSESSMENTS.ID }, true);
+    public static final UniqueKey<CatalogBootstrapReviewsRecord> CATALOG_BOOTSTRAP_REVIEW_EVENT_BINDING_UK = Internal.createUniqueKey(CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS, DSL.name("catalog_bootstrap_review_event_binding_uk"), new TableField[] { CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS.ID, CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS.CANDIDATE_SHA256, CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS.REVIEW_SHA256 }, true);
+    public static final UniqueKey<CatalogBootstrapReviewsRecord> CATALOG_BOOTSTRAP_REVIEWS_PKEY = Internal.createUniqueKey(CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS, DSL.name("catalog_bootstrap_reviews_pkey"), new TableField[] { CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS.ID }, true);
     public static final UniqueKey<CatalogFactReviewsRecord> CATALOG_FACT_REVIEW_EVENT_BINDING_UK = Internal.createUniqueKey(CatalogFactReviews.CATALOG_FACT_REVIEWS, DSL.name("catalog_fact_review_event_binding_uk"), new TableField[] { CatalogFactReviews.CATALOG_FACT_REVIEWS.ID, CatalogFactReviews.CATALOG_FACT_REVIEWS.PROPOSAL_ID, CatalogFactReviews.CATALOG_FACT_REVIEWS.PROPOSAL_VERSION, CatalogFactReviews.CATALOG_FACT_REVIEWS.PROPOSAL_SHA256, CatalogFactReviews.CATALOG_FACT_REVIEWS.OPTION_ID, CatalogFactReviews.CATALOG_FACT_REVIEWS.FACT_PATH, CatalogFactReviews.CATALOG_FACT_REVIEWS.VERDICT }, true);
     public static final UniqueKey<CatalogFactReviewsRecord> CATALOG_FACT_REVIEW_NUMBER_UK = Internal.createUniqueKey(CatalogFactReviews.CATALOG_FACT_REVIEWS, DSL.name("catalog_fact_review_number_uk"), new TableField[] { CatalogFactReviews.CATALOG_FACT_REVIEWS.PROPOSAL_ID, CatalogFactReviews.CATALOG_FACT_REVIEWS.PROPOSAL_VERSION, CatalogFactReviews.CATALOG_FACT_REVIEWS.REVIEW_NUMBER }, true);
     public static final UniqueKey<CatalogFactReviewsRecord> CATALOG_FACT_REVIEWS_PKEY = Internal.createUniqueKey(CatalogFactReviews.CATALOG_FACT_REVIEWS, DSL.name("catalog_fact_reviews_pkey"), new TableField[] { CatalogFactReviews.CATALOG_FACT_REVIEWS.ID }, true);

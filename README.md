@@ -1007,16 +1007,71 @@ the mandatory `IMPACT_COVERAGE_INCOMPLETE` blocker.
 First publication uses the distinct `CURATED_BOOTSTRAP` preflight: all three publication
 tables must be empty, the candidate valid and its evidence current. Empty storage or a
 null parent cannot bypass `BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE`; proposal review
-observations are not silently repurposed as bootstrap approval. A dedicated, authenticated
-bootstrap review workflow is still required.
+observations are not silently repurposed as bootstrap approval. This raw-draft path
+does not load or reuse a stored bootstrap review. The exact stored-review path described
+below can account for manual observations, but still cannot approve or publish.
 
 Both modes always return `BLOCKED`. Curator authorization **at the eventual write** and
 a verified publication workflow remain mandatory blockers; baseline/source verification,
 coverage, approval, publication/evaluation readiness and writes remain false. A future
 writer must recheck current state and authorization within its own atomic transaction,
 not reuse this historical preflight result. Database outages propagate without a fallback.
-No API/schema, UI behavior, database grants, registry rows, active evaluator, account or
-paid service is changed by this step.
+The preflight itself adds no HTTP action or registry writes and leaves the active
+evaluator unchanged.
+
+### Protected bootstrap source review
+
+Core now supports a separate whole-candidate manual source-review workflow for the
+first catalog version. This is not a proposal revision, curator approval, a published
+root or catalog activation. A BFF form is not implemented yet; do not send the
+server-only Core credential from a browser or expose this local service through a tunnel.
+
+`POST /api/v1/catalog-bootstrap-reviews` requires the existing BFF credential and a
+fresh, singular, project/organization-scoped `catalog_curator` assertion, including on
+retries. The request supplies a fresh review UUID, exact **draft** candidate SHA-256,
+the full candidate, one verdict per recorded fact and the distinct
+`MANUAL_BOOTSTRAP_SOURCE_REVIEW` confirmation. Core recomputes the digest and checks
+semantic validity and the entire fact target set across all four families: no missing,
+foreign or duplicate targets. A supporting verdict for an unknown claim does not turn
+it into an available capability. Unrecorded facts remain unknown.
+
+V15 stores one immutable review and a mandatory, body-free curator assertion audit in
+the same transaction. Core gets SELECT and column-limited INSERT on only these review
+tables; UPDATE/DELETE/TRUNCATE, caller-controlled receipt times and Web access remain
+denied. Publication tables are still SELECT-only for Core. This is not protection
+against a database administrator. PostgreSQL receipt times and audit authentication
+freshness are bounded; SQL shape/foreign-key checks do not authenticate an OIDC login
+or independently verify sources and canonical hashes.
+
+New reviews require all three publication tables to be empty. Service and DB review
+insert checks share a transaction-level advisory lock with reserved publication
+decision inserts, acquired before proposal head locks. This closes the concurrent
+check/insert gap without opening a publisher. Equivalent retries of the same UUID
+return the original receipt only for the same issuer/subject/project/organization and
+canonical request; array order is insignificant. Changed assertions or another actor
+require a new UUID. A retry creates no additional audit and remains possible after
+publication, with fresh HTTP authorization. Reviews never overwrite one another or
+inherit verdicts from a different candidate or proposal.
+
+`GET /api/v1/catalog-bootstrap-reviews/{reviewId}?expectedSha256=<review-sha256>` also
+requires a fresh scoped curator assertion. It pins UUID and the complete review digest,
+strictly checks stored format, candidate/request hashes, target set and historical audit
+bindings, and returns only the original small receipt with verdict counts: no actor,
+candidate, observation list or source body. There is no latest or label-only fallback.
+Stored requests are limited to 32 MiB of PostgreSQL UTF-8 JSON text; oversized bodies
+are withheld on the server. Tampered or unavailable reviews release no partial counts.
+Database outages propagate rather than becoming not-found or approval.
+
+The internal preflight can now load an exact stored review UUID/digest instead of
+accepting verdict totals from the caller. It reevaluates source-date freshness, registry
+emptiness and catalog-label reuse. Manual review can include stale/future evidence,
+contradictions or insufficient evidence, but those remain publication blockers; it
+never refreshes `observedAt`. Even all-supporting, current observations and consistent
+administrator assertions do not establish authenticated publication authority. Full
+impact coverage, fresh authorization at an eventual atomic write and the publication
+workflow remain unimplemented blockers. Source verification, approval, fact trust,
+catalog writes and publication/evaluation readiness are not granted. No real curator
+role, source fetch, account, paid call or deployment is created by this slice.
 
 ### Conditional catalog impact
 

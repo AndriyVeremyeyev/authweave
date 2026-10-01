@@ -285,10 +285,10 @@ class CatalogPublicationStorageTests extends PostgresIntegrationTest {
             insertDecision(initial, first, firstProposal); insertSnapshot(initial, first, mapper.valueToTree(first));
             insertEvent(initial, first, Instant.now(), "CURATOR", first.snapshotSha256());
             try {
-                insertDecision(competing, second, secondProposal);
                 try (var sql = competing.createStatement()) { sql.execute("SET LOCAL lock_timeout = '200ms'"); }
+                // V15 serializes bootstrap reviews and publication decisions before any proposal head/snapshot lock.
                 var blocked = executor.submit(() -> assertThrows(SQLException.class,
-                        () -> insertSnapshot(competing, second, mapper.valueToTree(second))).getSQLState());
+                        () -> insertDecision(competing, second, secondProposal)).getSQLState());
                 assertEquals("55P03", blocked.get()); competing.rollback();
                 initial.commit();
                 insertDecision(competing, second, secondProposal);

@@ -36,8 +36,9 @@ class CatalogPublicationPreflightTests {
     private final CatalogFactReviewRepository reviews = mock(CatalogFactReviewRepository.class);
     private final CatalogPublicationRepository publications = mock(CatalogPublicationRepository.class);
     private final CatalogPublicationLookup lookup = mock(CatalogPublicationLookup.class);
+    private final CatalogBootstrapReviewService bootstrapReviews = mock(CatalogBootstrapReviewService.class);
     private final CatalogPublicationPreflight preflight = new CatalogPublicationPreflight(repository, reviews, publications,
-            lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock);
+            lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews);
     private CatalogChangePreviewRequest request;
     private CatalogPublicationPreflightRepository.Proposal row;
     private PublishedCatalogSnapshot.Reference baseline;
@@ -230,6 +231,35 @@ class CatalogPublicationPreflightTests {
         when(repository.registryEmpty()).thenReturn(false);
         assertTrue(preflight.bootstrap(request.candidate()).blockers().contains(Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY));
         verifyNoInteractions(reviews, lookup, publications);
+    }
+
+    @Test
+    void exactStoredBootstrapReviewRemovesMissingObservationsButNeverGrantsApprovalOrPublication() {
+        var candidate = request.candidate(); var id = UUID.randomUUID();
+        var observations = validator.validate(candidate).facts().stream().map(f -> new CatalogBootstrapReviewRequest.Observation(
+                f.optionId(), f.path(), Verdict.SOURCE_SUPPORTS_CLAIM)).toList();
+        var reviewRequest = new CatalogBootstrapReviewRequest(1, id, CatalogDraftCanonicalizer.sha256(candidate), candidate,
+                observations, CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
+        var digest = CatalogDraftCanonicalizer.sha256(reviewRequest);
+        var receipt = new CatalogBootstrapReview(id, reviewRequest.expectedCandidateSha256(), digest, candidate.catalogVersion(),
+                9, new CatalogBootstrapReview.Counts(9, 0, 0), AT);
+        when(bootstrapReviews.reviewed(id, digest)).thenReturn(new CatalogBootstrapReviewService.ReviewedCandidate(reviewRequest, receipt));
+        var result = preflight.bootstrap(id, digest);
+        assertTrue(result.facts().allFactsHaveSupportingObservation());
+        assertFalse(result.blockers().contains(Blocker.BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE));
+        assertFalse(result.blockers().contains(Blocker.FACT_OBSERVATIONS_MISSING)); assertBlocked(result);
+        when(repository.registryEmpty()).thenReturn(false);
+        assertTrue(preflight.bootstrap(id, digest).blockers().contains(Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY));
+    }
+
+    @Test
+    void missingOrMismatchingBootstrapReviewCannotFallBackToUnreviewedDraftAndStorageOutagesPropagate() {
+        var id = UUID.randomUUID(); var digest = "a".repeat(64);
+        when(bootstrapReviews.reviewed(id, digest)).thenThrow(new CatalogBootstrapReviewException(CatalogBootstrapReviewException.Reason.NOT_FOUND));
+        var result = preflight.bootstrap(id, digest);
+        assertTrue(result.blockers().contains(Blocker.BOOTSTRAP_REVIEW_UNAVAILABLE)); assertEquals(0, result.facts().total()); assertBlocked(result);
+        doThrow(new DataAccessException("Unavailable")).when(bootstrapReviews).reviewed(id, digest);
+        assertThrows(DataAccessException.class, () -> preflight.bootstrap(id, digest));
     }
 
     @Test

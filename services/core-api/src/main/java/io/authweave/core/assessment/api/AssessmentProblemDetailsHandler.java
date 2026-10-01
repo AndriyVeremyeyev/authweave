@@ -29,6 +29,20 @@ import tools.jackson.core.JacksonException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
 
+    @ExceptionHandler(io.authweave.core.catalog.publication.CatalogBootstrapReviewException.class)
+    ProblemDetail bootstrapReview(io.authweave.core.catalog.publication.CatalogBootstrapReviewException exception, HttpServletRequest request) {
+        return switch (exception.reason()) {
+            case INVALID_REQUEST -> invalidRequest(List.of(new RequestViolation("$",
+                    "Use a valid exact candidate digest and one explicit verdict per recorded fact.")), request);
+            case NOT_FOUND -> problem(HttpStatus.NOT_FOUND, "catalog-bootstrap-review-not-found", "Bootstrap review not found",
+                    "The requested bootstrap source review does not exist.", request);
+            case CONFLICT -> problem(HttpStatus.CONFLICT, "catalog-bootstrap-review-conflict", "Bootstrap review conflict",
+                    "The registry is not empty, or the review key or digest is bound to another request or actor.", request);
+            case READ_UNAVAILABLE -> problem(HttpStatus.CONFLICT, "catalog-bootstrap-review-unavailable", "Bootstrap review unavailable",
+                    "The stored review cannot be read with the current format and integrity policy.", request);
+        };
+    }
+
     @ExceptionHandler(InvalidWeightedComparisonRequestException.class)
     ProblemDetail invalidWeights(InvalidWeightedComparisonRequestException exception, HttpServletRequest request) {
         return invalidRequest(List.of(new RequestViolation(exception.path(), exception.getMessage())), request);

@@ -45,6 +45,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
             "^/api/v[1-9][0-9]*/catalog-change-proposals/[^/]+/revisions/[^/]+/evidence-review(?:/|$)");
     private static final Pattern CURATOR_FACT_REVIEW = Pattern.compile(
             "^/api/v[1-9][0-9]*/catalog-change-proposals/[^/]+/(?:revisions/[^/]+/)?fact-reviews(?:/|$)");
+    private static final Pattern CURATOR_BOOTSTRAP_REVIEW = Pattern.compile(
+            "^/api/v[1-9][0-9]*/catalog-bootstrap-reviews(?:/|$)");
     private static final long CURATOR_REAUTH_SECONDS = 15 * 60;
     private static final long CLOCK_SKEW_SECONDS = 30;
 
@@ -65,7 +67,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
                 && !CURATOR_DECISION_PREFIX.matcher(path).find()
                 && !CURATOR_REVIEW_INDEX.matcher(path).find()
                 && !CURATOR_EVIDENCE_REVIEW.matcher(path).find()
-                && !CURATOR_FACT_REVIEW.matcher(path).find();
+                && !CURATOR_FACT_REVIEW.matcher(path).find()
+                && !CURATOR_BOOTSTRAP_REVIEW.matcher(path).find();
     }
 
     @Override
@@ -105,7 +108,8 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
                 || CURATOR_DECISION_PREFIX.matcher(path).find()
                 || CURATOR_REVIEW_INDEX.matcher(path).find()
                 || CURATOR_EVIDENCE_REVIEW.matcher(path).find()
-                || CURATOR_FACT_REVIEW.matcher(path).find()) {
+                || CURATOR_FACT_REVIEW.matcher(path).find()
+                || CURATOR_BOOTSTRAP_REVIEW.matcher(path).find()) {
             int curatorStatus = curatorStatus(request);
             if (curatorStatus != HttpServletResponse.SC_NO_CONTENT) {
                 response.sendError(curatorStatus);

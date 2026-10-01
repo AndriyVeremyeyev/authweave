@@ -50,6 +50,32 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("bootstrap review contracts require a separate explicit assertion and cannot claim approval or disclose actors", async () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-bootstrap-review-request.v1.schema.json");
+  const validateReceipt = ajv.getSchema("https://authweave.dev/contracts/catalog-bootstrap-review.v1.schema.json");
+  const candidate = await readJson(path.join(fixturesRoot, "provider-catalog-draft.valid.json"));
+  const request = { schemaVersion: 1, reviewId: "90000000-0000-4000-8000-000000000001",
+    expectedCandidateSha256: "a".repeat(64), candidate,
+    observations: [{ optionId: "example-eu", factPath: "facts.SCIM", verdict: "SOURCE_SUPPORTS_CLAIM" }],
+    confirmation: "MANUAL_BOOTSTRAP_SOURCE_REVIEW" };
+  assert.equal(validate(request), true, validationMessage(validate));
+  for (const invalid of [{ ...request, schemaVersion: "1" }, { ...request, confirmation: "MANUAL_SOURCE_REVIEW" },
+    { ...request, observations: [] }, { ...request, observations: Array(6801).fill(request.observations[0]) },
+    { ...request, expectedCandidateSha256: "A".repeat(64) }, { ...request, actorSubject: "private" },
+    { ...request, approvalGranted: true }, { ...request, expectedVersion: 0 },
+    { ...request, observations: [{ ...request.observations[0], verdict: "APPROVED" }] }]) assert.equal(validate(invalid), false);
+  const receipt = { reviewId: request.reviewId, candidateSha256: request.expectedCandidateSha256, reviewSha256: "b".repeat(64),
+    catalogVersion: candidate.catalogVersion, factCount: 1, counts: { supporting: 1, contradicting: 0, insufficient: 0 },
+    recordedAt: "2026-09-30T12:00:00Z", policyVersion: "catalog-bootstrap-source-review-1", kind: "HUMAN_BOOTSTRAP_SOURCE_REVIEW",
+    sourceVerificationPerformed: false, approvalGranted: false, catalogWritesPerformed: false, factTrustChanged: false };
+  assert.equal(validateReceipt(receipt), true, validationMessage(validateReceipt));
+  for (const field of ["sourceVerificationPerformed", "approvalGranted", "catalogWritesPerformed", "factTrustChanged"]) {
+    assert.equal(validateReceipt({ ...receipt, [field]: true }), false);
+  }
+  for (const invalid of [{ ...receipt, actorSubject: "private" }, { ...receipt, candidate },
+    { ...receipt, factCount: 0 }, { ...receipt, kind: "CURATED_BOOTSTRAP" }]) assert.equal(validateReceipt(invalid), false);
+});
+
 test("candidate evidence pages preserve scope and forbid verification or approval claims", () => {
   const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-proposal-evidence-page.v1.schema.json");
   const item = { optionId: "example-eu", path: "facts.SCIM", scope: { providerId: "example",

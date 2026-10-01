@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq;
 
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
+import io.authweave.core.generated.jooq.tables.CatalogBootstrapReviews;
 import io.authweave.core.generated.jooq.tables.CatalogFactReviews;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions;
@@ -43,6 +44,12 @@ public class Tables {
      * version.
      */
     public static final Assessments ASSESSMENTS = Assessments.ASSESSMENTS;
+
+    /**
+     * Immutable exact-candidate manual observations. No automatic truth,
+     * curator approval or catalog publication.
+     */
+    public static final CatalogBootstrapReviews CATALOG_BOOTSTRAP_REVIEWS = CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS;
 
     /**
      * Append-only human source verdict for a revision-bound candidate fact. Not
