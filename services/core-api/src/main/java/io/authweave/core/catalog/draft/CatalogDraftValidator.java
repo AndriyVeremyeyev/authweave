@@ -26,7 +26,7 @@ public final class CatalogDraftValidator {
         return validateAt(draft, clock.instant());
     }
 
-    CatalogDraftValidation validateAt(ProviderCatalogDraft draft, Instant at) {
+    public CatalogDraftValidation validateAt(ProviderCatalogDraft draft, Instant at) {
         var issues = new ArrayList<Issue>();
         var facts = new ArrayList<FactReview>();
         var ids = new HashSet<String>();

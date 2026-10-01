@@ -51,6 +51,7 @@ class CatalogPublicationLookupIntegrationTests {
     @Autowired private DSLContext dsl;
     @Autowired private CatalogPublicationLookup lookup;
     @Autowired private LocalCatalogProposalWriter writer;
+    @Autowired private CatalogPublicationPreflight preflight;
     @MockitoSpyBean private CatalogPublicationRepository repository;
 
     @Test
@@ -126,6 +127,19 @@ class CatalogPublicationLookupIntegrationTests {
         var result = lookup.lookup(missing);
         assertEquals(CatalogPublicationLookup.Reason.NOT_FOUND, result.reason()); assertNull(result.snapshot()); assertTrue(result.lineage().isEmpty());
         assertFalse(result.baselineVerified());
+    }
+
+    @Test
+    void preflightCannotTrustConsistentAdminAssertionsOrBootstrapANonemptyRegistry() throws Exception {
+        var parent = tip(); var child = new CatalogPublicationLookupFixtures(mapper).child(parent);
+        var proposal = writer.save(child.request(), null).proposal();
+        var result = preflight.proposal(proposal.proposalId(), proposal.version(), proposal.proposalSha256(), reference(parent.snapshot()));
+        assertTrue(result.baselineIntegrityValidated()); assertTrue(result.baselineContentMatches());
+        assertTrue(result.blockers().contains(CatalogPublicationPreflight.Blocker.BASELINE_AUTHORITY_UNAVAILABLE));
+        assertFalse(result.baselineVerified()); assertFalse(result.publicationReady());
+        var bootstrap = preflight.bootstrap(child.snapshot().catalog().asDraft());
+        assertTrue(bootstrap.blockers().contains(CatalogPublicationPreflight.Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY));
+        assertFalse(bootstrap.approvalGranted()); assertFalse(bootstrap.writesPerformed());
     }
 
     private Node tip() throws Exception {

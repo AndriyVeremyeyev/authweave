@@ -978,6 +978,46 @@ bootstrap policy are still required before trusted baseline resolution can be en
 No API contract, migration, runtime write grant, active catalog loading, assessment
 pinning, account or paid call is added by this step.
 
+### Core publication preflight policy
+
+`CatalogPublicationPreflight` adds a Core-owned, internal read-only denial policy, not
+an HTTP action, publisher or authorization token. Unlike the display-only BFF summary,
+it reads one repeatable-read database snapshot and checks an exact stored proposal
+UUID/revision/SHA-256. It rejects missing, malformed, over-budget or tampered requests,
+noncurrent heads, rejected/already published revisions, nonreviewable changes, invalid
+candidates and previously published catalog labels. Stored previews are not trusted or read.
+
+The policy checks the latest observation per **every recorded candidate fact**, including
+unchanged facts. Missing observations, source contradictions and insufficient evidence
+are separate blockers. Review identity/revision/digest/target/number/time bindings and
+undeclared trust claims are checked; a corrupt ledger releases no partial supporting
+count or watermark. Counts report manual assertions, not independently verified truth.
+Freshness is reevaluated at the preflight time: supporting observations cannot refresh
+stale or future source dates, and absent facts remain unknown rather than supported.
+Requests are capped at 32 MiB of stored UTF-8 JSON text and withheld on the database
+server when over budget; latest-review reads cap at 6,801 rows to detect overflow.
+The separate lineage lookup retains its 64 MiB/64-ancestor limits.
+
+A baseline must be an explicit exact registry reference, match the entire supplied
+base and have no successor. Even matching, internally consistent admin assertions
+retain `BASELINE_AUTHORITY_UNAVAILABLE`. An impact receipt's existence is only a receipt,
+not report verification or full coverage. Current conditional reports cannot satisfy
+the mandatory `IMPACT_COVERAGE_INCOMPLETE` blocker.
+
+First publication uses the distinct `CURATED_BOOTSTRAP` preflight: all three publication
+tables must be empty, the candidate valid and its evidence current. Empty storage or a
+null parent cannot bypass `BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE`; proposal review
+observations are not silently repurposed as bootstrap approval. A dedicated, authenticated
+bootstrap review workflow is still required.
+
+Both modes always return `BLOCKED`. Curator authorization **at the eventual write** and
+a verified publication workflow remain mandatory blockers; baseline/source verification,
+coverage, approval, publication/evaluation readiness and writes remain false. A future
+writer must recheck current state and authorization within its own atomic transaction,
+not reuse this historical preflight result. Database outages propagate without a fallback.
+No API/schema, UI behavior, database grants, registry rows, active evaluator, account or
+paid service is changed by this step.
+
 ### Conditional catalog impact
 
 `POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview

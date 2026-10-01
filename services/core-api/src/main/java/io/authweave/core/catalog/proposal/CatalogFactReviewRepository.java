@@ -35,7 +35,7 @@ public class CatalogFactReviewRepository {
                 more ? items.getLast().reviewNumber() : null);
     }
 
-    List<CatalogFactReview> latest(UUID proposalId, long version, String digest) {
+    public List<CatalogFactReview> latest(UUID proposalId, long version, String digest) {
         var r = CATALOG_FACT_REVIEWS;
         var revision = r.PROPOSAL_ID.eq(proposalId).and(r.PROPOSAL_VERSION.eq(version)).and(r.PROPOSAL_SHA256.eq(digest));
         // One SQL statement/snapshot: the newest review number per fact, not an unbounded history scan in Java.
