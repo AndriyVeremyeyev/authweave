@@ -946,6 +946,38 @@ or trusted baseline resolution can be enabled. Testcontainers fixtures use an ad
 with fictional data solely to exercise these constraints; they do not authenticate a curator
 or grant publication authority. The offline inspector and synthetic evaluator are unchanged.
 
+### Internal publication integrity lookup
+
+Core now has a SELECT-only `CatalogPublicationLookup`, not an HTTP/BFF endpoint or a
+publisher. A caller pins a snapshot UUID, catalog label and manifest SHA-256 together;
+there is no latest-version or label-only fallback. The lookup strictly decodes stored
+wire formats, recomputes content/manifest hashes and validates every ancestor through
+the sole bootstrap root. It binds stored snapshot/decision/audit metadata, historical
+actor-assertion shape and authentication-time bounds, exact proposal revision/request
+digest, the entire candidate named by the recorded decision and the parent's full
+base-draft content. It rejects missing/corrupt ancestors, reused labels, forks and
+reversed publication times.
+Changing the current proposal head does not change its historical publication binding.
+
+All reads run in one read-only repeatable-read transaction. Limits are 64 snapshots,
+32 MiB per manifest or proposal request and 64 MiB combined UTF-8 JSON text per lookup.
+Oversized JSON stays on the database server; there is no partial-history success when a
+limit is exceeded. Missing/mismatching references or invalid recorded data return
+`UNAVAILABLE` with a bounded reason and no snapshot/partial lineage. Storage failures
+propagate without being misreported as not-found. Successful lineage is requested-to-root.
+Only validated catalog data and immutable references are returned, not audit actor identities.
+
+`VALIDATED_STORED_LINEAGE` means recorded integrity, not an authenticated publication.
+Even a self-consistent admin-created row can forge curator assertions. Authority remains
+`VERIFIED_PUBLICATION_WORKFLOW_UNAVAILABLE`, and baseline/source verification, approval,
+writes and evaluation readiness remain false. `compareBaseline` compares a supplied
+base-draft digest and full content only after successful registry validation; matching
+data does not upgrade those flags. Historical validation does not refresh evidence,
+assert current eligibility or rerun impact. A verified curator workflow and explicit
+bootstrap policy are still required before trusted baseline resolution can be enabled.
+No API contract, migration, runtime write grant, active catalog loading, assessment
+pinning, account or paid call is added by this step.
+
 ### Conditional catalog impact
 
 `POST /api/v1/catalog-change-proposals/impact-preview` accepts the same change-preview
