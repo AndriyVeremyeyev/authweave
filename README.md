@@ -1001,8 +1001,25 @@ The separate lineage lookup retains its 64 MiB/64-ancestor limits.
 A baseline must be an explicit exact registry reference, match the entire supplied
 base and have no successor. Even matching, internally consistent admin assertions
 retain `BASELINE_AUTHORITY_UNAVAILABLE`. An impact receipt's existence is only a receipt,
-not report verification or full coverage. Current conditional reports cannot satisfy
-the mandatory `IMPACT_COVERAGE_INCOMPLETE` blocker.
+not full coverage. Preflight now verifies the **latest report for the exact proposal
+revision**, its request/report hashes, schema/canonicalization versions, receipt times
+and body-free service audit bindings. The database withholds report bodies over
+32 MiB. An invalid newest report cannot fall back to an older valid report.
+
+Compatible policy/rule/profile/case versions are required. Core then regenerates the
+entire conditional scenario report at its original `evaluatedAt` and compares canonical
+hashes, including definitions, dependencies, checks, outcomes, gaps and trust flags.
+Stored JSON is compared without reinterpreting historical interface-valued facts.
+Self-consistent altered results, omitted checks or invented coverage cannot pass replay.
+The result exposes only checked report identity/time/hash and scenario/gap/deferred-path
+counts; an invalid report releases no partial metadata or counts. History is not changed
+or refreshed, and the historical display API remains unchanged.
+
+`VERIFIED_PARTIAL_ANALYSIS` means recorded integrity and historical replay, not complete
+evaluation or trusted evidence. The current three-profile report still defers seven
+dimensions and cannot satisfy the mandatory `IMPACT_COVERAGE_INCOMPLETE` blocker.
+Full fact-path regression coverage and a separate bootstrap impact workflow remain
+unimplemented. Even a verified blocked analysis does not provide coverage or authority.
 
 First publication uses the distinct `CURATED_BOOTSTRAP` preflight: all three publication
 tables must be empty, the candidate valid and its evidence current. Empty storage or a
@@ -1010,6 +1027,8 @@ null parent cannot bypass `BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE`; proposal revi
 observations are not silently repurposed as bootstrap approval. This raw-draft path
 does not load or reuse a stored bootstrap review. The exact stored-review path described
 below can account for manual observations, but still cannot approve or publish.
+Both bootstrap paths retain `BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE` and never reuse
+proposal impact reports for the initial catalog version.
 
 Both modes always return `BLOCKED`. Curator authorization **at the eventual write** and
 a verified publication workflow remain mandatory blockers; baseline/source verification,

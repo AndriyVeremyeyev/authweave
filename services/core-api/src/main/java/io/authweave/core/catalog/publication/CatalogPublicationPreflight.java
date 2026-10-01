@@ -27,7 +27,7 @@ import io.authweave.core.catalog.proposal.CatalogFactReviewRepository;
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class CatalogPublicationPreflight {
-    public static final String POLICY_VERSION = "catalog-publication-preflight-1";
+    public static final String POLICY_VERSION = "catalog-publication-preflight-2";
     private static final long MAX_SAFE_INTEGER = 9007199254740991L;
     private final CatalogPublicationPreflightRepository repository;
     private final CatalogFactReviewRepository reviews;
@@ -38,13 +38,16 @@ public class CatalogPublicationPreflight {
     private final ObjectMapper mapper;
     private final Clock clock;
     private final CatalogBootstrapReviewService bootstrapReviews;
+    private final CatalogPublicationImpactVerifier impacts;
 
     CatalogPublicationPreflight(CatalogPublicationPreflightRepository repository, CatalogFactReviewRepository reviews,
             CatalogPublicationRepository publications, CatalogPublicationLookup lookup, CatalogDraftValidator validator,
-            CatalogChangePreviewService preview, ObjectMapper mapper, Clock clock, CatalogBootstrapReviewService bootstrapReviews) {
+            CatalogChangePreviewService preview, ObjectMapper mapper, Clock clock, CatalogBootstrapReviewService bootstrapReviews,
+            CatalogPublicationImpactVerifier impacts) {
         this.repository = repository; this.reviews = reviews; this.publications = publications; this.lookup = lookup;
         this.validator = validator; this.preview = preview; this.mapper = mapper; this.clock = clock;
         this.bootstrapReviews = bootstrapReviews;
+        this.impacts = impacts;
     }
 
     public enum Mode { PROPOSAL_APPROVAL, CURATED_BOOTSTRAP }
@@ -56,7 +59,9 @@ public class CatalogPublicationPreflight {
         FACT_EVIDENCE_STALE, FACT_EVIDENCE_FUTURE,
         BASELINE_REFERENCE_MISSING, BASELINE_INTEGRITY_UNAVAILABLE, BASELINE_CONTENT_MISMATCH,
         BASELINE_NOT_TIP, BASELINE_AUTHORITY_UNAVAILABLE, BOOTSTRAP_REGISTRY_NOT_EMPTY,
-        BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE, BOOTSTRAP_REVIEW_UNAVAILABLE, IMPACT_RECEIPT_MISSING, IMPACT_COVERAGE_INCOMPLETE,
+        BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE, BOOTSTRAP_REVIEW_UNAVAILABLE, BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE,
+        IMPACT_RECEIPT_MISSING, IMPACT_REPORT_READ_BUDGET_EXCEEDED, IMPACT_RECEIPT_INVALID,
+        IMPACT_RULES_INCOMPATIBLE, IMPACT_REPLAY_MISMATCH, IMPACT_ANALYSIS_BLOCKED, IMPACT_COVERAGE_INCOMPLETE,
         CURATOR_AUTHORIZATION_NOT_PERFORMED, PUBLICATION_WORKFLOW_UNAVAILABLE
     }
 
@@ -74,9 +79,11 @@ public class CatalogPublicationPreflight {
 
     public record Result(Mode mode, Instant evaluatedAt, UUID proposalId, Long proposalVersion,
             String proposalSha256, FactCounts facts, long reviewThroughNumber,
-            boolean baselineIntegrityValidated, boolean baselineContentMatches, List<Blocker> blockers) {
+            boolean baselineIntegrityValidated, boolean baselineContentMatches, CatalogPublicationImpactVerifier.Check impact,
+            List<Blocker> blockers) {
         public Result {
             Objects.requireNonNull(mode); Objects.requireNonNull(evaluatedAt); Objects.requireNonNull(facts);
+            Objects.requireNonNull(impact);
             blockers = List.copyOf(blockers);
             if (blockers.isEmpty() || new HashSet<>(blockers).size() != blockers.size()
                     || !blockers.contains(Blocker.PUBLICATION_WORKFLOW_UNAVAILABLE)
@@ -84,6 +91,7 @@ public class CatalogPublicationPreflight {
                     || !blockers.contains(Blocker.IMPACT_COVERAGE_INCOMPLETE)
                     || reviewThroughNumber < 0 || reviewThroughNumber > MAX_SAFE_INTEGER
                     || baselineContentMatches && !baselineIntegrityValidated
+                    || mode == Mode.CURATED_BOOTSTRAP && impact.status() != CatalogPublicationImpactVerifier.Status.NOT_CHECKED
                     || (mode == Mode.CURATED_BOOTSTRAP ? proposalId != null || proposalVersion != null || proposalSha256 != null
                         : proposalId == null || proposalVersion == null || proposalSha256 == null)) {
                 throw new IllegalArgumentException("Inconsistent preflight result");
@@ -141,7 +149,16 @@ public class CatalogPublicationPreflight {
         candidate(validation, blockers);
         if (preview.preview(request).status() != CatalogChangePreview.Status.REVIEW_REQUIRED) blockers.add(Blocker.CHANGE_NOT_REVIEWABLE);
         var observed = observations(row, validation, at, blockers);
-        if (!repository.hasImpactReceipt(id, version, row.sha256())) blockers.add(Blocker.IMPACT_RECEIPT_MISSING);
+        var impact = impacts.verify(request, version, row.recordedAt(), at);
+        switch (impact.status()) {
+            case MISSING -> blockers.add(Blocker.IMPACT_RECEIPT_MISSING);
+            case READ_BUDGET_EXCEEDED -> blockers.add(Blocker.IMPACT_REPORT_READ_BUDGET_EXCEEDED);
+            case INVALID_RECEIPT, NOT_CHECKED -> blockers.add(Blocker.IMPACT_RECEIPT_INVALID);
+            case INCOMPATIBLE_RULES -> blockers.add(Blocker.IMPACT_RULES_INCOMPATIBLE);
+            case REPLAY_MISMATCH -> blockers.add(Blocker.IMPACT_REPLAY_MISMATCH);
+            case VERIFIED_BLOCKED_ANALYSIS -> blockers.add(Blocker.IMPACT_ANALYSIS_BLOCKED);
+            case VERIFIED_PARTIAL_ANALYSIS -> { /* Integrity does not remove the mandatory full-coverage gate. */ }
+        }
         boolean integrity = false, matches = false;
         if (baseline == null) blockers.add(Blocker.BASELINE_REFERENCE_MISSING);
         else {
@@ -154,7 +171,7 @@ public class CatalogPublicationPreflight {
                 if (publications.successors(baseline.snapshotId()) != 0) blockers.add(Blocker.BASELINE_NOT_TIP);
             }
         }
-        return result(Mode.PROPOSAL_APPROVAL, at, id, version, row.sha256(), observed.counts(), observed.through(), integrity, matches, blockers);
+        return result(Mode.PROPOSAL_APPROVAL, at, id, version, row.sha256(), observed.counts(), observed.through(), integrity, matches, impact, blockers);
         // Storage errors propagate. This read is never reused as authorization for a later write.
     }
 
@@ -163,6 +180,7 @@ public class CatalogPublicationPreflight {
         Objects.requireNonNull(candidate);
         var at = clock.instant(); var blockers = mandatory();
         blockers.add(Blocker.BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE);
+        blockers.add(Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE);
         if (!repository.registryEmpty()) blockers.add(Blocker.BOOTSTRAP_REGISTRY_NOT_EMPTY);
         var validation = validator.validateAt(candidate, at); candidate(validation, blockers);
         var facts = counts(validation, 0, 0, 0); observationBlockers(facts, blockers);
@@ -172,6 +190,7 @@ public class CatalogPublicationPreflight {
     /** Stored review is loaded by exact UUID/digest; caller-supplied supporting totals never enter this boundary. */
     public Result bootstrap(UUID reviewId, String expectedReviewSha256) {
         var at = clock.instant(); var blockers = mandatory();
+        blockers.add(Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE);
         CatalogBootstrapReviewService.ReviewedCandidate reviewed;
         try { reviewed = bootstrapReviews.reviewed(reviewId, expectedReviewSha256); }
         catch (CatalogBootstrapReviewException invalid) {
@@ -243,7 +262,12 @@ public class CatalogPublicationPreflight {
     private static FactCounts empty() { return new FactCounts(0, 0, 0, 0, 0, 0, 0); }
     private static Result result(Mode mode, Instant at, UUID id, Long version, String digest, FactCounts facts,
             long through, boolean integrity, boolean matches, EnumSet<Blocker> blockers) {
-        return new Result(mode, at, id, version, digest, facts, through, integrity, matches, List.copyOf(blockers));
+        return result(mode, at, id, version, digest, facts, through, integrity, matches,
+                CatalogPublicationImpactVerifier.Check.unavailable(CatalogPublicationImpactVerifier.Status.NOT_CHECKED), blockers);
+    }
+    private static Result result(Mode mode, Instant at, UUID id, Long version, String digest, FactCounts facts,
+            long through, boolean integrity, boolean matches, CatalogPublicationImpactVerifier.Check impact, EnumSet<Blocker> blockers) {
+        return new Result(mode, at, id, version, digest, facts, through, integrity, matches, impact, List.copyOf(blockers));
     }
     private record FactKey(String optionId, String path) { }
     private record Observations(FactCounts counts, long through) { }

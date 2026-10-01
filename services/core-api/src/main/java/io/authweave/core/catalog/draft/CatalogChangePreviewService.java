@@ -1,6 +1,7 @@
 package io.authweave.core.catalog.draft;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -20,7 +21,12 @@ public final class CatalogChangePreviewService {
     public CatalogChangePreviewService(CatalogDraftValidator validator, Clock clock) { this.validator = validator; this.clock = clock; }
 
     public CatalogChangePreview preview(CatalogChangePreviewRequest request) {
-        var at = clock.instant();
+        return previewAt(request, clock.instant());
+    }
+
+    /** Internal deterministic replay; does not refresh an existing stored report or grant evidence trust. */
+    public CatalogChangePreview previewAt(CatalogChangePreviewRequest request, Instant at) {
+        Objects.requireNonNull(at);
         var base = DraftReview.from(validator.validateAt(request.base(), at));
         var candidate = DraftReview.from(validator.validateAt(request.candidate(), at));
         var blockers = new ArrayList<Blocker>();

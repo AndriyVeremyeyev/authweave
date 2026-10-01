@@ -37,8 +37,9 @@ class CatalogPublicationPreflightTests {
     private final CatalogPublicationRepository publications = mock(CatalogPublicationRepository.class);
     private final CatalogPublicationLookup lookup = mock(CatalogPublicationLookup.class);
     private final CatalogBootstrapReviewService bootstrapReviews = mock(CatalogBootstrapReviewService.class);
+    private final CatalogPublicationImpactVerifier impacts = mock(CatalogPublicationImpactVerifier.class);
     private final CatalogPublicationPreflight preflight = new CatalogPublicationPreflight(repository, reviews, publications,
-            lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews);
+            lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews, impacts);
     private CatalogChangePreviewRequest request;
     private CatalogPublicationPreflightRepository.Proposal row;
     private PublishedCatalogSnapshot.Reference baseline;
@@ -55,7 +56,8 @@ class CatalogPublicationPreflightTests {
                 CatalogPublicationLookup.Status.VALIDATED_STORED_LINEAGE, CatalogPublicationLookup.Reason.NONE,
                 root.snapshot(), List.of(baseline)), true, true);
         when(lookup.compareBaseline(eq(baseline), any())).thenReturn(comparison);
-        when(repository.hasImpactReceipt(any(), anyLong(), anyString())).thenReturn(true);
+        when(impacts.verify(any(), anyLong(), any(), any())).thenReturn(new CatalogPublicationImpactVerifier.Check(
+                CatalogPublicationImpactVerifier.Status.VERIFIED_PARTIAL_ANALYSIS, UUID.randomUUID(), 1, "a".repeat(64), AT, 3, 0, 7));
         when(repository.registryEmpty()).thenReturn(true);
     }
 
@@ -203,9 +205,37 @@ class CatalogPublicationPreflightTests {
     @Test
     void reusedLabelsAndMissingImpactReceiptDoNotDisappearBehindSupportingFacts() {
         when(repository.labelUsed(anyString())).thenReturn(true);
-        when(repository.hasImpactReceipt(any(), anyLong(), anyString())).thenReturn(false);
+        when(impacts.verify(any(), anyLong(), any(), any())).thenReturn(CatalogPublicationImpactVerifier.Check.unavailable(CatalogPublicationImpactVerifier.Status.MISSING));
         var result = run(); assertTrue(result.blockers().containsAll(List.of(Blocker.CATALOG_LABEL_ALREADY_USED,
                 Blocker.IMPACT_RECEIPT_MISSING, Blocker.IMPACT_COVERAGE_INCOMPLETE))); assertBlocked(result);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"READ_BUDGET_EXCEEDED", "INVALID_RECEIPT", "INCOMPATIBLE_RULES", "REPLAY_MISMATCH", "VERIFIED_BLOCKED_ANALYSIS"})
+    void incompleteInvalidOrIncompatibleImpactNeverBecomesCoverageOrAuthorization(String state) {
+        var status = CatalogPublicationImpactVerifier.Status.valueOf(state);
+        var impact = status == CatalogPublicationImpactVerifier.Status.VERIFIED_BLOCKED_ANALYSIS
+                ? new CatalogPublicationImpactVerifier.Check(status, UUID.randomUUID(), 1, "a".repeat(64), AT, 0, 0, 7)
+                : CatalogPublicationImpactVerifier.Check.unavailable(status);
+        when(impacts.verify(any(), anyLong(), any(), any())).thenReturn(impact);
+        var result = run();
+        var blocker = switch (status) {
+            case READ_BUDGET_EXCEEDED -> Blocker.IMPACT_REPORT_READ_BUDGET_EXCEEDED;
+            case INVALID_RECEIPT -> Blocker.IMPACT_RECEIPT_INVALID;
+            case INCOMPATIBLE_RULES -> Blocker.IMPACT_RULES_INCOMPATIBLE;
+            case REPLAY_MISMATCH -> Blocker.IMPACT_REPLAY_MISMATCH;
+            default -> Blocker.IMPACT_ANALYSIS_BLOCKED;
+        };
+        assertTrue(result.blockers().contains(blocker)); assertEquals(impact, result.impact()); assertBlocked(result);
+    }
+
+    @Test void impactStorageFailuresPropagateAndBootstrapNeverReadsProposalReports() {
+        when(impacts.verify(any(), anyLong(), any(), any())).thenThrow(new DataAccessException("Unavailable"));
+        assertThrows(DataAccessException.class, this::run);
+        clearInvocations(impacts);
+        var result = preflight.bootstrap(request.candidate());
+        assertTrue(result.blockers().contains(Blocker.BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE));
+        assertEquals(CatalogPublicationImpactVerifier.Status.NOT_CHECKED, result.impact().status());
+        verifyNoInteractions(impacts); assertBlocked(result);
     }
 
     @Test

@@ -28,7 +28,13 @@ public final class CatalogScenarioImpactService {
     }
     public CatalogScenarioImpact analyze(CatalogChangePreviewRequest request) { return analyze(request, null, null); }
     CatalogScenarioImpact analyze(CatalogChangePreviewRequest request, Long version, String digest) {
-        var preview = previews.preview(request);
+        return analyze(request, version, digest, previews.preview(request));
+    }
+    /** Recompute with current source-controlled rules at the report's original time; no historical row is modified. */
+    public CatalogScenarioImpact analyzeAt(CatalogChangePreviewRequest request, long version, String digest, Instant at) {
+        return analyze(request, version, digest, previews.previewAt(request, at));
+    }
+    private CatalogScenarioImpact analyze(CatalogChangePreviewRequest request, Long version, String digest, CatalogChangePreview preview) {
         if (digest != null && !digest.equals(preview.proposalSha256())) throw new CatalogProposalException(CatalogProposalException.Reason.REPLAY_UNAVAILABLE);
         var results = new ArrayList<ScenarioImpact>(); var uncovered = new ArrayList<CatalogImpactPreview.UncoveredChange>();
         if (preview.diffComputed()) {

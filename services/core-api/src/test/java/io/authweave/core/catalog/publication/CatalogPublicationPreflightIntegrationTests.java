@@ -1,6 +1,7 @@
 package io.authweave.core.catalog.publication;
 
 import java.time.Instant;
+import java.sql.DriverManager;
 import java.util.UUID;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
@@ -14,6 +15,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import tools.jackson.databind.ObjectMapper;
 import io.authweave.core.catalog.draft.CatalogChangePreviewRequest;
 import io.authweave.core.catalog.draft.CatalogDraftValidator;
+import io.authweave.core.catalog.draft.CatalogDraftCanonicalizer;
+import io.authweave.core.catalog.impact.LocalCatalogImpactWriter;
+import io.authweave.core.catalog.impact.CatalogImpactReport;
+import io.authweave.core.catalog.impact.CatalogImpactReportRepository;
 import io.authweave.core.catalog.proposal.CatalogFactReviewRequest;
 import io.authweave.core.catalog.proposal.CatalogFactReviewWriter;
 import io.authweave.core.catalog.proposal.LocalCatalogProposalWriter;
@@ -24,12 +29,13 @@ import static io.authweave.core.catalog.proposal.CatalogFactReviewRequest.Verdic
 import static io.authweave.core.generated.jooq.tables.CatalogPublishedSnapshots.CATALOG_PUBLISHED_SNAPSHOTS;
 import static io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions.CATALOG_PUBLICATION_DECISIONS;
 import static io.authweave.core.generated.audit.tables.CatalogPublicationEvents.CATALOG_PUBLICATION_EVENTS;
+import static io.authweave.core.generated.jooq.tables.CatalogImpactReports.CATALOG_IMPACT_REPORTS;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@ActiveProfiles("local-catalog-write")
+@ActiveProfiles({"local-catalog-write", "local-catalog-impact-write"})
 class CatalogPublicationPreflightIntegrationTests {
     // Empty registry is a real bootstrap prerequisite; do not share a database with admin-seeded storage tests.
     private static final PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:0.8.6-pg18-bookworm")
@@ -54,6 +60,8 @@ class CatalogPublicationPreflightIntegrationTests {
     @Autowired private LocalCatalogProposalWriter writer;
     @Autowired private CatalogFactReviewWriter reviewWriter;
     @Autowired private CatalogDraftValidator validator;
+    @Autowired private LocalCatalogImpactWriter impactWriter;
+    @Autowired private CatalogImpactReportRepository impacts;
     @MockitoSpyBean private CatalogPublicationPreflightRepository repository;
 
     @Test
@@ -105,6 +113,102 @@ class CatalogPublicationPreflightIntegrationTests {
         var bounded = repository.proposal(saved.proposalId(), saved.version(), row.requestBytes() - 1);
         assertNull(bounded.request()); assertEquals(row.requestBytes(), bounded.requestBytes());
         assertNotNull(repository.proposal(saved.proposalId(), saved.version(), row.requestBytes()).request()); registryStillEmpty();
+    }
+
+    @Test
+    void latestReceiptAuditAndAllResultsAreVerifiedWithinTheSameReadOnlySnapshotWithoutPromotingCoverage() {
+        var fixtures = new CatalogPublicationLookupFixtures(mapper); var node = fixtures.child(fixtures.root(Instant.now()));
+        var saved = writer.save(node.request(), null).proposal();
+        var report = impactWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(repository).latestImpact(any(UUID.class), anyLong());
+        int count = dsl.fetchCount(CATALOG_IMPACT_REPORTS);
+        var result = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null);
+        assertEquals(CatalogPublicationImpactVerifier.Status.VERIFIED_PARTIAL_ANALYSIS, result.impact().status());
+        assertTrue(result.impact().storedIntegrityValidated()); assertTrue(result.impact().historicalReplayVerified());
+        assertEquals(report.reportId(), result.impact().reportId()); assertEquals(report.reportNumber(), result.impact().reportNumber());
+        assertEquals(report.reportSha256(), result.impact().reportSha256()); assertEquals(3, result.impact().scenarioCount());
+        assertEquals(0, result.impact().uncoveredChangeCount()); assertEquals(7, result.impact().deferredPathCount());
+        assertTrue(result.blockers().contains(IMPACT_COVERAGE_INCOMPLETE)); assertFalse(result.coverageComplete());
+        assertFalse(result.blockers().contains(IMPACT_RECEIPT_MISSING)); assertFalse(result.approvalGranted());
+        assertEquals(count, dsl.fetchCount(CATALOG_IMPACT_REPORTS)); assertEquals(report, impacts.get(saved.proposalId(), saved.version(), report.reportId()));
+        registryStillEmpty();
+    }
+
+    @Test
+    void oversizedReadIsWithheldOnTheServerAndNewRevisionCannotReuseAnOlderReceipt() {
+        var fixtures = new CatalogPublicationLookupFixtures(mapper); var node = fixtures.child(fixtures.root(Instant.now()));
+        var saved = writer.save(node.request(), null).proposal();
+        var report = impactWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        var row = repository.latestImpact(saved.proposalId(), saved.version());
+        assertNotNull(row.report()); assertEquals(report.reportId(), row.id()); assertNotNull(row.event()); assertTrue(row.reportBytes() > 0);
+        var bounded = repository.latestImpact(saved.proposalId(), saved.version(), row.reportBytes() - 1);
+        assertNull(bounded.report()); assertEquals(row.reportBytes(), bounded.reportBytes());
+        assertNotNull(repository.latestImpact(saved.proposalId(), saved.version(), row.reportBytes()).report());
+        var request = node.request();
+        var next = writer.save(new CatalogChangePreviewRequest(1, request.proposalId(), request.rationale() + " revised",
+                request.expectedBaseSha256(), request.base(), request.candidate()), saved.version()).proposal();
+        var result = preflight.proposal(next.proposalId(), next.version(), next.proposalSha256(), null);
+        assertEquals(CatalogPublicationImpactVerifier.Status.MISSING, result.impact().status());
+        assertTrue(result.blockers().contains(IMPACT_RECEIPT_MISSING)); assertNull(result.impact().reportId());
+        assertEquals(report, impacts.get(saved.proposalId(), saved.version(), report.reportId())); registryStillEmpty();
+    }
+
+    @Test
+    void selfConsistentAdminTamperOfNewestReportDoesNotFallBackToOlderValidReportOrOverwriteHistory() throws Exception {
+        var fixtures = new CatalogPublicationLookupFixtures(mapper); var node = fixtures.child(fixtures.root(Instant.now()));
+        var saved = writer.save(node.request(), null).proposal();
+        var first = impactWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        var last = impactWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        var body = (tools.jackson.databind.node.ObjectNode) last.report();
+        ((tools.jackson.databind.node.ArrayNode) body.at("/scenarios/0/after/checks")).remove(0);
+        try {
+            replace(last, mapper.writeValueAsString(body), CatalogDraftCanonicalizer.sha256(body));
+            var result = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null);
+            assertEquals(CatalogPublicationImpactVerifier.Status.REPLAY_MISMATCH, result.impact().status());
+            assertTrue(result.blockers().contains(IMPACT_REPLAY_MISMATCH)); assertNull(result.impact().reportId());
+            assertEquals(0, result.impact().scenarioCount()); assertFalse(result.publicationReady());
+            assertEquals(last.reportId(), repository.latestImpact(saved.proposalId(), saved.version()).id());
+            assertEquals(first, impacts.get(saved.proposalId(), saved.version(), first.reportId())); registryStillEmpty();
+        } finally { replace(last, mapper.writeValueAsString(last.report()), last.reportSha256()); }
+        assertEquals(CatalogPublicationImpactVerifier.Status.VERIFIED_PARTIAL_ANALYSIS,
+                preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null).impact().status());
+    }
+
+    @Test
+    void auditTimestampTamperBlocksTheReceiptWithoutRefreshingOrDeletingStoredReports() throws Exception {
+        var fixtures = new CatalogPublicationLookupFixtures(mapper); var node = fixtures.child(fixtures.root(Instant.now()));
+        var saved = writer.save(node.request(), null).proposal();
+        var report = impactWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        try (var admin = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+            try (var alter = admin.prepareStatement("UPDATE audit.catalog_impact_report_events SET occurred_at = occurred_at + INTERVAL '1 hour' WHERE report_id = ?")) {
+                alter.setObject(1, report.reportId()); alter.executeUpdate();
+            }
+            try {
+                var result = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null);
+                assertEquals(CatalogPublicationImpactVerifier.Status.INVALID_RECEIPT, result.impact().status());
+                assertTrue(result.blockers().contains(IMPACT_RECEIPT_INVALID)); assertNull(result.impact().reportId());
+                assertEquals(report, impacts.get(saved.proposalId(), saved.version(), report.reportId())); registryStillEmpty();
+            } finally {
+                try (var restore = admin.prepareStatement("UPDATE audit.catalog_impact_report_events SET occurred_at = occurred_at - INTERVAL '1 hour' WHERE report_id = ?")) {
+                    restore.setObject(1, report.reportId()); restore.executeUpdate();
+                }
+            }
+        }
+    }
+
+    private void replace(CatalogImpactReport report, String body, String digest) throws Exception {
+        // Disposable test DB admin only. Restore a fully consistent tuple; never alter runtime grants or real data.
+        try (var admin = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+            admin.setAutoCommit(false);
+            try (var configuration = admin.createStatement()) { configuration.execute("SET LOCAL session_replication_role = replica"); }
+            try (var update = admin.prepareStatement("UPDATE core.catalog_impact_reports SET report = ?::jsonb, report_sha256 = ? WHERE id = ?")) {
+                update.setString(1, body); update.setString(2, digest); update.setObject(3, report.reportId()); update.executeUpdate();
+            }
+            try (var audit = admin.prepareStatement("UPDATE audit.catalog_impact_report_events SET report_sha256 = ? WHERE report_id = ?")) {
+                audit.setString(1, digest); audit.setObject(2, report.reportId()); audit.executeUpdate();
+            }
+            admin.commit();
+        }
     }
 
     private void transaction() {
