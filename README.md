@@ -443,6 +443,33 @@ auditability is still deferred in those older reports. Coverage, configuration,
 compliance, source verification, approval and publication/evaluation/recommendation
 readiness remain false. The seven deferred verification boundaries are explicit.
 
+### Profile v6 coverage composition
+
+`catalog-profile-impact-coverage-5` inventories all 34 semantic inputs of profile v6
+without rewriting the existing v5 manifest, scoped profiles or historical receipts.
+The service-credential-protected, input-free GET
+`/internal/v1/catalog-profile-impact/coverage-preflight` returns a body-free, `no-store`
+[coverage summary](packages/contracts/schemas/catalog-profile-impact-coverage.v1.schema.json).
+It binds the unchanged structural coverage digest to the supplemental v6 scenario
+digest and the fresh, separately scoped auditability regression at the same instant.
+
+The four scenarios produce 136 dependency rows. Catalog claim rules and architecture
+pattern rules remain distinct from synthetic auditability capability rules. Explicit
+criteria dependencies use the sidecar vocabulary, never borrowed catalog fact paths.
+An unselected retention criterion stays a scope guard, not an exercised capability.
+Rule presence is independent of whether dated evidence passes, fails or remains unknown.
+The 36 deferred input rows and 40 scenario-bound verification gaps remain explicit,
+including all seven auditability verification boundaries in every scenario.
+
+Fresh Core publication preflight policy `catalog-publication-preflight-11` consumes
+both the unchanged v5 structural summary and this new v6 composition for exact stored
+proposals or bootstrap reviews. Missing/invalid inputs keep coverage `NOT_CHECKED`;
+failed calculation or inconsistent time/digests fails closed. These are fresh checks,
+not replacement receipts. The sidecar is not proposed-catalog auditability data:
+`candidateAuditabilityChangesEvaluated` remains false. Full coverage, deployed logging,
+compliance, source verification and publication authority remain unverified and blocked.
+No endpoint publishes, refreshes evidence dates or writes an assessment/report/audit row.
+
 ### Auditability inputs and profile v6
 
 The local-only `/api/v6/workspaces/{workspaceId}/assessments` API adds

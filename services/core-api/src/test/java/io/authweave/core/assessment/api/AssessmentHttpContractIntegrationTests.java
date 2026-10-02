@@ -82,6 +82,46 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @Test
+    void internalProfileV6CoverageIsInputFreeProtectedAndCannotPromoteFixtureCoverageOrWrite() throws Exception {
+        String path = "/internal/v1/catalog-profile-impact/coverage-preflight";
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", "wrong-token")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", token, token)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", token).queryParam("coverageComplete", "true")).andExpect(status().isBadRequest());
+        mvc.perform(get(path).header("Authorization", token).content("{}")).andExpect(status().isBadRequest());
+        mvc.perform(get(path).header("Authorization", token).header("Transfer-Encoding", "chunked")).andExpect(status().isBadRequest());
+        mvc.perform(post(path).header("Authorization", token).content("{}")).andExpect(status().isMethodNotAllowed());
+        var tables = List.of("core.assessments", "core.catalog_proposals", "core.catalog_impact_reports", "core.catalog_fact_path_reports", "core.catalog_bootstrap_impact_reports",
+                "core.catalog_published_snapshots", "core.catalog_publication_decisions", "audit.catalog_publication_events");
+        var before = tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList();
+        var result = mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.status").value("INCOMPLETE")).andExpect(jsonPath("$.policyVersion").value("catalog-profile-impact-coverage-5"))
+                .andExpect(jsonPath("$.declaredProfileInputs").value(34)).andExpect(jsonPath("$.checkedDimensions").value(136))
+                .andExpect(jsonPath("$.auditabilityDimensions").value(11)).andExpect(jsonPath("$.deferredDimensions").value(36))
+                .andExpect(jsonPath("$.auditabilityRegression.checkedCases").value(12)).andExpect(jsonPath("$.coverageComplete").value(false)).andReturn();
+        var json = mapper.readTree(result.getResponse().getContentAsString());
+        sample("profile-v6-coverage", "catalog-profile-impact-coverage", true, json);
+        var service = applicationContext.getBean(io.authweave.core.catalog.impact.CatalogProfileImpactCoverageV6Service.class);
+        assertEquals(mapper.readTree(mapper.writeValueAsString(service.inspectAt(Instant.parse("2026-09-12T12:00:00Z")))), json);
+        assertEquals(json, mapper.readTree(mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        assertEquals(before, tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList());
+        for (String flag : List.of("candidateAuditabilityChangesEvaluated", "coverageComplete", "configurationVerified", "complianceVerified", "storedReportVerified", "sourceVerificationPerformed",
+                "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(flag, true); sample("v6-coverage-forged-" + flag, "catalog-profile-impact-coverage", false, forged);
+        }
+        for (String key : List.of("profile", "actor", "sourceUrl", "candidate")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(key, "synthetic"); sample("v6-coverage-extra-" + key, "catalog-profile-impact-coverage", false, forged);
+        }
+        for (String field : List.of("dimensions", "verificationGaps")) {
+            var partial = (ObjectNode) json.deepCopy(); partial.withArray(field).remove(0); sample("v6-coverage-partial-" + field, "catalog-profile-impact-coverage", false, partial);
+            var duplicate = (ObjectNode) json.deepCopy(); duplicate.withArray(field).set(1, duplicate.withArray(field).get(0).deepCopy()); sample("v6-coverage-duplicate-" + field, "catalog-profile-impact-coverage", false, duplicate);
+        }
+        var forged = (ObjectNode) json.deepCopy(); ((ObjectNode) forged.get("auditabilityRegression")).put("coverageComplete", true);
+        sample("v6-coverage-nested-authority", "catalog-profile-impact-coverage", false, forged);
+    }
+
+    @Test
     void internalAuditabilityRegressionIsCredentialProtectedInputFreeBodyFreeAndReadOnly() throws Exception {
         String path = "/internal/v1/catalog-auditability/regression-preflight";
         String token = "Bearer synthetic-internal-token-000000000000000000000";

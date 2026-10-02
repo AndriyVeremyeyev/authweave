@@ -25,6 +25,37 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /internal/v1/catalog-profile-impact/coverage-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Inspect profile v6 structural and synthetic auditability coverage
+      operationId: getProfileV6CoverageCheck
+      description: >-
+        Local-only service-credential-protected read accepting no query or body.
+        Composes unchanged v5 structural coverage with separately dated synthetic
+        auditability regression for all 34 v6 semantic inputs. Rule presence does
+        not establish proposed-catalog auditability impact or deployed configuration.
+        Exact verification gaps remain explicit; full coverage and authority are false.
+        Does not change profiles, evidence dates, historical receipts or publication.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: No-store body-free incomplete coverage inventory.
+          headers:
+            Cache-Control:
+              description: Diagnostic results must not be cached.
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-profile-impact-coverage.v1.schema.json
+        '400':
+          description: Query parameters or a request body were supplied.
+        '401':
+          description: Missing, duplicate or invalid server service credential.
+        '503':
+          description: Server service credential is not configured.
   /internal/v1/catalog-auditability/regression-preflight:
     get:
       tags: [Catalog drafts]

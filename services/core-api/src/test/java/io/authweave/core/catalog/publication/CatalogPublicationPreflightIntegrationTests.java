@@ -82,6 +82,7 @@ class CatalogPublicationPreflightIntegrationTests {
         assertTrue(result.blockers().contains(BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE));
         assertEquals(9, result.facts().unobserved()); assertFalse(result.publicationReady()); registryStillEmpty();
         assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, result.profileImpactCoverage().status());
+        assertEquals(io.authweave.core.catalog.impact.CatalogProfileImpactCoverageV6Service.Status.NOT_CHECKED, result.profileImpactCoverageV6().status());
         assertEquals(io.authweave.core.catalog.impact.CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED,
                 result.profileImpactCoverage().architectureImpact().status());
     }
@@ -157,6 +158,12 @@ class CatalogPublicationPreflightIntegrationTests {
         assertTrue(result.blockers().contains(IMPACT_COVERAGE_INCOMPLETE)); assertFalse(result.coverageComplete());
         assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
         assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(128, result.profileImpactCoverage().dimensions().size());
+        assertEquals(136, result.profileImpactCoverageV6().checkedDimensions());
+        assertEquals(11, result.profileImpactCoverageV6().auditabilityDimensions());
+        assertEquals(result.evaluatedAt(), result.profileImpactCoverageV6().evaluatedAt());
+        assertEquals(40, result.profileImpactCoverageV6().verificationGaps().size());
+        assertFalse(result.profileImpactCoverageV6().candidateAuditabilityChangesEvaluated());
+        assertEquals(CatalogDraftCanonicalizer.sha256(result.profileImpactCoverage()), result.profileImpactCoverageV6().catalogCoverageSha256());
         assertTrue(result.profileImpactCoverage().unexercisedFactPaths().isEmpty());
         var architecture = result.profileImpactCoverage().architectureImpact();
         assertEquals(result.evaluatedAt(), architecture.evaluatedAt()); assertEquals(20, architecture.checkedPatterns());
@@ -307,6 +314,10 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(CatalogPublicationBootstrapImpactVerifier.Status.MISSING, result.storedBootstrapImpact().status());
         assertEquals(CatalogProfileImpactCoverageService.Status.INCOMPLETE, result.profileImpactCoverage().status());
         assertEquals(result.evaluatedAt(), result.profileImpactCoverage().evaluatedAt()); assertEquals(12, result.profileImpactCoverage().additionalGaps().size());
+        assertEquals(136, result.profileImpactCoverageV6().checkedDimensions());
+        assertEquals(12, result.profileImpactCoverageV6().auditabilityRegression().checkedCases());
+        assertEquals(result.evaluatedAt(), result.profileImpactCoverageV6().evaluatedAt());
+        assertFalse(result.profileImpactCoverageV6().coverageComplete());
         var architecture = result.profileImpactCoverage().architectureImpact();
         assertEquals(result.evaluatedAt(), architecture.evaluatedAt()); assertEquals(20, architecture.checkedPatterns());
         assertEquals(result.profileImpactCoverage().scenarioSetSha256(), architecture.scenarioSetSha256());

@@ -87,6 +87,7 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "usage-planning-preflight:true", "usage-planning-preflight:false",
   "auditability-capability-preflight:true", "auditability-capability-preflight:false",
   "catalog-auditability-regression-check:true", "catalog-auditability-regression-check:false",
+  "catalog-profile-impact-coverage:true", "catalog-profile-impact-coverage:false",
   "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",
   "update-assessment-profile-request:true", "update-assessment-profile-request:false"]) {
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-profile-impact-coverage.v1.schema.json",
+  "title": "Body-free profile v6 structural and synthetic auditability coverage",
+  "description": "Fresh composed inventory, not verified configuration or proposed-catalog auditability impact. Native constructors also enforce complete scenario/input matrices, exact verification gaps, count parity and source/time/digest bindings. Existing v5 receipts are unchanged.",
+  "type": "object", "additionalProperties": false,
+  "required": ["status", "evaluatedAt", "baseScenarioSetSha256", "scenarioSetSha256", "catalogCoverageSha256", "auditabilityRegression", "dimensions", "verificationGaps", "unexercisedFactPaths", "scope", "analysisBasis", "policyVersion", "profileSchemaVersion", "profileSchemaSha256", "manifestSha256", "catalogCoveragePolicyVersion", "catalogCoverageManifestSha256", "baseScenarioSetVersion", "scenarioSetVersion", "declaredScenarios", "declaredProfileInputs", "checkedDimensions", "conditionalDimensions", "patternDimensions", "auditabilityDimensions", "scopeOnlyDimensions", "deferredDimensions", "missingRules", "candidateAuditabilityChangesEvaluated", "coverageComplete", "configurationVerified", "complianceVerified", "storedReportVerified", "sourceVerificationPerformed", "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"],
+  "properties": {
+    "status": { "enum": ["NOT_CHECKED", "INCOMPLETE"] },
+    "evaluatedAt": { "type": ["string", "null"], "format": "date-time" },
+    "baseScenarioSetSha256": { "$ref": "#/$defs/nullableHash" }, "scenarioSetSha256": { "$ref": "#/$defs/nullableHash" }, "catalogCoverageSha256": { "$ref": "#/$defs/nullableHash" },
+    "auditabilityRegression": { "oneOf": [{ "type": "null" }, { "$ref": "./catalog-auditability-regression-check.v1.schema.json" }] },
+    "dimensions": { "type": "array", "maxItems": 136, "uniqueItems": true, "items": { "$ref": "#/$defs/dimension" } },
+    "verificationGaps": { "type": "array", "maxItems": 40, "uniqueItems": true, "items": { "$ref": "#/$defs/gap" } },
+    "unexercisedFactPaths": { "type": "array", "maxItems": 68, "uniqueItems": true, "items": { "$ref": "#/$defs/factPath" } },
+    "scope": { "const": "CATALOG_PROFILE_V6_COVERAGE" },
+    "analysisBasis": { "const": "STRUCTURAL_RULES_AND_SEPARATE_SYNTHETIC_AUDITABILITY_REGRESSION" },
+    "policyVersion": { "const": "catalog-profile-impact-coverage-5" }, "profileSchemaVersion": { "const": 6 },
+    "profileSchemaSha256": { "const": "3d384daf2d98851ebcbe00f90a9c6dabeedbae8361f8a41f58d00b9742c95fbb" },
+    "manifestSha256": { "const": "eb96cb4962d7a4f2292e39dad8900e5e40d89c0781275fb7347643a4d27ea95b" },
+    "catalogCoveragePolicyVersion": { "const": "catalog-profile-impact-coverage-4" },
+    "catalogCoverageManifestSha256": { "const": "7f99cc54d24e8565eb724386e4e75aacabc2ab8fa7136dc2bb80522eb8d275ca" },
+    "baseScenarioSetVersion": { "const": "catalog-scoped-profile-scenarios-1" }, "scenarioSetVersion": { "const": "catalog-scoped-auditability-scenarios-1" },
+    "declaredScenarios": { "const": 4 }, "declaredProfileInputs": { "const": 34 },
+    "checkedDimensions": { "$ref": "#/$defs/dimensionCount" }, "conditionalDimensions": { "$ref": "#/$defs/dimensionCount" },
+    "patternDimensions": { "$ref": "#/$defs/dimensionCount" }, "auditabilityDimensions": { "$ref": "#/$defs/dimensionCount" },
+    "scopeOnlyDimensions": { "$ref": "#/$defs/dimensionCount" }, "deferredDimensions": { "$ref": "#/$defs/dimensionCount" }, "missingRules": { "$ref": "#/$defs/dimensionCount" },
+    "candidateAuditabilityChangesEvaluated": { "const": false }, "coverageComplete": { "const": false }, "configurationVerified": { "const": false }, "complianceVerified": { "const": false },
+    "storedReportVerified": { "const": false }, "sourceVerificationPerformed": { "const": false }, "baselineVerified": { "const": false }, "approvalGranted": { "const": false },
+    "writesPerformed": { "const": false }, "publicationReady": { "const": false }, "evaluationReady": { "const": false }, "recommendationReady": { "const": false }
+  },
+  "if": { "properties": { "status": { "const": "NOT_CHECKED" } } },
+  "then": { "properties": {
+    "evaluatedAt": { "type": "null" }, "baseScenarioSetSha256": { "type": "null" }, "scenarioSetSha256": { "type": "null" }, "catalogCoverageSha256": { "type": "null" }, "auditabilityRegression": { "type": "null" },
+    "dimensions": { "type": "array", "maxItems": 0 }, "verificationGaps": { "type": "array", "maxItems": 0 }, "unexercisedFactPaths": { "type": "array", "maxItems": 0 },
+    "checkedDimensions": { "const": 0 }, "conditionalDimensions": { "const": 0 }, "patternDimensions": { "const": 0 }, "auditabilityDimensions": { "const": 0 }, "scopeOnlyDimensions": { "const": 0 }, "deferredDimensions": { "const": 0 }, "missingRules": { "const": 0 }
+  } },
+  "else": { "properties": {
+    "evaluatedAt": { "type": "string" }, "baseScenarioSetSha256": { "type": "string" }, "scenarioSetSha256": { "type": "string" }, "catalogCoverageSha256": { "type": "string" },
+    "auditabilityRegression": { "$ref": "./catalog-auditability-regression-check.v1.schema.json" },
+    "dimensions": { "type": "array", "minItems": 136, "maxItems": 136 }, "verificationGaps": { "type": "array", "minItems": 40, "maxItems": 40 }, "checkedDimensions": { "const": 136 }
+  } },
+  "$defs": {
+    "nullableHash": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" },
+    "dimensionCount": { "type": "integer", "minimum": 0, "maximum": 136 },
+    "scenarioId": { "enum": ["b2b-saas-scoped", "partner-portal-scoped", "public-sector-scoped", "internal-workforce-scoped"] },
+    "factPath": { "type": "string", "maxLength": 200, "pattern": "^(facts|compatibility|residency|authenticationControls)\\.[A-Za-z0-9_.]+$" },
+    "profilePath": { "enum": ["application.type", "application.clients", "audience.populations", "audience.tenancy", "audience.membership", "protocols.federation.OIDC", "protocols.federation.SAML", "protocols.oauth2ProtectedApis", "protocols.socialLogin", "protocols.enterpriseSingleSignOn", "provisioning.scim", "provisioning.justInTimeProvisioning", "provisioning.groupSynchronization", "security.multiFactorAuthentication", "security.dataResidency", "security.authenticationControls.phishingResistance", "security.authenticationControls.nonExportableKeys", "security.authenticationControls.stepUpAuthentication", "security.dataResidencyDetails.allowedCountries", "security.dataResidencyDetails.dataCategories", "security.complianceScopeStatus", "security.browserTokenExposureMinimization", "security.auditability", "security.auditabilityRequirements.selectedCriteria", "security.auditabilityRequirements.minimumRetentionDays", "security.assurance", "security.complianceTargets", "operations.hosting", "operations.deploymentTarget", "operations.identityExpertise", "operations.budgetSensitivity", "operations.usagePlanning.scopeDescription", "operations.usagePlanning.assumptions", "operations.usagePlanning.volumes"] },
+    "dimension": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scenarioId", "profilePath", "boundary", "state", "ruleCount", "activeFactRuleCount", "activeAuditabilityRuleCount", "factPaths", "evidenceCriteria"],
+      "properties": {
+        "scenarioId": { "$ref": "#/$defs/scenarioId" }, "profilePath": { "$ref": "#/$defs/profilePath" },
+        "boundary": { "enum": ["CATALOG_CLAIM_RULE", "REQUIREMENTS_SCOPE", "ARCHITECTURE_PATTERN", "ARCHITECTURE_CONFIGURATION", "AUDITABILITY", "ASSURANCE", "COMPLIANCE_EVIDENCE", "OPERATIONS", "COST_MODEL", "PROVISIONING_LIFECYCLE", "CONFIGURED_AUTHENTICATION_FLOW"] },
+        "state": { "enum": ["CONDITIONAL_RULE_PRESENT", "PATTERN_RULE_PRESENT", "SYNTHETIC_AUDITABILITY_RULE_PRESENT", "SCOPE_GUARD_ONLY", "DEFERRED_DIMENSION", "MISSING_RULE"] },
+        "ruleCount": { "type": "integer", "minimum": 0, "maximum": 100 }, "activeFactRuleCount": { "type": "integer", "minimum": 0, "maximum": 100 }, "activeAuditabilityRuleCount": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "factPaths": { "type": "array", "maxItems": 68, "uniqueItems": true, "items": { "$ref": "#/$defs/factPath" } },
+        "evidenceCriteria": { "$ref": "./application-identity-profile.v6.schema.json#/$defs/auditabilityRequirements/properties/selectedCriteria" }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "boundary": { "const": "AUDITABILITY" } } },
+          "then": { "properties": { "profilePath": { "enum": ["security.auditability", "security.auditabilityRequirements.selectedCriteria", "security.auditabilityRequirements.minimumRetentionDays"] }, "activeFactRuleCount": { "const": 0 }, "factPaths": { "type": "array", "maxItems": 0 } },
+            "if": { "properties": { "profilePath": { "const": "security.auditabilityRequirements.minimumRetentionDays" } } },
+            "then": { "properties": { "ruleCount": { "const": 1 }, "activeAuditabilityRuleCount": { "type": "integer", "maximum": 1 }, "evidenceCriteria": { "type": "array", "maxItems": 1, "items": { "const": "AUDIT_LOG_RETENTION" } } } },
+            "else": { "properties": { "ruleCount": { "const": 6 } } }
+          },
+          "else": { "properties": { "activeAuditabilityRuleCount": { "const": 0 }, "evidenceCriteria": { "type": "array", "maxItems": 0 } } }
+        }
+      ],
+      "oneOf": [
+        { "properties": { "state": { "const": "CONDITIONAL_RULE_PRESENT" }, "boundary": { "const": "CATALOG_CLAIM_RULE" }, "activeFactRuleCount": { "type": "integer", "minimum": 1 }, "ruleCount": { "type": "integer", "minimum": 1 }, "factPaths": { "type": "array", "minItems": 1 } } },
+        { "properties": { "state": { "const": "PATTERN_RULE_PRESENT" }, "boundary": { "const": "ARCHITECTURE_PATTERN" }, "ruleCount": { "const": 5 }, "activeFactRuleCount": { "const": 0 }, "factPaths": { "type": "array", "maxItems": 0 } } },
+        { "properties": { "state": { "const": "SYNTHETIC_AUDITABILITY_RULE_PRESENT" }, "boundary": { "const": "AUDITABILITY" }, "activeAuditabilityRuleCount": { "type": "integer", "minimum": 1 }, "evidenceCriteria": { "type": "array", "minItems": 1 } } },
+        { "properties": { "state": { "const": "SCOPE_GUARD_ONLY" }, "ruleCount": { "type": "integer", "minimum": 1 }, "activeFactRuleCount": { "const": 0 }, "activeAuditabilityRuleCount": { "const": 0 }, "factPaths": { "type": "array", "maxItems": 0 }, "evidenceCriteria": { "type": "array", "maxItems": 0 } } },
+        { "properties": { "state": { "const": "DEFERRED_DIMENSION" }, "ruleCount": { "const": 0 }, "activeFactRuleCount": { "const": 0 }, "activeAuditabilityRuleCount": { "const": 0 }, "factPaths": { "type": "array", "maxItems": 0 }, "evidenceCriteria": { "type": "array", "maxItems": 0 } } },
+        { "properties": { "state": { "const": "MISSING_RULE" }, "ruleCount": { "const": 0 }, "activeFactRuleCount": { "const": 0 }, "activeAuditabilityRuleCount": { "const": 0 }, "factPaths": { "type": "array", "maxItems": 0 }, "evidenceCriteria": { "type": "array", "maxItems": 0 } } }
+      ]
+    },
+    "gap": {
+      "type": "object", "additionalProperties": false, "required": ["scenarioId", "profilePath", "boundary"],
+      "properties": { "scenarioId": { "$ref": "#/$defs/scenarioId" }, "profilePath": { "type": "string" }, "boundary": { "type": "string" } },
+      "oneOf": [
+        { "properties": { "profilePath": { "const": "security.browserTokenExposureMinimization" }, "boundary": { "const": "ARCHITECTURE_CONFIGURATION" } } },
+        { "properties": { "profilePath": { "const": "provisioning" }, "boundary": { "const": "PROVISIONING_LIFECYCLE" } } },
+        { "properties": { "profilePath": { "const": "security.authenticationControls" }, "boundary": { "const": "CONFIGURED_AUTHENTICATION_FLOW" } } },
+        { "properties": { "profilePath": { "const": "security.auditability" }, "boundary": { "enum": ["eventRecordContentAndScope", "auditRecordIntegrity", "auditAccessControls", "loggingFailureHandling", "exportDeliveryAndRetrieval", "deployedLoggingConfiguration", "complianceEvidence"] } } }
+      ]
+    }
+  }
+}

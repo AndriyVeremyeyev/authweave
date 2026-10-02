@@ -50,6 +50,48 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("profile v6 coverage contract inventories every semantic input and rejects readiness promotion or mixed unperformed state", async () => {
+  const schema = await readJson(path.join(schemasRoot, "catalog-profile-impact-coverage.v1.schema.json"));
+  const validate = ajv.getSchema(schema.$id), paths = new Set();
+  async function walk(document, node, prefix) {
+    while (node.$ref) {
+      const [file, pointer] = node.$ref.split("#");
+      if (file) { assert.equal(file, "./application-identity-profile.v5.schema.json"); document = await readJson(path.join(schemasRoot, file)); }
+      node = pointer.split("/").slice(1).reduce((value, part) => value[part.replaceAll("~1", "/").replaceAll("~0", "~")], document);
+    }
+    if (node.properties && prefix !== "operations.usagePlanning.volumes")
+      await Promise.all(Object.entries(node.properties).map(([key, value]) => walk(document, value, prefix ? `${prefix}.${key}` : key)));
+    else paths.add(prefix);
+  }
+  const profile = await readJson(path.join(schemasRoot, "application-identity-profile.v6.schema.json"));
+  await walk(profile, profile, ""); assert.equal(paths.size, 34);
+  assert.deepEqual([...paths].sort(), [...schema.$defs.profilePath.enum].sort());
+  const empty = Object.fromEntries(Object.entries(schema.properties).filter(([, value]) => Object.hasOwn(value, "const")).map(([key, value]) => [key, value.const]));
+  Object.assign(empty, { status: "NOT_CHECKED", evaluatedAt: null, baseScenarioSetSha256: null, scenarioSetSha256: null, catalogCoverageSha256: null,
+    auditabilityRegression: null, dimensions: [], verificationGaps: [], unexercisedFactPaths: [],
+    checkedDimensions: 0, conditionalDimensions: 0, patternDimensions: 0, auditabilityDimensions: 0, scopeOnlyDimensions: 0, deferredDimensions: 0, missingRules: 0 });
+  assert.equal(validate(empty), true, validationMessage(validate));
+  for (const key of schema.required) { const invalid = structuredClone(empty); delete invalid[key]; assert.equal(validate(invalid), false, key); }
+  for (const flag of ["candidateAuditabilityChangesEvaluated", "coverageComplete", "configurationVerified", "complianceVerified", "storedReportVerified", "sourceVerificationPerformed",
+    "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"]) {
+    assert.equal(empty[flag], false); assert.equal(validate({ ...empty, [flag]: true }), false);
+  }
+  for (const mutate of [s => { s.status = "COMPLETE"; }, s => { s.status = "INCOMPLETE"; }, s => { s.evaluatedAt = "2026-09-12T12:00:00Z"; },
+    s => { s.catalogCoverageSha256 = "2".repeat(64); }, s => { s.profileSchemaVersion = 5; }, s => { s.checkedDimensions = 1; },
+    s => { s.declaredProfileInputs = 32; }, s => { s.actor = "synthetic"; }, s => { s.candidate = {}; }]) {
+    const invalid = structuredClone(empty); mutate(invalid); assert.equal(validate(invalid), false);
+  }
+  const dimension = ajv.getSchema(`${schema.$id}#/$defs/dimension`);
+  const row = { scenarioId: "b2b-saas-scoped", profilePath: "security.auditabilityRequirements.minimumRetentionDays", boundary: "AUDITABILITY",
+    state: "SYNTHETIC_AUDITABILITY_RULE_PRESENT", ruleCount: 1, activeFactRuleCount: 0, activeAuditabilityRuleCount: 1, factPaths: [], evidenceCriteria: ["AUDIT_LOG_RETENTION"] };
+  assert.equal(dimension(row), true, validationMessage(dimension));
+  for (const mutate of [r => { r.factPaths = ["facts.SCIM"]; }, r => { r.activeFactRuleCount = 1; }, r => { r.evidenceCriteria = ["AUDIT_LOG_EXPORT"]; },
+    r => { r.state = "CONDITIONAL_RULE_PRESENT"; }, r => { r.scenarioId = "foreign"; }, r => { r.observedAt = "2026-09-12T12:00:00Z"; }]) {
+    const invalid = structuredClone(row); mutate(invalid); assert.equal(dimension(invalid), false);
+  }
+  assert.equal(dimension({ ...row, state: "SCOPE_GUARD_ONLY", activeAuditabilityRuleCount: 0, evidenceCriteria: [] }), true);
+});
+
 test("supplemental auditability scenarios bind frozen profiles and compile explicit valid v6 inputs without migration", async () => {
   const sourceRoot = path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog");
   const suite = await readJson(path.join(sourceRoot, "scoped-auditability-scenarios.v1.json"));
