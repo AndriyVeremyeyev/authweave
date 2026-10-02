@@ -1057,14 +1057,38 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports seven distinct options and 23 recorded
-entries: five unresolved research scopes, one release-scoped and one plan-scoped draft.
+`make inspect-provider-baselines` now reports eight distinct options and 27 recorded
+entries: five unresolved research scopes, one release-scoped and two plan-scoped drafts.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
 Residency, application compatibility, authentication controls, auditability and operating
 costs remain unverified; advertised region choices do not fill storage-country evidence.
 The active evaluator stays synthetic. Full baselines and authorized publication remain pending.
+
+#### Plan-scoped Auth0 documentation candidate
+
+A separate [Auth0 B2B Free draft](services/core-api/src/main/resources/catalog/baselines/scoped/auth0-b2b-free.v1.json)
+records Public Cloud with one generic OIDC Enterprise Connection and inbound SCIM,
+without a paid add-on or outbound bridge. The [Free offer](https://auth0.com/pricing)
+lists inbound SCIM and one Enterprise Connection; the [B2B announcement](https://auth0.com/blog/auth0-b2b-plans-upgraded/)
+identifies the offer explicitly. This is not a tenant-entitlement check, trial benefit,
+cost guarantee, AuthWeave provider switch or subscription.
+
+`OIDC`, `ENTERPRISE_SSO` and `SCIM` are `OPTIONAL` proposals, all `UNREVIEWED`.
+Downstream application OIDC and upstream enterprise federation have different
+sources and prerequisites. For the [generic OIDC provisioning path](https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim-for-identity-providers-using-saml-or-openid),
+the identity provider must align its ID-token `sub` with SCIM `externalId`.
+Connection-specific authorization, mapping and consuming-application lifecycle/session
+enforcement still require testing; native inbound SCIM does not implement an outbound bridge.
+
+`GROUP_SYNC` remains `UNKNOWN`, not unsupported: the [SCIM guide](https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim)
+describes Group endpoints, but group-specific Free entitlement was not established.
+User-only group members, separate organization/role configuration and downstream
+integration are explicit limitations. SAML and the other omitted capabilities remain
+unassessed, not unavailable. No region, compatibility, security-control or full cost
+coverage is inferred. The fixed offline inspection retains the original unknown Auth0
+research option separately; neither option is approved or activated.
 
 ### Catalog change proposal previews
 

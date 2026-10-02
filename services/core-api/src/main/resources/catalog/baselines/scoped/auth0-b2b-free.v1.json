@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-b2b-free-oidc-scim-draft-2026.10.02",
+  "options": [{
+    "id": "auth0-b2b-free-oidc-scim",
+    "providerId": "auth0",
+    "product": "Auth0 Public Cloud",
+    "plan": "B2B Free; one Enterprise Connection, no account entitlement verified",
+    "deployment": "MANAGED",
+    "region": "No tenant region selected; storage destinations not verified",
+    "configuration": "Downstream OIDC login; one generic OIDC Enterprise Connection with inbound SCIM; no outbound bridge or paid add-ons",
+    "facts": {
+      "OIDC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Register the consuming application and configure its callback URLs, allowed grants and intended client authentication; no tenant or application was tested.",
+          "This is downstream Auth0-to-application login, distinct from the upstream enterprise OIDC connection recorded under ENTERPRISE_SSO.",
+          "The recorded offer is B2B Free, not a trial, paid B2C tier or custom agreement; documentation does not guarantee future zero cost."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/get-started/applications/configure-applications-with-oidc-discovery",
+          "observedAt": "2026-10-02T22:07:48Z",
+          "summary": "Auth0 documents OIDC application configuration through tenant discovery metadata. This proposes configurable downstream login, not a verified deployment or authentication-control policy."
+        }
+      },
+      "ENTERPRISE_SSO": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Use the single included Enterprise Connection from https://auth0.com/pricing; the B2B Free announcement at https://auth0.com/blog/auth0-b2b-plans-upgraded/ identifies this offer explicitly. Account entitlement and usage limits still require verification.",
+          "Register Auth0 with the upstream OIDC provider, configure issuer/client settings and enable that connection for the consuming application.",
+          "This option records one generic OIDC connection, not unlimited generic enterprise federation or a tested Okta/Entra ID integration."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/identity-providers/enterprise-identity-providers/oidc",
+          "observedAt": "2026-10-02T22:07:48Z",
+          "summary": "The enterprise OIDC guide describes upstream registration, connection setup and application enablement. The Free offer is a bounded documentation scope, not proof of multi-customer compatibility."
+        }
+      },
+      "SCIM": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "The public Free offer includes inbound SCIM at https://auth0.com/pricing; enable it on the supported generic OIDC Enterprise Connection with its own endpoint, operation-scoped token and attribute mapping.",
+          "For this OIDC path, match the upstream ID token sub to SCIM externalId as described at https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim-for-identity-providers-using-saml-or-openid.",
+          "This is inbound user lifecycle in Auth0, not native outbound SCIM to the SaaS. Do not infer app-local session revocation, back-channel logout entitlement or paid authorization features from this assertion."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim",
+          "observedAt": "2026-10-02T22:07:48Z",
+          "summary": "The guide documents connection-scoped inbound User CRUD and deactivation. Combined with the public Free inclusion, this proposes configurable SCIM, not tested application-side lifecycle enforcement."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Group endpoints are documented, but the inspected Free pricing offer does not distinguish group-specific entitlement; verify access and limits for this exact tenant before asserting scoped availability.",
+          "The native group schema accepts user members, not nested groups; group names must be unique within a connection.",
+          "Organization membership, role assignment and outbound event/application synchronization are separate configurations or entitlements, not consequences of an inbound group record. No outbound bridge is included here.",
+          "UNKNOWN must not be read as unsupported or silently promoted from the documented SCIM User availability."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim",
+          "observedAt": "2026-10-02T22:07:48Z",
+          "summary": "The guide describes Group operations with user-only membership and separate authorization/external-system integrations. It does not establish group access on this untested Free tenant."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

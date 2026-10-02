@@ -143,14 +143,14 @@ class ProviderBaselineDraftTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"keycloak", "zitadel"})
+    @ValueSource(strings = {"keycloak", "zitadel", "auth0"})
     void scopedAndResearchOptionsCanCoexistWithoutMergingOrCompletingCoverage(String provider) throws Exception {
         var research = mapper.readValue(resource("catalog/baselines/" + provider + ".v1.json"), ProviderCatalogDraft.class);
-        var scope = provider.equals("keycloak") ? "keycloak-26.8.0" : "zitadel-cloud-free";
+        var scope = Map.of("keycloak", "keycloak-26.8.0", "zitadel", "zitadel-cloud-free", "auth0", "auth0-b2b-free").get(provider);
         var scoped = mapper.readValue(resource("catalog/baselines/scoped/" + scope + ".v1.json"), ProviderCatalogDraft.class);
         var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 provider + "-research-and-scoped-test", List.of(research.options().getFirst(), scoped.options().getFirst()));
-        var report = validator.validateAt(combined, Instant.parse("2026-10-02T21:44:10Z"));
+        var report = validator.validateAt(combined, Instant.parse("2026-10-02T22:07:48Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(2, report.optionCount());
         assertEquals(7, report.factCount());
@@ -159,6 +159,54 @@ class ProviderBaselineDraftTests {
         assertNotEquals(validator.validate(scoped).contentSha256(), report.contentSha256());
         assertTrue(combined.options().stream().allMatch(option -> option.residency().isEmpty()
                 && option.authenticationControls().isEmpty() && option.compatibility().clients().isEmpty()));
+    }
+
+    @Test
+    void auth0FreeAssertionsSeparateProtocolDirectionsAndDoNotPromoteGroupsOrTenantEntitlement() throws Exception {
+        var json = resource("catalog/baselines/scoped/auth0-b2b-free.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("auth0-b2b-free-oidc-scim", option.id());
+        assertEquals("Auth0 Public Cloud", option.product());
+        assertEquals("B2B Free; one Enterprise Connection, no account entitlement verified", option.plan());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        var expected = Map.of(ProviderCatalog.Capability.OIDC, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.ENTERPRISE_SSO, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.SCIM, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.GROUP_SYNC, ProviderCatalog.Availability.UNKNOWN);
+        assertEquals(expected.keySet(), option.facts().keySet());
+        var observed = Instant.parse("2026-10-02T22:07:48Z");
+        option.facts().forEach((capability, fact) -> {
+            assertEquals(expected.get(capability), fact.availability());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("auth0.com", fact.evidence().sourceUrl().getHost());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        assertNotEquals(option.facts().get(ProviderCatalog.Capability.OIDC).evidence().sourceUrl(),
+                option.facts().get(ProviderCatalog.Capability.ENTERPRISE_SSO).evidence().sourceUrl());
+        assertTrue(String.join(" ", option.facts().get(ProviderCatalog.Capability.SCIM).conditions())
+                .contains("ID token sub to SCIM externalId"));
+        assertTrue(String.join(" ", option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).conditions())
+                .contains("group-specific entitlement"));
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(4, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
     }
 
     private void assertUntrusted(CatalogDraftValidation report) {

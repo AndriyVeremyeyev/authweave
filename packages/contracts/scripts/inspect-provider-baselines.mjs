@@ -67,6 +67,23 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
   },
+  {
+    file: "auth0-b2b-free.v1.json",
+    catalogVersion: "auth0-b2b-free-oidc-scim-draft-2026.10.02",
+    scope: {
+      id: "auth0-b2b-free-oidc-scim", providerId: "auth0", product: "Auth0 Public Cloud", deployment: "MANAGED",
+      plan: "B2B Free; one Enterprise Connection, no account entitlement verified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "Downstream OIDC login; one generic OIDC Enterprise Connection with inbound SCIM; no outbound bridge or paid add-ons",
+    },
+    facts: {
+      OIDC: { availability: "OPTIONAL", sourceUrl: "https://auth0.com/docs/get-started/applications/configure-applications-with-oidc-discovery" },
+      ENTERPRISE_SSO: { availability: "OPTIONAL", sourceUrl: "https://auth0.com/docs/authenticate/identity-providers/enterprise-identity-providers/oidc" },
+      SCIM: { availability: "OPTIONAL", sourceUrl: "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim" },
+      GROUP_SYNC: { availability: "UNKNOWN", sourceUrl: "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim" },
+    },
+    metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
+  },
 ]);
 
 function requireCondition(condition, message) {

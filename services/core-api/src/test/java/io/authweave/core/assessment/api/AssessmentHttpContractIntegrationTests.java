@@ -2076,7 +2076,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"keycloak-26.8.0", "zitadel-cloud-free"})
+    @ValueSource(strings = {"keycloak-26.8.0", "zitadel-cloud-free", "auth0-b2b-free"})
     void scopedProviderDraftRetainsItsActualObservationsAndCannotChangeEvaluation(String scope) throws Exception {
         var assessment = create();
         var path = assessment.path().replace("/api/v1/", "/api/v4/") + "/eligibility-preflight";
