@@ -5,7 +5,8 @@ export const prerequisiteAssessmentId = "80000000-0000-4000-8000-000000000001";
 export const prerequisiteProfile = {
   application: { type: "B2B_SAAS", clients: ["BROWSER"] },
   audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
-  security: { browserTokenExposureMinimization: "REQUIRED", dataResidency: "UNKNOWN",
+  security: { browserTokenExposureMinimization: "REQUIRED", dataResidency: "UNKNOWN", auditability: "UNKNOWN",
+    auditabilityRequirements: { selectedCriteria: [], minimumRetentionDays: null },
     authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN" },
     dataResidencyDetails: { allowedCountries: [], dataCategories: [] }, complianceScopeStatus: "UNKNOWN", complianceTargets: [] },
 };

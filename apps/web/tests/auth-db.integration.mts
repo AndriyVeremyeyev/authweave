@@ -12,6 +12,7 @@ import { prerequisiteAssessmentId, prerequisiteWorkspaceId, prerequisiteFixture,
 import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
+import { POST as auditabilityRoute } from "../src/app/api/assessments/[id]/auditability/route.ts";
 import { POST as rejectProposalRoute } from "../src/app/api/catalog-change-proposals/[id]/rejection/route.ts";
 import { POST as factReviewRoute } from "../src/app/api/catalog-change-proposals/[id]/fact-reviews/route.ts";
 import { POST as prepareBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/prepare/route.ts";
@@ -25,6 +26,95 @@ import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
+
+test("auditability route binds a real session to v6 writes, explicit clear and sanitized conflicts", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-auditability-token-000000000000000000" });
+  const id = "80000000-0000-4000-8000-000000000001", workspaceId = "70000000-0000-4000-8000-000000000001";
+  const identity = { workspaceId, issuer: "http://localhost:8081", subject: "synthetic-auditability-owner",
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined);
+  const context = { params: Promise.resolve({ id }) };
+  let profile = { application: { type: "B2B_SAAS" }, operations: { hosting: "MANAGED" },
+    security: { assurance: "UNKNOWN", auditability: "REQUIRED", auditabilityRequirements: {
+      selectedCriteria: ["AUTHENTICATION_FAILURE_EVENTS", "AUDIT_LOG_RETENTION"], minimumRetentionDays: 90 as number | null } } };
+  const original = structuredClone(profile);
+  let version = 2, upstream = 200, status = "DRAFT", wrongWorkspace = false;
+  const calls: string[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push(`${init?.method} ${url}`);
+    assert.equal(String(url), `http://127.0.0.1:8080/api/v6/workspaces/${workspaceId}/assessments/${id}${init?.method === "PUT" ? "/profile" : ""}`);
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error"); assert.ok(init?.signal instanceof AbortSignal);
+    assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${process.env.AUTHWEAVE_CORE_SERVICE_TOKEN}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Issuer"], identity.issuer);
+    if (init?.method === "GET") return Response.json({ id, workspaceId: wrongWorkspace ? "70000000-0000-4000-8000-000000000002" : workspaceId,
+      status, version, profileSchemaVersion: 6, profile });
+    if (upstream !== 200) return new Response("Private upstream details", { status: upstream });
+    const update = JSON.parse(String(init?.body));
+    assert.equal(update.expectedVersion, version);
+    assert.deepEqual(update.profile.application, original.application); assert.deepEqual(update.profile.operations, original.operations);
+    assert.equal(update.profile.security.assurance, original.security.assurance);
+    profile = update.profile; version++;
+    return Response.json({ id, workspaceId, status, version, profileSchemaVersion: 6, profile });
+  };
+  const form = "expectedVersion=2&criticality=REQUIRED&selectedCriteria=AUDIT_LOG_RETENTION&minimumRetentionDays=180";
+  const request = (body: string | ArrayBuffer = form, cookie: string | null = sessionId, origin: string | null = "http://localhost:3000",
+    contentType = "application/x-www-form-urlencoded") => new NextRequest(`http://localhost:3000/api/assessments/${id}/auditability`, {
+      method: "POST", headers: { ...(origin ? { Origin: origin } : {}), "Content-Type": contentType,
+        "X-AuthWeave-Oidc-Subject": "browser-spoof", "X-AuthWeave-Oidc-Issuer": "https://wrong.example.invalid",
+        ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}) }, body });
+  try {
+    for (const [req, code] of [[request(form, null), 401], [request(form, sessionId, null), 403],
+      [request(form, sessionId, "https://wrong.example.invalid"), 403], [request(form, sessionId, "http://localhost:3000", "application/json"), 415],
+      [request(form + "&workspaceId=" + workspaceId), 400], [request(form + "&configurationVerified=true"), 400],
+      [request(form + "&selectedCriteria=AUDIT_LOG_RETENTION"), 400], [request(form.replace("180", "0")), 400],
+      [request("x".repeat(2049)), 413], [request(new Uint8Array([0xff]).buffer), 400]] as const) {
+      const result = await auditabilityRoute(req, context);
+      assert.equal(result.status, code); assert.equal(result.headers.get("cache-control"), "no-store");
+    }
+    assert.equal(calls.length, 0);
+    const result = await auditabilityRoute(request(), context);
+    assert.equal(result.status, 303); assert.equal(result.headers.get("referrer-policy"), "no-referrer");
+    assert.equal(result.headers.get("location"), `http://localhost:3000/assessments/${id}`);
+    assert.equal(profile.security.auditabilityRequirements.minimumRetentionDays, 180);
+    const stale = await auditabilityRoute(request(), context);
+    assert.equal(stale.headers.get("location"), `http://localhost:3000/assessments/${id}?auditError=stale`);
+    assert.equal(calls.length, 3);
+    const clear = "expectedVersion=3&criticality=REQUIRED";
+    for (const [code, error] of [[409, "stale"], [400, "invalid"], [422, "invalid"]] as const) {
+      upstream = code;
+      const failed = await auditabilityRoute(request(clear), context);
+      assert.equal(failed.headers.get("location"), `http://localhost:3000/assessments/${id}?auditError=${error}`);
+      assert.equal((await failed.text()).includes("Private upstream"), false);
+    }
+    for (const [code, expected] of [[404, 404], [403, 503], [503, 503]] as const) {
+      upstream = code;
+      const failed = await auditabilityRoute(request(clear), context);
+      assert.equal(failed.status, expected); assert.equal((await failed.text()).includes("Private upstream"), false);
+    }
+    upstream = 200; status = "ARCHIVED";
+    const locked = await auditabilityRoute(request(clear), context);
+    assert.equal(locked.headers.get("location"), `http://localhost:3000/assessments/${id}?auditError=locked`);
+    status = "DRAFT"; wrongWorkspace = true;
+    assert.equal((await auditabilityRoute(request(clear), context)).status, 503);
+    wrongWorkspace = false;
+    assert.equal((await auditabilityRoute(request(clear), context)).status, 303);
+    assert.deepEqual(profile.security.auditabilityRequirements, { selectedCriteria: [], minimumRetentionDays: null });
+    assert.equal(profile.security.auditability, "REQUIRED");
+    await revokeSession(sessionId);
+    const count = calls.length;
+    assert.equal((await auditabilityRoute(request(clear), context)).status, 401);
+    assert.equal(calls.length, count);
+  } finally {
+    await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) {
+      if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
+    }
+  }
+});
 
 test("prerequisite preview uses a real DB session, same origin and server-only identity without assessment writes", async () => {
   const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
@@ -53,7 +143,7 @@ test("prerequisite preview uses a real DB session, same origin and server-only i
     assert.ok(String(url).startsWith(`http://127.0.0.1:8080/api/v`));
     assert.ok(String(url).includes(`/workspaces/${identity.workspaceId}/assessments/${prerequisiteAssessmentId}`));
     if (init?.method === "GET") return Response.json({ id: prerequisiteAssessmentId, workspaceId: identity.workspaceId,
-      status: "DRAFT", version, profileSchemaVersion: 5, profile: prerequisiteProfile });
+      status: "DRAFT", version, profileSchemaVersion: 6, profile: prerequisiteProfile });
     assert.equal(init?.method, "POST"); assert.ok(String(url).endsWith("/architecture-prerequisite-preview"));
     assert.deepEqual(JSON.parse(String(init?.body)), prerequisiteInput);
     return upstreamStatus === 200 ? Response.json(prerequisiteFixture()) : new Response("Private upstream details", { status: upstreamStatus });
@@ -614,11 +704,12 @@ test("assessment route requires same-origin session and never trusts a browser w
   let calls = 0;
   globalThis.fetch = async (input, init) => {
     calls++;
-    assert.equal(input, `http://127.0.0.1:8080/api/v5/workspaces/${identity.workspaceId}/assessments`);
+    assert.equal(input, `http://127.0.0.1:8080/api/v6/workspaces/${identity.workspaceId}/assessments`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
     return Response.json({
       id: "80000000-0000-4000-8000-000000000001", workspaceId: identity.workspaceId,
-      status: "DRAFT", version: 0, profileSchemaVersion: 5, profile: {},
+      status: "DRAFT", version: 0, profileSchemaVersion: 6, profile: { security: { auditability: "UNKNOWN",
+        auditabilityRequirements: { selectedCriteria: [], minimumRetentionDays: null } } },
     }, { status: 201 });
   };
   const request = (origin: string, cookie?: string) => new NextRequest(
@@ -677,7 +768,8 @@ test("capability route enforces session, origin, form scope and optimistic versi
     protocols: { federation: {}, oauth2ProtectedApis: "UNKNOWN", socialLogin: "UNKNOWN",
       enterpriseSingleSignOn: "UNKNOWN" },
     provisioning: { scim: "UNKNOWN", justInTimeProvisioning: "UNKNOWN", groupSynchronization: "UNKNOWN" },
-    security: { multiFactorAuthentication: "UNKNOWN" },
+    security: { multiFactorAuthentication: "UNKNOWN", auditability: "REQUIRED",
+      auditabilityRequirements: { selectedCriteria: ["AUDIT_LOG_RETENTION"], minimumRetentionDays: 90 } },
     operations: { retained: true },
   };
   const form = new URLSearchParams({ expectedVersion: "2" });
@@ -699,13 +791,13 @@ test("capability route enforces session, origin, form scope and optimistic versi
     calls.push(`${init?.method} ${input}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
     if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
-      status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+      status: "DRAFT", version: 2, profileSchemaVersion: 6, profile });
     const update = JSON.parse(String(init?.body));
     assert.equal(update.expectedVersion, 2);
     assert.equal(update.profile.provisioning.scim, "PREFERRED");
     assert.deepEqual(update.profile.operations, profile.operations);
     return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
-      profileSchemaVersion: 5, profile: update.profile });
+      profileSchemaVersion: 6, profile: update.profile });
   };
   try {
     assert.equal((await updateCapabilitiesRoute(request("https://other.example.test", sessionId), context)).status, 403);
@@ -765,7 +857,8 @@ test("weighted preview route enforces origin and session without saving an asses
     protocols: { federation: { OIDC: "PREFERRED" }, oauth2ProtectedApis: "UNKNOWN",
       socialLogin: "UNKNOWN", enterpriseSingleSignOn: "UNKNOWN" },
     provisioning: { scim: "UNKNOWN", justInTimeProvisioning: "UNKNOWN", groupSynchronization: "UNKNOWN" },
-    security: { multiFactorAuthentication: "UNKNOWN" },
+    security: { multiFactorAuthentication: "UNKNOWN", auditability: "UNKNOWN",
+      auditabilityRequirements: { selectedCriteria: [], minimumRetentionDays: null } },
   };
   const comparison = {
     workspaceId, assessmentId, assessmentVersion: 2, catalogVersion: "synthetic-test",
@@ -806,7 +899,7 @@ test("weighted preview route enforces origin and session without saving an asses
     calls.push(`${init?.method} ${input}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
     if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
-      status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+      status: "DRAFT", version: 2, profileSchemaVersion: 6, profile });
     if (String(input).endsWith("/weight-sensitivity-preview")) {
       assert.deepEqual(JSON.parse(String(init?.body)), {
         baselineWeights: { OIDC: 100 }, alternativeWeights: { OIDC: 100 },
@@ -896,7 +989,8 @@ test("evaluation context route accepts only a scoped form from the personal sess
     application: { type: "UNKNOWN", clients: [] },
     audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
     protocols: { federation: { OIDC: "PREFERRED" } },
-    security: { dataResidency: "UNKNOWN", browserTokenExposureMinimization: "UNKNOWN",
+    security: { dataResidency: "UNKNOWN", browserTokenExposureMinimization: "UNKNOWN", auditability: "REQUIRED",
+      auditabilityRequirements: { selectedCriteria: ["AUDIT_LOG_RETENTION"], minimumRetentionDays: 90 },
       dataResidencyDetails: { allowedCountries: [], dataCategories: [] },
       complianceScopeStatus: "UNKNOWN",
       complianceTargets: [],
@@ -927,7 +1021,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
     calls.push(`${init?.method} ${input}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
     if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
-      status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+      status: "DRAFT", version: 2, profileSchemaVersion: 6, profile });
     const update = JSON.parse(String(init?.body));
     assert.equal(update.expectedVersion, 2);
     assert.equal(update.profile.application.type, "B2B_SAAS");
@@ -939,7 +1033,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
       { allowedCountries: ["CA", "US"], dataCategories: ["USER_PROFILES", "BACKUPS"] });
     assert.deepEqual(update.profile.protocols, profile.protocols);
     return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
-      profileSchemaVersion: 5, profile: update.profile });
+      profileSchemaVersion: 6, profile: update.profile });
   };
   try {
     assert.equal((await evaluationContextRoute(request("https://other.example.test", sessionId), context)).status, 403);
@@ -1007,7 +1101,8 @@ test("usage planning route preserves the personal session and writes only scoped
   const sessionId = await createSession(identity, undefined);
   const profile = {
     application: { type: "B2B_SAAS" },
-    security: { assurance: "UNKNOWN" },
+    security: { assurance: "UNKNOWN", auditability: "REQUIRED",
+      auditabilityRequirements: { selectedCriteria: ["AUDIT_LOG_RETENTION"], minimumRetentionDays: 90 } },
     operations: { hosting: "UNKNOWN",
       usagePlanning: { scopeDescription: "", assumptions: [], volumes: {} } },
   };
@@ -1032,7 +1127,7 @@ test("usage planning route preserves the personal session and writes only scoped
     calls.push(`${init?.method} ${input}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
     if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
-      status: "DRAFT", version: 2, profileSchemaVersion: 5, profile });
+      status: "DRAFT", version: 2, profileSchemaVersion: 6, profile });
     const update = JSON.parse(String(init?.body));
     assert.equal(update.expectedVersion, 2);
     assert.deepEqual(update.profile.operations.usagePlanning, {
@@ -1042,7 +1137,7 @@ test("usage planning route preserves the personal session and writes only scoped
     assert.equal(update.profile.operations.hosting, "UNKNOWN");
     assert.deepEqual(update.profile.security, profile.security);
     return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
-      profileSchemaVersion: 5, profile: update.profile });
+      profileSchemaVersion: 6, profile: update.profile });
   };
   try {
     assert.equal((await usagePlanningRoute(request("https://other.example.test", sessionId), context)).status, 403);

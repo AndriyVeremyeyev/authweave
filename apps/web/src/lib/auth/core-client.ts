@@ -16,6 +16,7 @@ import { parseProposalReviewCursor, proposalIndexFromCore,
   type ProposalReviewIndexPage } from "../catalog/proposal-index.ts";
 import { proposalReviewFromCore, type CatalogProposalReview } from "../catalog/proposal-review.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
+import { auditabilityValues, withAuditabilityValues, type AuditabilityValues } from "../assessment/auditability.ts";
 import { evaluationContextValues, withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
   type PrerequisiteInput, type PrerequisitePreview } from "../assessment/architecture-prerequisites.ts";
@@ -473,8 +474,9 @@ function assessmentFromCore(value: unknown, session: BrowserSession, id?: string
   if (typeof body.id !== "string" || !UUID.test(body.id) || (id && body.id !== id) ||
       body.workspaceId !== session.workspaceId ||
       !["DRAFT", "READY_FOR_EVALUATION", "EVALUATED", "DECIDED", "ARCHIVED"].includes(String(body.status)) ||
-      !Number.isSafeInteger(body.version) || Number(body.version) < 0 || body.profileSchemaVersion !== 5 ||
-      !body.profile || typeof body.profile !== "object" || Array.isArray(body.profile)) {
+      !Number.isSafeInteger(body.version) || Number(body.version) < 0 || body.profileSchemaVersion !== 6 ||
+      !body.profile || typeof body.profile !== "object" || Array.isArray(body.profile) ||
+      !auditabilityValues(body.profile as Record<string, unknown>)) {
     throw new Error("Core assessment response is invalid");
   }
   return {
@@ -487,7 +489,7 @@ function assessmentFromCore(value: unknown, session: BrowserSession, id?: string
 
 export async function createPersonalAssessment(session: BrowserSession): Promise<PersonalAssessment> {
   const headers = assessmentHeaders(session);
-  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments`, {
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments`, {
     method: "POST", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
   });
   if (response.status !== 201) throw new Error("Core assessment creation failed");
@@ -497,7 +499,7 @@ export async function createPersonalAssessment(session: BrowserSession): Promise
 export async function readPersonalAssessment(session: BrowserSession, id: string): Promise<PersonalAssessment | null> {
   if (!UUID.test(id)) throw new Error("Assessment ID is invalid");
   const headers = assessmentHeaders(session);
-  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}`, {
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}`, {
     method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
   });
   if (response.status === 404) return null;
@@ -517,7 +519,7 @@ async function updatePersonalProfile(session: BrowserSession, id: string, expect
   if (current.status !== "DRAFT") return "not-editable";
   if (current.version !== expectedVersion) return "conflict";
   const profile = patch(current.profile);
-  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/profile`, {
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/profile`, {
     method: "PUT",
     headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
     body: JSON.stringify({ expectedVersion, profile }),
@@ -529,7 +531,8 @@ async function updatePersonalProfile(session: BrowserSession, id: string, expect
   if (response.status !== 200) throw new Error("Core profile update failed");
   const saved = assessmentFromCore(await response.json(), session, id);
   if (saved.status !== "DRAFT" || saved.version < expectedVersion ||
-      saved.version > expectedVersion + 1) {
+      saved.version > expectedVersion + 1 ||
+      JSON.stringify(auditabilityValues(saved.profile)) !== JSON.stringify(auditabilityValues(profile))) {
     throw new Error("Core profile update response is invalid");
   }
   return "saved";
@@ -556,12 +559,19 @@ export async function updatePersonalUsagePlanning(
     profile => withUsagePlanningValues(profile, values));
 }
 
+export async function updatePersonalAuditability(
+  session: BrowserSession, id: string, expectedVersion: number, values: AuditabilityValues,
+): Promise<ProfileUpdateResult> {
+  return updatePersonalProfile(session, id, expectedVersion,
+    profile => withAuditabilityValues(profile, values));
+}
+
 export async function listPersonalAssessments(
   session: BrowserSession, beforeId?: string,
 ): Promise<PersonalAssessmentListPage> {
   if (beforeId !== undefined && !UUID.test(beforeId)) throw new Error("Assessment cursor is invalid");
   const headers = assessmentHeaders(session);
-  const url = new URL(`/api/v5/workspaces/${session.workspaceId}/assessments`, CORE_ORIGIN);
+  const url = new URL(`/api/v6/workspaces/${session.workspaceId}/assessments`, CORE_ORIGIN);
   url.searchParams.set("limit", "20");
   if (beforeId) url.searchParams.set("beforeId", beforeId);
   const response = await fetch(url.toString(), {

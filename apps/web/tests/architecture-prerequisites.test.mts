@@ -100,7 +100,7 @@ test("personal preview is exact-version, fixed-origin, body-free and cannot prom
     calls.push(`${init?.method} ${url}`);
     assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error");
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
-    if (init?.method === "GET") return Response.json({ id, workspaceId, status: "DRAFT", version, profileSchemaVersion: 5, profile: prerequisiteProfile });
+    if (init?.method === "GET") return Response.json({ id, workspaceId, status: "DRAFT", version, profileSchemaVersion: 6, profile: prerequisiteProfile });
     assert.equal(String(url), `http://127.0.0.1:8080/api/v1/workspaces/${workspaceId}/assessments/${id}/architecture-prerequisite-preview`);
     assert.deepEqual(JSON.parse(String(init?.body)), prerequisiteInput);
     return status === 200 ? Response.json(value) : new Response(null, { status });

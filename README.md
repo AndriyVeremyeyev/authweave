@@ -398,10 +398,22 @@ GET `/{assessmentId}/revisions` under v6 returns exact mixed v1-v6 snapshots. Ol
 history APIs reject only pages containing unsupported formats, not compatible pages.
 
 These Core routes retain the server-only service credential and personal workspace
-ownership boundary. The personal BFF/editor remains on v5 for this slice and will not
-hide v6 inputs; v6 UI integration is a follow-up. No provider evidence is loaded and
-no existing preflight/impact coverage, historical receipt or publication authority is
-upgraded by recording these inputs.
+ownership boundary. Personal assessment create/read/list and all full-profile edits
+now use v6 through the BFF. The private draft page provides six labelled criteria,
+one shared criticality and a retention input enabled only when retention is selected.
+Unselecting retention clears its duration; unchecking all criteria explicitly clears
+the recorded scope. Context, capability and usage edits preserve these fields.
+Every save reads the latest profile and submits `expectedVersion`; stale drafts and
+non-drafts are not overwritten. The bounded, same-origin form accepts no workspace,
+identity assertions or arbitrary profile JSON from the browser. Core response checks
+bind the workspace, assessment, format, version and saved auditability scope.
+
+Legacy projection remains read-only until an explicit save. The existing synthetic
+comparison, architecture and usage previews keep their current policies and scopes;
+auditability is still deferred, not marked as checked merely because inputs exist.
+No provider evidence is loaded and no preflight/impact coverage, historical receipt
+or publication authority is upgraded by recording these inputs. The public browser
+preview/download remains v1 and is separate from private assessment editing.
 
 ### Residency inputs and profile versions
 
@@ -637,7 +649,7 @@ An omitted metric is unknown; an explicit zero is a recorded value. No client ty
 requirement or budget-sensitivity label automatically supplies zeros or a spending cap.
 These definitions are planning units, not a vendor's billable-unit definitions.
 The private assessment page can edit these inputs in a draft. Each save reads the
-latest complete v5 profile through the BFF, changes only `usagePlanning`, and uses
+latest complete v6 profile through the BFF, changes only `usagePlanning`, and uses
 `expectedVersion`; other profile fields are preserved. Leave a metric blank with
 `Unknown` basis to keep it unknown, or choose `Assumed`/`Observed` and enter a number.
 The form accepts up to 10 separate assumptions. Do not enter secrets or personal data.

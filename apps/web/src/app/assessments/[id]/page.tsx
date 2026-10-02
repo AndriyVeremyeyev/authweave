@@ -6,6 +6,7 @@ import { capabilityFields, capabilityValues, criticalities, type Capability, typ
 import { hasStaleSyntheticEvidence } from "@/lib/assessment/comparison-evidence";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
+import { auditabilityValues } from "@/lib/assessment/auditability";
 import { authConfiguration } from "@/lib/auth/config";
 import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning,
   readSyntheticComparison,
@@ -19,6 +20,7 @@ import { EvaluationContextEditor } from "./evaluation-context-editor";
 import { ArchitecturePatterns } from "./architecture-patterns";
 import { UsagePlanningEditor } from "./usage-planning-editor";
 import { UsagePlanningPreflight } from "./usage-planning-preflight";
+import { AuditabilityEditor } from "./auditability-editor";
 
 export const runtime = "nodejs";
 
@@ -36,6 +38,11 @@ const contextErrors: Record<string, string> = {
 const usageErrors: Record<string, string> = {
   stale: "This draft changed since you opened it. Review the current usage inputs and save again.",
   invalid: "Core rejected these usage inputs. Review the current profile before trying again.",
+  locked: "Only drafts can be edited here.",
+};
+const auditErrors: Record<string, string> = {
+  stale: "This draft changed since you opened it. Review the current auditability inputs and save again.",
+  invalid: "Core rejected these auditability inputs. Review the current profile before trying again.",
   locked: "Only drafts can be edited here.",
 };
 
@@ -65,9 +72,11 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
   const editError = query.editError;
   const contextError = query.contextError;
   const usageError = query.usageError;
+  const auditError = query.auditError;
   const values = capabilityValues(assessment.profile);
   const contextValues = evaluationContextValues(assessment.profile);
   const usageValues = usagePlanningValues(assessment.profile);
+  const auditValues = auditabilityValues(assessment.profile);
   const preferred = values ? capabilityFields.filter(field => values[field.capability] === "PREFERRED")
     .map(field => ({ capability: field.capability, label: field.label })) : [];
 
@@ -121,6 +130,9 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           {usageErrors[usageError]}
         </p>
       )}
+      {typeof auditError === "string" && Object.hasOwn(auditErrors, auditError) && (
+        <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">{auditErrors[auditError]}</p>
+      )}
       {assessment.status === "DRAFT" && contextValues &&
         <EvaluationContextEditor assessmentId={assessment.id} version={assessment.version} values={contextValues} />}
       {assessment.status === "DRAFT" && !contextValues && (
@@ -134,6 +146,9 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           Capability editing is unavailable because this profile cannot be read safely.
         </p>
       )}
+      {assessment.status === "DRAFT" && auditValues &&
+        <AuditabilityEditor key={`${assessment.id}-${assessment.version}`} assessmentId={assessment.id}
+          version={assessment.version} values={auditValues} />}
       {assessment.status === "DRAFT" && usageValues &&
         <UsagePlanningEditor assessmentId={assessment.id} version={assessment.version} values={usageValues} />}
       {assessment.status === "DRAFT" && !usageValues && (

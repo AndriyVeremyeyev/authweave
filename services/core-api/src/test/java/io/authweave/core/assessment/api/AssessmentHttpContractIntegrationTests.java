@@ -2733,6 +2733,33 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertEquals(2, historyResponse("v6-selection-order-no-events", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()).get("items").size());
     }
 
+    @Test
+    void existingPersonalPreviewsRemainReadOnlyAndPartialForRecordedV6AuditScope() throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var initial = versionedSample("v6-preview-initial", "assessment-response.v6", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile"));
+        var security = (ObjectNode) update.at("/profile/security"); security.put("auditability", "REQUIRED");
+        var requirements = (ObjectNode) security.get("auditabilityRequirements");
+        requirements.putArray("selectedCriteria").add("AUTHENTICATION_FAILURE_EVENTS").add("AUDIT_LOG_RETENTION");
+        requirements.put("minimumRetentionDays", 180);
+        var saved = saveV6("v6-preview-recorded", path, update);
+        var history = versionedSample("v6-preview-history-before", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn());
+        var events = historyResponse("v6-preview-events-before", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        var comparison = versionedSample("v6-existing-comparison", "synthetic-comparison",
+                mvc.perform(get(path.replace("/api/v6/", "/api/v5/") + "/comparison-preflight"))
+                        .andExpect(status().isOk()).andExpect(jsonPath("$.recommendationReady").value(false))
+                        .andExpect(jsonPath("$.rankingPerformed").value(false)).andReturn());
+        org.junit.jupiter.api.Assertions.assertTrue(comparison.get("deferredPaths").toString().contains("security.auditability"));
+        var patterns = versionedSample("v6-existing-patterns", "architecture-pattern-preflight",
+                mvc.perform(get(assessment.path() + "/architecture-pattern-preflight"))
+                        .andExpect(status().isOk()).andExpect(jsonPath("$.recommendationReady").value(false)).andReturn());
+        org.junit.jupiter.api.Assertions.assertTrue(patterns.get("deferredPaths").toString().contains("security.auditability"));
+        assertEquals(1, usagePreflight("v6-existing-usage", path.replace("/api/v6/", "/api/v5/")).get("assessmentVersion").asInt());
+        assertEquals(saved, versionedSample("v6-preview-unchanged", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, versionedSample("v6-preview-history-unchanged", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn()));
+        assertEquals(events, historyResponse("v6-preview-events-unchanged", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+    }
+
     @ParameterizedTest @org.junit.jupiter.params.provider.MethodSource("auditScopeWireMatrix")
     void v6PreservesEachChosenCriterionAndAllCriticalitiesWithoutInventingProviderEvidence(String criterion, String criticality) throws Exception {
         var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");

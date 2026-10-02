@@ -13,6 +13,7 @@ import {
   previewPersonalWeightSensitivity,
   updatePersonalEvaluationContext,
   updatePersonalUsagePlanning,
+  updatePersonalAuditability,
 } from "../src/lib/auth/core-client.ts";
 import { capabilityFields, type CapabilityValues } from "../src/lib/assessment/capabilities.ts";
 import { usageMetrics, type UsagePlanningValues } from "../src/lib/assessment/usage-planning.ts";
@@ -410,7 +411,8 @@ test("curator review reads a version-bound proposal and separate current decisio
 const assessmentId = "80000000-0000-4000-8000-000000000001";
 const coreAssessment = {
   id: assessmentId, workspaceId: session.workspaceId, status: "DRAFT", version: 0,
-  profileSchemaVersion: 5, profile: { application: { type: "UNKNOWN" } },
+  profileSchemaVersion: 6, profile: { application: { type: "UNKNOWN" }, security: { auditability: "UNKNOWN",
+    auditabilityRequirements: { selectedCriteria: [], minimumRetentionDays: null } } },
 };
 const unknownCapabilities = Object.fromEntries(
   capabilityFields.map(field => [field.capability, "UNKNOWN"]),
@@ -420,7 +422,8 @@ const editableProfile = {
   protocols: { federation: {}, oauth2ProtectedApis: "UNKNOWN", socialLogin: "UNKNOWN",
     enterpriseSingleSignOn: "UNKNOWN" },
   provisioning: { scim: "UNKNOWN", justInTimeProvisioning: "UNKNOWN", groupSynchronization: "UNKNOWN" },
-  security: { multiFactorAuthentication: "UNKNOWN", assurance: "UNKNOWN" },
+  security: { multiFactorAuthentication: "UNKNOWN", assurance: "UNKNOWN", auditability: "REQUIRED",
+    auditabilityRequirements: { selectedCriteria: ["AUTHENTICATION_FAILURE_EVENTS", "AUDIT_LOG_RETENTION"], minimumRetentionDays: 90 } },
   operations: { source: "keep" },
 };
 const contextProfile = {
@@ -434,6 +437,60 @@ const contextProfile = {
     authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN",
       stepUpAuthentication: "UNKNOWN" } },
 };
+
+test("BFF auditability writes use v6, preserve other fields and bind the saved scope", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN, previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  let responseVersion = 4, responseScopeMatches = true;
+  const values = { criticality: "PREFERRED" as const,
+    selectedCriteria: ["AUDIT_LOG_EXPORT" as const], minimumRetentionDays: null };
+  const calls: string[] = [];
+  globalThis.fetch = async (url, init) => {
+    calls.push(`${init?.method} ${url}`);
+    assert.ok(String(url).includes("/api/v6/workspaces/"));
+    if (init?.method === "GET") return Response.json({ ...coreAssessment, version: 3, profile: contextProfile });
+    const update = JSON.parse(String(init?.body));
+    assert.equal(update.expectedVersion, 3);
+    const expected = structuredClone(contextProfile);
+    const security = expected.security as Record<string, unknown>;
+    security.auditability = values.criticality;
+    security.auditabilityRequirements = { selectedCriteria: values.selectedCriteria, minimumRetentionDays: null };
+    assert.deepEqual(update.profile, expected);
+    return Response.json({ ...coreAssessment, version: responseVersion,
+      profile: responseScopeMatches ? update.profile : contextProfile });
+  };
+  try {
+    assert.equal(await updatePersonalAuditability(session, assessmentId, 3, values), "saved");
+    assert.equal(calls.length, 2);
+    responseScopeMatches = false;
+    await assert.rejects(updatePersonalAuditability(session, assessmentId, 3, values), /response is invalid/);
+    responseScopeMatches = true; responseVersion = 5;
+    await assert.rejects(updatePersonalAuditability(session, assessmentId, 3, values), /response is invalid/);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF v6 reads never infer omitted auditability fields or accept an old representation", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN, previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  try {
+    for (const body of [{ ...coreAssessment, profileSchemaVersion: 5 },
+      { ...coreAssessment, profile: { security: { auditability: "REQUIRED" } } },
+      { ...coreAssessment, id: "80000000-0000-4000-8000-000000000002" },
+      { ...coreAssessment, profile: { security: { auditability: "UNKNOWN", auditabilityRequirements: {
+        selectedCriteria: [], minimumRetentionDays: null, futureField: true } } } }]) {
+      globalThis.fetch = async () => Response.json(body);
+      await assert.rejects(readPersonalAssessment(session, assessmentId), /response is invalid/);
+    }
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
 
 test("BFF context update preserves capabilities and uses the existing optimistic Core write", async () => {
   const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
@@ -452,6 +509,7 @@ test("BFF context update preserves capabilities and uses the existing optimistic
       { allowedCountries: ["CA", "US"], dataCategories: ["USER_PROFILES", "BACKUPS"] });
     assert.deepEqual(update.profile.protocols, contextProfile.protocols);
     assert.deepEqual(update.profile.operations, contextProfile.operations);
+    assert.deepEqual(update.profile.security.auditabilityRequirements, contextProfile.security.auditabilityRequirements);
     return Response.json({ ...coreAssessment, version: 4, profile: update.profile });
   };
   const values = {
@@ -536,13 +594,14 @@ test("BFF updates only capabilities via a fresh Core profile and expected versio
     assert.deepEqual(request.profile.protocols.federation, { OIDC: "REQUIRED" });
     assert.equal(request.profile.provisioning.scim, "PREFERRED");
     assert.deepEqual(request.profile.operations, editableProfile.operations);
+    assert.deepEqual(request.profile.security, editableProfile.security);
     return Response.json({ ...coreAssessment, version: 4, profile: request.profile });
   };
   try {
     assert.equal(await updatePersonalCapabilities(session, assessmentId, 3, values), "saved");
     assert.deepEqual(calls, [
-      `GET http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
-      `PUT http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/profile`,
+      `GET http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
+      `PUT http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}/profile`,
     ]);
   } finally {
     globalThis.fetch = previousFetch;
@@ -600,8 +659,8 @@ test("BFF creates and reads only within the server-side session workspace", asyn
       id: assessmentId, status: "DRAFT", version: 0, profile: coreAssessment.profile,
     });
     assert.deepEqual(calls, [
-      `http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments`,
-      `http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
+      `http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments`,
+      `http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
     ]);
   } finally {
     globalThis.fetch = previousFetch;
@@ -647,7 +706,7 @@ test("BFF lists bounded assessment summaries using only its session workspace", 
   globalThis.fetch = async (input, init) => {
     calls++;
     assert.equal(input,
-      `http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments?limit=20&beforeId=${assessmentId}`);
+      `http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments?limit=20&beforeId=${assessmentId}`);
     assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
     assert.equal(init?.cache, "no-store");
@@ -1037,7 +1096,7 @@ test("BFF previews explicit weights through the session workspace and projects s
     assert.equal("evidence" in result.preview.candidates[0], false);
     assert.equal("winnerId" in result.preview, false);
     assert.deepEqual(calls, [
-      `GET http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
+      `GET http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
       `POST http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/weighted-comparison-preview`,
     ]);
   } finally {
@@ -1176,7 +1235,7 @@ test("BFF compares explicit weights on one Core snapshot without exposing eviden
     assert.equal("evidence" in result.preview.candidates[0], false);
     assert.equal("winnerId" in result.preview, false);
     assert.deepEqual(calls, [
-      `GET http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
+      `GET http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
       `POST http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/weight-sensitivity-preview`,
     ]);
   } finally {
