@@ -1,0 +1,1723 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/auditability-capability-preflight.v1.schema.json",
+  "title": "Read-only scoped auditability capability preflight",
+  "description": "Private partial synthetic preview of saved requirements and dated option-bound facts. Core binds/recomputes each analysis from returned evidence. No ranking, source fetch, observed logging, compliance or publication authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "baseCatalogVersion",
+    "evidenceVersion",
+    "catalogKind",
+    "evaluatedAt",
+    "criticality",
+    "requirements",
+    "candidates",
+    "policyVersion",
+    "scope",
+    "checkedPaths",
+    "sourceVerificationPerformed",
+    "recommendationReady"
+  ],
+  "properties": {
+    "workspaceId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "assessmentVersion": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "baseCatalogVersion": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$"
+    },
+    "evidenceVersion": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$"
+    },
+    "catalogKind": {
+      "const": "SYNTHETIC"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "criticality": {
+      "enum": [
+        "UNKNOWN",
+        "REQUIRED",
+        "PREFERRED",
+        "NOT_REQUIRED",
+        "FORBIDDEN"
+      ]
+    },
+    "requirements": {
+      "$ref": "./application-identity-profile.v6.schema.json#/$defs/auditabilityRequirements"
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "displayName",
+          "analysis",
+          "evidence"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "analysis": {
+            "$ref": "#/$defs/analysis"
+          },
+          "evidence": {
+            "type": "array",
+            "maxItems": 6,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "./synthetic-auditability-catalog.v1.schema.json#/$defs/fact"
+            }
+          }
+        }
+      }
+    },
+    "policyVersion": {
+      "const": "auditability-capability-preflight-1"
+    },
+    "scope": {
+      "const": "SYNTHETIC_AUDITABILITY_CAPABILITY_PREFLIGHT"
+    },
+    "checkedPaths": {
+      "const": [
+        "security.auditability",
+        "security.auditabilityRequirements"
+      ]
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "recommendationReady": {
+      "const": false
+    }
+  },
+  "$defs": {
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionScope",
+        "criticality",
+        "requirements",
+        "evaluatedAt",
+        "checks",
+        "status",
+        "policyVersion",
+        "analysisBasis",
+        "deferredBoundaries",
+        "configurationVerified",
+        "complianceVerified",
+        "recommendationReady"
+      ],
+      "properties": {
+        "optionScope": {
+          "$ref": "./synthetic-auditability-catalog.v1.schema.json#/$defs/scope"
+        },
+        "criticality": {
+          "enum": [
+            "UNKNOWN",
+            "REQUIRED",
+            "PREFERRED",
+            "NOT_REQUIRED",
+            "FORBIDDEN"
+          ]
+        },
+        "requirements": {
+          "$ref": "./application-identity-profile.v6.schema.json#/$defs/auditabilityRequirements"
+        },
+        "evaluatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "checks": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "prefixItems": [
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/check"
+                },
+                {
+                  "properties": {
+                    "criterion": {
+                      "const": "AUTHENTICATION_SUCCESS_EVENTS"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/check"
+                },
+                {
+                  "properties": {
+                    "criterion": {
+                      "const": "AUTHENTICATION_FAILURE_EVENTS"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/check"
+                },
+                {
+                  "properties": {
+                    "criterion": {
+                      "const": "ADMINISTRATIVE_CHANGE_EVENTS"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/check"
+                },
+                {
+                  "properties": {
+                    "criterion": {
+                      "const": "PROVISIONING_CHANGE_EVENTS"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/check"
+                },
+                {
+                  "properties": {
+                    "criterion": {
+                      "const": "AUDIT_LOG_EXPORT"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            },
+            {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/check"
+                },
+                {
+                  "properties": {
+                    "criterion": {
+                      "const": "AUDIT_LOG_RETENTION"
+                    }
+                  },
+                  "type": "object"
+                }
+              ]
+            }
+          ],
+          "items": false
+        },
+        "status": {
+          "enum": [
+            "MATCHES_CHECKED_REQUIREMENTS",
+            "DOES_NOT_MATCH",
+            "NEEDS_INFORMATION",
+            "NOT_APPLIED"
+          ]
+        },
+        "policyVersion": {
+          "const": "auditability-capability-preflight-1"
+        },
+        "analysisBasis": {
+          "const": "SYNTHETIC_SCOPED_PROVIDER_CAPABILITY_EVIDENCE"
+        },
+        "deferredBoundaries": {
+          "const": [
+            "eventRecordContentAndScope",
+            "auditRecordIntegrity",
+            "auditAccessControls",
+            "loggingFailureHandling",
+            "exportDeliveryAndRetrieval",
+            "deployedLoggingConfiguration",
+            "complianceEvidence"
+          ]
+        },
+        "configurationVerified": {
+          "const": false
+        },
+        "complianceVerified": {
+          "const": false
+        },
+        "recommendationReady": {
+          "const": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "checks": {
+                "contains": {
+                  "properties": {
+                    "outcome": {
+                      "const": "FAIL"
+                    }
+                  },
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "DOES_NOT_MATCH"
+              }
+            },
+            "type": "object"
+          },
+          "else": {
+            "if": {
+              "properties": {
+                "checks": {
+                  "contains": {
+                    "properties": {
+                      "outcome": {
+                        "const": "UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "status": {
+                  "const": "NEEDS_INFORMATION"
+                }
+              },
+              "type": "object"
+            },
+            "else": {
+              "if": {
+                "properties": {
+                  "checks": {
+                    "contains": {
+                      "properties": {
+                        "outcome": {
+                          "const": "PASS"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "then": {
+                "properties": {
+                  "status": {
+                    "const": "MATCHES_CHECKED_REQUIREMENTS"
+                  }
+                },
+                "type": "object"
+              },
+              "else": {
+                "properties": {
+                  "status": {
+                    "const": "NOT_APPLIED"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "NOT_REQUIRED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "prefixItems": [
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "NO_REQUIREMENT"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "NO_REQUIREMENT"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "NO_REQUIREMENT"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "NO_REQUIREMENT"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "NO_REQUIREMENT"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "NO_REQUIREMENT"
+                      }
+                    },
+                    "type": "object"
+                  }
+                ],
+                "type": "array",
+                "minItems": 6,
+                "maxItems": 6
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "PREFERRED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "prefixItems": [
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "PREFERENCE_NOT_SCORED"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "PREFERENCE_NOT_SCORED"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "PREFERENCE_NOT_SCORED"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "PREFERENCE_NOT_SCORED"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "PREFERENCE_NOT_SCORED"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "PREFERENCE_NOT_SCORED"
+                      }
+                    },
+                    "type": "object"
+                  }
+                ],
+                "type": "array",
+                "minItems": 6,
+                "maxItems": 6
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "UNKNOWN"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "prefixItems": [
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "REQUIREMENT_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "REQUIREMENT_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "REQUIREMENT_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "REQUIREMENT_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "REQUIREMENT_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "REQUIREMENT_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  }
+                ],
+                "type": "array",
+                "minItems": 6,
+                "maxItems": 6
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "FORBIDDEN"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "prefixItems": [
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_INTENT_UNCLEAR"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_INTENT_UNCLEAR"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_INTENT_UNCLEAR"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_INTENT_UNCLEAR"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_INTENT_UNCLEAR"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_INTENT_UNCLEAR"
+                      }
+                    },
+                    "type": "object"
+                  }
+                ],
+                "type": "array",
+                "minItems": 6,
+                "maxItems": 6
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "REQUIRED"
+              },
+              "requirements": {
+                "properties": {
+                  "selectedCriteria": {
+                    "maxItems": 0,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "prefixItems": [
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_SCOPE_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_SCOPE_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_SCOPE_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_SCOPE_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_SCOPE_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  {
+                    "properties": {
+                      "reasonCode": {
+                        "const": "AUDIT_SCOPE_UNKNOWN"
+                      }
+                    },
+                    "type": "object"
+                  }
+                ],
+                "type": "array",
+                "minItems": 6,
+                "maxItems": 6
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "REQUIRED"
+              },
+              "requirements": {
+                "properties": {
+                  "selectedCriteria": {
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "requirements": {
+                  "properties": {
+                    "selectedCriteria": {
+                      "contains": {
+                        "const": "AUTHENTICATION_SUCCESS_EVENTS"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "not": {
+                            "enum": [
+                              "NO_REQUIREMENT",
+                              "PREFERENCE_NOT_SCORED",
+                              "REQUIREMENT_UNKNOWN",
+                              "AUDIT_INTENT_UNCLEAR",
+                              "AUDIT_SCOPE_UNKNOWN",
+                              "CRITERION_NOT_SELECTED"
+                            ]
+                          }
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            },
+            "else": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "const": "CRITERION_NOT_SELECTED"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {},
+                    {},
+                    {},
+                    {},
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "REQUIRED"
+              },
+              "requirements": {
+                "properties": {
+                  "selectedCriteria": {
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "requirements": {
+                  "properties": {
+                    "selectedCriteria": {
+                      "contains": {
+                        "const": "AUTHENTICATION_FAILURE_EVENTS"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "not": {
+                            "enum": [
+                              "NO_REQUIREMENT",
+                              "PREFERENCE_NOT_SCORED",
+                              "REQUIREMENT_UNKNOWN",
+                              "AUDIT_INTENT_UNCLEAR",
+                              "AUDIT_SCOPE_UNKNOWN",
+                              "CRITERION_NOT_SELECTED"
+                            ]
+                          }
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {},
+                    {},
+                    {},
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            },
+            "else": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "const": "CRITERION_NOT_SELECTED"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {},
+                    {},
+                    {},
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "REQUIRED"
+              },
+              "requirements": {
+                "properties": {
+                  "selectedCriteria": {
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "requirements": {
+                  "properties": {
+                    "selectedCriteria": {
+                      "contains": {
+                        "const": "ADMINISTRATIVE_CHANGE_EVENTS"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "not": {
+                            "enum": [
+                              "NO_REQUIREMENT",
+                              "PREFERENCE_NOT_SCORED",
+                              "REQUIREMENT_UNKNOWN",
+                              "AUDIT_INTENT_UNCLEAR",
+                              "AUDIT_SCOPE_UNKNOWN",
+                              "CRITERION_NOT_SELECTED"
+                            ]
+                          }
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {},
+                    {},
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            },
+            "else": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "const": "CRITERION_NOT_SELECTED"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {},
+                    {},
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "REQUIRED"
+              },
+              "requirements": {
+                "properties": {
+                  "selectedCriteria": {
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "requirements": {
+                  "properties": {
+                    "selectedCriteria": {
+                      "contains": {
+                        "const": "PROVISIONING_CHANGE_EVENTS"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {},
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "not": {
+                            "enum": [
+                              "NO_REQUIREMENT",
+                              "PREFERENCE_NOT_SCORED",
+                              "REQUIREMENT_UNKNOWN",
+                              "AUDIT_INTENT_UNCLEAR",
+                              "AUDIT_SCOPE_UNKNOWN",
+                              "CRITERION_NOT_SELECTED"
+                            ]
+                          }
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {},
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            },
+            "else": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {},
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "const": "CRITERION_NOT_SELECTED"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {},
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "REQUIRED"
+              },
+              "requirements": {
+                "properties": {
+                  "selectedCriteria": {
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "requirements": {
+                  "properties": {
+                    "selectedCriteria": {
+                      "contains": {
+                        "const": "AUDIT_LOG_EXPORT"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "not": {
+                            "enum": [
+                              "NO_REQUIREMENT",
+                              "PREFERENCE_NOT_SCORED",
+                              "REQUIREMENT_UNKNOWN",
+                              "AUDIT_INTENT_UNCLEAR",
+                              "AUDIT_SCOPE_UNKNOWN",
+                              "CRITERION_NOT_SELECTED"
+                            ]
+                          }
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            },
+            "else": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "const": "CRITERION_NOT_SELECTED"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    {}
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "criticality": {
+                "const": "REQUIRED"
+              },
+              "requirements": {
+                "properties": {
+                  "selectedCriteria": {
+                    "minItems": 1,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "if": {
+              "properties": {
+                "requirements": {
+                  "properties": {
+                    "selectedCriteria": {
+                      "contains": {
+                        "const": "AUDIT_LOG_RETENTION"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            },
+            "then": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "not": {
+                            "enum": [
+                              "NO_REQUIREMENT",
+                              "PREFERENCE_NOT_SCORED",
+                              "REQUIREMENT_UNKNOWN",
+                              "AUDIT_INTENT_UNCLEAR",
+                              "AUDIT_SCOPE_UNKNOWN",
+                              "CRITERION_NOT_SELECTED"
+                            ]
+                          }
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            },
+            "else": {
+              "properties": {
+                "checks": {
+                  "prefixItems": [
+                    {},
+                    {},
+                    {},
+                    {},
+                    {},
+                    {
+                      "properties": {
+                        "reasonCode": {
+                          "const": "CRITERION_NOT_SELECTED"
+                        }
+                      },
+                      "type": "object"
+                    }
+                  ],
+                  "type": "array",
+                  "minItems": 6,
+                  "maxItems": 6
+                }
+              },
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "criterion",
+        "outcome",
+        "reasonCode",
+        "documentedMinimumRetentionDays"
+      ],
+      "properties": {
+        "criterion": {
+          "enum": [
+            "AUTHENTICATION_SUCCESS_EVENTS",
+            "AUTHENTICATION_FAILURE_EVENTS",
+            "ADMINISTRATIVE_CHANGE_EVENTS",
+            "PROVISIONING_CHANGE_EVENTS",
+            "AUDIT_LOG_EXPORT",
+            "AUDIT_LOG_RETENTION"
+          ]
+        },
+        "outcome": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN",
+            "NOT_APPLIED"
+          ]
+        },
+        "reasonCode": {
+          "enum": [
+            "NO_REQUIREMENT",
+            "PREFERENCE_NOT_SCORED",
+            "REQUIREMENT_UNKNOWN",
+            "AUDIT_INTENT_UNCLEAR",
+            "AUDIT_SCOPE_UNKNOWN",
+            "CRITERION_NOT_SELECTED",
+            "EVIDENCE_MISSING",
+            "EVIDENCE_UNREVIEWED",
+            "EVIDENCE_FROM_FUTURE",
+            "EVIDENCE_STALE",
+            "CAPABILITY_UNKNOWN",
+            "CAPABILITY_UNAVAILABLE",
+            "DOCUMENTED_CAPABILITY_AVAILABLE",
+            "RETENTION_DURATION_UNKNOWN",
+            "RETENTION_BELOW_MINIMUM",
+            "RETENTION_MEETS_MINIMUM"
+          ]
+        },
+        "documentedMinimumRetentionDays": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 36500
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "NO_REQUIREMENT"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "NOT_APPLIED"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "PREFERENCE_NOT_SCORED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "NOT_APPLIED"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "REQUIREMENT_UNKNOWN"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "AUDIT_INTENT_UNCLEAR"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "AUDIT_SCOPE_UNKNOWN"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "CRITERION_NOT_SELECTED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "NOT_APPLIED"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "EVIDENCE_MISSING"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "EVIDENCE_UNREVIEWED"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "EVIDENCE_FROM_FUTURE"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "EVIDENCE_STALE"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "CAPABILITY_UNKNOWN"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "CAPABILITY_UNAVAILABLE"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "FAIL"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "DOCUMENTED_CAPABILITY_AVAILABLE"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "PASS"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              },
+              "criterion": {
+                "not": {
+                  "const": "AUDIT_LOG_RETENTION"
+                }
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "RETENTION_DURATION_UNKNOWN"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "UNKNOWN"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "null"
+              },
+              "criterion": {
+                "const": "AUDIT_LOG_RETENTION"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "RETENTION_BELOW_MINIMUM"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "FAIL"
+              },
+              "criterion": {
+                "const": "AUDIT_LOG_RETENTION"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "reasonCode": {
+                "const": "RETENTION_MEETS_MINIMUM"
+              }
+            },
+            "type": "object"
+          },
+          "then": {
+            "properties": {
+              "outcome": {
+                "const": "PASS"
+              },
+              "criterion": {
+                "const": "AUDIT_LOG_RETENTION"
+              },
+              "documentedMinimumRetentionDays": {
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          }
+        }
+      ]
+    }
+  }
+}

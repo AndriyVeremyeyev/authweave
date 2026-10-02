@@ -19,6 +19,15 @@ class CatalogConfiguration {
     }
 
     @Bean
+    AuditabilityCatalog syntheticAuditabilityCatalog(ObjectMapper mapper, ProviderCatalog catalog) throws IOException {
+        try (var input = new ClassPathResource("catalog/auditability-evidence.v1.json").getInputStream()) {
+            var evidence = mapper.readValue(input, AuditabilityCatalog.class);
+            evidence.validateBase(catalog);
+            return evidence;
+        }
+    }
+
+    @Bean
     Clock evaluationClock() {
         return Clock.systemUTC();
     }

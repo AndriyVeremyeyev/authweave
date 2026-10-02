@@ -2760,6 +2760,91 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertEquals(events, historyResponse("v6-preview-events-unchanged", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
     }
 
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(io.authweave.core.assessment.domain.profile.RequirementCriticality.class)
+    void scopedAuditabilityPreviewBindsSavedInputsEvidenceAndVersionWithoutWrites(
+            io.authweave.core.assessment.domain.profile.RequirementCriticality criticality) throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var endpoint = path + "/auditability-capability-preflight";
+        var legacy = versionedSample("audit-preview-legacy", "auditability-capability-preflight",
+                mvc.perform(get(endpoint)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                        .andExpect(jsonPath("$.candidates[0].analysis.status").value("NEEDS_INFORMATION")).andReturn());
+        assertEquals(0, legacy.get("assessmentVersion").asInt());
+        assertEquals(assessment.created(), response("audit-preview-legacy-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        var initial = versionedSample("audit-preview-v6", "assessment-response.v6", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile"));
+        var security = (ObjectNode) update.at("/profile/security"); security.put("auditability", criticality.name());
+        var requirements = (ObjectNode) security.get("auditabilityRequirements");
+        var selected = requirements.putArray("selectedCriteria");
+        for (var criterion : io.authweave.core.assessment.domain.profile.AuditabilityRequirements.Criterion.values()) selected.add(criterion.name());
+        requirements.put("minimumRetentionDays", 30);
+        var saved = saveV6("audit-preview-saved-inputs", path, update);
+        var history = versionedSample("audit-preview-history-before", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn());
+        var events = historyResponse("audit-preview-events-before", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        var preview = versionedSample("audit-preview-" + criticality, "auditability-capability-preflight",
+                mvc.perform(get(endpoint)).andExpect(status().isOk()).andExpect(jsonPath("$.sourceVerificationPerformed").value(false))
+                        .andExpect(jsonPath("$.recommendationReady").value(false)).andReturn());
+        assertEquals(assessment.workspaceId().value().toString(), preview.get("workspaceId").asText());
+        assertEquals(assessment.id().value().toString(), preview.get("assessmentId").asText());
+        assertEquals(1, preview.get("assessmentVersion").asInt()); assertEquals(requirements, preview.get("requirements"));
+        assertEquals(criticality.name(), preview.get("criticality").asText());
+        assertEquals(3, preview.get("candidates").size());
+        if (criticality == io.authweave.core.assessment.domain.profile.RequirementCriticality.REQUIRED) {
+            assertEquals("MATCHES_CHECKED_REQUIREMENTS", preview.at("/candidates/0/analysis/status").asText());
+            assertEquals("DOES_NOT_MATCH", preview.at("/candidates/1/analysis/status").asText());
+            assertEquals("EVIDENCE_MISSING", preview.at("/candidates/1/analysis/checks/3/reasonCode").asText());
+            assertEquals("CAPABILITY_UNAVAILABLE", preview.at("/candidates/1/analysis/checks/4/reasonCode").asText());
+            assertEquals("RETENTION_BELOW_MINIMUM", preview.at("/candidates/1/analysis/checks/5/reasonCode").asText());
+            assertEquals("NEEDS_INFORMATION", preview.at("/candidates/2/analysis/status").asText());
+        }
+        for (var candidate : preview.get("candidates")) {
+            assertEquals(requirements, candidate.at("/analysis/requirements"));
+            for (String field : List.of("configurationVerified", "complianceVerified", "recommendationReady")) {
+                assertFalse(candidate.at("/analysis/" + field).asBoolean());
+                var forged = (ObjectNode) preview.deepCopy(); ((ObjectNode) forged.at("/candidates/0/analysis")).put(field, true);
+                sample("audit-preview-no-" + field, "auditability-capability-preflight", false, forged);
+            }
+        }
+        assertEquals(preview, versionedSample("audit-preview-repeat", "auditability-capability-preflight", mvc.perform(get(endpoint)).andReturn()));
+        assertEquals(saved, versionedSample("audit-preview-profile-unchanged", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, versionedSample("audit-preview-history-unchanged", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn()));
+        assertEquals(events, historyResponse("audit-preview-events-unchanged", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+        response("audit-preview-foreign-workspace", mvc.perform(get(endpoint.replace(assessment.workspaceId().value().toString(), UUID.randomUUID().toString())))
+                .andExpect(status().isNotFound()).andReturn());
+        response("audit-preview-absent-assessment", mvc.perform(get(endpoint.replace(assessment.id().value().toString(), UUID.randomUUID().toString())))
+                .andExpect(status().isNotFound()).andReturn());
+    }
+
+    @Test
+    void auditabilityPreviewDoesNotInventScopeFromRequiredOrApplyUnselectedRetention() throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var initial = versionedSample("audit-sparse-initial", "assessment-response.v6", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile"));
+        ((ObjectNode) update.at("/profile/security")).put("auditability", "REQUIRED");
+        saveV6("audit-sparse-required-without-scope", path, update);
+        var unresolved = versionedSample("audit-required-scope-unknown", "auditability-capability-preflight",
+                mvc.perform(get(path + "/auditability-capability-preflight")).andExpect(status().isOk()).andReturn());
+        for (var candidate : unresolved.get("candidates")) {
+            assertEquals("NEEDS_INFORMATION", candidate.at("/analysis/status").asText());
+            for (var check : candidate.at("/analysis/checks")) assertEquals("AUDIT_SCOPE_UNKNOWN", check.get("reasonCode").asText());
+        }
+        update.put("expectedVersion", 1);
+        ((ObjectNode) update.at("/profile/security/auditabilityRequirements")).putArray("selectedCriteria").add("AUDIT_LOG_EXPORT");
+        var saved = saveV6("audit-sparse-export-only", path, update);
+        var preview = versionedSample("audit-sparse-no-retention-inference", "auditability-capability-preflight",
+                mvc.perform(get(path + "/auditability-capability-preflight")).andExpect(status().isOk()).andReturn());
+        for (var candidate : preview.get("candidates")) {
+            for (var check : candidate.at("/analysis/checks")) {
+                if (!check.get("criterion").asText().equals("AUDIT_LOG_EXPORT")) {
+                    assertEquals("CRITERION_NOT_SELECTED", check.get("reasonCode").asText());
+                    assertEquals("NOT_APPLIED", check.get("outcome").asText());
+                }
+                org.junit.jupiter.api.Assertions.assertTrue(check.get("documentedMinimumRetentionDays").isNull());
+            }
+        }
+        assertEquals(saved, versionedSample("audit-sparse-unchanged", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
+    }
+
     @ParameterizedTest @org.junit.jupiter.params.provider.MethodSource("auditScopeWireMatrix")
     void v6PreservesEachChosenCriterionAndAllCriticalitiesWithoutInventingProviderEvidence(String criterion, String criticality) throws Exception {
         var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");

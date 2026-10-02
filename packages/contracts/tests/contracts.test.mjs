@@ -50,6 +50,67 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("synthetic auditability evidence is separately versioned, scoped and never a publication", async () => {
+  const evidence = await readJson(path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog/auditability-evidence.v1.json"));
+  const base = await readJson(path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog/synthetic.v4.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/synthetic-auditability-catalog.v1.schema.json");
+  assert.equal(validate(evidence), true, validationMessage(validate));
+  assert.equal(evidence.baseCatalogVersion, base.catalogVersion);
+  assert.equal(evidence.options.length, base.options.length);
+  for (const option of evidence.options) {
+    const target = base.options.find(candidate => candidate.id === option.scope.optionId);
+    assert.equal(option.scope.plan, target.plan); assert.equal(option.scope.region, target.region);
+    assert.equal(new Set(option.facts.map(fact => fact.criterion)).size, option.facts.length);
+    for (const fact of option.facts) assert.deepEqual(fact.scope, option.scope);
+  }
+  for (const patch of [{ emitter: "APPLICATION" }, { criterion: "BUSINESS_EVENTS" }, { support: "OPTIONAL" },
+    { sourceUrl: "https://provider.example.com/logs" }, { sourceUrl: "https://user:secret@provider.example.invalid/logs" },
+    { observedAt: "yesterday" }, { documentedMinimumRetentionDays: 30 }, { configurationVerified: true }]) {
+    const invalid = structuredClone(evidence); Object.assign(invalid.options[0].facts[0], patch);
+    assert.equal(validate(invalid), false, JSON.stringify(patch));
+  }
+  for (const field of Object.keys(evidence.options[0].facts[0])) {
+    const invalid = structuredClone(evidence); delete invalid.options[0].facts[0][field]; assert.equal(validate(invalid), false, field);
+  }
+  assert.equal(validate({ ...evidence, kind: "PUBLISHED" }), false);
+  assert.equal(validate({ ...evidence, approvalGranted: true }), false);
+  for (const field of ["plan", "region", "configuration"]) {
+    const invalid = structuredClone(evidence); invalid.options[0].scope[field] = " padded "; assert.equal(validate(invalid), false);
+  }
+});
+
+test("auditability preview contract forbids verified claims, inconsistent reasons, status and criterion order", async () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/auditability-capability-preflight.v1.schema.json");
+  const catalog = await readJson(path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog/auditability-evidence.v1.json"));
+  const scope = catalog.options[0].scope, evaluatedAt = "2026-09-12T12:00:00Z";
+  const criteria = catalog.options[0].facts.map(fact => fact.criterion);
+  const requirements = { selectedCriteria: [], minimumRetentionDays: null };
+  const analysis = { optionScope: scope, criticality: "UNKNOWN", requirements, evaluatedAt,
+    checks: criteria.map(criterion => ({ criterion, outcome: "UNKNOWN", reasonCode: "REQUIREMENT_UNKNOWN", documentedMinimumRetentionDays: null })),
+    status: "NEEDS_INFORMATION", policyVersion: "auditability-capability-preflight-1",
+    analysisBasis: "SYNTHETIC_SCOPED_PROVIDER_CAPABILITY_EVIDENCE",
+    deferredBoundaries: ["eventRecordContentAndScope", "auditRecordIntegrity", "auditAccessControls", "loggingFailureHandling",
+      "exportDeliveryAndRetrieval", "deployedLoggingConfiguration", "complianceEvidence"],
+    configurationVerified: false, complianceVerified: false, recommendationReady: false };
+  const preview = { workspaceId: "70000000-0000-4000-8000-000000000001", assessmentId: "80000000-0000-4000-8000-000000000001",
+    assessmentVersion: 0, baseCatalogVersion: catalog.baseCatalogVersion, evidenceVersion: catalog.evidenceVersion, catalogKind: "SYNTHETIC",
+    evaluatedAt, criticality: "UNKNOWN", requirements, candidates: [{ displayName: "Fictional Complete", analysis, evidence: catalog.options[0].facts }],
+    policyVersion: analysis.policyVersion, scope: "SYNTHETIC_AUDITABILITY_CAPABILITY_PREFLIGHT",
+    checkedPaths: ["security.auditability", "security.auditabilityRequirements"], sourceVerificationPerformed: false, recommendationReady: false };
+  assert.equal(validate(preview), true, validationMessage(validate));
+  for (const field of ["sourceVerificationPerformed", "recommendationReady"]) assert.equal(validate({ ...preview, [field]: true }), false);
+  for (const patch of [{ configurationVerified: true }, { complianceVerified: true }, { recommendationReady: true },
+    { status: "MATCHES_CHECKED_REQUIREMENTS" }, { checks: [...analysis.checks].reverse() },
+    { checks: analysis.checks.slice(1) }, { criticality: "REQUIRED" }, { analysisBasis: "OBSERVED_LOGS" }]) {
+    const invalid = structuredClone(preview); Object.assign(invalid.candidates[0].analysis, patch);
+    assert.equal(validate(invalid), false, JSON.stringify(patch));
+  }
+  for (const patch of [{ outcome: "PASS" }, { documentedMinimumRetentionDays: 90 },
+    { reasonCode: "RETENTION_DURATION_UNKNOWN" }, { reasonCode: "DOCUMENTED_CAPABILITY_AVAILABLE" }]) {
+    const invalid = structuredClone(preview); Object.assign(invalid.candidates[0].analysis.checks[0], patch); assert.equal(validate(invalid), false);
+  }
+});
+
 test("temporary architecture declarations accept only one pattern's typed conditions without caller authority", () => {
   const validate = ajv.getSchema("https://authweave.dev/contracts/architecture-prerequisite-request.v1.schema.json");
   const preview = ajv.getSchema("https://authweave.dev/contracts/architecture-prerequisite-preview.v1.schema.json");

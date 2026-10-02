@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/synthetic-auditability-catalog.v1.schema.json",
+  "title": "Synthetic scoped auditability evidence v1",
+  "description": "Separate dated synthetic evidence bound to catalog v4 options. Core additionally enforces enclosing scope, unique criterion/scope and exact base option bindings. Never publication or observed configuration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "evidenceVersion",
+    "baseCatalogVersion",
+    "kind",
+    "options"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceVersion": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$"
+    },
+    "baseCatalogVersion": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$"
+    },
+    "kind": {
+      "const": "SYNTHETIC"
+    },
+    "options": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "facts"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/$defs/scope"
+          },
+          "facts": {
+            "type": "array",
+            "maxItems": 6,
+            "uniqueItems": true,
+            "items": {
+              "$ref": "#/$defs/fact"
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionId",
+        "plan",
+        "region",
+        "configuration"
+      ],
+      "properties": {
+        "optionId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$"
+        },
+        "plan": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        },
+        "region": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        },
+        "configuration": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+        }
+      }
+    },
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "emitter",
+        "criterion",
+        "support",
+        "documentedMinimumRetentionDays",
+        "evidenceStatus",
+        "sourceUrl",
+        "observedAt"
+      ],
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "emitter": {
+          "const": "IDENTITY_PROVIDER"
+        },
+        "criterion": {
+          "enum": [
+            "AUTHENTICATION_SUCCESS_EVENTS",
+            "AUTHENTICATION_FAILURE_EVENTS",
+            "ADMINISTRATIVE_CHANGE_EVENTS",
+            "PROVISIONING_CHANGE_EVENTS",
+            "AUDIT_LOG_EXPORT",
+            "AUDIT_LOG_RETENTION"
+          ]
+        },
+        "support": {
+          "enum": [
+            "SUPPORTED",
+            "UNSUPPORTED",
+            "UNKNOWN"
+          ]
+        },
+        "documentedMinimumRetentionDays": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 36500
+        },
+        "evidenceStatus": {
+          "enum": [
+            "REVIEWED",
+            "UNREVIEWED"
+          ]
+        },
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri",
+          "maxLength": 2048,
+          "pattern": "^https://[^/@?#:]+\\.invalid(?::[0-9]+)?(?:[/?#][^\\s]*)?$"
+        },
+        "observedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "if": {
+        "properties": {
+          "criterion": {
+            "const": "AUDIT_LOG_RETENTION"
+          },
+          "support": {
+            "const": "SUPPORTED"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "documentedMinimumRetentionDays": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  }
+}

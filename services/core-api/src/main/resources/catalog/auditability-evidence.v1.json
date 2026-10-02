@@ -1,0 +1,293 @@
+{
+  "schemaVersion": 1,
+  "evidenceVersion": "synthetic-auditability-2026-09-12.1",
+  "baseCatalogVersion": "synthetic-2026-09-12.4",
+  "kind": "SYNTHETIC",
+  "options": [
+    {
+      "scope": {
+        "optionId": "fictional-complete",
+        "plan": "Synthetic demo plan",
+        "region": "Synthetic region",
+        "configuration": "Synthetic logging enabled"
+      },
+      "facts": [
+        {
+          "scope": {
+            "optionId": "fictional-complete",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUTHENTICATION_SUCCESS_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-complete.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-complete",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUTHENTICATION_FAILURE_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-complete.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-complete",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "ADMINISTRATIVE_CHANGE_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-complete.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-complete",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "PROVISIONING_CHANGE_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-complete.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-complete",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUDIT_LOG_EXPORT",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-complete.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-complete",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUDIT_LOG_RETENTION",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": 90,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-complete.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        }
+      ]
+    },
+    {
+      "scope": {
+        "optionId": "fictional-no-scim",
+        "plan": "Synthetic demo plan",
+        "region": "Synthetic region",
+        "configuration": "Synthetic logging enabled"
+      },
+      "facts": [
+        {
+          "scope": {
+            "optionId": "fictional-no-scim",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUTHENTICATION_SUCCESS_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-no-scim.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-no-scim",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUTHENTICATION_FAILURE_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-no-scim.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-no-scim",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "ADMINISTRATIVE_CHANGE_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-no-scim.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-no-scim",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUDIT_LOG_EXPORT",
+          "support": "UNSUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-no-scim.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-no-scim",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUDIT_LOG_RETENTION",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": 7,
+          "evidenceStatus": "REVIEWED",
+          "sourceUrl": "https://fictional-no-scim.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        }
+      ]
+    },
+    {
+      "scope": {
+        "optionId": "fictional-unreviewed",
+        "plan": "Synthetic demo plan",
+        "region": "Synthetic region",
+        "configuration": "Synthetic logging enabled"
+      },
+      "facts": [
+        {
+          "scope": {
+            "optionId": "fictional-unreviewed",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUTHENTICATION_SUCCESS_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://fictional-unreviewed.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-unreviewed",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUTHENTICATION_FAILURE_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://fictional-unreviewed.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-unreviewed",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "ADMINISTRATIVE_CHANGE_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://fictional-unreviewed.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-unreviewed",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "PROVISIONING_CHANGE_EVENTS",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://fictional-unreviewed.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-unreviewed",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUDIT_LOG_EXPORT",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": null,
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://fictional-unreviewed.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        },
+        {
+          "scope": {
+            "optionId": "fictional-unreviewed",
+            "plan": "Synthetic demo plan",
+            "region": "Synthetic region",
+            "configuration": "Synthetic logging enabled"
+          },
+          "emitter": "IDENTITY_PROVIDER",
+          "criterion": "AUDIT_LOG_RETENTION",
+          "support": "SUPPORTED",
+          "documentedMinimumRetentionDays": 90,
+          "evidenceStatus": "UNREVIEWED",
+          "sourceUrl": "https://fictional-unreviewed.example.invalid/logging",
+          "observedAt": "2026-09-12T12:00:00Z"
+        }
+      ]
+    }
+  ]
+}

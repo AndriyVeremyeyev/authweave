@@ -3,6 +3,7 @@ package io.authweave.core.catalog;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Objects;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import io.authweave.core.assessment.domain.profile.AuditabilityRequirements;
 import io.authweave.core.assessment.domain.profile.AuditabilityRequirements.Criterion;
 import io.authweave.core.catalog.ProviderCatalog.Evidence;
@@ -34,7 +35,7 @@ public final class AuditabilityFacts {
     /** The duration is a documented minimum for this exact option, not a configurable maximum,
      * an external sink's retention, source freshness, or proof of deployed retention. */
     public record Fact(Scope scope, Emitter emitter, Criterion criterion, Support support,
-            Integer documentedMinimumRetentionDays, EvidenceStatus evidenceStatus, URI sourceUrl,
+            @JsonProperty(required = true) Integer documentedMinimumRetentionDays, EvidenceStatus evidenceStatus, URI sourceUrl,
             Instant observedAt) implements Evidence {
         public Fact {
             Objects.requireNonNull(scope); Objects.requireNonNull(emitter);

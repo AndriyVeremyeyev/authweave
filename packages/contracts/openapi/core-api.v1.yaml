@@ -2082,6 +2082,40 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/auditability-capability-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Compare saved auditability inputs against separately scoped synthetic evidence
+      description: >-
+        Read-only, no-store partial capability preview with the current assessment version.
+        Dated evidence is bound to catalog v4 option, plan, region and explicit synthetic
+        configuration. Unusable or missing evidence remains unknown. No ranking,
+        live source access, deployed logging/configuration/compliance verification,
+        history changes, merged eligibility or publication authority. Legacy scope
+        remains unrecorded. Requires the server-only BFF credential and personal ownership.
+      operationId: getAssessmentAuditabilityCapabilityPreflight
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Saved inputs, dated scoped evidence and partial capability results.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/auditability-capability-preflight.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          description: Missing or invalid service credential or session identity assertions.
+        "403":
+          description: Session identity does not own this personal workspace.
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
 components:
   securitySchemes:
     BffServiceToken:

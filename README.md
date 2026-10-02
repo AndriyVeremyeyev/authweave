@@ -372,6 +372,36 @@ existing preflights, source profiles, impact coverage and historical receipts ar
 Auditability remains deferred in those existing reports until explicitly integrated.
 AuthWeave's own append-only decision/audit history is a separate responsibility.
 
+### Scoped synthetic auditability evidence and private Core preview
+
+[Auditability evidence v1](services/core-api/src/main/resources/catalog/auditability-evidence.v1.json)
+is a separate immutable-in-memory sidecar, explicitly bound to the unchanged catalog
+v4 version and its option IDs, plans and regions. Each scope names one synthetic
+configuration; different configurations are never pooled or treated as a menu of
+verified deployments. Core rejects foreign scopes, application emitters, duplicate
+criteria/scopes, and missing base option bindings. Facts have support, review status,
+an observation date, an HTTPS `.invalid` source and an explicit nullable documented
+minimum retention. The [sidecar contract](packages/contracts/schemas/synthetic-auditability-catalog.v1.schema.json)
+does not make this evidence a published catalog or a human source-review receipt.
+
+The local-only GET
+`/api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/auditability-capability-preflight`
+reads the saved requirements and returns the assessment version, exact candidate scopes,
+dated evidence and six ordered checks per scope. It requires the existing server-only
+credential and personal workspace ownership, returns `Cache-Control: no-store`, and
+does not update the profile, timestamps, revisions, events or evidence dates.
+Core recomputes each candidate result from the returned evidence; unusable/missing
+facts stay unknown. Legacy unrecorded scope stays unrecorded without an automatic save.
+
+The fictional fixtures intentionally demonstrate a 90-day minimum, a 7-day minimum,
+an unavailable export capability, a missing provisioning-event fact and unreviewed
+claims. These are not facts about ZITADEL or any real vendor. Source URLs are not
+fetched. Passing selected criteria establishes only a synthetic capability match;
+configuration, compliance, source verification and recommendation readiness stay false.
+Existing comparison/impact policies, frozen source profiles, receipts and publication
+gates remain unchanged. This separate preview is not yet displayed in the BFF/UI;
+it is not merged provider eligibility, ranking or a complete auditability assessment.
+
 ### Auditability inputs and profile v6
 
 The local-only `/api/v6/workspaces/{workspaceId}/assessments` API adds
