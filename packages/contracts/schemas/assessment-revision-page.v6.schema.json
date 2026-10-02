@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-revision-page.v6.schema.json",
+  "title": "Assessment revision page v6",
+  "type": "object", "additionalProperties": false,
+  "required": ["items", "nextAfterVersion"],
+  "properties": {
+    "items": { "type": "array", "maxItems": 100, "items": { "oneOf": [
+      { "$ref": "./assessment-revision-page.v5.schema.json#/$defs/revision" },
+      { "$ref": "#/$defs/revisionV6" }
+    ] } },
+    "nextAfterVersion": { "$ref": "./assessment-revision-page.v5.schema.json#/properties/nextAfterVersion" }
+  },
+  "$defs": {
+    "revisionV6": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workspaceId", "assessmentId", "version", "status", "profileSchemaVersion", "profile", "origin", "recordedAt"],
+      "properties": {
+        "workspaceId": { "$ref": "./assessment-revision-page.v5.schema.json#/$defs/revision/properties/workspaceId" },
+        "assessmentId": { "$ref": "./assessment-revision-page.v5.schema.json#/$defs/revision/properties/assessmentId" },
+        "version": { "$ref": "./assessment-revision-page.v5.schema.json#/$defs/revision/properties/version" },
+        "status": { "$ref": "./assessment-revision-page.v5.schema.json#/$defs/revision/properties/status" },
+        "profileSchemaVersion": { "const": 6 },
+        "profile": { "$ref": "./application-identity-profile.v6.schema.json" },
+        "origin": { "$ref": "./assessment-revision-page.v5.schema.json#/$defs/revision/properties/origin" },
+        "recordedAt": { "$ref": "./assessment-revision-page.v5.schema.json#/$defs/revision/properties/recordedAt" }
+      }
+    }
+  }
+}

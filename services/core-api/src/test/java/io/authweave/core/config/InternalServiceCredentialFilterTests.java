@@ -16,6 +16,32 @@ class InternalServiceCredentialFilterTests {
     private static final String ORGANIZATION = "987654321098765432";
 
     @Test
+    void v6RoutesRequireServiceCredentialAndExactPersonalWorkspaceOwnership() throws Exception {
+        var id = java.util.UUID.fromString("60000000-0000-4000-8000-000000000001");
+        var workspaces = org.mockito.Mockito.mock(io.authweave.core.assessment.application.PersonalWorkspaceService.class);
+        org.mockito.Mockito.when(workspaces.owns("http://localhost:8081", "owner", id)).thenReturn(true);
+        for (String suffix : java.util.List.of("", "/80000000-0000-4000-8000-000000000001",
+                "/80000000-0000-4000-8000-000000000001/profile", "/80000000-0000-4000-8000-000000000001/revisions")) {
+            for (String subject : java.util.List.of("", "other-owner", "owner")) {
+                var request = new MockHttpServletRequest("PUT", "/api/v6/workspaces/" + id + "/assessments" + suffix);
+                request.addHeader("Authorization", "Bearer " + TOKEN);
+                request.addHeader("X-AuthWeave-Oidc-Issuer", "http://localhost:8081");
+                if (!subject.isEmpty()) request.addHeader("X-AuthWeave-Oidc-Subject", subject);
+                var response = new MockHttpServletResponse();
+                new InternalServiceCredentialFilter(TOKEN, workspaces, "", "").doFilter(request, response, new MockFilterChain());
+                assertEquals(subject.isEmpty() ? 401 : subject.equals("owner") ? 200 : 403, response.getStatus());
+            }
+            for (String token : java.util.List.of("", "wrong-token")) {
+                var request = new MockHttpServletRequest("GET", "/api/v6/workspaces/" + id + "/assessments" + suffix);
+                if (!token.isEmpty()) request.addHeader("Authorization", "Bearer " + token);
+                var response = new MockHttpServletResponse();
+                new InternalServiceCredentialFilter(TOKEN, workspaces, "", "").doFilter(request, response, new MockFilterChain());
+                assertEquals(401, response.getStatus());
+            }
+        }
+    }
+
+    @Test
     void prerequisitePreviewRequiresServiceIdentityAndPersonalWorkspaceOwnership() throws Exception {
         var workspaceId = java.util.UUID.fromString("60000000-0000-4000-8000-000000000001");
         var workspaces = org.mockito.Mockito.mock(io.authweave.core.assessment.application.PersonalWorkspaceService.class);

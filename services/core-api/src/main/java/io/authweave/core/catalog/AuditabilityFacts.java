@@ -3,19 +3,17 @@ package io.authweave.core.catalog;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Objects;
+import io.authweave.core.assessment.domain.profile.AuditabilityRequirements;
+import io.authweave.core.assessment.domain.profile.AuditabilityRequirements.Criterion;
 import io.authweave.core.catalog.ProviderCatalog.Evidence;
 import io.authweave.core.catalog.ProviderCatalog.EvidenceStatus;
 import io.authweave.core.catalog.ProviderCatalog.Support;
 
 /** Separate synthetic capability fixtures, not an extension of catalog v4 or observed log records. */
 public final class AuditabilityFacts {
-    public static final int MAX_RETENTION_DAYS = 36500;
+    public static final int MAX_RETENTION_DAYS = AuditabilityRequirements.MAX_RETENTION_DAYS;
     private AuditabilityFacts() { }
 
-    public enum Criterion {
-        AUTHENTICATION_SUCCESS_EVENTS, AUTHENTICATION_FAILURE_EVENTS,
-        ADMINISTRATIVE_CHANGE_EVENTS, PROVISIONING_CHANGE_EVENTS, AUDIT_LOG_EXPORT, AUDIT_LOG_RETENTION
-    }
     public enum Emitter { IDENTITY_PROVIDER, APPLICATION }
 
     /** Labels are exact bindings, never region/configuration menus or wildcard scopes. */

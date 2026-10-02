@@ -15,6 +15,60 @@ class AssessmentProfileJsonCodecTests {
     private final JsonMapper mapper = JsonMapper.builder().build();
     private final AssessmentProfileJsonCodec codec = new AssessmentProfileJsonCodec(mapper);
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(AuditabilityRequirements.Criterion.class)
+    void everyExplicitAuditCriterionUsesV6AndCannotBeMislabeledAsAnOlderSnapshot(AuditabilityRequirements.Criterion criterion) {
+        var base = ApplicationIdentityProfile.unknown(); var s = base.security();
+        var requirements = new AuditabilityRequirements(Set.of(criterion),
+                criterion == AuditabilityRequirements.Criterion.AUDIT_LOG_RETENTION ? 30 : null);
+        var security = new SecurityRequirements(s.multiFactorAuthentication(), s.browserTokenExposureMinimization(),
+                RequirementCriticality.REQUIRED, s.dataResidency(), s.assurance(), s.complianceTargets(),
+                s.dataResidencyDetails(), s.authenticationControls(), s.complianceScopeStatus(), requirements);
+        var profile = new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(), base.provisioning(), security, base.operations());
+        var encoded = codec.encode(profile);
+        assertEquals(6, profile.minimumSchemaVersion()); assertEquals(6, codec.schemaVersion(profile));
+        assertEquals(profile, codec.decode(encoded, (short) 6));
+        assertEquals(encoded, codec.encode(codec.decode(encoded, (short) 6)));
+        for (short older : new short[] {1, 2, 3, 4, 5})
+            assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(encoded, older));
+        for (String path : new String[] {"security/auditabilityRequirements", "security/dataResidencyDetails",
+                "security/authenticationControls", "security/complianceScopeStatus", "operations/usagePlanning"}) {
+            var parts = path.split("/"); var malformed = (ObjectNode) mapper.readTree(encoded.data());
+            ((ObjectNode) malformed.get(parts[0])).remove(parts[1]);
+            assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(JSONB.valueOf(malformed.toString()), (short) 6));
+            ((ObjectNode) malformed.get(parts[0])).putNull(parts[1]);
+            assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(JSONB.valueOf(malformed.toString()), (short) 6));
+        }
+        var malformed = (ObjectNode) mapper.readTree(encoded.data());
+        ((ObjectNode) malformed.at("/security/auditabilityRequirements")).remove("minimumRetentionDays");
+        assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(JSONB.valueOf(malformed.toString()), (short) 6));
+        var o = base.operations();
+        var withUsage = new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(), base.provisioning(), security,
+                new OperationalConstraints(o.hosting(), o.deploymentTarget(), o.identityExpertise(), o.budgetSensitivity(),
+                        new UsagePlanning("Synthetic pilot", java.util.List.of(), java.util.Map.of())));
+        assertEquals(6, codec.schemaVersion(withUsage)); assertEquals(withUsage, codec.decode(codec.encode(withUsage), (short) 6));
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {1, 2, 3, 4, 5})
+    void legacyAuditabilityCriticalityNeverInfersDetailedScopeOrMutatesItsStoredBytes(int version) {
+        var base = ApplicationIdentityProfile.unknown(); var s = base.security(); var o = base.operations();
+        var profile = new ApplicationIdentityProfile(base.application(), base.audience(), base.protocols(), base.provisioning(),
+                new SecurityRequirements(s.multiFactorAuthentication(), s.browserTokenExposureMinimization(), RequirementCriticality.REQUIRED,
+                        s.dataResidency(), s.assurance(), s.complianceTargets(),
+                        version == 2 ? new DataResidencyDetails(Set.of("DE"), Set.of()) : s.dataResidencyDetails(),
+                        version == 3 ? new AuthenticationControls(RequirementCriticality.REQUIRED, RequirementCriticality.UNKNOWN, RequirementCriticality.UNKNOWN) : s.authenticationControls(),
+                        version == 4 ? ComplianceScopeStatus.NONE_IDENTIFIED : s.complianceScopeStatus()),
+                version == 5 ? new OperationalConstraints(o.hosting(), o.deploymentTarget(), o.identityExpertise(), o.budgetSensitivity(),
+                        new UsagePlanning("Synthetic pilot", java.util.List.of(), java.util.Map.of())) : o);
+        var encoded = codec.encode(profile); assertEquals(version, codec.schemaVersion(profile));
+        var decoded = codec.decode(encoded, (short) version);
+        assertEquals(AuditabilityRequirements.unspecified(), decoded.security().auditabilityRequirements());
+        assertTrue(decoded.security().auditabilityRequirements().isUnrecorded());
+        assertFalse(mapper.readTree(encoded.data()).at("/security").has("auditabilityRequirements"));
+        assertEquals(encoded, codec.encode(decoded)); assertEquals(profile, decoded);
+    }
+
     @Test
     void usesTheSmallestLosslessFormatAndRejectsMislabeledSnapshots() {
         var legacy = ApplicationIdentityProfile.unknown();
@@ -35,7 +89,7 @@ class AssessmentProfileJsonCodecTests {
         assertEquals(expanded, codec.decode(expandedJson, (short) 2));
         assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(expandedJson, (short) 1));
         assertThrows(AssessmentProfileSerializationException.class, () -> codec.decode(oldJson, (short) 2));
-        assertThrows(UnsupportedAssessmentProfileVersionException.class, () -> codec.decode(oldJson, (short) 6));
+        assertThrows(UnsupportedAssessmentProfileVersionException.class, () -> codec.decode(oldJson, (short) 7));
         ObjectNode malformed = (ObjectNode) mapper.readTree(expandedJson.data()).deepCopy();
         ((ObjectNode) malformed.get("security")).putNull("dataResidencyDetails");
         assertThrows(AssessmentProfileSerializationException.class,

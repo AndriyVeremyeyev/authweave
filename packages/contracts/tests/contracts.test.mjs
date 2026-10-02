@@ -807,6 +807,69 @@ test("profile v4 requires explicit compliance scope and preserves mixed historic
   }
 });
 
+test("profile v6 requires explicit audit scope and binds bounded retention without widening older schemas", () => {
+  const schema = name => ajv.getSchema(`https://authweave.dev/contracts/${name}.schema.json`);
+  const profile = structuredClone(validAssessmentResponse.profile);
+  Object.assign(profile.security, { dataResidencyDetails: { allowedCountries: [], dataCategories: [] },
+    authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN" },
+    complianceScopeStatus: "UNKNOWN", auditabilityRequirements: { selectedCriteria: [], minimumRetentionDays: null } });
+  profile.operations.usagePlanning = { scopeDescription: "", assumptions: [], volumes: {} };
+  const input = { expectedVersion: 0, profile }; const validate = schema("update-assessment-profile-request.v6");
+  assert.equal(validate(input), true, validationMessage(validate));
+  for (const criticality of ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "UNKNOWN", "FORBIDDEN"]) {
+    profile.security.auditability = criticality;
+    for (const criterion of ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "ADMINISTRATIVE_CHANGE_EVENTS",
+      "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_EXPORT", "AUDIT_LOG_RETENTION"]) {
+      const scope = profile.security.auditabilityRequirements;
+      scope.selectedCriteria = [criterion]; scope.minimumRetentionDays = criterion === "AUDIT_LOG_RETENTION" ? 1 : null;
+      assert.equal(validate(input), true, validationMessage(validate));
+      if (criterion === "AUDIT_LOG_RETENTION") {
+        scope.minimumRetentionDays = 36500; assert.equal(validate(input), true);
+      }
+    }
+  }
+  profile.security.auditabilityRequirements = { selectedCriteria: [], minimumRetentionDays: null };
+  const response = { ...validAssessmentResponse, profileSchemaVersion: 6, profile };
+  assert.equal(schema("assessment-response.v6")(response), true);
+  for (const api of [1, 2, 3, 4, 5]) {
+    assert.equal(schema(`update-assessment-profile-request.v${api}`)(input), false);
+    assert.equal(schema(`assessment-response.v${api}`)(response), false);
+  }
+  for (const scope of [null, {}, { selectedCriteria: [] }, { minimumRetentionDays: null },
+    { selectedCriteria: null, minimumRetentionDays: null }, { selectedCriteria: "AUDIT_LOG_EXPORT", minimumRetentionDays: null },
+    { selectedCriteria: ["AUDIT_LOG_EXPORT", "AUDIT_LOG_EXPORT"], minimumRetentionDays: null },
+    ...[null, 0, "VERIFIED", " AUDIT_LOG_EXPORT"].map(value => ({ selectedCriteria: [value], minimumRetentionDays: null })),
+    { selectedCriteria: [], minimumRetentionDays: 30 }, { selectedCriteria: ["AUDIT_LOG_EXPORT"], minimumRetentionDays: 30 },
+    ...[null, 0, -1, 36501, 1.5, "30", true].map(value => ({ selectedCriteria: ["AUDIT_LOG_RETENTION"], minimumRetentionDays: value })),
+    { selectedCriteria: [], minimumRetentionDays: null, configurationVerified: true }]) {
+    profile.security.auditabilityRequirements = scope; assert.equal(validate(input), false, JSON.stringify(scope));
+  }
+  delete profile.security.auditabilityRequirements; assert.equal(validate(input), false);
+});
+
+test("v6 history preserves all six exact formats and rejects mislabeled or forged snapshots", () => {
+  const schema = name => ajv.getSchema(`https://authweave.dev/contracts/${name}.schema.json`);
+  const items = [1, 2, 3, 4, 5, 6].map(format => {
+    const profile = structuredClone(validAssessmentResponse.profile);
+    if (format >= 2) profile.security.dataResidencyDetails = { allowedCountries: [], dataCategories: [] };
+    if (format >= 3) profile.security.authenticationControls = { phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN" };
+    if (format >= 4) profile.security.complianceScopeStatus = "UNKNOWN";
+    if (format >= 5) profile.operations.usagePlanning = { scopeDescription: "", assumptions: [], volumes: {} };
+    if (format >= 6) profile.security.auditabilityRequirements = { selectedCriteria: ["AUDIT_LOG_RETENTION"], minimumRetentionDays: 30 };
+    return { workspaceId: validAssessmentResponse.workspaceId, assessmentId: validAssessmentResponse.id,
+      version: format - 1, status: "DRAFT", profileSchemaVersion: format, profile, origin: "UPDATED", recordedAt: validAssessmentResponse.createdAt };
+  });
+  const validate = schema("assessment-revision-page.v6"); const page = { items, nextAfterVersion: null };
+  assert.equal(validate(page), true, validationMessage(validate));
+  for (const api of [1, 2, 3, 4, 5]) assert.equal(schema(`assessment-revision-page.v${api}`)(page), false);
+  for (const item of items) {
+    for (const format of [1, 2, 3, 4, 5, 6, 7].filter(value => value !== item.profileSchemaVersion))
+      assert.equal(validate({ items: [{ ...item, profileSchemaVersion: format }], nextAfterVersion: null }), false);
+  }
+  assert.equal(validate({ ...page, nextAfterVersion: -1 }), false);
+  assert.equal(validate({ items: [{ ...items[5], configurationVerified: true }], nextAfterVersion: null }), false);
+});
+
 test("profile v5 records bounded usage inputs without turning unknowns into zero", () => {
   const schema = name => ajv.getSchema(`https://authweave.dev/contracts/${name}.schema.json`);
   const profile = structuredClone(validAssessmentResponse.profile);

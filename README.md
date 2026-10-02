@@ -365,11 +365,43 @@ and client/population coverage, integrity, access controls, failure handling, ex
 delivery, deployed configuration and compliance evidence remain unverified even when all
 selected capability checks pass. Configuration/compliance/recommendation readiness stay false.
 
-This step is a pure rule kernel and fixtures only: no endpoint, UI, persistence or live
-provider access. Profile v5 and catalog v4 do not yet carry these detailed inputs/facts;
+The evaluator remains a pure rule kernel with synthetic facts, not a live provider
+integration. Profile v6 can record its requirement inputs as described below, but
+catalog v4 does not carry the corresponding scoped facts;
 existing preflights, source profiles, impact coverage and historical receipts are unchanged.
 Auditability remains deferred in those existing reports until explicitly integrated.
 AuthWeave's own append-only decision/audit history is a separate responsibility.
+
+### Auditability inputs and profile v6
+
+The local-only `/api/v6/workspaces/{workspaceId}/assessments` API adds
+`security.auditabilityRequirements` to the complete profile. It contains an explicit
+`selectedCriteria` array of the six IDs in the
+[profile v6 contract](packages/contracts/schemas/application-identity-profile.v6.schema.json)
+and `minimumRetentionDays`.
+No selection means unresolved scope, not a logging exemption. Selecting
+`AUDIT_LOG_RETENTION` requires an integer from 1 to 36,500 days; otherwise the duration
+must be explicitly null. The existing `security.auditability` criticality applies to
+the selected criteria. Recording a requirement does not confirm provider capability.
+
+GET projects v1-v5 profiles with an empty selection and null duration without changing
+data, timestamps, versions or history. PUT `/{assessmentId}/profile` uses
+`expectedVersion`; scope changes atomically append a minimal security-section event
+and snapshot. Criteria are serialized in enum order; reordering a selection is a no-op.
+No-op saves preserve storage. Recorded scope requires stored profile v6,
+including when usage inputs also exist. Flyway V18 only widens allowed format versions.
+
+V1-v5 reads/writes refuse an unsupported current profile with
+`profile-upgrade-required`, preventing silent data loss. An explicit v6 clear can
+restore older current-profile compatibility; earlier v6 snapshots remain unchanged.
+GET `/{assessmentId}/revisions` under v6 returns exact mixed v1-v6 snapshots. Older
+history APIs reject only pages containing unsupported formats, not compatible pages.
+
+These Core routes retain the server-only service credential and personal workspace
+ownership boundary. The personal BFF/editor remains on v5 for this slice and will not
+hide v6 inputs; v6 UI integration is a follow-up. No provider evidence is loaded and
+no existing preflight/impact coverage, historical receipt or publication authority is
+upgraded by recording these inputs.
 
 ### Residency inputs and profile versions
 

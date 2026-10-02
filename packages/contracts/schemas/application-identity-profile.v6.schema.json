@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/application-identity-profile.v6.schema.json",
+  "title": "Application identity profile v6",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["application", "audience", "protocols", "provisioning", "security", "operations"],
+  "properties": {
+    "application": { "$ref": "./application-identity-profile.v5.schema.json#/properties/application" },
+    "audience": { "$ref": "./application-identity-profile.v5.schema.json#/properties/audience" },
+    "protocols": { "$ref": "./application-identity-profile.v5.schema.json#/properties/protocols" },
+    "provisioning": { "$ref": "./application-identity-profile.v5.schema.json#/properties/provisioning" },
+    "operations": { "$ref": "./application-identity-profile.v5.schema.json#/properties/operations" },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["multiFactorAuthentication", "browserTokenExposureMinimization", "auditability", "dataResidency", "assurance", "complianceTargets", "dataResidencyDetails", "authenticationControls", "complianceScopeStatus", "auditabilityRequirements"],
+      "properties": {
+        "multiFactorAuthentication": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/multiFactorAuthentication" },
+        "browserTokenExposureMinimization": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/browserTokenExposureMinimization" },
+        "auditability": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/auditability" },
+        "dataResidency": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/dataResidency" },
+        "assurance": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/assurance" },
+        "complianceTargets": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/complianceTargets" },
+        "dataResidencyDetails": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/dataResidencyDetails" },
+        "authenticationControls": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/authenticationControls" },
+        "complianceScopeStatus": { "$ref": "./application-identity-profile.v5.schema.json#/properties/security/properties/complianceScopeStatus" },
+        "auditabilityRequirements": { "$ref": "#/$defs/auditabilityRequirements" }
+      }
+    }
+  },
+  "$defs": {
+    "auditabilityRequirements": {
+      "description": "Explicit identity-provider capability requirements, not AuthWeave's own audit history or verified logging. Empty selection means unresolved scope; no events, export or duration are inferred from criticality, assurance or compliance labels. The existing auditability criticality applies to all selected criteria.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selectedCriteria", "minimumRetentionDays"],
+      "properties": {
+        "selectedCriteria": {
+          "type": "array", "maxItems": 6, "uniqueItems": true,
+          "items": { "type": "string", "enum": ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "ADMINISTRATIVE_CHANGE_EVENTS", "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_EXPORT", "AUDIT_LOG_RETENTION"] }
+        },
+        "minimumRetentionDays": {
+          "type": ["integer", "null"], "minimum": 1, "maximum": 36500,
+          "description": "Explicit requested minimum, only when retention is selected. Null otherwise. The ceiling is a project validation bound, not a standard or default. Source freshness and external sink retention cannot supply this input."
+        }
+      },
+      "if": { "properties": { "selectedCriteria": { "type": "array", "contains": { "const": "AUDIT_LOG_RETENTION" } } } },
+      "then": { "properties": { "minimumRetentionDays": { "type": "integer" } } },
+      "else": { "properties": { "minimumRetentionDays": { "type": "null" } } }
+    }
+  }
+}

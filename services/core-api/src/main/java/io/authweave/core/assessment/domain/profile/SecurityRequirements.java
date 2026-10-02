@@ -17,7 +17,9 @@ public record SecurityRequirements(
         @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = AuthenticationControls.UnrecordedFilter.class)
         AuthenticationControls authenticationControls,
         @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = ComplianceScopeStatus.UnknownFilter.class)
-        ComplianceScopeStatus complianceScopeStatus) {
+        ComplianceScopeStatus complianceScopeStatus,
+        @JsonInclude(value = JsonInclude.Include.CUSTOM, valueFilter = AuditabilityRequirements.UnrecordedFilter.class)
+        AuditabilityRequirements auditabilityRequirements) {
 
     public SecurityRequirements {
         // Legacy v1 JSON has no details. The v2 wire input and versioned codec require this field.
@@ -26,6 +28,8 @@ public record SecurityRequirements(
         if (authenticationControls == null) authenticationControls = AuthenticationControls.unknown();
         // Older formats record targets but not whether their scope was explicitly established.
         if (complianceScopeStatus == null) complianceScopeStatus = ComplianceScopeStatus.UNKNOWN;
+        // Legacy v1-v5 JSON has no auditability scope; v6 input and codec require the field.
+        if (auditabilityRequirements == null) auditabilityRequirements = AuditabilityRequirements.unspecified();
         Objects.requireNonNull(
                 multiFactorAuthentication,
                 "multiFactorAuthentication must not be null");
@@ -39,6 +43,16 @@ public record SecurityRequirements(
                 Objects.requireNonNull(
                         complianceTargets,
                         "complianceTargets must not be null"));
+    }
+
+    public SecurityRequirements(RequirementCriticality multiFactorAuthentication,
+            RequirementCriticality browserTokenExposureMinimization, RequirementCriticality auditability,
+            RequirementCriticality dataResidency, AssuranceLevel assurance, Set<ComplianceTarget> complianceTargets,
+            DataResidencyDetails dataResidencyDetails, AuthenticationControls authenticationControls,
+            ComplianceScopeStatus complianceScopeStatus) {
+        this(multiFactorAuthentication, browserTokenExposureMinimization, auditability, dataResidency,
+                assurance, complianceTargets, dataResidencyDetails, authenticationControls, complianceScopeStatus,
+                AuditabilityRequirements.unspecified());
     }
 
     public SecurityRequirements(RequirementCriticality multiFactorAuthentication,
@@ -59,6 +73,7 @@ public record SecurityRequirements(
 
     @JsonIgnore
     public short minimumSchemaVersion() {
+        if (!auditabilityRequirements.isUnrecorded()) return 6;
         if (complianceScopeStatus != ComplianceScopeStatus.UNKNOWN) return 4;
         return (short) (!authenticationControls.isUnrecorded() ? 3 : dataResidencyDetails.isUnrecorded() ? 1 : 2);
     }

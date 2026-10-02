@@ -1680,7 +1680,7 @@ paths:
       tags: [Assessments]
       summary: Read a current assessment as profile v5
       description: >-
-        Projects older profiles with an empty usagePlanning object without changing records, timestamps, lock versions or history. Empty metric maps mean unknown, not zero. The response profileSchemaVersion describes this representation, not a storage migration.
+        Projects older profiles with an empty usagePlanning object without changing records, timestamps, lock versions or history. Empty metric maps mean unknown, not zero. The response profileSchemaVersion describes this representation, not a storage migration. Recorded v6 auditability scope requires the v6 endpoint.
       operationId: getAssessmentV5
       security:
         - BffServiceToken: []
@@ -1695,6 +1695,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
   /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
@@ -1757,6 +1759,8 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/ProfileUpgradeRequired"
   /api/v5/workspaces/{workspaceId}/assessments/{assessmentId}/usage-planning-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
@@ -1924,6 +1928,156 @@ paths:
             application/json:
               schema:
                 $ref: ../schemas/weight-sensitivity-preview.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+    get:
+      tags: [Assessments]
+      summary: List assessment summaries in the authenticated workspace
+      operationId: listAssessmentsV6
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: "#/components/parameters/AssessmentListBeforeId"
+        - $ref: "#/components/parameters/AssessmentListLimit"
+      responses:
+        "200":
+          description: Bounded summaries without profile contents.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-list-page.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+    post:
+      tags: [Assessments]
+      summary: Create a draft with a profile v6 representation
+      description: >-
+        Local-only credential-protected Core API. The personal workspace must belong
+        to the server-asserted OIDC identity. No audit criteria or retention duration
+        are inferred. Response projection does not upgrade the stored format.
+      operationId: createAssessmentV6
+      security:
+        - BffServiceToken: []
+      responses:
+        "201":
+          description: Created draft with unrecorded auditability inputs.
+          headers:
+            Location:
+              $ref: "#/components/headers/Location"
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v6.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/WorkspaceNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Read an assessment with explicit auditability requirement inputs
+      description: >-
+        Legacy scope is projected as an empty selection with null minimum retention.
+        Unknown is not an explicit exemption, default event set or verified logging.
+        No data, timestamps, versions or historical snapshots are rewritten.
+      operationId: getAssessmentV6
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Current assessment in the v6 representation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v6.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/profile:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    put:
+      tags: [Assessments]
+      summary: Replace a profile including explicit audit criteria and minimum retention
+      description: >-
+        Complete profile replacement with expectedVersion. Six criteria are separately
+        selectable; the existing auditability criticality applies to the selection.
+        Empty scope is unresolved. Retention selection requires 1-36500 days; otherwise
+        minimumRetentionDays must be explicitly null. This bound is not a compliance
+        rule. Malformed inputs return 400, other domain contradictions 422.
+        A real change atomically appends a minimal section-level event and lossless snapshot;
+        auditability changes identify the security section, not individual profile values.
+        no-op saves do not rewrite data. V1-v5 API writes cannot erase recorded scope.
+        Explicit v6 clearing restores older current-profile compatibility where all
+        remaining inputs fit, without rewriting earlier v6 snapshots. No provider
+        evidence, observed logs, configuration verification or recommendation is produced.
+      operationId: updateAssessmentProfileV6
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/update-assessment-profile-request.v6.schema.json
+      responses:
+        "200":
+          description: Updated or unchanged assessment.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-response.v6.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
+        "422":
+          $ref: "#/components/responses/InvalidProfile"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/revisions:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+      - $ref: "#/components/parameters/AfterVersion"
+      - $ref: "#/components/parameters/HistoryLimit"
+    get:
+      tags: [Assessments]
+      summary: Read exact mixed v1 through v6 historical profiles
+      description: >-
+        Preserves each original stored format with exclusive version pagination.
+        No upcasting or current-domain revalidation. Older APIs reject only pages
+        containing unsupported formats. Minimal events remain on the v1 endpoint.
+      operationId: getAssessmentRevisionsV6
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Original immutable profile snapshots.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-revision-page.v6.schema.json
         "400":
           $ref: "#/components/responses/InvalidRequest"
         "404":

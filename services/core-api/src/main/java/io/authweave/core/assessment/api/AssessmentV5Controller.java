@@ -59,6 +59,11 @@ public class AssessmentV5Controller {
     public HistoryPage<AssessmentRevision> revisions(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId,
             @RequestParam(required = false) @Min(0) @Max(9007199254740991L) Long afterVersion,
             @RequestParam(defaultValue = "50") @Min(1) @Max(100) int limit) {
-        return service.getRevisions(new WorkspaceId(workspaceId), new AssessmentId(assessmentId), afterVersion, limit);
+        var page = service.getRevisions(new WorkspaceId(workspaceId), new AssessmentId(assessmentId), afterVersion, limit);
+        int requiredVersion = page.items().stream().mapToInt(AssessmentRevision::profileSchemaVersion).max().orElse(5);
+        if (requiredVersion > 5) {
+            throw new io.authweave.core.assessment.application.ProfileUpgradeRequiredException(requiredVersion);
+        }
+        return page;
     }
 }

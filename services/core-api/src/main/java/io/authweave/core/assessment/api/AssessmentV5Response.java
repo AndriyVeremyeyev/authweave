@@ -14,6 +14,9 @@ public record AssessmentV5Response(UUID id, UUID workspaceId, AssessmentStatus s
 
     static AssessmentV5Response from(PersistedAssessment persisted, ObjectMapper mapper) {
         var profile = persisted.assessment().profile();
+        if (profile.minimumSchemaVersion() > 5) {
+            throw new io.authweave.core.assessment.application.ProfileUpgradeRequiredException(profile.minimumSchemaVersion());
+        }
         ObjectNode tree = mapper.valueToTree(profile);
         ((ObjectNode) tree.get("security")).set("dataResidencyDetails",
                 mapper.valueToTree(profile.security().dataResidencyDetails()));

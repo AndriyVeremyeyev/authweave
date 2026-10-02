@@ -95,6 +95,12 @@ public class AssessmentApplicationService {
         return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 4);
     }
 
+    @Transactional
+    public PersistedAssessment updateProfileV6(WorkspaceId workspaceId, AssessmentId assessmentId,
+            long expectedVersion, ApplicationIdentityProfile profile) {
+        return updateProfile(workspaceId, assessmentId, expectedVersion, profile, 6);
+    }
+
     private PersistedAssessment updateProfile(WorkspaceId workspaceId, AssessmentId assessmentId,
             long expectedVersion, ApplicationIdentityProfile profile, int maximumSchemaVersion) {
         PersistedAssessment persisted = getAssessment(workspaceId, assessmentId);

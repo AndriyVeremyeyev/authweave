@@ -22,7 +22,7 @@ public record ApplicationIdentityProfile(
 
     @JsonIgnore
     public short minimumSchemaVersion() {
-        return operations.usagePlanning().isUnrecorded() ? security.minimumSchemaVersion() : 5;
+        return (short) Math.max(security.minimumSchemaVersion(), operations.usagePlanning().isUnrecorded() ? 1 : 5);
     }
 
     public static ApplicationIdentityProfile unknown() {

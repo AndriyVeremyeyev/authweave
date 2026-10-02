@@ -10,7 +10,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import io.authweave.core.catalog.AuditabilityFacts.*;
 import io.authweave.core.catalog.ProviderCatalog.EvidenceStatus;
 import io.authweave.core.catalog.ProviderCatalog.Support;
-import io.authweave.core.evaluation.AuditabilityRequirements;
+import io.authweave.core.assessment.domain.profile.AuditabilityRequirements;
+import io.authweave.core.assessment.domain.profile.AuditabilityRequirements.Criterion;
 import static org.junit.jupiter.api.Assertions.*;
 
 class AuditabilityFactsTests {

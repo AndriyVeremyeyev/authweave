@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-response.v6.schema.json",
+  "title": "Assessment response v6",
+  "type": "object", "additionalProperties": false,
+  "required": ["id", "workspaceId", "status", "version", "createdAt", "updatedAt", "profileSchemaVersion", "profile"],
+  "properties": {
+    "id": { "$ref": "./assessment-response.v5.schema.json#/properties/id" },
+    "workspaceId": { "$ref": "./assessment-response.v5.schema.json#/properties/workspaceId" },
+    "status": { "$ref": "./assessment-response.v5.schema.json#/properties/status" },
+    "version": { "$ref": "./assessment-response.v5.schema.json#/properties/version" },
+    "createdAt": { "$ref": "./assessment-response.v5.schema.json#/properties/createdAt" },
+    "updatedAt": { "$ref": "./assessment-response.v5.schema.json#/properties/updatedAt" },
+    "profileSchemaVersion": { "const": 6, "description": "Response representation version, not necessarily the stored format." },
+    "profile": { "$ref": "./application-identity-profile.v6.schema.json" }
+  }
+}

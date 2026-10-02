@@ -2648,6 +2648,154 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         return payload;
     }
 
+    @Test
+    void v6AuditScopeUsesLosslessStorageAtomicHistoryAndPreventsOlderApiDataLoss() throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var initial = versionedSample("v6-legacy-projection", "assessment-response.v6", mvc.perform(get(path)).andExpect(status().isOk()).andReturn());
+        assertEquals(6, initial.get("profileSchemaVersion").asInt());
+        assertEquals(0, initial.at("/profile/security/auditabilityRequirements/selectedCriteria").size());
+        org.junit.jupiter.api.Assertions.assertTrue(initial.at("/profile/security/auditabilityRequirements/minimumRetentionDays").isNull());
+        assertEquals(assessment.created(), response("v6-projection-does-not-migrate", mvc.perform(get(assessment.path())).andReturn()));
+        var olderProfiles = new ArrayList<JsonNode>();
+        for (int api = 1; api <= 5; api++) olderProfiles.add(mapper.readTree(mvc.perform(get(path.replace("/api/v6/", "/api/v" + api + "/")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("profile"));
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile").deepCopy());
+        assertEquals(initial, saveV6("v6-unrecorded-no-op", path, update));
+        var security = (ObjectNode) update.at("/profile/security"); security.put("auditability", "REQUIRED");
+        var requirements = (ObjectNode) security.get("auditabilityRequirements");
+        requirements.putArray("selectedCriteria").add("AUDIT_LOG_RETENTION").add("AUDIT_LOG_EXPORT");
+        requirements.put("minimumRetentionDays", 30);
+        var saved = saveV6("v6-auditability-saved", path, update);
+        assertEquals(1, saved.get("version").asInt());
+        assertEquals(saved, versionedSample("v6-auditability-loaded", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
+        update.put("expectedVersion", 1); assertEquals(saved, saveV6("v6-recorded-no-op", path, update));
+        var history = versionedSample("v6-mixed-exact-history", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn());
+        assertEquals(2, history.get("items").size()); assertEquals(1, history.at("/items/0/profileSchemaVersion").asInt());
+        assertEquals(6, history.at("/items/1/profileSchemaVersion").asInt());
+        assertEquals(assessment.created().get("profile"), history.at("/items/0/profile"));
+        assertEquals(saved.get("profile"), history.at("/items/1/profile"));
+        var events = historyResponse("v6-minimal-security-events", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        assertEquals(2, events.get("items").size()); assertEquals(List.of("security"), mapper.convertValue(events.at("/items/1/changedSections"), List.class));
+        for (int api = 1; api <= 5; api++) {
+            var oldPath = path.replace("/api/v6/", "/api/v" + api + "/");
+            response("v6-older-read-denied", mvc.perform(get(oldPath)).andExpect(status().isConflict())
+                    .andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+            response("v6-older-history-denied", mvc.perform(get(oldPath + "/revisions")).andExpect(status().isConflict()).andReturn());
+            var oldRequest = mapper.createObjectNode().put("expectedVersion", 1); oldRequest.set("profile", olderProfiles.get(api - 1));
+            response("v6-older-write-denied", mvc.perform(put(oldPath + "/profile").contentType(MediaType.APPLICATION_JSON).content(oldRequest.toString()))
+                    .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("profile-upgrade-required")).andReturn());
+            versionedSample("v6-older-supported-history-page", api == 1 ? "assessment-revision-page" : "assessment-revision-page.v" + api,
+                    mvc.perform(get(oldPath + "/revisions?limit=1")).andExpect(status().isOk()).andReturn());
+        }
+        update.put("expectedVersion", 0);
+        response("v6-stale-write", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON).content(update.toString()))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("assessment-version-conflict")).andReturn());
+        assertEquals(history, versionedSample("v6-denied-writes-preserve-history", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn()));
+        assertEquals(events, historyResponse("v6-denied-writes-preserve-events", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+        update.put("expectedVersion", 1); requirements.putArray("selectedCriteria"); requirements.putNull("minimumRetentionDays");
+        var cleared = saveV6("v6-explicit-clear", path, update); assertEquals(2, cleared.get("version").asInt());
+        versionedSample("v5-readable-after-audit-scope-clear", "assessment-response.v5", mvc.perform(get(path.replace("/api/v6/", "/api/v5/"))).andExpect(status().isOk()).andReturn());
+        var after = versionedSample("v6-history-preserved-after-clear", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn());
+        assertEquals(history.at("/items/0"), after.at("/items/0")); assertEquals(history.at("/items/1"), after.at("/items/1"));
+        assertEquals(1, after.at("/items/2/profileSchemaVersion").asInt());
+        response("v5-history-still-requires-v6", mvc.perform(get(path.replace("/api/v6/", "/api/v5/") + "/revisions")).andExpect(status().isConflict()).andReturn());
+        var mislabeled = (ObjectNode) after.deepCopy(); ((ObjectNode) mislabeled.at("/items/1")).put("profileSchemaVersion", 5);
+        sample("v6-mislabeled-history", "assessment-revision-page.v6", false, mislabeled);
+        var forged = (ObjectNode) saved.deepCopy(); forged.put("configurationVerified", true);
+        sample("v6-no-provider-verification", "assessment-response.v6", false, forged);
+        versionedSample("v6-create", "assessment-response.v6", mvc.perform(post("/api/v6/workspaces/" + assessment.workspaceId().value() + "/assessments"))
+                .andExpect(status().isCreated()).andReturn());
+        versionedSample("v6-list", "assessment-list-page", mvc.perform(get("/api/v6/workspaces/" + assessment.workspaceId().value() + "/assessments")).andExpect(status().isOk()).andReturn());
+    }
+
+    static java.util.stream.Stream<org.junit.jupiter.params.provider.Arguments> auditScopeWireMatrix() {
+        return java.util.Arrays.stream(io.authweave.core.assessment.domain.profile.AuditabilityRequirements.Criterion.values())
+                .flatMap(criterion -> java.util.Arrays.stream(io.authweave.core.assessment.domain.profile.RequirementCriticality.values())
+                        .map(criticality -> org.junit.jupiter.params.provider.Arguments.of(criterion.name(), criticality.name())));
+    }
+
+    @Test
+    void v6StoresAllSixCriteriaAndReorderingASelectionIsANoop() throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var initial = versionedSample("v6-all-criteria-initial", "assessment-response.v6", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile").deepCopy());
+        ((ObjectNode) update.at("/profile/security")).put("auditability", "REQUIRED");
+        var requirements = (ObjectNode) update.at("/profile/security/auditabilityRequirements"); requirements.put("minimumRetentionDays", 1);
+        var ids = requirements.putArray("selectedCriteria");
+        for (var criterion : io.authweave.core.assessment.domain.profile.AuditabilityRequirements.Criterion.values()) ids.add(criterion.name());
+        var saved = saveV6("v6-all-criteria-saved", path, update);
+        assertEquals(6, saved.at("/profile/security/auditabilityRequirements/selectedCriteria").size());
+        update.put("expectedVersion", 1); ids.removeAll();
+        java.util.Arrays.stream(io.authweave.core.assessment.domain.profile.AuditabilityRequirements.Criterion.values())
+                .sorted(java.util.Comparator.reverseOrder()).forEach(c -> ids.add(c.name()));
+        assertEquals(saved, saveV6("v6-selection-order-no-op", path, update));
+        assertEquals(2, versionedSample("v6-selection-order-no-history", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn()).get("items").size());
+        assertEquals(2, historyResponse("v6-selection-order-no-events", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()).get("items").size());
+    }
+
+    @ParameterizedTest @org.junit.jupiter.params.provider.MethodSource("auditScopeWireMatrix")
+    void v6PreservesEachChosenCriterionAndAllCriticalitiesWithoutInventingProviderEvidence(String criterion, String criticality) throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var initial = versionedSample("v6-matrix-initial", "assessment-response.v6", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile").deepCopy());
+        ((ObjectNode) update.at("/profile/security")).put("auditability", criticality);
+        var scope = (ObjectNode) update.at("/profile/security/auditabilityRequirements"); scope.putArray("selectedCriteria").add(criterion);
+        if (criterion.equals("AUDIT_LOG_RETENTION")) scope.put("minimumRetentionDays", 36500);
+        var saved = saveV6("v6-matrix-saved", path, update);
+        assertEquals(criticality, saved.at("/profile/security/auditability").asText()); assertEquals(scope, saved.at("/profile/security/auditabilityRequirements"));
+        assertEquals(saved, versionedSample("v6-matrix-reloaded", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"missing-scope", "null-scope", "missing-criteria", "null-criteria", "scalar-criteria",
+            "duplicate-criteria", "null-element", "unknown-criterion", "numeric-criterion", "padded-criterion", "missing-duration",
+            "null-selected-duration", "zero-duration", "negative-duration", "oversized-duration", "fractional-duration", "string-duration",
+            "boolean-duration", "unselected-duration", "unknown-field", "verification-flag", "helper-field", "missing-version", "unsafe-version"})
+    void v6RejectsMalformedAuditabilityInputsWithoutStateHistoryOrEventChanges(String scenario) throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var before = versionedSample("v6-invalid-before", "assessment-response.v6", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", before.get("profile").deepCopy());
+        var security = (ObjectNode) update.at("/profile/security"); var scope = (ObjectNode) security.get("auditabilityRequirements");
+        if (scenario.contains("duration") && !scenario.equals("unselected-duration") && !scenario.equals("missing-duration")) scope.putArray("selectedCriteria").add("AUDIT_LOG_RETENTION");
+        switch (scenario) {
+            case "missing-scope" -> security.remove("auditabilityRequirements");
+            case "null-scope" -> security.putNull("auditabilityRequirements");
+            case "missing-criteria" -> scope.remove("selectedCriteria");
+            case "null-criteria" -> scope.putNull("selectedCriteria");
+            case "scalar-criteria" -> scope.put("selectedCriteria", "AUDIT_LOG_EXPORT");
+            case "duplicate-criteria" -> scope.putArray("selectedCriteria").add("AUDIT_LOG_EXPORT").add("AUDIT_LOG_EXPORT");
+            case "null-element" -> scope.putArray("selectedCriteria").addNull();
+            case "unknown-criterion" -> scope.putArray("selectedCriteria").add("COMPLIANT");
+            case "numeric-criterion" -> scope.putArray("selectedCriteria").add(0);
+            case "padded-criterion" -> scope.putArray("selectedCriteria").add(" AUDIT_LOG_EXPORT");
+            case "missing-duration" -> scope.remove("minimumRetentionDays");
+            case "null-selected-duration" -> scope.putNull("minimumRetentionDays");
+            case "zero-duration" -> scope.put("minimumRetentionDays", 0);
+            case "negative-duration" -> scope.put("minimumRetentionDays", -1);
+            case "oversized-duration" -> scope.put("minimumRetentionDays", 36501);
+            case "fractional-duration" -> scope.put("minimumRetentionDays", 30.5);
+            case "string-duration" -> scope.put("minimumRetentionDays", "30");
+            case "boolean-duration" -> scope.put("minimumRetentionDays", true);
+            case "unselected-duration" -> scope.put("minimumRetentionDays", 30);
+            case "unknown-field" -> scope.put("provider", "Fictional");
+            case "verification-flag" -> scope.put("configurationVerified", true);
+            case "helper-field" -> scope.put("retentionBoundToSelection", true);
+            case "missing-version" -> update.remove("expectedVersion");
+            default -> update.put("expectedVersion", 9007199254740992L);
+        }
+        sample("v6-invalid-" + scenario, "update-assessment-profile-request.v6", false, update);
+        response("v6-invalid-" + scenario, mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON).content(update.toString()))
+                .andExpect(status().isBadRequest()).andReturn());
+        assertEquals(before, versionedSample("v6-invalid-unchanged", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
+        assertEquals(1, versionedSample("v6-invalid-no-history", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn()).get("items").size());
+        assertHistorySize(assessment, 1);
+    }
+
+    private JsonNode saveV6(String name, String path, ObjectNode request) throws Exception {
+        sample(name + "-request", "update-assessment-profile-request.v6", true, request.deepCopy());
+        return versionedSample(name, "assessment-response.v6", mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON)
+                .content(request.toString())).andExpect(status().isOk()).andReturn());
+    }
+
     private ObjectNode request() {
         ObjectNode request = mapper.createObjectNode().put("expectedVersion", 0);
         request.set("profile", mapper.valueToTree(ApplicationIdentityProfile.unknown()));
