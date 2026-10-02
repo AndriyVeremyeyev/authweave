@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "workos-directory-sync-staging-draft-2026.10.02",
+  "options": [{
+    "id": "workos-directory-sync-staging-scim-events",
+    "providerId": "workos",
+    "product": "WorkOS Directory Sync",
+    "plan": "Staging; testing only, no account or production entitlement verified",
+    "deployment": "MANAGED",
+    "region": "No environment region selected; storage destinations not verified",
+    "configuration": "Custom SCIM v2.0 inbound to WorkOS; bearer auth; app-owned Events API bridge and state reconciliation; no login",
+    "facts": {
+      "SCIM": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Staging connections are not billed according to https://workos.com/docs/authkit/environments; production Directory Sync has per-connection charges at https://workos.com/pricing. AuthKit's free user allowance is not free production Directory Sync.",
+          "Create an organization-bound Custom SCIM v2.0 directory and configure the upstream provisioner with its WorkOS endpoint and generated bearer token. No account, connector or upstream provider was tested.",
+          "WorkOS receives inbound SCIM; the application consumes read-only directory data and implements its own lifecycle, permissions and local-session revocation. This is not a native SCIM endpoint in the SaaS or write-back to the upstream directory: https://workos.com/docs/directory-sync/quick-start.",
+          "The app-owned bridge must persist an Events API cursor, handle replay safely and reconcile state; see https://workos.com/docs/events/data-syncing/events-api. No bridge implementation or end-to-end latency was verified.",
+          "Inactive users are removed from the WorkOS directory by default, not necessarily deleted from the SaaS. Retaining inactive users requires a separate support-enabled configuration: https://workos.com/docs/directory-sync/handle-inactive-users."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/integrations/scim",
+          "observedAt": "2026-10-02T22:46:13Z",
+          "summary": "The custom SCIM guide describes an inbound directory endpoint and selectable request authentication for user/group ingestion. This staging proposal selects bearer authentication and requires application-side integration, not tested deprovisioning."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Limit this proposal to the same staging Custom SCIM v2.0 directory described at https://workos.com/docs/integrations/scim; it does not establish other connectors, production entitlement or nested-group behavior.",
+          "Consume group and membership events through the app-owned bridge. Group deletion does not emit individual dsync.group.user_removed events; remove the deleted group's memberships/access explicitly without assuming every member's account must be deleted.",
+          "Reconcile paginated memberships using directory APIs; user updated_at does not change on membership changes. The deprecated Directory User groups field is not a reliable membership inventory: https://workos.com/docs/directory-sync/quick-start.",
+          "Map directory and organization identities into application membership and authorization. Group data alone does not enforce roles, remove other memberships or revoke local sessions; no application bridge or lifecycle flow was tested."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/directory-sync/understanding-events",
+          "observedAt": "2026-10-02T22:46:13Z",
+          "summary": "Directory Sync documents group/membership events, group-deletion cleanup and state reconciliation. Configurable group ingestion is distinct from application authorization and does not prove complete or timely access revocation."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

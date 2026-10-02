@@ -13,6 +13,7 @@ const scopedDraft = await readScopedBaselineDraft();
 const scopedDrafts = await readScopedBaselineDrafts();
 const zitadelDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "zitadel");
 const auth0Draft = scopedDrafts.find((draft) => draft.options[0].providerId === "auth0");
+const workosDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "workos");
 const observedAt = new Date("2026-10-02T19:58:06Z");
 const copy = () => structuredClone(drafts);
 
@@ -251,15 +252,92 @@ test("Auth0 scoped inspection rejects trial/tier/deployment drift, cross-directi
   }
 });
 
+test("staging Directory Sync proposes a SCIM/event bridge, not login or free production enforcement", () => {
+  const at = new Date("2026-10-02T22:46:13Z");
+  const before = JSON.stringify(workosDraft);
+  const report = inspectScopedBaselineDraft(workosDraft, at);
+  assertUntrusted(report);
+  assert.equal(report.optionCount, 1);
+  assert.equal(report.factCount, 2);
+  const option = report.options[0];
+  assert.equal(option.basis, "PLAN_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(option.sourcePlan, "Staging");
+  assert.equal(option.product, "WorkOS Directory Sync");
+  assert.equal(option.deployment, "MANAGED");
+  assert.equal(Object.hasOwn(option, "sourceRelease"), false);
+  assert.equal(Object.hasOwn(option, "sourceCommit"), false);
+  assert.deepEqual(Object.fromEntries(option.facts.map((fact) => [fact.path, fact.availability])), {
+    "facts.GROUP_SYNC": "OPTIONAL", "facts.SCIM": "OPTIONAL",
+  });
+  assert.equal(option.omittedCapabilities.length, 7);
+  assert.ok(["OIDC", "SAML", "ENTERPRISE_SSO"].every((capability) => option.omittedCapabilities.includes(capability)));
+  assert.ok(option.facts.every((fact) => fact.freshness === "CURRENT"));
+  const claims = workosDraft.options[0].facts;
+  assert.match(claims.SCIM.conditions.join(" "), /Staging.*not billed.*production.*per-connection/);
+  assert.match(claims.SCIM.conditions.join(" "), /not free production Directory Sync/);
+  assert.match(claims.SCIM.conditions.join(" "), /read-only.*not a native SCIM endpoint in the SaaS or write-back/);
+  assert.match(claims.SCIM.conditions.join(" "), /persist an Events API cursor.*replay.*reconcile/);
+  assert.match(claims.SCIM.conditions.join(" "), /not necessarily deleted from the SaaS/);
+  assert.match(claims.GROUP_SYNC.conditions.join(" "), /does not emit individual dsync.group.user_removed/);
+  assert.match(claims.GROUP_SYNC.conditions.join(" "), /without assuming every member's account must be deleted/);
+  assert.match(claims.GROUP_SYNC.conditions.join(" "), /updated_at does not change.*deprecated Directory User groups field/);
+  for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
+    const later = inspectScopedBaselineDraft(workosDraft, new Date(at.getTime() + offset));
+    assertUntrusted(later);
+    assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness
+      && fact.evidence.observedAt === "2026-10-02T22:46:13Z"));
+  }
+  assert.equal(JSON.stringify(workosDraft), before);
+});
+
+test("WorkOS inspection rejects production/AuthKit conflation, connector drift and invented login or coverage", () => {
+  const mutations = [
+    (input) => { input.approvalGranted = true; },
+    (input) => { input.options[0].plan = "Production pay-as-you-go"; },
+    (input) => { input.options[0].plan = "AuthKit Free up to 1M users"; },
+    (input) => { input.options[0].product = "WorkOS AuthKit Connect"; },
+    (input) => { input.options[0].deployment = "SELF_HOSTED"; },
+    (input) => { input.options[0].region = "EU"; },
+    (input) => { input.options[0].configuration = "Native SaaS SCIM endpoint with upstream write-back"; },
+    (input) => { input.options[0].configuration = "Google Workspace pull connector with OAuth authentication"; },
+    (input) => { input.options[0].providerId = "auth0"; },
+    (input) => { input.options[0].id = "workos-managed-research"; },
+    (input) => { input.catalogVersion = auth0Draft.catalogVersion; },
+    (input) => { input.options[0].facts.SCIM.availability = "MANDATORY"; },
+    (input) => { input.options[0].facts.GROUP_SYNC.availability = "UNAVAILABLE"; },
+    (input) => { input.options[0].facts.SCIM.conditions = []; },
+    (input) => { input.options[0].facts.SCIM.conditions.push(input.options[0].facts.SCIM.conditions[0]); },
+    (input) => { input.options[0].facts.SCIM.evidence.sourceUrl = "https://workos.com/pricing"; },
+    (input) => { input.options[0].facts.SCIM.evidence.sourceUrl = "https://workos.com/docs/integrations/google-workspace"; },
+    (input) => { input.options[0].facts.GROUP_SYNC.evidence.sourceUrl = input.options[0].facts.SCIM.evidence.sourceUrl; },
+    (input) => { input.options[0].facts.SCIM.evidence.sourceUrl += "?reviewed=true"; },
+    (input) => { input.options[0].facts.GROUP_SYNC.evidence.sourceUrl = "https://workos.com.attacker.invalid/docs"; },
+    (input) => { input.options[0].facts.SCIM.evidence.observedAt = "2026-02-30T22:46:13Z"; },
+    (input) => { input.options[0].facts.OIDC = structuredClone(input.options[0].facts.SCIM); },
+    (input) => { delete input.options[0].facts.GROUP_SYNC; },
+    (input) => { input.options.push(structuredClone(input.options[0])); },
+    (input) => { input.options[0].compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER = {
+      support: "SUPPORTED", conditions: [], evidence: structuredClone(input.options[0].facts.SCIM.evidence),
+    }; },
+    (input) => { input.options[0].residency.USER_PROFILES = {
+      coverage: "COMPLETE", storageCountries: ["US"], conditions: [], evidence: structuredClone(input.options[0].facts.SCIM.evidence),
+    }; },
+  ];
+  for (const mutate of mutations) {
+    const input = structuredClone(workosDraft); mutate(input);
+    assert.throws(() => inspectScopedBaselineDraft(input, observedAt));
+  }
+});
+
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-02T22:07:48Z");
+  const at = new Date("2026-10-02T22:46:13Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 8);
-  assert.equal(report.factCount, 27);
+  assert.equal(report.optionCount, 9);
+  assert.equal(report.factCount, 29);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 3);
+  assert.equal(report.scopedDraftOptionCount, 4);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 2);
   assert.notEqual(keycloak[0].optionId, keycloak[1].optionId);
@@ -277,6 +355,16 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.ok(research.facts.every((fact) => fact.availability === "UNKNOWN"));
   assert.equal(research.facts.some((fact) => fact.path === "facts.ENTERPRISE_SSO"), false);
   assert.equal(auth0.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT").sourcePlan, "B2B Free");
+  const workos = report.options.filter((option) => option.providerId === "workos");
+  assert.equal(workos.length, 2);
+  assert.notEqual(workos[0].optionId, workos[1].optionId);
+  const workosResearch = workos.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE");
+  assert.ok(workosResearch.facts.every((fact) => fact.availability === "UNKNOWN"));
+  assert.equal(workosResearch.facts.find((fact) => fact.path === "facts.OIDC").availability, "UNKNOWN");
+  const directory = workos.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(directory.sourcePlan, "Staging");
+  assert.equal(directory.facts.length, 2);
+  assert.equal(directory.facts.some((fact) => fact.path === "facts.OIDC"), false);
   assert.deepEqual(await inspectBaselinePack(at), report);
 });
 
@@ -319,7 +407,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 27);
+  assert.equal(JSON.parse(run.stdout).factCount, 29);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

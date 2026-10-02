@@ -143,13 +143,14 @@ class ProviderBaselineDraftTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"keycloak", "zitadel", "auth0"})
+    @ValueSource(strings = {"keycloak", "zitadel", "auth0", "workos"})
     void scopedAndResearchOptionsCanCoexistWithoutMergingOrCompletingCoverage(String provider) throws Exception {
         var research = mapper.readValue(resource("catalog/baselines/" + provider + ".v1.json"), ProviderCatalogDraft.class);
         var scope = switch (provider) {
             case "keycloak" -> "keycloak-26.8.0";
             case "zitadel" -> "zitadel-cloud-free";
             case "auth0" -> "auth0-b2b-free";
+            case "workos" -> "workos-directory-sync-staging";
             default -> throw new AssertionError("Unexpected provider: " + provider);
         };
         var scoped = mapper.readValue(resource("catalog/baselines/scoped/" + scope + ".v1.json"), ProviderCatalogDraft.class);
@@ -158,7 +159,7 @@ class ProviderBaselineDraftTests {
         var report = validator.validateAt(combined, Instant.parse("2026-10-02T22:07:48Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(2, report.optionCount());
-        assertEquals(7, report.factCount());
+        assertEquals(provider.equals("workos") ? 5 : 7, report.factCount());
         assertUntrusted(report);
         assertNotEquals(validator.validate(research).contentSha256(), report.contentSha256());
         assertNotEquals(validator.validate(scoped).contentSha256(), report.contentSha256());
@@ -198,6 +199,61 @@ class ProviderBaselineDraftTests {
         var current = validator.validateAt(draft, observed);
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
         assertEquals(4, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+    }
+
+    @Test
+    void workosStagingDirectoryBridgeDoesNotAssertLoginProductionEntitlementOrAccessEnforcement() throws Exception {
+        var json = resource("catalog/baselines/scoped/workos-directory-sync-staging.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("workos-directory-sync-staging-scim-events", option.id());
+        assertEquals("WorkOS Directory Sync", option.product());
+        assertEquals("Staging; testing only, no account or production entitlement verified", option.plan());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.SCIM, ProviderCatalog.Capability.GROUP_SYNC),
+                option.facts().keySet());
+        var observed = Instant.parse("2026-10-02T22:46:13Z");
+        option.facts().values().forEach(fact -> {
+            assertEquals(ProviderCatalog.Availability.OPTIONAL, fact.availability());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("workos.com", fact.evidence().sourceUrl().getHost());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        var scim = option.facts().get(ProviderCatalog.Capability.SCIM);
+        var groups = option.facts().get(ProviderCatalog.Capability.GROUP_SYNC);
+        assertEquals("/docs/integrations/scim", scim.evidence().sourceUrl().getPath());
+        assertEquals("/docs/directory-sync/understanding-events", groups.evidence().sourceUrl().getPath());
+        var scimConditions = String.join(" ", scim.conditions());
+        assertTrue(scimConditions.contains("not free production Directory Sync"));
+        assertTrue(scimConditions.contains("read-only"));
+        assertTrue(scimConditions.contains("not a native SCIM endpoint in the SaaS or write-back"));
+        assertTrue(scimConditions.contains("persist an Events API cursor"));
+        assertTrue(scimConditions.contains("not necessarily deleted from the SaaS"));
+        var groupConditions = String.join(" ", groups.conditions());
+        assertTrue(groupConditions.contains("does not emit individual dsync.group.user_removed"));
+        assertTrue(groupConditions.contains("user updated_at does not change"));
+        assertTrue(groupConditions.contains("deprecated Directory User groups field"));
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(2, current.factCount());
         assertTrue(current.issues().isEmpty());
         assertUntrusted(current);
         assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));

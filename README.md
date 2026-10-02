@@ -1057,8 +1057,8 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports eight distinct options and 27 recorded
-entries: five unresolved research scopes, one release-scoped and two plan-scoped drafts.
+`make inspect-provider-baselines` now reports nine distinct options and 29 recorded
+entries: five unresolved research scopes, one release-scoped and three plan-scoped drafts.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1089,6 +1089,34 @@ integration are explicit limitations. SAML and the other omitted capabilities re
 unassessed, not unavailable. No region, compatibility, security-control or full cost
 coverage is inferred. The fixed offline inspection retains the original unknown Auth0
 research option separately; neither option is approved or activated.
+
+#### Staging-scoped WorkOS Directory Sync candidate
+
+The [WorkOS Directory Sync draft](services/core-api/src/main/resources/catalog/baselines/scoped/workos-directory-sync-staging.v1.json)
+records staging with one Custom SCIM v2.0 directory, bearer authentication and a required
+application-owned Events API/state-reconciliation bridge. It proposes only `SCIM` and
+`GROUP_SYNC` as `OPTIONAL`, both `UNREVIEWED`. Login, SSO and WorkOS Connect are omitted,
+not declared unsupported or inherited from the original unknown WorkOS research option.
+
+WorkOS documents [staging connections without charges](https://workos.com/docs/authkit/environments),
+while [production Directory Sync](https://workos.com/pricing) is priced per connection.
+AuthKit's free user allowance is not free production Directory Sync. No account, payment
+method, connector, subscription or runtime integration was created or tested. This
+documentation scope is not a production entitlement, zero-cost guarantee or complete cost model.
+
+The [custom SCIM endpoint](https://workos.com/docs/integrations/scim) belongs to WorkOS;
+the app reads directory data and must implement lifecycle, permissions and session
+enforcement. It neither exposes a native SaaS SCIM endpoint nor writes back upstream.
+An [Events API consumer](https://workos.com/docs/events/data-syncing/events-api) must
+retain its cursor, tolerate replay and reconcile state; no latency or enforcement was measured.
+
+The [directory event lifecycle](https://workos.com/docs/directory-sync/understanding-events)
+requires explicit group-deletion cleanup without individual membership-removal events.
+Membership changes do not advance a user's `updated_at`; use paginated membership
+queries rather than the deprecated user `groups` field. Directory removal of an
+[inactive user](https://workos.com/docs/directory-sync/handle-inactive-users) is not
+automatic deletion from the SaaS. Other memberships and local sessions need their own
+policy. Compatibility, residency, authentication controls and authorized publication remain pending.
 
 ### Catalog change proposal previews
 

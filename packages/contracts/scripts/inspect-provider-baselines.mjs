@@ -84,6 +84,21 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
   },
+  {
+    file: "workos-directory-sync-staging.v1.json",
+    catalogVersion: "workos-directory-sync-staging-draft-2026.10.02",
+    scope: {
+      id: "workos-directory-sync-staging-scim-events", providerId: "workos", product: "WorkOS Directory Sync", deployment: "MANAGED",
+      plan: "Staging; testing only, no account or production entitlement verified",
+      region: "No environment region selected; storage destinations not verified",
+      configuration: "Custom SCIM v2.0 inbound to WorkOS; bearer auth; app-owned Events API bridge and state reconciliation; no login",
+    },
+    facts: {
+      SCIM: { availability: "OPTIONAL", sourceUrl: "https://workos.com/docs/integrations/scim" },
+      GROUP_SYNC: { availability: "OPTIONAL", sourceUrl: "https://workos.com/docs/directory-sync/understanding-events" },
+    },
+    metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
+  },
 ]);
 
 function requireCondition(condition, message) {
@@ -213,7 +228,7 @@ export function inspectScopedBaselineDraft(draft, evaluatedAt = new Date()) {
     "Unexpected scoped draft version or option count");
   const option = draft.options[0];
   requireCondition(Object.entries(expected.scope).every(([field, value]) => option[field] === value),
-    "Unexpected release, plan, distribution, deployment or native integration scope");
+    "Unexpected release, plan, distribution, deployment or integration scope");
   requireCondition(Object.keys(option.facts).sort().join(",") === Object.keys(expected.facts).sort().join(","),
     "Unexpected scoped capability inventory");
   requireDeferredDimensions(option);
