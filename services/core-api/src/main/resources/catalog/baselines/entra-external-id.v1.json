@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "entra-external-id-research-2026.10.02",
+  "options": [{
+    "id": "entra-external-id-managed-research",
+    "providerId": "entra-external-id",
+    "product": "Microsoft Entra External ID - external tenant",
+    "plan": "Unverified commercial tier",
+    "deployment": "MANAGED",
+    "region": "Tenant region not verified",
+    "configuration": "Documentation research only; external tenant, not workforce or legacy Azure AD B2C",
+    "facts": {
+      "OIDC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Confirm the commercial tier, tenant region and registered application before assigning scoped availability.",
+          "External-tenant OIDC must not be inferred from workforce-tenant or legacy Azure AD B2C settings."
+        ],
+        "evidence": {
+          "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "The external-tenant feature table lists OIDC, authorization code and PKCE. This is documentation-level support, not verification of a tenant configuration."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Distinguish outbound provisioning into a supported app from an inbound customer-directory SCIM endpoint.",
+          "Establish the required direction, entitlement, mapping and application-side deprovisioning behavior."
+        ],
+        "evidence": {
+          "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "The feature table describes automatic SCIM account synchronization with supported apps. That description alone does not establish an inbound SCIM service for this B2B scenario."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Token group claims and application-role assignments are not evidence of SCIM group lifecycle synchronization.",
+          "Confirm the target connector, direction, group membership changes and application enforcement."
+        ],
+        "evidence": {
+          "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "The external-tenant table separately describes groups, role assignments and group claims. These authorization features do not prove the required provisioning path."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

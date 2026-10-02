@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-research-2026.10.02",
+  "options": [{
+    "id": "zitadel-managed-research",
+    "providerId": "zitadel",
+    "product": "ZITADEL Cloud - applications and SCIM user provisioning",
+    "plan": "Cloud entitlement and deployed version not verified",
+    "deployment": "MANAGED",
+    "region": "Cloud region not verified",
+    "configuration": "Documentation research only; not the AuthWeave self-hosted development lab",
+    "facts": {
+      "OIDC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Confirm the Cloud tier, region, deployed version and registered application settings.",
+          "A successful self-hosted development login does not verify this managed option."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/manage/console/applications-overview",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "ZITADEL documents web, native and user-agent applications with authorization-code flows. Managed-service entitlement and configuration were not checked."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Confirm that the selected Cloud tier and deployed version expose the documented SCIM interface.",
+          "The documented native SCIM scope is the core User schema; do not infer group provisioning or enterprise-schema extensions.",
+          "Verify provisioning-domain isolation, attribute mapping and downstream application deprovisioning."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/manage/user/scim2",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "The SCIM service-provider guide describes user creation, updates, deactivation and deprovisioning, with provisioning-domain isolation and a core-User-only schema limitation."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "The documented native SCIM interface does not support Group provisioning.",
+          "This limitation does not prove that every alternative integration lacks group synchronization; any bridge needs separate evidence."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/manage/user/scim2",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "The SCIM limitations section excludes Group provisioning. Broader group synchronization for the proposed Cloud configuration remains unknown."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

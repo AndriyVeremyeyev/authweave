@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "keycloak-research-2026.10.02",
+  "options": [{
+    "id": "keycloak-self-hosted-research",
+    "providerId": "keycloak",
+    "product": "Keycloak upstream - self-hosted",
+    "plan": "Upstream distribution; release not pinned",
+    "deployment": "SELF_HOSTED",
+    "region": "Hosting location not selected",
+    "configuration": "Documentation research only; realm, extensions and application bridge not verified",
+    "facts": {
+      "OIDC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Pin the upstream release and verify its realm, client and hosting configuration.",
+          "Protocol documentation does not establish runtime availability, residency or a managed-service entitlement."
+        ],
+        "evidence": {
+          "sourceUrl": "https://www.keycloak.org/securing-apps/overview",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "Keycloak documents OAuth 2.0, OIDC and SAML application integration with realm client registration. No release or deployment was tested."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Absence of SCIM from this protocol overview is not proof of unsupported capability.",
+          "Verify native SCIM, a maintained extension or an application-side bridge against the selected release and lifecycle requirements."
+        ],
+        "evidence": {
+          "sourceUrl": "https://www.keycloak.org/securing-apps/overview",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "The inspected application-protocol overview does not establish a SCIM provisioning path. SCIM availability remains unresolved, not unavailable."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "A token claim or realm group model does not establish cross-system group lifecycle synchronization.",
+          "Investigate the selected release, provisioning direction and any extension or application bridge separately."
+        ],
+        "evidence": {
+          "sourceUrl": "https://www.keycloak.org/securing-apps/overview",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "The inspected protocol overview is an authentication integration reference, not evidence of the required group provisioning behavior."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

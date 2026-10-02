@@ -975,6 +975,43 @@ current time. This is a validation-only backend slice, not a real-provider basel
 curator UI, published catalog or final recommendation. It requires no new accounts,
 dependencies, migrations or paid services.
 
+### Initial real-provider research drafts
+
+The [baseline research pack](services/core-api/src/main/resources/catalog/baselines)
+contains five separate draft v1 files for Entra External ID, Auth0, WorkOS, ZITADEL
+Cloud and self-hosted Keycloak. Each records three initial research entries: OIDC,
+SCIM and group synchronization, with official documentation URLs, observation times
+and unresolved conditions. These are partial research inputs, not approved baselines.
+Commercial tiers, regions and exact configurations have not been verified: all 15
+entries deliberately remain `UNKNOWN` and `UNREVIEWED`. Documentation-level support
+is recorded in evidence summaries, not promoted into scoped availability.
+
+From the repository root, with contract dependencies already installed:
+
+```shell
+make inspect-provider-baselines
+```
+
+The read-only, offline command checks the fixed research pack against draft v1 and
+its research-specific invariants, then prints scope, conditions, dated evidence,
+freshness and omitted capabilities. It never fetches URLs, refreshes observations,
+writes files or database rows, or approves/activates data. Matching an official URL
+host is only an input check, not source verification. A recent observation does not
+make an assertion true. Contract and Core tests protect this separation in CI.
+
+The entries distinguish provisioning direction and integration responsibilities.
+They do not equate outbound provisioning, inbound SCIM and an application-side
+directory bridge. Native SCIM user support does not imply group support; missing
+documentation does not mean `UNAVAILABLE`. The ZITADEL Cloud scope is separate from
+the local self-hosted identity lab. Compatibility, residency, authentication controls,
+auditability and costs still need evidence; omitted facts remain unknown. Existing
+review preparation accepts the original draft JSON, not the inspection output, and
+still requires explicit human review. No review decisions are preselected or saved.
+
+The active catalog and evaluator remain synthetic. Real-provider baseline completion,
+authorized approval/publication and end-user recommendations are still pending.
+No accounts, subscriptions, live provider calls or deployments were added.
+
 ### Catalog change proposal previews
 
 `POST /api/v1/catalog-change-proposals/preview` compares two supplied draft v1 documents
@@ -1687,7 +1724,7 @@ real eligibility decisions. Missing facts remain unknown, preferences are not sc
 and freshness is reported separately. The shared claim predicates also support the
 existing evaluators, whose evidence and scope checks remain in place. This hypothetical
 analysis neither verifies conditions nor makes unreviewed, stale or future evidence usable
-by the active evaluator. No source fetches, real provider baselines or recommendations
+by the active evaluator. No source fetches, approved real-provider baselines or recommendations
 are produced.
 
 With the local Core API running, from the repository root:

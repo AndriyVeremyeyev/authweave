@@ -6,7 +6,7 @@ PYTHON ?= python3.13
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
 	check check-policy check-core check-web check-web-auth-db check-ai check-contracts \
 	setup-auth setup-core-service-token check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
-	generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact store-catalog-regression store-catalog-bootstrap-impact dev-core dev-web dev-ai
+	inspect-provider-baselines generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact store-catalog-regression store-catalog-bootstrap-impact dev-core dev-web dev-ai
 
 help:
 	@printf '%s\n' \
@@ -19,6 +19,7 @@ help:
 		'  make check-web-auth-db  Run isolated web session integration tests against local PostgreSQL' \
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
+		'  make inspect-provider-baselines  Inspect unreviewed provider research drafts offline; no activation' \
 		'  make generate-jooq   Migrate local PostgreSQL and regenerate jOOQ types' \
 		'  make migrate-web-auth  Apply isolated web authentication tables to local PostgreSQL' \
 		'  make setup-core-service-token  Add a private BFF-to-Core token to existing local infra/.env' \
@@ -59,6 +60,9 @@ setup-contracts:
 	cd packages/contracts && npm ci
 
 check: check-policy check-auth-config check-core check-web check-ai check-contracts
+
+inspect-provider-baselines:
+	node packages/contracts/scripts/inspect-provider-baselines.mjs
 
 setup-auth:
 	$(PYTHON) scripts/local_identity.py setup

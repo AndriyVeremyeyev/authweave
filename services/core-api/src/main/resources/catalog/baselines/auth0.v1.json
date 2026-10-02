@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-research-2026.10.02",
+  "options": [{
+    "id": "auth0-managed-research",
+    "providerId": "auth0",
+    "product": "Auth0 - OIDC applications and Enterprise Connections",
+    "plan": "Enterprise Connections entitlement not verified",
+    "deployment": "MANAGED",
+    "region": "Tenant region not verified",
+    "configuration": "Documentation research only; connection-scoped inbound SCIM",
+    "facts": {
+      "OIDC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Confirm the exact tier, region, application and OIDC discovery configuration.",
+          "An upstream enterprise OIDC connection and a downstream application OIDC client are distinct integrations."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/openid-connect-protocol",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "Auth0 documents OIDC authentication and application configuration through OIDC discovery. No tenant or application was tested."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "The plan or agreement must include Enterprise Connections; the selected entitlement has not been verified.",
+          "Enable inbound SCIM on a supported enterprise connection and verify connection-specific tokens and attribute mappings.",
+          "Provisioning in Auth0 does not by itself update the SaaS application's local records or revoke its local sessions."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "Auth0 documents connection-scoped inbound SCIM user creation, updates, deactivation and deletion, with an Enterprise Connections entitlement prerequisite."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "SCIM groups support user members, not arbitrary nested-group semantics.",
+          "Verify entitlement, group limits, organization membership and downstream application synchronization before assigning availability."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "The inbound SCIM guide describes group lifecycle operations and user-only group members; external-system synchronization is a separate integration using events."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

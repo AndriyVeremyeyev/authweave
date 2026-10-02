@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "workos-research-2026.10.02",
+  "options": [{
+    "id": "workos-managed-research",
+    "providerId": "workos",
+    "product": "WorkOS - AuthKit Connect and Directory Sync",
+    "plan": "Connect and Directory Sync entitlements not verified",
+    "deployment": "MANAGED",
+    "region": "Environment region not verified",
+    "configuration": "Documentation research only; downstream OIDC plus application-integrated directory events",
+    "facts": {
+      "OIDC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Confirm Connect entitlement, environment domain, application type and client configuration.",
+          "Upstream SSO accepting OIDC is not the same as Connect issuing OIDC tokens to an application."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/authkit/connect/oauth",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "Connect OAuth applications use authorization code and can issue identity tokens with OIDC library integration. No Connect application or subscription was tested."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Choose a supported SCIM directory connector and confirm Directory Sync entitlement.",
+          "The application must consume directory changes and implement its own account lifecycle and access enforcement.",
+          "Directory Sync's read-only API does not write users back to the upstream directory."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/directory-sync/quick-start",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "Directory Sync exposes directory users and groups through read-only APIs and change events. Its SCIM integration is a bridge, not proof of completed SaaS lifecycle enforcement."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Confirm the connector's group and membership behavior, environment and entitlement.",
+          "Map directory events into application membership and authorization; directory group data alone is not enforcement."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/directory-sync",
+          "observedAt": "2026-10-02T19:58:06Z",
+          "summary": "Directory Sync describes updates to directories, users, groups and access rules. Application-side handling and the exact connector scope remain unverified."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}
