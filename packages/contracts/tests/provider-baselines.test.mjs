@@ -14,6 +14,7 @@ const scopedDrafts = await readScopedBaselineDrafts();
 const zitadelDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "zitadel");
 const auth0Draft = scopedDrafts.find((draft) => draft.options[0].providerId === "auth0");
 const workosDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "workos");
+const entraDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "entra-external-id");
 const observedAt = new Date("2026-10-02T19:58:06Z");
 const copy = () => structuredClone(drafts);
 
@@ -329,15 +330,92 @@ test("WorkOS inspection rejects production/AuthKit conflation, connector drift a
   }
 });
 
+test("Basic external-tenant login does not inherit paid inbound SCIM or Graph group lifecycle", () => {
+  const at = new Date("2026-10-02T23:12:01Z");
+  const before = JSON.stringify(entraDraft);
+  const report = inspectScopedBaselineDraft(entraDraft, at);
+  assertUntrusted(report);
+  assert.equal(report.optionCount, 1);
+  assert.equal(report.factCount, 4);
+  const option = report.options[0];
+  assert.equal(option.basis, "PLAN_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(option.sourcePlan, "Basic MAU");
+  assert.equal(option.product, "Microsoft Entra External ID - external tenant");
+  assert.equal(option.deployment, "MANAGED");
+  assert.equal(Object.hasOwn(option, "sourceRelease"), false);
+  assert.equal(Object.hasOwn(option, "sourceCommit"), false);
+  assert.deepEqual(Object.fromEntries(option.facts.map((fact) => [fact.path, fact.availability])), {
+    "facts.GROUP_SYNC": "UNKNOWN", "facts.OIDC": "OPTIONAL", "facts.SAML": "OPTIONAL", "facts.SCIM": "UNKNOWN",
+  });
+  assert.equal(option.omittedCapabilities.length, 5);
+  assert.ok(option.omittedCapabilities.includes("ENTERPRISE_SSO"));
+  assert.ok(option.facts.every((fact) => fact.freshness === "CURRENT"));
+  const claims = entraDraft.options[0].facts;
+  assert.match(claims.OIDC.conditions.join(" "), /50,000 MAUs.*not a zero-cost guarantee/);
+  assert.match(claims.OIDC.conditions.join(" "), /single-tenant downstream.*ciamlogin.com.*PKCE/);
+  assert.match(claims.OIDC.conditions.join(" "), /not workforce.*legacy Azure AD B2C.*upstream/);
+  assert.match(claims.SAML.conditions.join(" "), /current administrator.*actual application/);
+  assert.match(claims.SAML.conditions.join(" "), /downstream.*does not establish upstream/);
+  assert.match(claims.SCIM.conditions.join(" "), /inbound.*not outbound/);
+  assert.match(claims.SCIM.conditions.join(" "), /P1.*paid add-on.*excluded.*applicability.*not established/);
+  assert.match(claims.SCIM.conditions.join(" "), /Standard-mode outbound SCIM.*HSC mode, not all external tenants/);
+  assert.match(claims.SCIM.conditions.join(" "), /UNKNOWN is not UNAVAILABLE/);
+  assert.match(claims.GROUP_SYNC.conditions.join(" "), /Graph.*not native inbound SCIM Group/);
+  for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
+    const later = inspectScopedBaselineDraft(entraDraft, new Date(at.getTime() + offset));
+    assertUntrusted(later);
+    assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness
+      && fact.evidence.observedAt === "2026-10-02T23:12:01Z"));
+  }
+  assert.equal(JSON.stringify(entraDraft), before);
+});
+
+test("Entra inspection rejects workforce/B2C/trial conflation, paid API promotion and source drift", () => {
+  const mutations = [
+    (input) => { input.approvalGranted = true; },
+    (input) => { input.options[0].plan = "P1 plus SCIM Provisioning API add-on"; },
+    (input) => { input.options[0].plan = "External ID trial"; },
+    (input) => { input.options[0].product = "Microsoft Entra workforce tenant"; },
+    (input) => { input.options[0].product = "Azure AD B2C"; },
+    (input) => { input.options[0].deployment = "SELF_HOSTED"; },
+    (input) => { input.options[0].region = "EU"; },
+    (input) => { input.options[0].configuration = "HSC mode with outbound SCIM and a Graph bridge"; },
+    (input) => { input.options[0].providerId = "auth0"; },
+    (input) => { input.options[0].id = "entra-external-id-managed-research"; },
+    (input) => { input.catalogVersion = auth0Draft.catalogVersion; },
+    (input) => { input.options[0].facts.SCIM.availability = "OPTIONAL"; },
+    (input) => { input.options[0].facts.SCIM.availability = "UNAVAILABLE"; },
+    (input) => { input.options[0].facts.GROUP_SYNC.availability = "OPTIONAL"; },
+    (input) => { input.options[0].facts.GROUP_SYNC.availability = "UNAVAILABLE"; },
+    (input) => { input.options[0].facts.SCIM.conditions = []; },
+    (input) => { input.options[0].facts.SCIM.conditions.push(input.options[0].facts.SCIM.conditions[0]); },
+    (input) => { input.options[0].facts.SCIM.evidence.sourceUrl = input.options[0].facts.OIDC.evidence.sourceUrl; },
+    (input) => { input.options[0].facts.SAML.evidence.sourceUrl = input.options[0].facts.OIDC.evidence.sourceUrl; },
+    (input) => { input.options[0].facts.SCIM.evidence.sourceUrl += "?reviewed=true"; },
+    (input) => { input.options[0].facts.GROUP_SYNC.evidence.sourceUrl = "https://learn.microsoft.com.attacker.invalid/docs"; },
+    (input) => { input.options[0].facts.SCIM.evidence.observedAt = "2026-02-30T23:12:01Z"; },
+    (input) => { input.options[0].facts.ENTERPRISE_SSO = structuredClone(input.options[0].facts.OIDC); },
+    (input) => { delete input.options[0].facts.SAML; },
+    (input) => { input.options.push(structuredClone(input.options[0])); },
+    (input) => { input.options[0].residency.USER_PROFILES = {
+      coverage: "COMPLETE", storageCountries: ["US"], conditions: [], evidence: structuredClone(input.options[0].facts.OIDC.evidence),
+    }; },
+  ];
+  for (const mutate of mutations) {
+    const input = structuredClone(entraDraft); mutate(input);
+    assert.throws(() => inspectScopedBaselineDraft(input, observedAt));
+  }
+});
+
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-02T22:46:13Z");
+  const at = new Date("2026-10-02T23:12:01Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 9);
-  assert.equal(report.factCount, 29);
+  assert.equal(report.optionCount, 10);
+  assert.equal(report.factCount, 33);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 4);
+  assert.equal(report.scopedDraftOptionCount, 5);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 2);
   assert.notEqual(keycloak[0].optionId, keycloak[1].optionId);
@@ -365,6 +443,15 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.equal(directory.sourcePlan, "Staging");
   assert.equal(directory.facts.length, 2);
   assert.equal(directory.facts.some((fact) => fact.path === "facts.OIDC"), false);
+  const entra = report.options.filter((option) => option.providerId === "entra-external-id");
+  assert.equal(entra.length, 2);
+  assert.notEqual(entra[0].optionId, entra[1].optionId);
+  const entraResearch = entra.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE");
+  assert.ok(entraResearch.facts.every((fact) => fact.availability === "UNKNOWN"));
+  assert.equal(entraResearch.facts.some((fact) => fact.path === "facts.SAML"), false);
+  const external = entra.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(external.sourcePlan, "Basic MAU");
+  assert.equal(external.facts.find((fact) => fact.path === "facts.SCIM").availability, "UNKNOWN");
   assert.deepEqual(await inspectBaselinePack(at), report);
 });
 
@@ -407,7 +494,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 29);
+  assert.equal(JSON.parse(run.stdout).factCount, 33);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

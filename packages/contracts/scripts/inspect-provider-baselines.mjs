@@ -99,6 +99,24 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
+  {
+    file: "entra-external-id-basic.v1.json",
+    catalogVersion: "entra-external-id-basic-draft-2026.10.02",
+    scope: {
+      id: "entra-external-id-basic-standard-native", providerId: "entra-external-id",
+      product: "Microsoft Entra External ID - external tenant", deployment: "MANAGED",
+      plan: "Basic MAU; documented free allowance, no tenant entitlement verified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "Standard-mode external tenant; native downstream OIDC/SAML apps; no inbound SCIM paid add-on or Graph bridge",
+    },
+    facts: {
+      OIDC: { availability: "OPTIONAL", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers" },
+      SAML: { availability: "OPTIONAL", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-register-saml-app" },
+      SCIM: { availability: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api" },
+      GROUP_SYNC: { availability: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support" },
+    },
+    metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
+  },
 ]);
 
 function requireCondition(condition, message) {

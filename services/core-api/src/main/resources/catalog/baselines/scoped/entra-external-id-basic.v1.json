@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "entra-external-id-basic-draft-2026.10.02",
+  "options": [
+    {
+      "id": "entra-external-id-basic-standard-native",
+      "providerId": "entra-external-id",
+      "product": "Microsoft Entra External ID - external tenant",
+      "plan": "Basic MAU; documented free allowance, no tenant entitlement verified",
+      "deployment": "MANAGED",
+      "region": "No tenant region selected; storage destinations not verified",
+      "configuration": "Standard-mode external tenant; native downstream OIDC/SAML apps; no inbound SCIM paid add-on or Graph bridge",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Basic pricing at https://azure.microsoft.com/en-us/pricing/details/microsoft-entra-external-id/ includes the first 50,000 MAUs; usage and paid add-ons require separate billing review, not a zero-cost guarantee.",
+            "Register a single-tenant downstream application, configure redirect URIs, bind its sign-up/sign-in user flow and use the tenant ciamlogin.com authority with authorization code and PKCE.",
+            "This is external-tenant customer login, not workforce guest access, legacy Azure AD B2C or upstream enterprise federation; no tenant entitlement or runtime integration was tested."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers",
+            "observedAt": "2026-10-02T23:12:01Z",
+            "summary": "The external-tenant feature table describes registered OIDC applications, code flow and PKCE. Proposed OPTIONAL refers to configurable downstream login, not a configured tenant or complete application compatibility."
+          }
+        },
+        "SAML": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Configure a non-gallery Enterprise application for the downstream SAML relying party, its metadata, signing certificate and claims, then associate the customer sign-up/sign-in user flow.",
+            "The admin-center Test button signs in the current administrator; customer authentication must be tested by running the actual application with its user flow.",
+            "A downstream SAML application does not establish upstream federation or ENTERPRISE_SSO; Basic tenant entitlement, billing and application integration remain unverified."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-register-saml-app",
+            "observedAt": "2026-10-02T23:12:01Z",
+            "summary": "The external-tenant guide describes registering a SAML relying party and distinguishes administrator portal testing from customer user-flow login. This is a documentation proposal, not a tested application."
+          }
+        },
+        "SCIM": {
+          "availability": "UNKNOWN",
+          "conditions": [
+            "The required path is inbound customer-directory provisioning into this external tenant, not outbound provisioning from Entra into another application.",
+            "The documented SCIM Provisioning API requires P1 and an Azure-linked paid add-on; that path is excluded from this Basic scope and its applicability to an external tenant is not established.",
+            "Standard-mode outbound SCIM is distinct; https://learn.microsoft.com/en-us/entra/external-id/customers/reference-service-limits excludes that outbound feature in HSC mode, not all external tenants.",
+            "UNKNOWN is not UNAVAILABLE: establish external-tenant inbound entitlement, endpoint, identity mapping and consuming-application access/session enforcement before assigning availability."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api",
+            "observedAt": "2026-10-02T23:12:01Z",
+            "summary": "The inbound SCIM API guide describes a separately billed Entra server interface. It does not establish a native inbound customer-directory endpoint for the selected Basic external tenant without paid add-ons."
+          }
+        },
+        "GROUP_SYNC": {
+          "availability": "UNKNOWN",
+          "conditions": [
+            "Graph/admin-center group CRUD, membership edits, application-role assignments and token group claims are not native inbound SCIM Group lifecycle evidence.",
+            "No Graph bridge is selected; inbound group entitlement, membership changes and deletions for this Basic external tenant remain unverified.",
+            "Confirm application-side authorization and local-session behavior separately; UNKNOWN must not be read as absence of all group-management APIs."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support",
+            "observedAt": "2026-10-02T23:12:01Z",
+            "summary": "The external-tenant table lists user/group management and role assignments through administration or Microsoft Graph. These controls do not prove the selected native inbound SCIM Group synchronization path."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}

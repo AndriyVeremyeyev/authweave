@@ -143,7 +143,7 @@ class ProviderBaselineDraftTests {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"keycloak", "zitadel", "auth0", "workos"})
+    @ValueSource(strings = {"keycloak", "zitadel", "auth0", "workos", "entra-external-id"})
     void scopedAndResearchOptionsCanCoexistWithoutMergingOrCompletingCoverage(String provider) throws Exception {
         var research = mapper.readValue(resource("catalog/baselines/" + provider + ".v1.json"), ProviderCatalogDraft.class);
         var scope = switch (provider) {
@@ -151,6 +151,7 @@ class ProviderBaselineDraftTests {
             case "zitadel" -> "zitadel-cloud-free";
             case "auth0" -> "auth0-b2b-free";
             case "workos" -> "workos-directory-sync-staging";
+            case "entra-external-id" -> "entra-external-id-basic";
             default -> throw new AssertionError("Unexpected provider: " + provider);
         };
         var scoped = mapper.readValue(resource("catalog/baselines/scoped/" + scope + ".v1.json"), ProviderCatalogDraft.class);
@@ -254,6 +255,63 @@ class ProviderBaselineDraftTests {
         var current = validator.validateAt(draft, observed);
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
         assertEquals(2, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+    }
+
+    @Test
+    void entraBasicExternalTenantLoginDoesNotPromotePaidInboundScimOrGraphGroupManagement() throws Exception {
+        var json = resource("catalog/baselines/scoped/entra-external-id-basic.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("entra-external-id-basic-standard-native", option.id());
+        assertEquals("Microsoft Entra External ID - external tenant", option.product());
+        assertEquals("Basic MAU; documented free allowance, no tenant entitlement verified", option.plan());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        var expected = Map.of(ProviderCatalog.Capability.OIDC, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.SAML, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.SCIM, ProviderCatalog.Availability.UNKNOWN,
+                ProviderCatalog.Capability.GROUP_SYNC, ProviderCatalog.Availability.UNKNOWN);
+        assertEquals(expected.keySet(), option.facts().keySet());
+        var observed = Instant.parse("2026-10-02T23:12:01Z");
+        option.facts().forEach((capability, fact) -> {
+            assertEquals(expected.get(capability), fact.availability());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("learn.microsoft.com", fact.evidence().sourceUrl().getHost());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        assertTrue(String.join(" ", option.facts().get(ProviderCatalog.Capability.OIDC).conditions())
+                .contains("ciamlogin.com authority"));
+        assertTrue(String.join(" ", option.facts().get(ProviderCatalog.Capability.SAML).conditions())
+                .contains("current administrator"));
+        var scim = option.facts().get(ProviderCatalog.Capability.SCIM);
+        assertEquals("/en-us/entra/identity/app-provisioning/enable-scim-api", scim.evidence().sourceUrl().getPath());
+        var scimConditions = String.join(" ", scim.conditions());
+        assertTrue(scimConditions.contains("P1 and an Azure-linked paid add-on"));
+        assertTrue(scimConditions.contains("not outbound provisioning"));
+        assertTrue(scimConditions.contains("HSC mode, not all external tenants"));
+        assertTrue(scimConditions.contains("UNKNOWN is not UNAVAILABLE"));
+        assertTrue(String.join(" ", option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).conditions())
+                .contains("not native inbound SCIM Group lifecycle evidence"));
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(4, current.factCount());
         assertTrue(current.issues().isEmpty());
         assertUntrusted(current);
         assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));

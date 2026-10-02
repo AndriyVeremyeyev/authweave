@@ -1057,8 +1057,8 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports nine distinct options and 29 recorded
-entries: five unresolved research scopes, one release-scoped and three plan-scoped drafts.
+`make inspect-provider-baselines` now reports ten distinct options and 33 recorded
+entries: five unresolved research scopes, one release-scoped and four plan-scoped drafts.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1117,6 +1117,32 @@ queries rather than the deprecated user `groups` field. Directory removal of an
 [inactive user](https://workos.com/docs/directory-sync/handle-inactive-users) is not
 automatic deletion from the SaaS. Other memberships and local sessions need their own
 policy. Compatibility, residency, authentication controls and authorized publication remain pending.
+
+#### Plan-scoped Entra External ID Basic candidate
+
+The [Entra Basic draft](services/core-api/src/main/resources/catalog/baselines/scoped/entra-external-id-basic.v1.json)
+selects a standard-mode external tenant without paid inbound SCIM add-ons or a Graph
+bridge, not workforce guest access, legacy Azure AD B2C or a trial. Its downstream
+OIDC/SAML assertions are proposed `OPTIONAL`; inbound SCIM and group synchronization
+remain `UNKNOWN`, not declared unsupported. All four entries are `UNREVIEWED`.
+The original research option remains separate and unchanged; upstream SSO is omitted.
+
+[Basic pricing](https://azure.microsoft.com/en-us/pricing/details/microsoft-entra-external-id/)
+includes an initial MAU allowance, not a guarantee of free operation. No tenant,
+subscription, entitlement check or runtime integration was created. For
+[OIDC customer login](https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers),
+the tenant authority, app registration and user flow must be configured. The
+[SAML guide](https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-register-saml-app)
+distinguishes an administrator's portal test from the customer's actual application login.
+
+The separate [inbound SCIM API](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api)
+has paid prerequisites outside this scope; its applicability here is not established.
+[Standard-mode outbound SCIM](https://learn.microsoft.com/en-us/entra/external-id/customers/reference-service-limits)
+must not be mistaken for inbound provisioning; HSC mode excludes that outbound feature.
+[Graph group management and role assignments](https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support)
+do not prove native inbound SCIM Group lifecycle or application access/session enforcement.
+Full commercial, compatibility, residency and control coverage, manual review and
+authorized catalog publication remain pending; the active evaluator stays synthetic.
 
 ### Catalog change proposal previews
 
