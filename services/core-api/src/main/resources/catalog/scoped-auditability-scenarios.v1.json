@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "baseScenarioSetVersion": "catalog-scoped-profile-scenarios-1",
+  "baseScenarioSetSha256": "ce70ce85cbb2e5b1537f36e2120a5c4add5ef0ce5d64be46397436bbc1993ca1",
+  "scenarios": [
+    {
+      "scenarioId": "b2b-saas-scoped",
+      "description": "Synthetic full-criteria regression with a 30-day provider minimum; not a customer default.",
+      "selectedCriteria": ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "ADMINISTRATIVE_CHANGE_EVENTS", "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_EXPORT", "AUDIT_LOG_RETENTION"],
+      "minimumRetentionDays": 30
+    },
+    {
+      "scenarioId": "partner-portal-scoped",
+      "description": "Synthetic authentication, provisioning-event and export regression; does not establish SCIM or executed lifecycle.",
+      "selectedCriteria": ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_EXPORT"],
+      "minimumRetentionDays": null
+    },
+    {
+      "scenarioId": "public-sector-scoped",
+      "description": "Synthetic authentication, administration, export and 90-day minimum regression; not a legal requirement or compliance baseline.",
+      "selectedCriteria": ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "ADMINISTRATIVE_CHANGE_EVENTS", "AUDIT_LOG_EXPORT", "AUDIT_LOG_RETENTION"],
+      "minimumRetentionDays": 90
+    },
+    {
+      "scenarioId": "internal-workforce-scoped",
+      "description": "Synthetic administration, provisioning-event, export and 365-day minimum regression; not a workforce policy default.",
+      "selectedCriteria": ["ADMINISTRATIVE_CHANGE_EVENTS", "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_EXPORT", "AUDIT_LOG_RETENTION"],
+      "minimumRetentionDays": 365
+    }
+  ]
+}

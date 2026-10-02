@@ -419,6 +419,30 @@ needs clarification and does not advise disabling logs. A stale, malformed or un
 preview produces a sanitized unavailable section without blocking the assessment or
 other independent previews. Reads do not edit inputs or refresh evidence dates.
 
+### Scoped synthetic auditability regression
+
+The [source-controlled scenario overlays](services/core-api/src/main/resources/catalog/scoped-auditability-scenarios.v1.json)
+add explicit fictional auditability criteria and retention to the four unchanged
+scoped profile v5 fixtures. Their base digest is checked before compiling complete
+profile v6 inputs. These selections are test cases, not customer defaults, legal
+retention requirements or a compliance baseline.
+
+The service-credential-protected GET
+`/internal/v1/catalog-auditability/regression-preflight` accepts no query or body.
+It evaluates every compiled scenario against every exact scope in the synthetic
+sidecar using the existing evidence policy. The body-free, `no-store` summary binds
+the scenario, profile schema, rule definitions, evidence and analysis digests, and
+separates matches, mismatches and information gaps across six ordered criteria.
+Missing, unreviewed, future or stale facts are not promoted to passing evidence;
+reading the diagnostic neither refreshes observation dates nor writes to storage.
+
+This is fixture regression, not before/after analysis of proposed catalog changes,
+a durable impact receipt or full auditability verification. Existing profile v5
+coverage inventory, historical receipts and publication gates remain unchanged;
+auditability is still deferred in those older reports. Coverage, configuration,
+compliance, source verification, approval and publication/evaluation/recommendation
+readiness remain false. The seven deferred verification boundaries are explicit.
+
 ### Auditability inputs and profile v6
 
 The local-only `/api/v6/workspaces/{workspaceId}/assessments` API adds

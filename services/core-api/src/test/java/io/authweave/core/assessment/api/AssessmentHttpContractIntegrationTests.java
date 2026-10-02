@@ -81,6 +81,48 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         Files.deleteIfExists(SAMPLES);
     }
 
+    @Test
+    void internalAuditabilityRegressionIsCredentialProtectedInputFreeBodyFreeAndReadOnly() throws Exception {
+        String path = "/internal/v1/catalog-auditability/regression-preflight";
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", "wrong-token")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", token, token)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", token).queryParam("coverageComplete", "true")).andExpect(status().isBadRequest());
+        mvc.perform(get(path).header("Authorization", token).content("{}")).andExpect(status().isBadRequest());
+        mvc.perform(get(path).header("Authorization", token).header("Transfer-Encoding", "chunked")).andExpect(status().isBadRequest());
+        var tables = List.of("core.assessments", "core.catalog_proposals", "core.catalog_impact_reports", "core.catalog_fact_path_reports", "core.catalog_published_snapshots", "core.catalog_publication_decisions", "audit.catalog_publication_events");
+        var before = tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList();
+        var result = mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.checkedCases").value(12)).andExpect(jsonPath("$.outcomes.pass").value(27))
+                .andExpect(jsonPath("$.outcomes.fail").value(8)).andExpect(jsonPath("$.outcomes.unknown").value(22))
+                .andExpect(jsonPath("$.coverageComplete").value(false)).andExpect(jsonPath("$.publicationReady").value(false)).andReturn();
+        var json = mapper.readTree(result.getResponse().getContentAsString());
+        sample("auditability-regression-check", "catalog-auditability-regression-check", true, json);
+        assertEquals(json, mapper.readTree(mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        assertEquals(before, tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList());
+        for (String flag : List.of("coverageComplete", "candidateChangesEvaluated", "configurationVerified", "complianceVerified", "sourceVerificationPerformed", "storedReportVerified",
+                "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(flag, true); sample("auditability-regression-forged-" + flag, "catalog-auditability-regression-check", false, forged);
+        }
+        for (String key : List.of("sourceUrl", "profile", "actor", "candidate")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(key, "synthetic"); sample("auditability-regression-extra-" + key, "catalog-auditability-regression-check", false, forged);
+        }
+        var suite = applicationContext.getBean(io.authweave.core.catalog.impact.CatalogAuditabilityRegressionCases.class);
+        var service = applicationContext.getBean(io.authweave.core.catalog.impact.CatalogAuditabilityRegressionService.class);
+        assertEquals(suite.sha256(), json.get("scenarioSetSha256").asText());
+        var expected = service.inspectAt(Instant.parse("2026-09-12T12:00:00Z"));
+        assertEquals(mapper.valueToTree(expected), json);
+        // This output-only endpoint adds computed properties, not accepted constructor inputs.
+        // Test native count validation separately; the complete wire response is schema-validated.
+        var components = mapper.createObjectNode();
+        for (var component : io.authweave.core.catalog.impact.CatalogAuditabilityRegressionService.Check.class.getRecordComponents())
+            components.set(component.getName(), json.get(component.getName()));
+        assertEquals(expected, mapper.treeToValue(components, io.authweave.core.catalog.impact.CatalogAuditabilityRegressionService.Check.class));
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(components.deepCopy().put("checkedCases", 4),
+                io.authweave.core.catalog.impact.CatalogAuditabilityRegressionService.Check.class));
+    }
+
     @AfterAll
     void exportSamples() throws Exception {
         Files.createDirectories(SAMPLES.getParent());

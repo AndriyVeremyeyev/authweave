@@ -139,6 +139,9 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
                 ? HttpServletResponse.SC_NO_CONTENT : HttpServletResponse.SC_FORBIDDEN;
     }
 
+    /** Controller-level defense for internal read-only diagnostics; no curator assertion or workspace is implied. */
+    public int serviceCredentialStatus(HttpServletRequest request) { return credentialStatus(request); }
+
     private int credentialStatus(HttpServletRequest request) {
         if (token.length() < 32) return HttpServletResponse.SC_SERVICE_UNAVAILABLE;
         var headers = Collections.list(request.getHeaders("Authorization"));

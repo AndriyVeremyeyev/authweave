@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-regression-check.v1.schema.json",
+  "title": "Body-free synthetic scoped auditability regression summary",
+  "description": "Fresh source-controlled fixture regression, never a proposed-catalog impact, durable receipt, full coverage or authority. Core also enforces scope/case/check totals, reason/outcome parity and exact compiled-profile/evidence digests.",
+  "type": "object", "additionalProperties": false,
+  "required": ["evaluatedAt", "scenarioSetSha256", "baseCatalogVersion", "evidenceVersion", "evidenceSha256", "analysisSha256", "checkedScopes", "checkedCases", "outcomes", "candidates", "reasons", "exercisedRequiredCriteria", "scope", "policyVersion", "auditabilityPolicyVersion", "definitionsSha256", "scenarioSetVersion", "baseScenarioSetVersion", "profileSchemaVersion", "profileSchemaSha256", "analysisBasis", "declaredScenarios", "declaredCriteria", "checkedCriteria", "allDeclaredCriteriaExercised", "checkedPaths", "deferredBoundaries", "coverageComplete", "candidateChangesEvaluated", "configurationVerified", "complianceVerified", "sourceVerificationPerformed", "storedReportVerified", "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"],
+  "properties": {
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "scenarioSetSha256": { "$ref": "#/$defs/hash" }, "evidenceSha256": { "$ref": "#/$defs/hash" }, "analysisSha256": { "$ref": "#/$defs/hash" }, "definitionsSha256": { "$ref": "#/$defs/hash" },
+    "baseCatalogVersion": { "$ref": "#/$defs/version" }, "evidenceVersion": { "$ref": "#/$defs/version" },
+    "checkedScopes": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "checkedCases": { "type": "integer", "minimum": 4, "maximum": 400, "multipleOf": 4 },
+    "checkedCriteria": { "type": "integer", "minimum": 24, "maximum": 2400, "multipleOf": 24 },
+    "outcomes": {
+      "type": "object", "additionalProperties": false, "required": ["pass", "fail", "unknown", "notApplied"],
+      "properties": { "pass": { "$ref": "#/$defs/checkCount" }, "fail": { "$ref": "#/$defs/checkCount" }, "unknown": { "$ref": "#/$defs/checkCount" }, "notApplied": { "$ref": "#/$defs/checkCount" } }
+    },
+    "candidates": {
+      "type": "object", "additionalProperties": false, "required": ["matchesCheckedRequirements", "doesNotMatch", "needsInformation", "notApplied"],
+      "properties": { "matchesCheckedRequirements": { "$ref": "#/$defs/caseCount" }, "doesNotMatch": { "$ref": "#/$defs/caseCount" }, "needsInformation": { "$ref": "#/$defs/caseCount" }, "notApplied": { "$ref": "#/$defs/caseCount" } }
+    },
+    "reasons": {
+      "type": "array", "minItems": 16, "maxItems": 16, "items": false,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "NO_REQUIREMENT" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "PREFERENCE_NOT_SCORED" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "REQUIREMENT_UNKNOWN" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "AUDIT_INTENT_UNCLEAR" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "AUDIT_SCOPE_UNKNOWN" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "CRITERION_NOT_SELECTED" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "EVIDENCE_MISSING" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "EVIDENCE_UNREVIEWED" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "EVIDENCE_FROM_FUTURE" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "EVIDENCE_STALE" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "CAPABILITY_UNKNOWN" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "CAPABILITY_UNAVAILABLE" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "DOCUMENTED_CAPABILITY_AVAILABLE" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "RETENTION_DURATION_UNKNOWN" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "RETENTION_BELOW_MINIMUM" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/reasonCount" }, { "type": "object", "properties": { "reasonCode": { "const": "RETENTION_MEETS_MINIMUM" } } }] }
+      ]
+    },
+    "exercisedRequiredCriteria": { "$ref": "./application-identity-profile.v6.schema.json#/$defs/auditabilityRequirements/properties/selectedCriteria" },
+    "scope": { "const": "SYNTHETIC_SCOPED_AUDITABILITY_REGRESSION" }, "policyVersion": { "const": "catalog-auditability-regression-1" },
+    "auditabilityPolicyVersion": { "const": "auditability-capability-preflight-1" }, "scenarioSetVersion": { "const": "catalog-scoped-auditability-scenarios-1" },
+    "baseScenarioSetVersion": { "const": "catalog-scoped-profile-scenarios-1" }, "profileSchemaVersion": { "const": 6 },
+    "profileSchemaSha256": { "const": "3d384daf2d98851ebcbe00f90a9c6dabeedbae8361f8a41f58d00b9742c95fbb" },
+    "analysisBasis": { "const": "DATED_SYNTHETIC_SCOPED_CAPABILITY_EVIDENCE" }, "declaredScenarios": { "const": 4 }, "declaredCriteria": { "const": 6 },
+    "allDeclaredCriteriaExercised": { "type": "boolean" },
+    "checkedPaths": { "const": ["security.auditability", "security.auditabilityRequirements.selectedCriteria", "security.auditabilityRequirements.minimumRetentionDays"] },
+    "deferredBoundaries": { "const": ["eventRecordContentAndScope", "auditRecordIntegrity", "auditAccessControls", "loggingFailureHandling", "exportDeliveryAndRetrieval", "deployedLoggingConfiguration", "complianceEvidence"] },
+    "coverageComplete": { "const": false }, "candidateChangesEvaluated": { "const": false }, "configurationVerified": { "const": false }, "complianceVerified": { "const": false }, "sourceVerificationPerformed": { "const": false }, "storedReportVerified": { "const": false }, "baselineVerified": { "const": false }, "approvalGranted": { "const": false }, "writesPerformed": { "const": false }, "publicationReady": { "const": false }, "evaluationReady": { "const": false }, "recommendationReady": { "const": false }
+  },
+  "if": { "properties": { "exercisedRequiredCriteria": { "type": "array", "minItems": 6 } } },
+  "then": { "properties": { "allDeclaredCriteriaExercised": { "const": true } } },
+  "else": { "properties": { "allDeclaredCriteriaExercised": { "const": false } } },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }, "version": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+    "checkCount": { "type": "integer", "minimum": 0, "maximum": 2400 }, "caseCount": { "type": "integer", "minimum": 0, "maximum": 400 },
+    "reasonCount": { "type": "object", "additionalProperties": false, "required": ["reasonCode", "checks"], "properties": { "reasonCode": { "type": "string" }, "checks": { "$ref": "#/$defs/checkCount" } } }
+  }
+}

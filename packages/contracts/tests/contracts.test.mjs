@@ -50,6 +50,65 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("supplemental auditability scenarios bind frozen profiles and compile explicit valid v6 inputs without migration", async () => {
+  const sourceRoot = path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog");
+  const suite = await readJson(path.join(sourceRoot, "scoped-auditability-scenarios.v1.json"));
+  const base = await readJson(path.join(sourceRoot, "scoped-impact-scenarios.v1.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-scoped-auditability-scenarios.v1.schema.json");
+  const profile = ajv.getSchema("https://authweave.dev/contracts/application-identity-profile.v6.schema.json");
+  const ordered = value => Array.isArray(value) ? value.map(ordered).sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0) :
+    value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+  assert.equal(validate(suite), true, validationMessage(validate));
+  assert.equal(suite.baseScenarioSetSha256, createHash("sha256").update(JSON.stringify(ordered(base))).digest("hex"));
+  const before = structuredClone(base), exercised = new Set();
+  for (const input of suite.scenarios) {
+    const original = base.find(s => s.id === input.scenarioId); assert.equal(original.profileSchemaVersion, 5);
+    assert.equal(original.profile.security.auditability, "REQUIRED"); assert.equal(original.profile.security.auditabilityRequirements, undefined);
+    const compiled = structuredClone(original.profile);
+    compiled.security.auditabilityRequirements = { selectedCriteria: input.selectedCriteria, minimumRetentionDays: input.minimumRetentionDays };
+    assert.equal(profile(compiled), true, validationMessage(profile));
+    input.selectedCriteria.forEach(criterion => exercised.add(criterion));
+  }
+  assert.equal(exercised.size, 6); assert.deepEqual(base, before);
+  for (const mutate of [s => s.scenarios.pop(), s => s.scenarios.push(structuredClone(s.scenarios[0])),
+    s => { s.scenarios[1].scenarioId = s.scenarios[0].scenarioId; }, s => { s.schemaVersion = 2; },
+    s => { s.baseScenarioSetSha256 = "bad"; }, s => { s.baseScenarioSetVersion = "other"; },
+    s => { s.scenarios[0].selectedCriteria = []; }, s => { s.scenarios[0].selectedCriteria.push(s.scenarios[0].selectedCriteria[0]); },
+    s => { s.scenarios[0].minimumRetentionDays = null; }, s => { s.scenarios[1].minimumRetentionDays = 30; },
+    s => { s.scenarios[0].minimumRetentionDays = 36501; }, s => { s.coverageComplete = true; }]) {
+    const invalid = structuredClone(suite); mutate(invalid); assert.equal(validate(invalid), false);
+  }
+});
+
+test("auditability regression summary is bounded, body-free, canonically reasoned and cannot promote authority", async () => {
+  const schema = await readJson(path.join(schemasRoot, "catalog-auditability-regression-check.v1.schema.json"));
+  const validate = ajv.getSchema(schema.$id);
+  const summary = Object.fromEntries(Object.entries(schema.properties).filter(([, property]) => Object.hasOwn(property, "const")).map(([key, property]) => [key, property.const]));
+  const codes = ["NO_REQUIREMENT", "PREFERENCE_NOT_SCORED", "REQUIREMENT_UNKNOWN", "AUDIT_INTENT_UNCLEAR", "AUDIT_SCOPE_UNKNOWN", "CRITERION_NOT_SELECTED",
+    "EVIDENCE_MISSING", "EVIDENCE_UNREVIEWED", "EVIDENCE_FROM_FUTURE", "EVIDENCE_STALE", "CAPABILITY_UNKNOWN", "CAPABILITY_UNAVAILABLE",
+    "DOCUMENTED_CAPABILITY_AVAILABLE", "RETENTION_DURATION_UNKNOWN", "RETENTION_BELOW_MINIMUM", "RETENTION_MEETS_MINIMUM"];
+  const counts = [0, 0, 0, 0, 0, 15, 3, 19, 0, 0, 0, 4, 25, 0, 4, 2];
+  const criteria = ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "ADMINISTRATIVE_CHANGE_EVENTS", "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_EXPORT", "AUDIT_LOG_RETENTION"];
+  Object.assign(summary, { evaluatedAt: "2026-09-12T12:00:00Z", scenarioSetSha256: "1".repeat(64), evidenceSha256: "2".repeat(64), analysisSha256: "3".repeat(64),
+    definitionsSha256: "4".repeat(64), baseCatalogVersion: "synthetic-2026-09-12.4", evidenceVersion: "synthetic-auditability-2026-09-12.1", checkedScopes: 3,
+    checkedCases: 12, checkedCriteria: 72, outcomes: { pass: 27, fail: 8, unknown: 22, notApplied: 15 },
+    candidates: { matchesCheckedRequirements: 3, doesNotMatch: 5, needsInformation: 4, notApplied: 0 },
+    reasons: codes.map((reasonCode, index) => ({ reasonCode, checks: counts[index] })), exercisedRequiredCriteria: criteria, allDeclaredCriteriaExercised: true });
+  assert.equal(validate(summary), true, validationMessage(validate));
+  assert.equal(summary.policyVersion, "catalog-auditability-regression-1"); assert.equal(summary.profileSchemaVersion, 6);
+  for (const flag of ["coverageComplete", "candidateChangesEvaluated", "configurationVerified", "complianceVerified", "sourceVerificationPerformed", "storedReportVerified",
+    "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"]) {
+    assert.equal(summary[flag], false); assert.equal(validate({ ...summary, [flag]: true }), false, flag);
+  }
+  for (const field of schema.required) { const invalid = structuredClone(summary); delete invalid[field]; assert.equal(validate(invalid), false, field); }
+  for (const mutate of [s => s.reasons.reverse(), s => s.reasons.pop(), s => { s.reasons[0].checks = -1; },
+    s => { s.outcomes.unknown = 2401; }, s => { s.candidates.needsInformation = 401; }, s => { s.checkedScopes = 101; },
+    s => { s.checkedCases = 13; }, s => { s.checkedCriteria = 73; }, s => { s.exercisedRequiredCriteria = []; },
+    s => { s.profileSchemaVersion = 5; }, s => { s.deferredBoundaries.pop(); }, s => { s.sourceUrl = "https://example.invalid"; }, s => { s.actor = "synthetic"; }]) {
+    const invalid = structuredClone(summary); mutate(invalid); assert.equal(validate(invalid), false);
+  }
+});
+
 test("synthetic auditability evidence is separately versioned, scoped and never a publication", async () => {
   const evidence = await readJson(path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog/auditability-evidence.v1.json"));
   const base = await readJson(path.join(contractsRoot, "../../services/core-api/src/main/resources/catalog/synthetic.v4.json"));

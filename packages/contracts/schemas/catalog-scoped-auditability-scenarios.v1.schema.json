@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-scoped-auditability-scenarios.v1.schema.json",
+  "title": "Supplemental synthetic auditability regression requirements",
+  "description": "Explicit test-only overlays bound to the frozen scoped v5 scenario set. Not customer defaults, legal retention or a compliance baseline. Core pins the base digest and validates compiled v6 profiles.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "baseScenarioSetVersion", "baseScenarioSetSha256", "scenarios"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "baseScenarioSetVersion": { "const": "catalog-scoped-profile-scenarios-1" },
+    "baseScenarioSetSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "scenarios": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["scenarioId", "description", "selectedCriteria", "minimumRetentionDays"],
+        "properties": {
+          "scenarioId": { "enum": ["b2b-saas-scoped", "partner-portal-scoped", "public-sector-scoped", "internal-workforce-scoped"] },
+          "description": { "type": "string", "minLength": 1, "maxLength": 300 },
+          "selectedCriteria": { "allOf": [{ "$ref": "./application-identity-profile.v6.schema.json#/$defs/auditabilityRequirements/properties/selectedCriteria" }, { "type": "array", "minItems": 1 }] },
+          "minimumRetentionDays": { "type": ["integer", "null"], "minimum": 1, "maximum": 36500 }
+        },
+        "if": { "properties": { "selectedCriteria": { "type": "array", "contains": { "const": "AUDIT_LOG_RETENTION" } } } },
+        "then": { "properties": { "minimumRetentionDays": { "type": "integer" } } },
+        "else": { "properties": { "minimumRetentionDays": { "type": "null" } } }
+      },
+      "allOf": [
+        { "contains": { "type": "object", "properties": { "scenarioId": { "const": "b2b-saas-scoped" } }, "required": ["scenarioId"] } },
+        { "contains": { "type": "object", "properties": { "scenarioId": { "const": "partner-portal-scoped" } }, "required": ["scenarioId"] } },
+        { "contains": { "type": "object", "properties": { "scenarioId": { "const": "public-sector-scoped" } }, "required": ["scenarioId"] } },
+        { "contains": { "type": "object", "properties": { "scenarioId": { "const": "internal-workforce-scoped" } }, "required": ["scenarioId"] } }
+      ]
+    }
+  }
+}

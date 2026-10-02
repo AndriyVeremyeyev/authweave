@@ -9,7 +9,9 @@ info:
     Every versioned workspace route requires a server-only BFF bearer credential and
     a validated OIDC issuer/subject pair mapped to the requested personal workspace.
     Catalog draft routes remain unauthenticated and local-only, except the scoped
-    curator review index, evidence review, bootstrap source review and decision routes. Do not expose this
+    curator review index, evidence review, bootstrap source review and decision routes.
+    Internal synthetic fixture diagnostics require the server service credential.
+    Do not expose this
     service through a proxy or tunnel; this is not a hosted authentication boundary.
 servers:
   - url: http://127.0.0.1:8080
@@ -23,6 +25,41 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /internal/v1/catalog-auditability/regression-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Inspect fresh synthetic scoped auditability regression
+      operationId: getSyntheticAuditabilityRegressionCheck
+      description: >-
+        Local-only internal read requiring the server service credential. Takes no
+        body, query parameters, user profile or caller completeness assertion.
+        Uses explicit supplemental requirements bound to four frozen scoped profiles
+        and the separate dated synthetic evidence sidecar. Returns only digests,
+        counts, exercised criteria and deferred boundaries, never source/profile
+        bodies or actor identity. Does not compare proposed catalogs, store a receipt,
+        refresh observations or change existing impact coverage/publication gates.
+        Capability matches are not verified logging, compliance or recommendations.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: No-store body-free fixture regression inventory; full coverage and authority remain false.
+          headers:
+            Cache-Control:
+              description: Diagnostic results must not be cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-regression-check.v1.schema.json
+        '400':
+          description: A body or query parameters were supplied to this input-free read.
+        '401':
+          description: Missing, duplicate or invalid server service credential.
+        '503':
+          description: Server service credential is not configured.
   /api/v1/catalog-bootstrap-reviews:
     post:
       tags: [Catalog drafts]
