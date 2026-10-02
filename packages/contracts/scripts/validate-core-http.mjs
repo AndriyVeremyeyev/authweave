@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
+import { auditabilityPreviewFromCore } from "../../../apps/web/src/lib/assessment/auditability-preview.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -24,6 +25,7 @@ const samples = (await Promise.all(samplePaths.map(async (file) => {
 }))).flat();
 assert.ok(Array.isArray(samples) && samples.length > 0, "HTTP contract samples must not be empty.");
 const covered = new Set();
+let auditabilityConsumerSamples = 0;
 for (const { name, schema, valid, payload } of samples) {
   assert.equal(typeof valid, "boolean", `${name}: expected validity is required`);
   const versionedName = /\.v[0-9]+$/.test(schema) ? schema : `${schema}.v1`;
@@ -32,6 +34,13 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "auditability-capability-preflight" && valid) {
+    const preview = auditabilityPreviewFromCore(payload, { workspaceId: payload.workspaceId,
+      assessmentId: payload.assessmentId, expectedVersion: payload.assessmentVersion,
+      values: { criticality: payload.criticality, ...payload.requirements } });
+    assert.equal(preview.candidates.length, payload.candidates.length, `${name}: BFF candidate parity`);
+    auditabilityConsumerSamples++;
+  }
 }
 for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-bootstrap-review-request:true", "catalog-bootstrap-review-request:false",
@@ -82,3 +91,5 @@ for (const required of ["assessment-response:true", "core-problem:true",
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.ok(auditabilityConsumerSamples > 0, "Actual auditability HTTP samples must reach the strict BFF consumer.");
+console.log(`Validated ${auditabilityConsumerSamples} actual auditability HTTP responses with the BFF evidence-policy guard.`);

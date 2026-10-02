@@ -13,6 +13,9 @@ import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
 import { POST as auditabilityRoute } from "../src/app/api/assessments/[id]/auditability/route.ts";
+import { readPersonalAuditability } from "../src/lib/auth/core-client.ts";
+import { auditabilityFixture, auditabilityInput, auditabilityAssessmentId,
+  auditabilityWorkspaceId } from "./fixtures/auditability-preview.mts";
 import { POST as rejectProposalRoute } from "../src/app/api/catalog-change-proposals/[id]/rejection/route.ts";
 import { POST as factReviewRoute } from "../src/app/api/catalog-change-proposals/[id]/fact-reviews/route.ts";
 import { POST as prepareBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/prepare/route.ts";
@@ -26,6 +29,42 @@ import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
+
+test("auditability preview reads with a live DB session, cannot cross ownership/version and never writes", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-auditability-preview-token-000000000000000000" });
+  const identity = { workspaceId: auditabilityWorkspaceId, issuer: "http://localhost:8081", subject: "synthetic-auditability-preview-owner",
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined);
+  let calls = 0, fixture = auditabilityFixture();
+  globalThis.fetch = async (url, init) => {
+    calls++; assert.equal(init?.method, "GET"); assert.equal(init?.body, undefined);
+    assert.equal(String(url), `http://127.0.0.1:8080/api/v6/workspaces/${identity.workspaceId}/assessments/${auditabilityAssessmentId}/auditability-capability-preflight`);
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error");
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal(headers["X-AuthWeave-Oidc-Issuer"], identity.issuer);
+    return Response.json(fixture);
+  };
+  try {
+    const live = await touchSession(sessionId); assert.ok(live);
+    const before = structuredClone(fixture);
+    const result = await readPersonalAuditability(live, auditabilityAssessmentId, 2, auditabilityInput);
+    assert.equal(result.assessmentVersion, 2); assert.deepEqual(fixture, before);
+    for (const foreign of [{ ...before, workspaceId: "70000000-0000-4000-8000-000000000002" },
+      { ...before, assessmentId: "80000000-0000-4000-8000-000000000002" }, { ...before, assessmentVersion: 3 }]) {
+      fixture = foreign; await assert.rejects(readPersonalAuditability(live, auditabilityAssessmentId, 2, auditabilityInput));
+    }
+    await revokeSession(sessionId);
+    assert.equal(await touchSession(sessionId), null);
+    assert.equal(calls, 4); // The page must resolve a live session before invoking this server-only reader.
+  } finally {
+    await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
+  }
+});
 
 test("auditability route binds a real session to v6 writes, explicit clear and sanitized conflicts", async () => {
   const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];

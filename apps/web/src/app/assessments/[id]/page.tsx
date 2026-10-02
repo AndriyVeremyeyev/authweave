@@ -7,8 +7,9 @@ import { hasStaleSyntheticEvidence } from "@/lib/assessment/comparison-evidence"
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
 import { auditabilityValues } from "@/lib/assessment/auditability";
+import type { AuditabilityPreview } from "@/lib/assessment/auditability-preview";
 import { authConfiguration } from "@/lib/auth/config";
-import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning,
+import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning, readPersonalAuditability,
   readSyntheticComparison,
   type ArchitecturePatternPreflightSummary, type ComparisonCandidate, type ComparisonFinding,
   type PersonalAssessment, type SyntheticComparisonSummary,
@@ -21,10 +22,11 @@ import { ArchitecturePatterns } from "./architecture-patterns";
 import { UsagePlanningEditor } from "./usage-planning-editor";
 import { UsagePlanningPreflight } from "./usage-planning-preflight";
 import { AuditabilityEditor } from "./auditability-editor";
+import { AuditabilityPreflight, AuditabilityPreflightUnavailable } from "./auditability-preflight";
 
 export const runtime = "nodejs";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const editErrors: Record<string, string> = {
   stale: "This draft changed since you opened it. Review the current values and save again.",
   invalid: "Core rejected this combination of requirements. Review the current profile before trying again.",
@@ -105,6 +107,15 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
     }
   }
 
+  let auditPreview: AuditabilityPreview | null = null;
+  if (auditValues) {
+    try {
+      auditPreview = await readPersonalAuditability(session, id, assessment.version, auditValues);
+    } catch {
+      // A stale, malformed or unavailable preview must not block the assessment or infer a result.
+    }
+  }
+
   return (
     <main className="mx-auto max-w-4xl px-6 py-20 text-slate-100">
       <Link href="/assessments" className="text-sm text-cyan-200 hover:underline">← Your assessments</Link>
@@ -162,6 +173,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
         </section>
       )}
+      {auditPreview ? <AuditabilityPreflight preview={auditPreview} /> : <AuditabilityPreflightUnavailable />}
       {comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values}
         assessmentId={assessment.id} preferred={preferred} /> : (
         <section className="mt-10 rounded-xl border border-amber-700 p-6" aria-labelledby="comparison-heading">

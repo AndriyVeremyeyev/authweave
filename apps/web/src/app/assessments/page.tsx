@@ -9,7 +9,7 @@ import { touchSession, type BrowserSession } from "@/lib/auth/store";
 
 export const runtime = "nodejs";
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export default async function AssessmentsPage({ searchParams }: PageProps<"/assessments">) {
   const query = await searchParams;

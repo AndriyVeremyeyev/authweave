@@ -17,6 +17,8 @@ import { parseProposalReviewCursor, proposalIndexFromCore,
 import { proposalReviewFromCore, type CatalogProposalReview } from "../catalog/proposal-review.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 import { auditabilityValues, withAuditabilityValues, type AuditabilityValues } from "../assessment/auditability.ts";
+import { auditabilityPreviewBinding, auditabilityPreviewByteLimit, auditabilityPreviewFromCore,
+  type AuditabilityPreview } from "../assessment/auditability-preview.ts";
 import { evaluationContextValues, withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
   type PrerequisiteInput, type PrerequisitePreview } from "../assessment/architecture-prerequisites.ts";
@@ -954,6 +956,17 @@ function usagePlanningFromCore(value: unknown, session: BrowserSession, id: stri
   });
   return { assessmentVersion: expectedVersion, evaluatedAt, status: expectedStatus,
     missingPaths: missing, quantityChecks };
+}
+
+export async function readPersonalAuditability(session: BrowserSession, id: string,
+  expectedVersion: number, values: AuditabilityValues): Promise<AuditabilityPreview> {
+  const binding = auditabilityPreviewBinding(session.workspaceId, id, expectedVersion, values);
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/auditability-capability-preflight`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error",
+    signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status !== 200) throw new Error("Core auditability capability read failed");
+  return auditabilityPreviewFromCore(JSON.parse(await boundedPrerequisiteText(response, auditabilityPreviewByteLimit)), binding);
 }
 
 export async function readPersonalUsagePlanning(session: BrowserSession, id: string,

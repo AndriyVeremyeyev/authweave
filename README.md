@@ -399,8 +399,25 @@ claims. These are not facts about ZITADEL or any real vendor. Source URLs are no
 fetched. Passing selected criteria establishes only a synthetic capability match;
 configuration, compliance, source verification and recommendation readiness stay false.
 Existing comparison/impact policies, frozen source profiles, receipts and publication
-gates remain unchanged. This separate preview is not yet displayed in the BFF/UI;
-it is not merged provider eligibility, ranking or a complete auditability assessment.
+gates remain unchanged. This separate preview is not merged provider eligibility,
+ranking or a complete auditability assessment.
+
+The personal assessment page now reads this separate preview through the existing
+BFF/session boundary. It binds the session workspace, assessment ID, exact version
+and saved criteria/duration; no browser-supplied identity or credential is used.
+The BFF bounds the streamed response to 1 MiB, rejects unknown fields, readiness claims,
+foreign/duplicate scopes or facts, and recomputes every reason/outcome/status from the
+returned evidence. UTC evidence comparisons preserve Core's nanosecond precision,
+including the exact 90-day freshness boundary. Actual Core HTTP responses are also
+checked against this BFF consumer in CI, independently of Web fixtures.
+
+The server-rendered UI explains each selected or unapplied criterion, the scoped
+synthetic claim and observation date, provider retention versus the requested minimum,
+and the deferred verification boundaries. Fictional source URLs are plain text,
+never fetched or made into navigation links. Preferred is not scored; forbidden intent
+needs clarification and does not advise disabling logs. A stale, malformed or unavailable
+preview produces a sanitized unavailable section without blocking the assessment or
+other independent previews. Reads do not edit inputs or refresh evidence dates.
 
 ### Auditability inputs and profile v6
 
