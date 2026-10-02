@@ -1,0 +1,3 @@
+# Reviewed false positive: a test maps provider names to catalog resource basenames.
+# Restrict this exception to the original commit, file, rule, and line; no credentials.
+310f5e5c71578e7972cfb7daf3278dce2f57da34:services/core-api/src/test/java/io/authweave/core/catalog/draft/ProviderBaselineDraftTests.java:generic-api-key:149

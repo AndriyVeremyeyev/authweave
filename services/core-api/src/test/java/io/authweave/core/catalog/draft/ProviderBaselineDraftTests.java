@@ -146,7 +146,12 @@ class ProviderBaselineDraftTests {
     @ValueSource(strings = {"keycloak", "zitadel", "auth0"})
     void scopedAndResearchOptionsCanCoexistWithoutMergingOrCompletingCoverage(String provider) throws Exception {
         var research = mapper.readValue(resource("catalog/baselines/" + provider + ".v1.json"), ProviderCatalogDraft.class);
-        var scope = Map.of("keycloak", "keycloak-26.8.0", "zitadel", "zitadel-cloud-free", "auth0", "auth0-b2b-free").get(provider);
+        var scope = switch (provider) {
+            case "keycloak" -> "keycloak-26.8.0";
+            case "zitadel" -> "zitadel-cloud-free";
+            case "auth0" -> "auth0-b2b-free";
+            default -> throw new AssertionError("Unexpected provider: " + provider);
+        };
         var scoped = mapper.readValue(resource("catalog/baselines/scoped/" + scope + ".v1.json"), ProviderCatalogDraft.class);
         var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 provider + "-research-and-scoped-test", List.of(research.options().getFirst(), scoped.options().getFirst()));
