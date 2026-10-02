@@ -140,6 +140,40 @@ test("auditability review receipts are body-free historical assertions with all 
   assert.equal(problem(denied), true, validationMessage(problem)); assert.equal(problem({ ...denied, actor: "private" }), false);
 });
 
+test("auditability impact references permit only exact stored-review identities and no caller context", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-impact-request.v1.schema.json");
+  const request = { schemaVersion: 1, beforeReviewId: "70000000-0000-4000-8000-000000000001", expectedBeforeReviewSha256: "1".repeat(64),
+    afterReviewId: "70000000-0000-4000-8000-000000000002", expectedAfterReviewSha256: "2".repeat(64) };
+  assert.equal(validate(request), true, validationMessage(validate));
+  for (const key of Object.keys(request)) { const invalid = structuredClone(request); delete invalid[key]; assert.equal(validate(invalid), false, key); }
+  for (const mutate of [r => { r.schemaVersion = 2; }, r => { r.schemaVersion = "1"; }, r => { r.beforeReviewId = "bad"; },
+    r => { r.expectedAfterReviewSha256 = "BAD"; }, r => { r.candidate = {}; }, r => { r.evaluatedAt = "2026-10-02T12:00:00Z"; },
+    r => { r.approvalGranted = true; }, r => { r.actor = "owner"; }]) {
+    const invalid = structuredClone(request); mutate(invalid); assert.equal(validate(invalid), false);
+  }
+});
+
+test("conditional auditability sides bind missing evidence, reasons and retention without asserting verification", async () => {
+  const schema = await readJson(path.join(schemasRoot, "catalog-auditability-impact.v1.schema.json"));
+  // Compile the complete response graph, not only its request or isolated definitions.
+  assert.ok(ajv.getSchema(schema.$id));
+  const side = ajv.getSchema(`${schema.$id}#/$defs/side`), check = ajv.getSchema(`${schema.$id}#/$defs/check`);
+  const missing = { conditionalOutcome: "INDETERMINATE", reason: "FACT_MISSING", factSha256: null, targetSha256: null,
+    sourceVerdict: null, observedAt: null, freshness: null, conditionsRecorded: false, documentedMinimumRetentionDays: null };
+  assert.equal(side(missing), true, validationMessage(side));
+  const positive = { ...missing, conditionalOutcome: "WOULD_SATISFY", reason: "RETENTION_MEETS_MINIMUM", factSha256: "1".repeat(64), targetSha256: "2".repeat(64),
+    sourceVerdict: "SOURCE_SUPPORTS_CLAIM", observedAt: "2026-10-02T12:00:00Z", freshness: "CURRENT", documentedMinimumRetentionDays: 180 };
+  assert.equal(side(positive), true, validationMessage(side));
+  for (const invalid of [{ ...missing, conditionalOutcome: "WOULD_SATISFY" }, { ...missing, factSha256: "1".repeat(64) },
+    { ...missing, sourceVerdict: "SOURCE_SUPPORTS_CLAIM" }, { ...positive, documentedMinimumRetentionDays: null },
+    { ...positive, targetSha256: null }, { ...positive, sourceVerdict: "APPROVED" }, { ...positive, evidenceStatus: "REVIEWED" }]) assert.equal(side(invalid), false);
+  const row = { criterion: "AUDIT_LOG_RETENTION", before: positive, after: missing, factChanged: true, conditionalResultChanged: true };
+  assert.equal(check(row), true, validationMessage(check)); assert.equal(check({ ...row, criterion: "AUDIT_LOG_EXPORT" }), false);
+  for (const flag of ["coverageComplete", "baselineVerified", "sourceVerificationPerformed", "factTrustChanged", "configurationVerified", "complianceVerified",
+    "storedReportVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"]) assert.equal(schema.properties[flag].const, false);
+  assert.equal(schema.properties.storedReviewsVerified.const, true); assert.equal(schema.properties.candidateChangesEvaluated.const, true);
+});
+
 test("profile v6 coverage contract inventories every semantic input and rejects readiness promotion or mixed unperformed state", async () => {
   const schema = await readJson(path.join(schemasRoot, "catalog-profile-impact-coverage.v1.schema.json"));
   const validate = ajv.getSchema(schema.$id), paths = new Set();

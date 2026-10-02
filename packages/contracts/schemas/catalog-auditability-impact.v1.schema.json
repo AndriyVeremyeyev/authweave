@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-impact.v1.schema.json",
+  "title": "Conditional auditability candidate-change impact v1",
+  "description": "Fresh comparison of two exact stored human reviews sharing an unchanged base draft. Assumes untrusted claims; unresolved recorded conditions remain indeterminate. No trusted baseline, publication, source verification or durable impact receipt.",
+  "type": "object", "additionalProperties": false,
+  "required": ["evaluatedAt", "scenarioSetSha256", "beforeReview", "afterReview", "scenarios", "scope", "policyVersion", "scenarioSetVersion", "profileSchemaVersion", "profileSchemaSha256", "analysisBasis", "analysisSha256", "checkedCases", "checkedCriteria", "changedFacts", "changedChecks", "deferredBoundaries", "storedReviewsVerified", "candidateChangesEvaluated", "coverageComplete", "baselineVerified", "sourceVerificationPerformed", "factTrustChanged", "configurationVerified", "complianceVerified", "storedReportVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"],
+  "properties": {
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "scenarioSetSha256": { "$ref": "#/$defs/digest" },
+    "beforeReview": { "$ref": "./catalog-auditability-review.v1.schema.json" },
+    "afterReview": { "$ref": "./catalog-auditability-review.v1.schema.json" },
+    "scenarios": { "type": "array", "minItems": 4, "maxItems": 400, "items": { "$ref": "#/$defs/scenario" } },
+    "scope": { "const": "CONDITIONAL_AUDITABILITY_CANDIDATE_CHANGE_IMPACT" },
+    "policyVersion": { "const": "catalog-auditability-candidate-impact-1" },
+    "scenarioSetVersion": { "const": "catalog-scoped-auditability-scenarios-1" },
+    "profileSchemaVersion": { "const": 6 },
+    "profileSchemaSha256": { "const": "3d384daf2d98851ebcbe00f90a9c6dabeedbae8361f8a41f58d00b9742c95fbb" },
+    "analysisBasis": { "const": "ASSUMING_UNTRUSTED_DRAFT_CLAIMS_WITH_UNVERIFIED_CONDITIONS_INDETERMINATE" },
+    "analysisSha256": { "$ref": "#/$defs/digest" },
+    "checkedCases": { "type": "integer", "minimum": 4, "maximum": 400 },
+    "checkedCriteria": { "type": "integer", "minimum": 24, "maximum": 2400 },
+    "changedFacts": { "type": "integer", "minimum": 0, "maximum": 600 },
+    "changedChecks": { "type": "integer", "minimum": 0, "maximum": 2400 },
+    "deferredBoundaries": { "const": ["eventRecordContentAndScope", "auditRecordIntegrity", "auditAccessControls", "loggingFailureHandling", "exportDeliveryAndRetrieval", "deployedLoggingConfiguration", "complianceEvidence"] },
+    "storedReviewsVerified": { "const": true }, "candidateChangesEvaluated": { "const": true },
+    "coverageComplete": { "const": false }, "baselineVerified": { "const": false },
+    "sourceVerificationPerformed": { "const": false }, "factTrustChanged": { "const": false },
+    "configurationVerified": { "const": false }, "complianceVerified": { "const": false },
+    "storedReportVerified": { "const": false }, "approvalGranted": { "const": false },
+    "writesPerformed": { "const": false }, "publicationReady": { "const": false },
+    "evaluationReady": { "const": false }, "recommendationReady": { "const": false }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "nullableDigest": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+    "criterion": { "enum": ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "ADMINISTRATIVE_CHANGE_EVENTS", "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_EXPORT", "AUDIT_LOG_RETENTION"] },
+    "side": {
+      "type": "object", "additionalProperties": false,
+      "required": ["conditionalOutcome", "reason", "factSha256", "targetSha256", "sourceVerdict", "observedAt", "freshness", "conditionsRecorded", "documentedMinimumRetentionDays"],
+      "properties": {
+        "conditionalOutcome": { "enum": ["WOULD_SATISFY", "WOULD_VIOLATE", "INDETERMINATE", "NOT_APPLIED"] },
+        "reason": { "enum": ["CRITERION_NOT_SELECTED", "FACT_MISSING", "CLAIM_FROM_FUTURE", "CLAIM_STALE", "CLAIM_UNKNOWN", "CLAIM_UNAVAILABLE", "CONDITIONS_UNVERIFIED", "CLAIM_AVAILABLE", "RETENTION_DURATION_UNKNOWN", "RETENTION_BELOW_MINIMUM", "RETENTION_MEETS_MINIMUM"] },
+        "factSha256": { "$ref": "#/$defs/nullableDigest" }, "targetSha256": { "$ref": "#/$defs/nullableDigest" },
+        "sourceVerdict": { "enum": [null, "SOURCE_SUPPORTS_CLAIM", "SOURCE_DOES_NOT_SUPPORT_CLAIM", "INSUFFICIENT_EVIDENCE"] },
+        "observedAt": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+        "freshness": { "enum": [null, "CURRENT", "STALE", "FUTURE"] }, "conditionsRecorded": { "type": "boolean" },
+        "documentedMinimumRetentionDays": { "type": ["integer", "null"], "minimum": 0, "maximum": 36500 }
+      },
+      "allOf": [
+        { "oneOf": [
+          { "properties": { "reason": { "const": "CRITERION_NOT_SELECTED" }, "conditionalOutcome": { "const": "NOT_APPLIED" } } },
+          { "properties": { "reason": { "enum": ["CLAIM_UNAVAILABLE", "RETENTION_BELOW_MINIMUM"] }, "conditionalOutcome": { "const": "WOULD_VIOLATE" } } },
+          { "properties": { "reason": { "enum": ["CLAIM_AVAILABLE", "RETENTION_MEETS_MINIMUM"] }, "conditionalOutcome": { "const": "WOULD_SATISFY" } } },
+          { "properties": { "reason": { "enum": ["FACT_MISSING", "CLAIM_FROM_FUTURE", "CLAIM_STALE", "CLAIM_UNKNOWN", "CONDITIONS_UNVERIFIED", "RETENTION_DURATION_UNKNOWN"] }, "conditionalOutcome": { "const": "INDETERMINATE" } } }
+        ] },
+        { "if": { "properties": { "factSha256": { "type": "null" } } },
+          "then": { "properties": { "reason": { "enum": ["CRITERION_NOT_SELECTED", "FACT_MISSING"] }, "targetSha256": { "type": "null" }, "sourceVerdict": { "type": "null" }, "observedAt": { "type": "null" }, "freshness": { "type": "null" }, "conditionsRecorded": { "const": false }, "documentedMinimumRetentionDays": { "type": "null" } } },
+          "else": { "properties": { "reason": { "not": { "const": "FACT_MISSING" } }, "targetSha256": { "$ref": "#/$defs/digest" }, "sourceVerdict": { "type": "string" }, "observedAt": { "type": "string" }, "freshness": { "type": "string" } } }
+        },
+        { "if": { "properties": { "reason": { "enum": ["RETENTION_BELOW_MINIMUM", "RETENTION_MEETS_MINIMUM"] } } },
+          "then": { "properties": { "documentedMinimumRetentionDays": { "type": "integer" } } },
+          "else": { "properties": { "documentedMinimumRetentionDays": { "type": "null" } } }
+        }
+      ]
+    },
+    "check": {
+      "type": "object", "additionalProperties": false, "required": ["criterion", "before", "after", "factChanged", "conditionalResultChanged"],
+      "properties": {
+        "criterion": { "$ref": "#/$defs/criterion" }, "before": { "$ref": "#/$defs/side" }, "after": { "$ref": "#/$defs/side" },
+        "factChanged": { "type": "boolean" }, "conditionalResultChanged": { "type": "boolean" }
+      },
+      "if": { "properties": { "criterion": { "not": { "const": "AUDIT_LOG_RETENTION" } } } },
+      "then": { "properties": { "before": { "type": "object", "properties": { "documentedMinimumRetentionDays": { "type": "null" }, "reason": { "not": { "enum": ["RETENTION_BELOW_MINIMUM", "RETENTION_MEETS_MINIMUM", "RETENTION_DURATION_UNKNOWN"] } } } }, "after": { "type": "object", "properties": { "documentedMinimumRetentionDays": { "type": "null" }, "reason": { "not": { "enum": ["RETENTION_BELOW_MINIMUM", "RETENTION_MEETS_MINIMUM", "RETENTION_DURATION_UNKNOWN"] } } } } } }
+    },
+    "scenario": {
+      "type": "object", "additionalProperties": false, "required": ["scenarioId", "profileSha256", "requirements", "optionScope", "checks"],
+      "properties": {
+        "scenarioId": { "enum": ["b2b-saas-scoped", "partner-portal-scoped", "public-sector-scoped", "internal-workforce-scoped"] },
+        "profileSha256": { "$ref": "#/$defs/digest" },
+        "requirements": { "$ref": "./application-identity-profile.v6.schema.json#/$defs/auditabilityRequirements" },
+        "optionScope": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/scope" },
+        "checks": { "type": "array", "minItems": 6, "maxItems": 6, "items": { "$ref": "#/$defs/check" } }
+      }
+    }
+  }
+}

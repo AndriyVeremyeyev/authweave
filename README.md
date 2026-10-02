@@ -886,7 +886,42 @@ impact, approval, catalog writes and publication/evaluation/recommendation readi
 remain false. Reviewing stale/future evidence never refreshes its observation date or
 turns draft facts into reviewed evaluation evidence. Existing proposal/bootstrap reviews,
 synthetic snapshots, historical receipts and publication-preflight policy are unchanged.
-Before/after auditability impact and its consumers remain separate subsequent steps.
+The separate conditional comparison below does not change these receipt semantics.
+
+### Conditional auditability candidate-change impact
+
+`POST /internal/v1/catalog-curator/auditability-impact/preview` compares two exact
+stored auditability reviews using [request v1](packages/contracts/schemas/catalog-auditability-impact-request.v1.schema.json).
+It accepts only review UUIDs and expected review hashes, not supplied drafts, actors,
+evaluation time or approval claims. Current fresh scoped curator assertions are required;
+query parameters are rejected. Both full stored requests and mandatory audits are replayed
+in one repeatable-read snapshot. Missing reviews return 404; wrong hashes, unavailable
+integrity replay or different base drafts return 409. There is no fallback to fresh
+caller-supplied data. Neither side is a trusted published baseline. Keep Core local-only.
+
+For the unchanged exact base and option scopes, the fresh
+[comparison](packages/contracts/schemas/catalog-auditability-impact.v1.schema.json)
+checks six audit criteria across all four explicit synthetic profiles. It shows the
+bound profile requirements, before/after conditional reasons, source-verdict metadata,
+claim/target hashes, original dates and freshness. `WOULD_SATISFY` and `WOULD_VIOLATE`
+assume untrusted claims; they are not actual eligibility. Missing, unknown, stale or
+future claims remain indeterminate; recorded conditions requiring verification also
+remain indeterminate. Human supporting/contradicting/insufficient verdicts are visible
+but never promote trust or alter the hypothetical assumption. Omitted profile criteria
+are not applied. No source or actor bodies are returned.
+
+For example, changing an unconditional documented retention minimum from 180 to 30 days
+changes the public-sector fixture's conditional check from meeting its explicit 90-day
+requirement to violating it. Changed-fact counts are unique per option/criterion;
+changed-check counts include reason or reported retention-duration changes, even if
+the conditional outcome stays the same. Independent HTTP checks recompute every side,
+the complete scenario inventory, source bindings, counts and analysis digest.
+
+This is a `no-store` computation, not a persisted impact receipt, source verification,
+full-profile coverage, observed configuration, compliance, approval, publication or
+recommendation. Existing synthetic evidence, review receipts, publication policies
+and profile-coverage consumers remain unchanged and cannot infer new readiness.
+No browser form, accounts, paid calls or new dependencies are added.
 
 ### Provider catalog drafts: validation before review
 

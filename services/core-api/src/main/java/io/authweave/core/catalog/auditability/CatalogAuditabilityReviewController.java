@@ -14,8 +14,18 @@ import io.authweave.core.catalog.proposal.CatalogProposalRejectionWriter.Curator
 public final class CatalogAuditabilityReviewController {
     private final InternalServiceCredentialFilter credentials;
     private final CatalogAuditabilityReviewService reviews;
-    public CatalogAuditabilityReviewController(InternalServiceCredentialFilter credentials, CatalogAuditabilityReviewService reviews) {
-        this.credentials = credentials; this.reviews = reviews;
+    private final CatalogAuditabilityImpactService impacts;
+    public CatalogAuditabilityReviewController(InternalServiceCredentialFilter credentials, CatalogAuditabilityReviewService reviews,
+            CatalogAuditabilityImpactService impacts) {
+        this.credentials = credentials; this.reviews = reviews; this.impacts = impacts;
+    }
+    @PostMapping("/internal/v1/catalog-curator/auditability-impact/preview")
+    public ResponseEntity<CatalogAuditabilityImpactService.Impact> impact(@RequestBody CatalogAuditabilityImpactService.Request body,
+            HttpServletRequest request) {
+        int status = credentials.curatorStatus(request);
+        if (status != 204) return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).build();
+        if (request.getQueryString() != null) return ResponseEntity.badRequest().cacheControl(CacheControl.noStore()).build();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(impacts.preview(body));
     }
     @PostMapping("/internal/v1/catalog-curator/auditability-reviews")
     public ResponseEntity<CatalogAuditabilityReview> record(@RequestBody CatalogAuditabilityReviewRequest body, HttpServletRequest request) {

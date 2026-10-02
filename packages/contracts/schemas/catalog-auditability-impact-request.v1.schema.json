@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-impact-request.v1.schema.json",
+  "title": "Exact stored-review auditability comparison request v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "beforeReviewId", "expectedBeforeReviewSha256", "afterReviewId", "expectedAfterReviewSha256"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "beforeReviewId": { "type": "string", "format": "uuid" },
+    "expectedBeforeReviewSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "afterReviewId": { "type": "string", "format": "uuid" },
+    "expectedAfterReviewSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" }
+  }
+}

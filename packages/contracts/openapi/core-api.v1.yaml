@@ -26,6 +26,51 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /internal/v1/catalog-curator/auditability-impact/preview:
+    post:
+      tags: [Catalog drafts]
+      summary: Compare conditional auditability effects of two exact stored reviews
+      operationId: previewAuditabilityCandidateImpact
+      security:
+        - BffServiceToken: []
+      description: >-
+        Core-only read-only computation, requiring current fresh scoped curator assertions.
+        No query parameters or caller-supplied drafts/evaluation time. Replays both exact
+        stored requests and audits in one repeatable-read snapshot. Both must share the
+        unchanged base draft; neither is treated as a trusted published baseline.
+        Checks all six criteria for all four explicit synthetic profiles and every option.
+        Assumes untrusted claims; missing/unknown/stale/future claims and unresolved
+        recorded conditions remain indeterminate. Shows human verdicts without changing
+        trust or hypothetical outcomes. No report persistence, source fetch, approval,
+        publication or changes to existing review/coverage/publication policies.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-auditability-impact-request.v1.schema.json
+      responses:
+        '200':
+          description: Fresh conditional comparison; not an eligibility or recommendation result.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-impact.v1.schema.json
+        '400':
+          description: Malformed references, supplied fields or query parameters.
+        '401':
+          description: Missing, invalid or duplicated credential or identity assertion.
+        '403':
+          description: Missing scoped curator role or stale/future authentication assertion.
+        '404':
+          description: Referenced source review does not exist.
+        '409':
+          description: Review digest/integrity mismatch or different base drafts.
+        '503':
+          description: Core service credential or curator scope is not configured.
   /internal/v1/catalog-curator/auditability-reviews:
     post:
       tags: [Catalog drafts]
