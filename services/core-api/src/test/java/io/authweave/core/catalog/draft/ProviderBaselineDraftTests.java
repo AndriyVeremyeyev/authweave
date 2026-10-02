@@ -101,12 +101,56 @@ class ProviderBaselineDraftTests {
     }
 
     @Test
-    void scopedAndResearchOptionsCanCoexistWithoutMergingOrCompletingCoverage() throws Exception {
-        var research = mapper.readValue(resource("catalog/baselines/keycloak.v1.json"), ProviderCatalogDraft.class);
-        var scoped = mapper.readValue(resource("catalog/baselines/scoped/keycloak-26.8.0.v1.json"), ProviderCatalogDraft.class);
+    void cloudFreeDraftPreservesMixedAvailabilityWithoutVerifyingEntitlementOrDeployment() throws Exception {
+        var json = resource("catalog/baselines/scoped/zitadel-cloud-free.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("zitadel-cloud-free-native", option.id());
+        assertEquals("ZITADEL Cloud", option.product());
+        assertEquals("Free; documented offer, no account entitlement verified", option.plan());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, option.facts().get(ProviderCatalog.Capability.OIDC).availability());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, option.facts().get(ProviderCatalog.Capability.SAML).availability());
+        var scim = option.facts().get(ProviderCatalog.Capability.SCIM);
+        var groups = option.facts().get(ProviderCatalog.Capability.GROUP_SYNC);
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, scim.availability());
+        assertEquals(ProviderCatalog.Availability.UNAVAILABLE, groups.availability());
+        assertTrue(String.join(" ", scim.conditions()).contains("Preview"));
+        assertTrue(String.join(" ", groups.conditions()).contains("no external bridge"));
+        var observed = Instant.parse("2026-10-02T21:44:10Z");
+        option.facts().values().forEach(fact -> {
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("zitadel.com", fact.evidence().sourceUrl().getHost());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(4, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"keycloak", "zitadel"})
+    void scopedAndResearchOptionsCanCoexistWithoutMergingOrCompletingCoverage(String provider) throws Exception {
+        var research = mapper.readValue(resource("catalog/baselines/" + provider + ".v1.json"), ProviderCatalogDraft.class);
+        var scope = provider.equals("keycloak") ? "keycloak-26.8.0" : "zitadel-cloud-free";
+        var scoped = mapper.readValue(resource("catalog/baselines/scoped/" + scope + ".v1.json"), ProviderCatalogDraft.class);
         var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
-                "keycloak-research-and-scoped-test", List.of(research.options().getFirst(), scoped.options().getFirst()));
-        var report = validator.validateAt(combined, Instant.parse("2026-10-02T21:20:39Z"));
+                provider + "-research-and-scoped-test", List.of(research.options().getFirst(), scoped.options().getFirst()));
+        var report = validator.validateAt(combined, Instant.parse("2026-10-02T21:44:10Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(2, report.optionCount());
         assertEquals(7, report.factCount());

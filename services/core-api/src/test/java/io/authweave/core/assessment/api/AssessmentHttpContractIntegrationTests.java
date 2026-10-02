@@ -2075,19 +2075,20 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
                 "../../packages/contracts/tests/fixtures/catalog-auditability-draft.valid.json").toFile())); return request;
     }
 
-    @Test
-    void releaseScopedKeycloakDraftRetainsItsActualObservationsAndCannotChangeEvaluation() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"keycloak-26.8.0", "zitadel-cloud-free"})
+    void scopedProviderDraftRetainsItsActualObservationsAndCannotChangeEvaluation(String scope) throws Exception {
         var assessment = create();
         var path = assessment.path().replace("/api/v1/", "/api/v4/") + "/eligibility-preflight";
-        var before = versionedSample("keycloak-scoped-before", "eligibility-preflight.v4", mvc.perform(get(path)).andReturn());
+        var before = versionedSample(scope + "-scoped-before", "eligibility-preflight.v4", mvc.perform(get(path)).andReturn());
         JsonNode input;
-        try (var stream = new ClassPathResource("catalog/baselines/scoped/keycloak-26.8.0.v1.json").getInputStream()) {
+        try (var stream = new ClassPathResource("catalog/baselines/scoped/" + scope + ".v1.json").getInputStream()) {
             input = mapper.readTree(stream);
         }
-        sample("keycloak-scoped-draft", "provider-catalog-draft", true, input.deepCopy());
+        sample(scope + "-scoped-draft", "provider-catalog-draft", true, input.deepCopy());
         var result = mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(input))).andExpect(status().isOk()).andReturn();
-        var report = versionedSample("keycloak-scoped-report", "catalog-draft-validation", result);
+        var report = versionedSample(scope + "-scoped-report", "catalog-draft-validation", result);
         assertEquals("VALID_DRAFT", report.get("status").asText());
         assertEquals(1, report.get("optionCount").asInt());
         assertEquals(4, report.get("factCount").asInt());
@@ -2096,7 +2097,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         for (String field : List.of("sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady")) {
             assertFalse(report.get(field).asBoolean());
             var forged = (ObjectNode) report.deepCopy(); forged.put(field, true);
-            sample("keycloak-scoped-no-" + field, "catalog-draft-validation", false, forged);
+            sample(scope + "-scoped-no-" + field, "catalog-draft-validation", false, forged);
         }
         for (var fact : report.get("facts")) {
             assertEquals("UNREVIEWED", fact.get("evidenceStatus").asText());
@@ -2105,11 +2106,11 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
             var capability = fact.get("path").asText().substring("facts.".length());
             assertEquals(input.at("/options/0/facts/" + capability + "/evidence"), fact.get("evidence"));
         }
-        assertEquals(report, versionedSample("keycloak-scoped-repeat", "catalog-draft-validation",
+        assertEquals(report, versionedSample(scope + "-scoped-repeat", "catalog-draft-validation",
                 mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)
                         .content(mapper.writeValueAsString(input))).andReturn()));
-        assertEquals(before, versionedSample("keycloak-scoped-after", "eligibility-preflight.v4", mvc.perform(get(path)).andReturn()));
-        assertEquals(assessment.created(), response("keycloak-scoped-assessment-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertEquals(before, versionedSample(scope + "-scoped-after", "eligibility-preflight.v4", mvc.perform(get(path)).andReturn()));
+        assertEquals(assessment.created(), response(scope + "-scoped-assessment-unchanged", mvc.perform(get(assessment.path())).andReturn()));
         assertHistorySize(assessment, 1);
     }
 

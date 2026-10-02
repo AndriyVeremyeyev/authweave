@@ -5,11 +5,13 @@ import test from "node:test";
 
 import {
   inspectBaselineDrafts, inspectBaselinePack, inspectScopedBaselineDraft,
-  readBaselineDrafts, readScopedBaselineDraft,
+  readBaselineDrafts, readScopedBaselineDraft, readScopedBaselineDrafts,
 } from "../scripts/inspect-provider-baselines.mjs";
 
 const drafts = await readBaselineDrafts();
 const scopedDraft = await readScopedBaselineDraft();
+const scopedDrafts = await readScopedBaselineDrafts();
+const zitadelDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "zitadel");
 const observedAt = new Date("2026-10-02T19:58:06Z");
 const copy = () => structuredClone(drafts);
 
@@ -113,20 +115,89 @@ test("scoped inspection rejects release drift, moving URLs, changed scope and in
   }
 });
 
+test("Free Cloud scope keeps SCIM uncertainty and native group absence separate from configurable login", () => {
+  const at = new Date("2026-10-02T21:44:10Z");
+  const before = JSON.stringify(zitadelDraft);
+  const report = inspectScopedBaselineDraft(zitadelDraft, at);
+  assertUntrusted(report);
+  assert.equal(report.factCount, 4);
+  const option = report.options[0];
+  assert.equal(option.basis, "PLAN_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(option.sourcePlan, "Free");
+  assert.equal(option.deployment, "MANAGED");
+  assert.equal(Object.hasOwn(option, "sourceRelease"), false);
+  assert.equal(Object.hasOwn(option, "sourceCommit"), false);
+  assert.deepEqual(Object.fromEntries(option.facts.map((fact) => [fact.path, fact.availability])), {
+    "facts.GROUP_SYNC": "UNAVAILABLE", "facts.OIDC": "OPTIONAL", "facts.SAML": "OPTIONAL", "facts.SCIM": "UNKNOWN",
+  });
+  assert.ok(option.facts.every((fact) => fact.freshness === "CURRENT"));
+  assert.equal(option.omittedCapabilities.length, 5);
+  const claims = zitadelDraft.options[0].facts;
+  assert.match(claims.OIDC.conditions.join(" "), /https:\/\/zitadel.com\/pricing.*quotas.*no account entitlement.*zero-cost/);
+  assert.match(claims.SCIM.conditions.join(" "), /Preview.*Free-plan access.*Cloud version/);
+  assert.match(claims.SCIM.conditions.join(" "), /inbound.*not outbound/);
+  assert.match(claims.GROUP_SYNC.conditions.join(" "), /native inbound SCIM Group.*no external bridge/);
+  assert.match(claims.GROUP_SYNC.conditions.join(" "), /Do not generalize/);
+  for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
+    const later = inspectScopedBaselineDraft(zitadelDraft, new Date(at.getTime() + offset));
+    assertUntrusted(later);
+    assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness
+      && fact.evidence.observedAt === "2026-10-02T21:44:10Z"));
+  }
+  assert.equal(JSON.stringify(zitadelDraft), before);
+});
+
+test("Cloud inspection rejects paid-plan or lab conflation, fabricated support and source drift", () => {
+  const mutations = [
+    (input) => { input.approvalGranted = true; },
+    (input) => { input.options[0].plan = "Pro"; },
+    (input) => { input.options[0].product = "ZITADEL self-hosted 4.17.0"; },
+    (input) => { input.options[0].deployment = "SELF_HOSTED"; },
+    (input) => { input.options[0].providerId = "keycloak"; },
+    (input) => { input.options[0].id = "zitadel-managed-research"; },
+    (input) => { input.catalogVersion = scopedDraft.catalogVersion; },
+    (input) => { input.options[0].region = "EU"; },
+    (input) => { input.options[0].configuration = "SCIM groups via a custom bridge"; },
+    (input) => { input.options[0].facts.SCIM.availability = "OPTIONAL"; },
+    (input) => { input.options[0].facts.GROUP_SYNC.availability = "OPTIONAL"; },
+    (input) => { input.options[0].facts.SCIM.conditions = []; },
+    (input) => { input.options[0].facts.SCIM.conditions.push(input.options[0].facts.SCIM.conditions[0]); },
+    (input) => { input.options[0].facts.SCIM.evidence.sourceUrl = "https://zitadel.com/pricing"; },
+    (input) => { input.options[0].facts.GROUP_SYNC.evidence.sourceUrl += "?reviewed=true"; },
+    (input) => { input.options[0].facts.OIDC.evidence.sourceUrl = "https://owner@zitadel.com/docs"; },
+    (input) => { input.options[0].facts.SCIM.evidence.observedAt = "2026-02-30T21:44:10Z"; },
+    (input) => { delete input.options[0].facts.SAML; },
+    (input) => { input.options.push(structuredClone(input.options[0])); },
+    (input) => { input.options[0].residency.USER_PROFILES = {
+      coverage: "COMPLETE", storageCountries: ["CH"], conditions: [], evidence: structuredClone(input.options[0].facts.OIDC.evidence),
+    }; },
+  ];
+  for (const mutate of mutations) {
+    const input = structuredClone(zitadelDraft); mutate(input);
+    assert.throws(() => inspectScopedBaselineDraft(input, observedAt));
+  }
+});
+
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const report = await inspectBaselinePack(new Date("2026-10-02T21:20:39Z"));
+  const at = new Date("2026-10-02T21:44:10Z");
+  const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 6);
-  assert.equal(report.factCount, 19);
+  assert.equal(report.optionCount, 7);
+  assert.equal(report.factCount, 23);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 1);
+  assert.equal(report.scopedDraftOptionCount, 2);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 2);
   assert.notEqual(keycloak[0].optionId, keycloak[1].optionId);
   assert.equal(keycloak.filter((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").length, 1);
   assert.ok(keycloak.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").facts.every((fact) => fact.availability === "UNKNOWN"));
-  assert.deepEqual(await inspectBaselinePack(new Date("2026-10-02T21:20:39Z")), report);
+  const zitadel = report.options.filter((option) => option.providerId === "zitadel");
+  assert.equal(zitadel.length, 2);
+  assert.equal(zitadel.filter((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").length, 1);
+  assert.ok(zitadel.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").facts.every((fact) => fact.availability === "UNKNOWN"));
+  assert.equal(zitadel.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT").sourcePlan, "Free");
+  assert.deepEqual(await inspectBaselinePack(at), report);
 });
 
 test("research inspection rejects malformed, promoted, duplicated and cross-provider inputs", () => {
@@ -168,7 +239,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 19);
+  assert.equal(JSON.parse(run.stdout).factCount, 23);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");
@@ -181,5 +252,5 @@ test("active catalog remains the separate synthetic fixture", async () => {
   ), "utf8"));
   assert.equal(catalog.kind, "SYNTHETIC");
   assert.ok(catalog.options.every((option) => !drafts.some((draft) => draft.options[0].id === option.id)));
-  assert.ok(catalog.options.every((option) => option.id !== scopedDraft.options[0].id));
+  assert.ok(catalog.options.every((option) => scopedDrafts.every((draft) => option.id !== draft.options[0].id)));
 });

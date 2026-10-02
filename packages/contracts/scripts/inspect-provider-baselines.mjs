@@ -34,6 +34,40 @@ const keycloakRelease = Object.freeze({
     GROUP_SYNC: "scim/managing-groups.adoc",
   }),
 });
+const scopedBaselines = Object.freeze([
+  {
+    file: keycloakRelease.file,
+    catalogVersion: "keycloak-26.8.0-native-draft-2026.10.02",
+    scope: {
+      id: "keycloak-26.8.0-native-self-hosted", providerId: "keycloak",
+      product: `Keycloak upstream ${keycloakRelease.version}`, deployment: "SELF_HOSTED",
+      plan: "Upstream release 26.8.0; commercial support not assessed",
+      region: "Operator-selected hosting; storage destinations not verified",
+      configuration: "Native OIDC/SAML clients and configurable inbound realm SCIM; no third-party extensions or outbound bridge",
+    },
+    facts: Object.fromEntries(Object.entries(keycloakRelease.sourcePaths).map(([capability, sourcePath]) => [
+      capability, { availability: "OPTIONAL", sourceUrl: `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/docs/documentation/server_admin/topics/${sourcePath}` },
+    ])),
+    metadata: { basis: "RELEASE_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
+  },
+  {
+    file: "zitadel-cloud-free.v1.json",
+    catalogVersion: "zitadel-cloud-free-native-draft-2026.10.02",
+    scope: {
+      id: "zitadel-cloud-free-native", providerId: "zitadel", product: "ZITADEL Cloud", deployment: "MANAGED",
+      plan: "Free; documented offer, no account entitlement verified",
+      region: "No Cloud region selected; storage destinations not verified",
+      configuration: "Native OIDC/SAML applications and inbound SCIM User interface only; no group bridge or third-party extensions",
+    },
+    facts: {
+      OIDC: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/manage/console/applications-overview" },
+      SAML: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/manage/console/applications-overview" },
+      SCIM: { availability: "UNKNOWN", sourceUrl: "https://zitadel.com/docs/apis/scim2" },
+      GROUP_SYNC: { availability: "UNAVAILABLE", sourceUrl: "https://zitadel.com/docs/guides/manage/user/scim2" },
+    },
+    metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
+  },
+]);
 
 function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
@@ -140,46 +174,49 @@ export function inspectBaselineDrafts(drafts, evaluatedAt = new Date()) {
   return report("PROVIDER_BASELINE_RESEARCH_INSPECTION", options, evaluatedAt);
 }
 
-export async function readScopedBaselineDraft() {
+export async function readScopedBaselineDrafts() {
   const directory = path.join(baselineRoot, "scoped");
   const files = (await readdir(directory)).filter((file) => file.endsWith(".json")).sort();
-  requireCondition(JSON.stringify(files) === JSON.stringify([keycloakRelease.file]), "Unexpected scoped baseline file inventory");
-  return JSON.parse(await readFile(path.join(directory, keycloakRelease.file), "utf8"));
+  requireCondition(JSON.stringify(files) === JSON.stringify(scopedBaselines.map(({ file }) => file).sort()),
+    "Unexpected scoped baseline file inventory");
+  return Promise.all(scopedBaselines.map(async ({ file }) => JSON.parse(await readFile(path.join(directory, file), "utf8"))));
 }
 
-/** Release-scoped documentation assertions are still proposals, never reviewed evidence. */
+/** Retained for consumers of the original single Keycloak candidate. */
+export async function readScopedBaselineDraft() {
+  return (await readScopedBaselineDrafts())[0];
+}
+
+/** Release/plan-scoped documentation assertions are proposals, never reviewed evidence. */
 export function inspectScopedBaselineDraft(draft, evaluatedAt = new Date()) {
   requireInspectionTime(evaluatedAt);
   requireCondition(validate(draft), `Invalid scoped draft: ${ajv.errorsText(validate.errors)}`);
-  requireCondition(draft.catalogVersion === "keycloak-26.8.0-native-draft-2026.10.02" && draft.options.length === 1,
+  const expected = scopedBaselines.find((candidate) => candidate.catalogVersion === draft.catalogVersion);
+  requireCondition(expected && draft.options.length === 1,
     "Unexpected scoped draft version or option count");
   const option = draft.options[0];
-  requireCondition(option.id === "keycloak-26.8.0-native-self-hosted" && option.providerId === "keycloak"
-    && option.product === `Keycloak upstream ${keycloakRelease.version}` && option.deployment === "SELF_HOSTED"
-    && option.plan === "Upstream release 26.8.0; commercial support not assessed"
-    && option.region === "Operator-selected hosting; storage destinations not verified"
-    && option.configuration === "Native OIDC/SAML clients and configurable inbound realm SCIM; no third-party extensions or outbound bridge",
-  "Unexpected release, distribution, deployment or native integration scope");
-  requireCondition(Object.keys(option.facts).sort().join(",") === "GROUP_SYNC,OIDC,SAML,SCIM", "Expected four scoped documentation assertions");
+  requireCondition(Object.entries(expected.scope).every(([field, value]) => option[field] === value),
+    "Unexpected release, plan, distribution, deployment or native integration scope");
+  requireCondition(Object.keys(option.facts).sort().join(",") === Object.keys(expected.facts).sort().join(","),
+    "Unexpected scoped capability inventory");
   requireDeferredDimensions(option);
   for (const [capability, fact] of Object.entries(option.facts)) {
-    requireCondition(fact.availability === "OPTIONAL", "Expected proposed OPTIONAL availability for the pinned documentation candidate");
-    const expected = `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/docs/documentation/server_admin/topics/${keycloakRelease.sourcePaths[capability]}`;
-    requireCondition(fact.evidence.sourceUrl === expected, "Expected the exact release-resolved official source commit and documentation path");
+    requireCondition(fact.availability === expected.facts[capability].availability,
+      "Unexpected proposed availability for the scoped documentation candidate");
+    requireCondition(fact.evidence.sourceUrl === expected.facts[capability].sourceUrl,
+      "Expected the exact scoped official documentation URL");
   }
-  const inspected = inspectOption(draft, option, evaluatedAt, "RELEASE_SCOPED_DOCUMENTATION_DRAFT");
-  inspected.sourceRelease = keycloakRelease.version;
-  inspected.sourceCommit = keycloakRelease.commit;
+  const inspected = { ...inspectOption(draft, option, evaluatedAt, expected.metadata.basis), ...expected.metadata };
   return report("PROVIDER_SCOPED_BASELINE_INSPECTION", [inspected], evaluatedAt);
 }
 
 export async function inspectBaselinePack(evaluatedAt = new Date()) {
   const research = inspectBaselineDrafts(await readBaselineDrafts(), evaluatedAt);
-  const scoped = inspectScopedBaselineDraft(await readScopedBaselineDraft(), evaluatedAt);
+  const scoped = (await readScopedBaselineDrafts()).map((draft) => inspectScopedBaselineDraft(draft, evaluatedAt));
   return {
-    ...report("PROVIDER_BASELINE_PACK_INSPECTION", [...research.options, ...scoped.options], evaluatedAt),
+    ...report("PROVIDER_BASELINE_PACK_INSPECTION", [...research.options, ...scoped.flatMap((entry) => entry.options)], evaluatedAt),
     researchOptionCount: research.optionCount,
-    scopedDraftOptionCount: scoped.optionCount,
+    scopedDraftOptionCount: scoped.reduce((count, entry) => count + entry.optionCount, 0),
   };
 }
 

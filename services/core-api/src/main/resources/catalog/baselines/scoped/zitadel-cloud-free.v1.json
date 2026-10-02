@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-cloud-free-native-draft-2026.10.02",
+  "options": [{
+    "id": "zitadel-cloud-free-native",
+    "providerId": "zitadel",
+    "product": "ZITADEL Cloud",
+    "plan": "Free; documented offer, no account entitlement verified",
+    "deployment": "MANAGED",
+    "region": "No Cloud region selected; storage destinations not verified",
+    "configuration": "Native OIDC/SAML applications and inbound SCIM User interface only; no group bridge or third-party extensions",
+    "facts": {
+      "OIDC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Register an OIDC application and configure its redirect URIs, client authentication and intended flow; no Cloud instance was tested.",
+          "The Free offer at https://zitadel.com/pricing advertises all features within its quotas, including 100 daily active users and three identity providers; no account entitlement or future zero-cost guarantee is established.",
+          "This concerns downstream application login, not verified upstream federation, application compatibility or authentication-control coverage."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/manage/console/applications-overview",
+          "observedAt": "2026-10-02T21:44:10Z",
+          "summary": "Application documentation describes configurable OIDC clients. The proposed Free Cloud scope combines this with the public Free offer, not a tested account or a pinned Cloud release."
+        }
+      },
+      "SAML": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Register a SAML application with the consuming service's metadata; its actual interoperability still needs testing.",
+          "Use the documented Free offer at https://zitadel.com/pricing, not Pro, Enterprise or a self-hosted license; account entitlement remains unverified.",
+          "A downstream SAML application is not proof of compatibility with a particular upstream Okta or Entra ID tenant."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/manage/console/applications-overview",
+          "observedAt": "2026-10-02T21:44:10Z",
+          "summary": "The application guide describes SAML registration using linked or uploaded service-provider metadata. This is a configurable-protocol proposal, not an approved integration."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "The API reference is marked Preview; verify Free-plan access and the deployed Cloud version before asserting scoped availability.",
+          "The documented path is inbound SCIM User provisioning into an organization, not outbound provisioning into the consuming SaaS.",
+          "Service-account authorization, user deactivation/deletion and consuming-application permissions or sessions require separate integration tests."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/apis/scim2",
+          "observedAt": "2026-10-02T21:44:10Z",
+          "summary": "The Preview API reference documents organization-scoped User CRUD and service-account authentication. It does not establish this untested Free Cloud instance's release, entitlement or lifecycle enforcement."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNAVAILABLE",
+        "conditions": [
+          "This negative assertion is limited to native inbound SCIM Group provisioning in the User-only interface, with no external bridge or extension.",
+          "Do not generalize it to every ZITADEL group/membership integration; application-side bridges and other APIs are outside this option's scope and remain unassessed.",
+          "A login claim or SCIM user record is not synchronized group membership in the consuming application's authorization model."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/manage/user/scim2",
+          "observedAt": "2026-10-02T21:44:10Z",
+          "summary": "The current SCIM guide explicitly excludes Group provisioning and extended schemas. This documents absence in the native SCIM interface, not a provider-wide impossibility."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

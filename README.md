@@ -1026,9 +1026,8 @@ describe native SCIM as supported. Evidence links use the exact source commit
 mutable `latest` documentation. Pinning a source is not a signature, source-content
 capture, security assessment or human approval.
 
-`make inspect-provider-baselines` now reports six distinct options and 19 recorded
-entries: five unresolved research scopes and one release-scoped documentation draft.
-It retains the unknown Keycloak research option alongside the scoped candidate;
+The combined inspection retains the unknown Keycloak research option alongside the
+scoped candidate;
 it does not merge facts or inherit review status. The four new assertions remain
 unreviewed even when their observations are current. Offline checks reject release,
 source-path or configuration drift and unexpected coverage claims, but cannot prove
@@ -1040,6 +1039,32 @@ membership limitations. Hosting destinations, application context, authenticatio
 controls, auditability, commercial support and operating costs remain unverified.
 This is not an installation, an upgrade recommendation or a change to AuthWeave's
 ZITADEL authentication. Full baseline coverage and authorized publication remain pending.
+
+#### Plan-scoped ZITADEL Cloud documentation candidate
+
+A separate [ZITADEL Cloud Free draft](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free.v1.json)
+narrows the offer and native integration path, without changing the existing managed
+research draft or AuthWeave's self-hosted identity lab. OIDC and SAML are proposed
+`OPTIONAL` based on the application guide and [public Free offer](https://zitadel.com/pricing).
+This is not an account-entitlement check, a pinned Cloud release, a deployment test or
+a future zero-cost guarantee. No Cloud account or subscription was created.
+
+SCIM remains `UNKNOWN`: the [API reference](https://zitadel.com/docs/apis/scim2) is
+marked Preview, and Free-plan access and the deployed version have not been verified.
+The [SCIM guide](https://zitadel.com/docs/guides/manage/user/scim2) excludes Group
+provisioning. `GROUP_SYNC: UNAVAILABLE` is therefore a negative proposal limited to
+that native SCIM interface **without a bridge**, not a provider-wide claim about
+every API or membership integration. Inbound identity provisioning does not verify
+the consuming application's permissions, deprovisioning or local-session enforcement.
+
+`make inspect-provider-baselines` now reports seven distinct options and 23 recorded
+entries: five unresolved research scopes, one release-scoped and one plan-scoped draft.
+All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
+plan/deployment/source-path drift and preserves observations, but does not fetch sources
+or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
+Residency, application compatibility, authentication controls, auditability and operating
+costs remain unverified; advertised region choices do not fill storage-country evidence.
+The active evaluator stays synthetic. Full baselines and authorized publication remain pending.
 
 ### Catalog change proposal previews
 
