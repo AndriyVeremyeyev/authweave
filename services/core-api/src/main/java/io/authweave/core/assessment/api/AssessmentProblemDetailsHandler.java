@@ -10,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,6 +30,21 @@ import tools.jackson.core.JacksonException;
 @RestControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
+
+    @ExceptionHandler(io.authweave.core.catalog.auditability.CatalogAuditabilityReviewException.class)
+    ResponseEntity<ProblemDetail> auditabilityReview(io.authweave.core.catalog.auditability.CatalogAuditabilityReviewException exception, HttpServletRequest request) {
+        var result = switch (exception.reason()) {
+            case INVALID_REQUEST -> invalidRequest(List.of(new RequestViolation("$",
+                    "Use a valid exact base, supplement and target-set binding with one manual verdict per recorded auditability fact.")), request);
+            case NOT_FOUND -> problem(HttpStatus.NOT_FOUND, "catalog-auditability-review-not-found", "Auditability review not found",
+                    "The requested auditability source review does not exist.", request);
+            case CONFLICT -> problem(HttpStatus.CONFLICT, "catalog-auditability-review-conflict", "Auditability review conflict",
+                    "The review key or digest is bound to another request or actor.", request);
+            case READ_UNAVAILABLE -> problem(HttpStatus.CONFLICT, "catalog-auditability-review-unavailable", "Auditability review unavailable",
+                    "The stored review cannot be read with the current format and integrity policy.", request);
+        };
+        return ResponseEntity.status(result.getStatus()).cacheControl(CacheControl.noStore()).body(result);
+    }
 
     @ExceptionHandler(io.authweave.core.evaluation.InvalidArchitecturePrerequisiteRequestException.class)
     ProblemDetail invalidArchitecturePrerequisites(RuntimeException exception, HttpServletRequest request) {

@@ -28,10 +28,12 @@ assert.ok(Array.isArray(samples) && samples.length > 0, "HTTP contract samples m
 const covered = new Set();
 let auditabilityConsumerSamples = 0;
 let auditabilityDraftSamples = 0;
+let auditabilityReviewSamples = 0;
 // Independent implementation of the documented unordered-collection canonicalization.
 const ordered = value => Array.isArray(value) ? value.map(ordered).sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0) :
   value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
 const digest = value => createHash("sha256").update(JSON.stringify(ordered(value))).digest("hex");
+const reviewRequests = new Map(samples.filter(s => s.schema === "catalog-auditability-review-request" && s.valid).map(s => [digest(s.payload), s.payload]));
 for (const { name, schema, valid, payload } of samples) {
   assert.equal(typeof valid, "boolean", `${name}: expected validity is required`);
   const versionedName = /\.v[0-9]+$/.test(schema) ? schema : `${schema}.v1`;
@@ -40,6 +42,31 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "catalog-auditability-review" && valid) {
+    const request = reviewRequests.get(payload.reviewSha256);
+    assert.ok(request, `${name}: receipt must bind an actual supplied request`);
+    assert.equal(payload.reviewId, request.reviewId, `${name}: review key binding`);
+    const baseHash = digest(request.candidate.baseDraft), supplementHash = digest(request.candidate.auditabilityDraft);
+    assert.equal(baseHash, request.expectedBaseContentSha256, `${name}: independent base digest`);
+    assert.equal(baseHash, payload.baseContentSha256, `${name}: receipt base binding`);
+    assert.equal(supplementHash, request.expectedAuditabilityContentSha256, `${name}: independent supplement digest`);
+    assert.equal(supplementHash, payload.auditabilityContentSha256, `${name}: receipt supplement binding`);
+    const bindings = request.candidate.auditabilityDraft.options.flatMap(option => option.facts.map(fact => ({ scope: "AUDITABILITY_SOURCE_REVIEW_TARGET_V1",
+      baseContentSha256: baseHash, auditabilityContentSha256: supplementHash, optionScope: option.scope, fact })));
+    assert.equal(digest(bindings), payload.targetSetSha256, `${name}: complete target-set binding`);
+    assert.equal(payload.targetSetSha256, request.expectedTargetSetSha256, `${name}: expected target-set binding`);
+    const expected = new Set(bindings.map(binding => `${binding.optionScope.optionId}:${binding.fact.criterion}:${digest(binding)}`));
+    const actual = request.observations.map(o => `${o.optionId}:${o.criterion}:${o.expectedTargetSha256}`);
+    assert.equal(actual.length, new Set(actual).size, `${name}: no duplicated observations`);
+    assert.deepEqual(new Set(actual), expected, `${name}: exact manual target inventory`);
+    assert.equal(payload.factCount, actual.length, `${name}: receipt fact count`);
+    assert.equal(payload.optionCount, request.candidate.auditabilityDraft.options.length, `${name}: receipt option count`);
+    assert.equal(payload.catalogVersion, request.candidate.baseDraft.catalogVersion, `${name}: base version`);
+    assert.equal(payload.evidenceVersion, request.candidate.auditabilityDraft.evidenceVersion, `${name}: evidence version`);
+    const counts = verdict => request.observations.filter(o => o.verdict === verdict).length;
+    assert.deepEqual(payload.counts, { supporting: counts("SOURCE_SUPPORTS_CLAIM"), contradicting: counts("SOURCE_DOES_NOT_SUPPORT_CLAIM"), insufficient: counts("INSUFFICIENT_EVIDENCE") }, `${name}: observed verdict parity`);
+    auditabilityReviewSamples++;
+  }
   if (schema === "catalog-auditability-draft-validation" && valid) {
     assert.equal(payload.targetCount, payload.targets.length, `${name}: target count parity`);
     assert.equal(payload.evaluatedAt, payload.baseValidation.evaluatedAt, `${name}: base clock binding`);
@@ -75,6 +102,9 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-auditability-draft:true", "catalog-auditability-draft:false",
   "catalog-auditability-draft-validation-request:true", "catalog-auditability-draft-validation-request:false",
   "catalog-auditability-draft-validation:true", "catalog-auditability-draft-validation:false",
+  "catalog-auditability-review-request:true", "catalog-auditability-review-request:false",
+  "catalog-auditability-review:true", "catalog-auditability-review:false",
+  "catalog-auditability-review-problem:true", "catalog-auditability-review-problem:false",
   "catalog-draft-validation:true", "catalog-draft-validation:false",
   "catalog-change-preview-request:true", "catalog-change-preview-request:false",
   "catalog-change-preview:true", "catalog-change-preview:false",
@@ -121,3 +151,5 @@ assert.ok(auditabilityConsumerSamples > 0, "Actual auditability HTTP samples mus
 console.log(`Validated ${auditabilityConsumerSamples} actual auditability HTTP responses with the BFF evidence-policy guard.`);
 assert.ok(auditabilityDraftSamples > 0, "Actual auditability draft responses must reach independent digest checks.");
 console.log(`Verified ${auditabilityDraftSamples} actual auditability draft reports with independent target binding checks.`);
+assert.ok(auditabilityReviewSamples > 0, "Actual immutable auditability reviews must reach independent request/target/receipt checks.");
+console.log(`Verified ${auditabilityReviewSamples} actual auditability review receipts with independent request and target binding checks.`);

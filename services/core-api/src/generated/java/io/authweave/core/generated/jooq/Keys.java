@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq;
 
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
+import io.authweave.core.generated.jooq.tables.CatalogAuditabilityReviews;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapReviews;
 import io.authweave.core.generated.jooq.tables.CatalogFactPathReports;
@@ -20,6 +21,7 @@ import io.authweave.core.generated.jooq.tables.PersonalWorkspaces;
 import io.authweave.core.generated.jooq.tables.Workspaces;
 import io.authweave.core.generated.jooq.tables.records.AssessmentRevisionsRecord;
 import io.authweave.core.generated.jooq.tables.records.AssessmentsRecord;
+import io.authweave.core.generated.jooq.tables.records.CatalogAuditabilityReviewsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogBootstrapImpactReportsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogBootstrapReviewsRecord;
 import io.authweave.core.generated.jooq.tables.records.CatalogFactPathReportsRecord;
@@ -63,6 +65,8 @@ public class Keys {
 
     public static final UniqueKey<AssessmentRevisionsRecord> ASSESSMENT_REVISIONS_PK = Internal.createUniqueKey(AssessmentRevisions.ASSESSMENT_REVISIONS, DSL.name("assessment_revisions_pk"), new TableField[] { AssessmentRevisions.ASSESSMENT_REVISIONS.WORKSPACE_ID, AssessmentRevisions.ASSESSMENT_REVISIONS.ASSESSMENT_ID, AssessmentRevisions.ASSESSMENT_REVISIONS.VERSION }, true);
     public static final UniqueKey<AssessmentsRecord> ASSESSMENTS_PK = Internal.createUniqueKey(Assessments.ASSESSMENTS, DSL.name("assessments_pk"), new TableField[] { Assessments.ASSESSMENTS.WORKSPACE_ID, Assessments.ASSESSMENTS.ID }, true);
+    public static final UniqueKey<CatalogAuditabilityReviewsRecord> CATALOG_AUDITABILITY_REVIEW_EVENT_BINDING_UK = Internal.createUniqueKey(CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS, DSL.name("catalog_auditability_review_event_binding_uk"), new TableField[] { CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS.ID, CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS.BASE_CONTENT_SHA256, CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS.AUDITABILITY_CONTENT_SHA256, CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS.TARGET_SET_SHA256, CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS.REVIEW_SHA256 }, true);
+    public static final UniqueKey<CatalogAuditabilityReviewsRecord> CATALOG_AUDITABILITY_REVIEWS_PKEY = Internal.createUniqueKey(CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS, DSL.name("catalog_auditability_reviews_pkey"), new TableField[] { CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS.ID }, true);
     public static final UniqueKey<CatalogBootstrapImpactReportsRecord> CATALOG_BOOTSTRAP_IMPACT_EVENT_BINDING_UK = Internal.createUniqueKey(CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS, DSL.name("catalog_bootstrap_impact_event_binding_uk"), new TableField[] { CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS.ID, CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS.REVIEW_ID, CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS.CANDIDATE_SHA256, CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS.REVIEW_SHA256, CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS.REPORT_SHA256 }, true);
     public static final UniqueKey<CatalogBootstrapImpactReportsRecord> CATALOG_BOOTSTRAP_IMPACT_REPORTS_PKEY = Internal.createUniqueKey(CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS, DSL.name("catalog_bootstrap_impact_reports_pkey"), new TableField[] { CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS.ID }, true);
     public static final UniqueKey<CatalogBootstrapImpactReportsRecord> CATALOG_BOOTSTRAP_IMPACT_REPORTS_REPORT_NUMBER_KEY = Internal.createUniqueKey(CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS, DSL.name("catalog_bootstrap_impact_reports_report_number_key"), new TableField[] { CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS.REPORT_NUMBER }, true);

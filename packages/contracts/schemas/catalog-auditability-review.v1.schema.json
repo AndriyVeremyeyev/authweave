@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-review.v1.schema.json",
+  "title": "Body-free immutable auditability manual source-review receipt v1",
+  "description": "Historical human observation only. Native replay checks full stored request, all bindings, policy, audit, counts and timing; no source/evidence trust or publication authority is inferred.",
+  "type": "object", "additionalProperties": false,
+  "required": ["reviewId", "baseContentSha256", "auditabilityContentSha256", "targetSetSha256", "reviewSha256", "catalogVersion", "evidenceVersion", "optionCount", "factCount", "counts", "recordedAt", "policyVersion", "kind", "requestSchemaVersion", "sourceReviewRecorded", "sourceVerificationPerformed", "factTrustChanged", "candidateImpactPerformed", "approvalGranted", "catalogWritesPerformed", "publicationReady", "evaluationReady", "recommendationReady"],
+  "properties": {
+    "reviewId": { "type": "string", "format": "uuid" },
+    "baseContentSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "auditabilityContentSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "targetSetSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "reviewSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "catalogVersion": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+    "evidenceVersion": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+    "optionCount": { "type": "integer", "minimum": 1, "maximum": 100 }, "factCount": { "type": "integer", "minimum": 1, "maximum": 600 },
+    "counts": { "type": "object", "additionalProperties": false, "required": ["supporting", "contradicting", "insufficient"], "properties": {
+      "supporting": { "type": "integer", "minimum": 0, "maximum": 600 }, "contradicting": { "type": "integer", "minimum": 0, "maximum": 600 },
+      "insufficient": { "type": "integer", "minimum": 0, "maximum": 600 }
+    } },
+    "recordedAt": { "type": "string", "format": "date-time" }, "policyVersion": { "const": "catalog-auditability-source-review-1" },
+    "kind": { "const": "HUMAN_AUDITABILITY_SOURCE_REVIEW" }, "requestSchemaVersion": { "const": 1 }, "sourceReviewRecorded": { "const": true },
+    "sourceVerificationPerformed": { "const": false }, "factTrustChanged": { "const": false }, "candidateImpactPerformed": { "const": false },
+    "approvalGranted": { "const": false }, "catalogWritesPerformed": { "const": false }, "publicationReady": { "const": false },
+    "evaluationReady": { "const": false }, "recommendationReady": { "const": false }
+  }
+}

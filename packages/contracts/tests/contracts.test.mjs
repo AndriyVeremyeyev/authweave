@@ -96,6 +96,50 @@ test("auditability target contract preserves proposed fact vocabulary and reject
     ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-draft.v1.schema.json").schema.$defs.criterion.enum.map(c => `auditability.${c}`));
 });
 
+test("auditability manual review is separate, explicit and cannot carry caller authority or trusted evidence", async () => {
+  const baseDraft = await readJson(path.join(fixturesRoot, "provider-catalog-draft.valid.json"));
+  const auditabilityDraft = await readJson(path.join(fixturesRoot, "catalog-auditability-draft.valid.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-review-request.v1.schema.json");
+  const request = { schemaVersion: 1, reviewId: "70000000-0000-4000-8000-000000000001", expectedBaseContentSha256: auditabilityDraft.baseContentSha256,
+    expectedAuditabilityContentSha256: "1".repeat(64), expectedTargetSetSha256: "2".repeat(64), candidate: { baseDraft, auditabilityDraft },
+    confirmation: "MANUAL_AUDITABILITY_SOURCE_REVIEW", observations: [{ optionId: "example-managed-eu", criterion: "AUDIT_LOG_RETENTION",
+      expectedTargetSha256: "3".repeat(64), verdict: "SOURCE_SUPPORTS_CLAIM" }] };
+  // Shape validity is not exact hash or target completeness; Core owns that semantic check.
+  assert.equal(validate(request), true, validationMessage(validate));
+  for (const key of Object.keys(request)) { const invalid = structuredClone(request); delete invalid[key]; assert.equal(validate(invalid), false, key); }
+  for (const mutate of [r => { r.schemaVersion = 2; }, r => { r.confirmation = "MANUAL_BOOTSTRAP_SOURCE_REVIEW"; },
+    r => { r.actorSubject = "owner"; }, r => { r.approvalGranted = true; }, r => { r.observations = []; },
+    r => { r.observations.push(structuredClone(r.observations[0])); }, r => { r.observations[0].criterion = "facts.SCIM"; },
+    r => { r.observations[0].verdict = "APPROVED"; }, r => { r.observations[0].evidenceStatus = "REVIEWED"; },
+    r => { r.observations[0].expectedTargetSha256 = "bad"; }, r => { r.candidate.auditabilityDraft.options[0].facts[0].evidenceStatus = "REVIEWED"; }]) {
+    const invalid = structuredClone(request); mutate(invalid); assert.equal(validate(invalid), false);
+  }
+  assert.equal(ajv.getSchema("https://authweave.dev/contracts/catalog-bootstrap-review-request.v1.schema.json")(request), false);
+});
+
+test("auditability review receipts are body-free historical assertions with all trust and readiness claims false", async () => {
+  const schema = await readJson(path.join(schemasRoot, "catalog-auditability-review.v1.schema.json"));
+  const validate = ajv.getSchema(schema.$id);
+  const receipt = Object.fromEntries(Object.entries(schema.properties).filter(([, p]) => Object.hasOwn(p, "const")).map(([key, p]) => [key, p.const]));
+  Object.assign(receipt, { reviewId: "70000000-0000-4000-8000-000000000001", baseContentSha256: "1".repeat(64), auditabilityContentSha256: "2".repeat(64),
+    targetSetSha256: "3".repeat(64), reviewSha256: "4".repeat(64), catalogVersion: "example-1", evidenceVersion: "evidence-1", optionCount: 1, factCount: 2,
+    counts: { supporting: 1, contradicting: 0, insufficient: 1 }, recordedAt: "2026-10-02T12:00:00Z" });
+  assert.equal(validate(receipt), true, validationMessage(validate));
+  for (const key of schema.required) { const invalid = structuredClone(receipt); delete invalid[key]; assert.equal(validate(invalid), false, key); }
+  for (const flag of ["sourceVerificationPerformed", "factTrustChanged", "candidateImpactPerformed", "approvalGranted", "catalogWritesPerformed", "publicationReady", "evaluationReady", "recommendationReady"]) {
+    assert.equal(validate({ ...receipt, [flag]: true }), false, flag);
+  }
+  for (const mutate of [r => { r.policyVersion = "future"; }, r => { r.kind = "HUMAN_BOOTSTRAP_SOURCE_REVIEW"; }, r => { r.factCount = 0; },
+    r => { r.optionCount = 101; }, r => { r.counts.supporting = 601; }, r => { r.actor = "private"; }, r => { r.sourceUrl = "https://docs.example.invalid"; },
+    r => { r.candidate = {}; }, r => { r.sourceReviewRecorded = false; }]) {
+    const invalid = structuredClone(receipt); mutate(invalid); assert.equal(validate(invalid), false);
+  }
+  const problem = ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-review-problem.v1.schema.json");
+  const denied = { type: "https://authweave.dev/problems/catalog-auditability-review-unavailable", title: "Auditability review unavailable", status: 409,
+    detail: "The stored review cannot be replayed.", instance: "/internal/v1/catalog-curator/auditability-reviews/example", code: "catalog-auditability-review-unavailable" };
+  assert.equal(problem(denied), true, validationMessage(problem)); assert.equal(problem({ ...denied, actor: "private" }), false);
+});
+
 test("profile v6 coverage contract inventories every semantic input and rejects readiness promotion or mixed unperformed state", async () => {
   const schema = await readJson(path.join(schemasRoot, "catalog-profile-impact-coverage.v1.schema.json"));
   const validate = ajv.getSchema(schema.$id), paths = new Set();

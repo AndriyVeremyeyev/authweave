@@ -26,6 +26,102 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /internal/v1/catalog-curator/auditability-reviews:
+    post:
+      tags: [Catalog drafts]
+      summary: Record manual source observations for an exact auditability supplement
+      operationId: recordAuditabilitySourceReview
+      security:
+        - BffServiceToken: []
+      description: >-
+        Core-only scoped curator workflow. Requires singular validated issuer/subject,
+        catalog_curator role, configured project/org and authentication within 15 minutes.
+        Accepts no query parameters. Explicit confirmation and one observation per
+        recorded fact bind exact base/supplement/target-set hashes. Appends an immutable
+        request and mandatory body-free audit atomically; first save is 201, equivalent
+        same-actor retry is 200, changed content/actor under that key is 409. Source
+        dates and trust never change. No proposal mutation, candidate impact, approval
+        or publication; old draft/review/publication policies remain unchanged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-auditability-review-request.v1.schema.json
+      responses:
+        '201':
+          description: Immutable review and audit created. Not provider-fact verification.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-review.v1.schema.json
+        '200':
+          description: Equivalent exact-key request by the same actor; no new writes.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-review.v1.schema.json
+        '400':
+          description: Invalid shape, binding, target inventory, confirmation or query parameters.
+        '401':
+          description: Missing, invalid or duplicated credential or identity assertion.
+        '403':
+          description: Missing scoped curator role or stale/future authentication assertion.
+        '409':
+          description: Key bound to different request/actor, or stored integrity replay unavailable.
+        '503':
+          description: Core service credential or curator scope is not configured.
+  /internal/v1/catalog-curator/auditability-reviews/{reviewId}:
+    get:
+      tags: [Catalog drafts]
+      summary: Read an exact auditability source-review receipt with integrity replay
+      operationId: getAuditabilitySourceReview
+      security:
+        - BffServiceToken: []
+      description: >-
+        Requires the same current scoped curator boundary as the write. Accepts only
+        one expectedSha256 query parameter and no body. A repeatable-read snapshot
+        bounds request bytes and replays all stored hashes, complete manual targets,
+        schema/policy/counts and matching historical audit/actor timing. Missing,
+        corrupt or unbound data never falls back to a fresh successful report. Returns
+        only a no-store historical receipt, without source/draft bodies or actor identity.
+      parameters:
+        - name: reviewId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: expectedSha256
+          in: query
+          required: true
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: Exact historical review receipt; not refreshed evidence or authority.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-review.v1.schema.json
+        '400':
+          description: Invalid UUID/digest, duplicated/extra query parameters or body.
+        '401':
+          description: Missing, invalid or duplicated credential or identity assertion.
+        '403':
+          description: Missing scoped curator role or stale/future authentication assertion.
+        '404':
+          description: Review not found.
+        '409':
+          description: Expected digest mismatch or stored integrity replay unavailable.
+        '503':
+          description: Core service credential or curator scope is not configured.
   /internal/v1/catalog-auditability/drafts/validate:
     post:
       tags: [Catalog drafts]

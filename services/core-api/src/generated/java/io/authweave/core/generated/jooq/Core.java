@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq;
 
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
+import io.authweave.core.generated.jooq.tables.CatalogAuditabilityReviews;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapReviews;
 import io.authweave.core.generated.jooq.tables.CatalogFactPathReports;
@@ -61,6 +62,12 @@ public class Core extends SchemaImpl {
      * version.
      */
     public final Assessments ASSESSMENTS = Assessments.ASSESSMENTS;
+
+    /**
+     * Immutable exact-supplement manual observations; no reviewed provider
+     * facts, approval, impact or publication.
+     */
+    public final CatalogAuditabilityReviews CATALOG_AUDITABILITY_REVIEWS = CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS;
 
     /**
      * Immutable exact-review candidate-only conditional analysis. No source,
@@ -152,6 +159,7 @@ public class Core extends SchemaImpl {
         return Arrays.asList(
             AssessmentRevisions.ASSESSMENT_REVISIONS,
             Assessments.ASSESSMENTS,
+            CatalogAuditabilityReviews.CATALOG_AUDITABILITY_REVIEWS,
             CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS,
             CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS,
             CatalogFactPathReports.CATALOG_FACT_PATH_REPORTS,

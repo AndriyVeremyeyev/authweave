@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-review-problem.v1.schema.json",
+  "title": "Auditability source-review request and integrity problems v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["type", "title", "status", "detail", "instance", "code"],
+  "properties": {
+    "type": { "$ref": "./core-problem.v1.schema.json#/properties/type" },
+    "title": { "$ref": "./core-problem.v1.schema.json#/properties/title" },
+    "status": { "enum": [400, 404, 409] },
+    "detail": { "$ref": "./core-problem.v1.schema.json#/properties/detail" },
+    "instance": { "$ref": "./core-problem.v1.schema.json#/properties/instance" },
+    "code": { "enum": ["invalid-request", "catalog-auditability-review-not-found", "catalog-auditability-review-conflict", "catalog-auditability-review-unavailable"] },
+    "violations": { "$ref": "./core-problem.v1.schema.json#/properties/violations" }
+  }
+}

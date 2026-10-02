@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-review-request.v1.schema.json",
+  "title": "Manual exact-supplement auditability source review v1",
+  "description": "Explicit scoped curator assertion, not source truth or approval. Core checks exact base/supplement/target-set hashes and one verdict for every recorded fact. Reuse reviewId only for equivalent content by the same actor.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "reviewId", "expectedBaseContentSha256", "expectedAuditabilityContentSha256", "expectedTargetSetSha256", "candidate", "observations", "confirmation"],
+  "properties": {
+    "schemaVersion": { "const": 1 }, "reviewId": { "type": "string", "format": "uuid" },
+    "expectedBaseContentSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "expectedAuditabilityContentSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "expectedTargetSetSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "candidate": { "$ref": "./catalog-auditability-draft-validation-request.v1.schema.json" },
+    "confirmation": { "const": "MANUAL_AUDITABILITY_SOURCE_REVIEW" },
+    "observations": { "type": "array", "minItems": 1, "maxItems": 600, "uniqueItems": true, "items": {
+      "type": "object", "additionalProperties": false, "required": ["optionId", "criterion", "expectedTargetSha256", "verdict"],
+      "properties": {
+        "optionId": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+        "criterion": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/criterion" },
+        "expectedTargetSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+        "verdict": { "enum": ["SOURCE_SUPPORTS_CLAIM", "SOURCE_DOES_NOT_SUPPORT_CLAIM", "INSUFFICIENT_EVIDENCE"] }
+      }
+    } }
+  }
+}

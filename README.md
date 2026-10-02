@@ -834,10 +834,59 @@ Every target remains `UNREVIEWED`, including current supported claims. A valid
 address is not a completed source review, remote-page hash, signature, approval or
 verified provider fact. `sourceReviewWorkflowAvailable`, `sourceVerificationPerformed`,
 `candidateImpactPerformed`, `approvalGranted`, `writesPerformed`, `publicationReady`,
-`evaluationReady` and `recommendationReady` remain false. Dedicated durable source
-review and before/after auditability impact are subsequent steps. Existing proposal,
+`evaluationReady` and `recommendationReady` remain false. This v1 validation-only report
+does not advertise or authorize the separate scoped curator workflow below; it is not
+runtime capability discovery. Before/after auditability impact is a subsequent step. Existing proposal,
 bootstrap review and publication paths do not accept or consume this supplement;
 the synthetic sidecar, draft v1 hashes and historical receipts remain unchanged.
+
+### Immutable manual auditability source reviews
+
+`POST /internal/v1/catalog-curator/auditability-reviews` records a separate
+[review request v1](packages/contracts/schemas/catalog-auditability-review-request.v1.schema.json).
+It carries the full unchanged draft v1 base and auditability supplement, exact expected
+base/supplement/target-set SHA-256 values, a fresh review UUID, and one explicit
+`SOURCE_SUPPORTS_CLAIM`, `SOURCE_DOES_NOT_SUPPORT_CLAIM` or `INSUFFICIENT_EVIDENCE`
+observation per recorded auditability fact. Each observation binds option ID, criterion
+and exact target hash. `MANUAL_AUDITABILITY_SOURCE_REVIEW` is a distinct required human
+confirmation. Zero recorded facts cannot produce a review; omitted criteria remain
+unknown. All six possible criteria are not implicitly required in every scope.
+
+The existing internal curator boundary requires a singular server service credential,
+issuer/subject pair, `catalog_curator` role, configured project/org and authentication
+within 15 minutes (at most 30 seconds ahead). The controller rechecks this boundary;
+query parameters are rejected. This is a Core-only workflow, not a browser form or
+hosted authentication boundary. Never expose Core through a proxy or tunnel.
+
+Migration V19 appends the exact request and one mandatory body-free curator audit
+atomically. The Core runtime role can only select/append these tables, not update/delete/truncate
+history or supply database timestamps; Web has no access. A per-review transaction lock
+also protects direct inserts. Equivalent unordered content under the same key by the
+same actor returns the original receipt (200, no new rows); the first save returns 201.
+Different content or actor under that key conflicts. Corrections use a new review UUID
+and do not erase earlier observations. Database metadata does not authenticate an actor
+or become curator approval; the protected current HTTP boundary remains mandatory.
+
+`GET /internal/v1/catalog-curator/auditability-reviews/{reviewId}?expectedSha256=...`
+requires the same fresh scoped assertions, one exact digest parameter and no body.
+It reads a repeatable snapshot, bounds stored request bytes, replays all draft/target/
+request digests, complete observations, schema/policy/counts and matching historical
+audit/timing. Missing reviews return 404; wrong digests, changed-key retries and
+unreadable/corrupt stored reviews return 409. No fresh calculation substitutes for a
+missing or failed historical replay. Malformed/binding requests return 400; the separate
+[problem contract](packages/contracts/schemas/catalog-auditability-review-problem.v1.schema.json)
+does not widen historical Core problem contracts.
+
+The `no-store` [receipt](packages/contracts/schemas/catalog-auditability-review.v1.schema.json)
+contains only binding hashes, versions, counts and database recording time, not draft/
+source bodies or actor identity. Independent HTTP checks recompute the hashes and
+observation counts from actual requests and receipts. `sourceReviewRecorded: true`
+means a human assertion was saved; source verification, fact trust change, candidate
+impact, approval, catalog writes and publication/evaluation/recommendation readiness
+remain false. Reviewing stale/future evidence never refreshes its observation date or
+turns draft facts into reviewed evaluation evidence. Existing proposal/bootstrap reviews,
+synthetic snapshots, historical receipts and publication-preflight policy are unchanged.
+Before/after auditability impact and its consumers remain separate subsequent steps.
 
 ### Provider catalog drafts: validation before review
 
