@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-draft-validation-request.v1.schema.json",
+  "title": "Stateless auditability supplement validation request v1",
+  "type": "object", "additionalProperties": false, "required": ["baseDraft", "auditabilityDraft"],
+  "properties": {
+    "baseDraft": { "$ref": "./provider-catalog-draft.v1.schema.json" },
+    "auditabilityDraft": { "$ref": "./catalog-auditability-draft.v1.schema.json" }
+  }
+}

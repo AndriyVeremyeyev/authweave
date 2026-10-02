@@ -10,7 +10,8 @@ info:
     a validated OIDC issuer/subject pair mapped to the requested personal workspace.
     Catalog draft routes remain unauthenticated and local-only, except the scoped
     curator review index, evidence review, bootstrap source review and decision routes.
-    Internal synthetic fixture diagnostics require the server service credential.
+    Internal synthetic fixture diagnostics and auditability supplement validation
+    require the server service credential.
     Do not expose this
     service through a proxy or tunnel; this is not a hosted authentication boundary.
 servers:
@@ -25,6 +26,44 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /internal/v1/catalog-auditability/drafts/validate:
+    post:
+      tags: [Catalog drafts]
+      summary: Validate an unreviewed auditability supplement against an exact base draft
+      operationId: validateCatalogAuditabilityDraft
+      security:
+        - BffServiceToken: []
+      description: >-
+        Local-only, stateless validation. Requires the server service credential,
+        not curator authority. Accepts no query parameters. The separate supplement
+        binds the typed draft v1 content digest and exact option scopes; every base
+        option needs an explicit scope, including an empty facts array for unknowns.
+        A valid report inventories unreviewed source-review targets, not verified
+        facts. Invalid semantic binding yields no partial targets. No source fetch,
+        durable source review, candidate impact, approval, writes or publication.
+        Existing draft v1, historical receipts and synthetic evidence are unchanged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-auditability-draft-validation-request.v1.schema.json
+      responses:
+        '200':
+          description: Valid or invalid draft report with all authority and readiness claims false.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-draft-validation.v1.schema.json
+        '400':
+          description: Malformed input, unknown fields, duplicate option or criterion, or query parameters.
+        '401':
+          description: Missing, invalid or duplicated service credential.
+        '503':
+          description: Service credential is not configured.
   /internal/v1/catalog-profile-impact/coverage-preflight:
     get:
       tags: [Catalog drafts]

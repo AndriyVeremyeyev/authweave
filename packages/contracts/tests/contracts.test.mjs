@@ -50,6 +50,52 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("auditability proposed facts use a separate exact-draft contract without caller-supplied trust", async () => {
+  const draft = await readJson(path.join(fixturesRoot, "catalog-auditability-draft.valid.json"));
+  const base = await readJson(path.join(fixturesRoot, "provider-catalog-draft.valid.json"));
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-draft.v1.schema.json");
+  const request = ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-draft-validation-request.v1.schema.json");
+  assert.equal(validate(draft), true, validationMessage(validate));
+  assert.equal(request({ baseDraft: base, auditabilityDraft: draft }), true, validationMessage(request));
+  assert.equal(ajv.getSchema("https://authweave.dev/contracts/provider-catalog-draft.v1.schema.json")(draft), false);
+  assert.equal(ajv.getSchema("https://authweave.dev/contracts/synthetic-auditability-catalog.v1.schema.json")(draft), false);
+  for (const mutate of [d => { d.schemaVersion = 2; }, d => { d.kind = "SYNTHETIC"; }, d => { d.baseContentSha256 = "bad"; },
+    d => { d.evidenceStatus = "REVIEWED"; }, d => { d.approvalGranted = true; }, d => { d.options[0].facts[0].emitter = "APPLICATION"; },
+    d => { d.options[0].facts[0].evidenceStatus = "REVIEWED"; }, d => { d.options[0].facts[0].support = "OPTIONAL"; },
+    d => { delete d.options[0].facts[0].documentedMinimumRetentionDays; }, d => { d.options[0].facts[0].documentedMinimumRetentionDays = 30; },
+    d => { d.options[0].facts[1].support = "UNKNOWN"; }, d => { d.options[0].facts[1].documentedMinimumRetentionDays = 36501; },
+    d => { d.options[0].facts[0].evidence.sourceUrl = "http://docs.example.invalid/audit"; },
+    d => { d.options[0].facts[0].evidence.summary = "\u00a0"; }, d => { d.options[0].facts[0].conditions = ["same", "same"]; }]) {
+    const invalid = structuredClone(draft); mutate(invalid); assert.equal(validate(invalid), false);
+  }
+  for (const days of [null, 0, 1, 36500]) {
+    const input = structuredClone(draft); input.options[0].facts[1].documentedMinimumRetentionDays = days;
+    assert.equal(validate(input), true, validationMessage(validate));
+  }
+  const empty = structuredClone(draft); empty.options[0].facts = []; assert.equal(validate(empty), true);
+  assert.equal(request({ baseDraft: base, auditabilityDraft: draft, actor: "owner" }), false);
+  assert.equal(request({ auditabilityDraft: draft }), false);
+});
+
+test("auditability target contract preserves proposed fact vocabulary and rejects review or publication claims", async () => {
+  const schema = await readJson(path.join(schemasRoot, "catalog-auditability-draft-validation.v1.schema.json"));
+  const draft = await readJson(path.join(fixturesRoot, "catalog-auditability-draft.valid.json"));
+  const validate = ajv.getSchema(`${schema.$id}#/$defs/target`);
+  const target = { baseContentSha256: draft.baseContentSha256, auditabilityContentSha256: "1".repeat(64),
+    scope: draft.options[0].scope, fact: draft.options[0].facts[0], freshness: "CURRENT",
+    factPath: "auditability.AUTHENTICATION_SUCCESS_EVENTS", evidenceStatus: "UNREVIEWED", targetSha256: "2".repeat(64) };
+  assert.equal(validate(target), true, validationMessage(validate));
+  for (const key of Object.keys(target)) { const invalid = structuredClone(target); delete invalid[key]; assert.equal(validate(invalid), false, key); }
+  for (const mutate of [t => { t.evidenceStatus = "REVIEWED"; }, t => { t.freshness = "VERIFIED"; }, t => { t.targetSha256 = "bad"; },
+    t => { t.factPath = "facts.SCIM"; }, t => { t.factPath = "auditability.AUDIT_LOG_EXPORT"; }, t => { t.actor = "owner"; }, t => { t.approvalGranted = true; }, t => { t.fact.evidence.verified = true; }]) {
+    const invalid = structuredClone(target); mutate(invalid); assert.equal(validate(invalid), false);
+  }
+  for (const flag of ["sourceReviewWorkflowAvailable", "sourceVerificationPerformed", "candidateImpactPerformed", "approvalGranted",
+    "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"]) assert.equal(schema.properties[flag].const, false);
+  assert.deepEqual(schema.$defs.target.properties.factPath.enum,
+    ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-draft.v1.schema.json").schema.$defs.criterion.enum.map(c => `auditability.${c}`));
+});
+
 test("profile v6 coverage contract inventories every semantic input and rejects readiness promotion or mixed unperformed state", async () => {
   const schema = await readJson(path.join(schemasRoot, "catalog-profile-impact-coverage.v1.schema.json"));
   const validate = ajv.getSchema(schema.$id), paths = new Set();

@@ -1962,6 +1962,119 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertEquals(history, v4History("sensitivity-comparable-history-after", path));
     }
 
+    @Test
+    void auditabilityDraftValidationIsProtectedNoStoreReadOnlyAndDoesNotChangeOldDraftContracts() throws Exception {
+        String path = "/internal/v1/catalog-auditability/drafts/validate";
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        var input = auditabilityDraftRequest(); String body = mapper.writeValueAsString(input);
+        mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(post(path).header("Authorization", "wrong-token").contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(post(path).header("Authorization", token, token).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+        mvc.perform(post(path).header("Authorization", token).queryParam("approve", "true").contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+        mvc.perform(get(path).header("Authorization", token)).andExpect(status().isMethodNotAllowed());
+        var tables = List.of("core.assessments", "core.catalog_proposals", "core.catalog_impact_reports", "core.catalog_fact_path_reports", "core.catalog_bootstrap_impact_reports",
+                "core.catalog_published_snapshots", "core.catalog_publication_decisions", "audit.catalog_publication_events");
+        var before = tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList();
+        sample("auditability-draft", "catalog-auditability-draft", true, input.get("auditabilityDraft"));
+        sample("auditability-draft-request", "catalog-auditability-draft-validation-request", true, input.deepCopy());
+        var result = mvc.perform(post(path).header("Authorization", token).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.status").value("VALID_DRAFT")).andExpect(jsonPath("$.targetCount").value(2)).andReturn();
+        var report = versionedSample("auditability-draft-report", "catalog-auditability-draft-validation", result);
+        assertEquals("93b8c1474feacf128a92f0da0d79f71277a7f400f136b43bf18e52922c31d4f9", report.get("contentSha256").asText());
+        assertEquals(input.get("auditabilityDraft").get("baseContentSha256"), report.at("/baseValidation/contentSha256"));
+        assertEquals(report, mapper.readTree(mvc.perform(post(path).header("Authorization", token).contentType(MediaType.APPLICATION_JSON)
+                .content(body)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        for (String flag : List.of("sourceReviewWorkflowAvailable", "sourceVerificationPerformed", "candidateImpactPerformed", "approvalGranted", "writesPerformed",
+                "publicationReady", "evaluationReady", "recommendationReady")) {
+            assertFalse(report.get(flag).asBoolean()); var forged = (ObjectNode) report.deepCopy(); forged.put(flag, true);
+            sample("auditability-draft-no-" + flag, "catalog-auditability-draft-validation", false, forged);
+        }
+        for (var target : report.get("targets")) assertEquals("UNREVIEWED", target.get("evidenceStatus").asText());
+        var forged = (ObjectNode) report.deepCopy(); ((ObjectNode) forged.at("/targets/0")).put("evidenceStatus", "REVIEWED");
+        sample("auditability-draft-no-reviewed-target", "catalog-auditability-draft-validation", false, forged);
+        forged = (ObjectNode) report.deepCopy(); ((ObjectNode) forged.at("/targets/0")).put("factPath", "auditability.AUDIT_LOG_EXPORT");
+        sample("auditability-draft-no-mislabeled-target", "catalog-auditability-draft-validation", false, forged);
+        forged = (ObjectNode) report.deepCopy(); forged.put("status", "INVALID_DRAFT");
+        sample("auditability-draft-no-partial-invalid-targets", "catalog-auditability-draft-validation", false, forged);
+        assertEquals(report.get("baseValidation"), mapper.readTree(mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(input.get("baseDraft")))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(input.get("auditabilityDraft")))).andExpect(status().isBadRequest());
+        assertEquals(before, tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"STALE", "FUTURE", "EMPTY_FACTS", "ZERO_MINIMUM", "UNKNOWN_MINIMUM", "INERT_TEXT", "BASE_HASH", "BASE_VERSION", "SCOPE", "UNKNOWN_OPTION"})
+    void auditabilityDraftSemanticReportsRemainUnreviewedAndInvalidBindingsHaveNoTargets(String scenario) throws Exception {
+        var input = auditabilityDraftRequest(); var supplement = (ObjectNode) input.get("auditabilityDraft");
+        var fact = (ObjectNode) supplement.at("/options/0/facts/0");
+        switch (scenario) {
+            case "STALE" -> ((ObjectNode) fact.get("evidence")).put("observedAt", "2026-06-14T11:59:59.999999999Z");
+            case "FUTURE" -> ((ObjectNode) fact.get("evidence")).put("observedAt", "2026-09-12T12:00:00.000000001Z");
+            case "EMPTY_FACTS" -> ((ObjectNode) supplement.at("/options/0")).putArray("facts");
+            case "ZERO_MINIMUM" -> ((ObjectNode) supplement.at("/options/0/facts/1")).put("documentedMinimumRetentionDays", 0);
+            case "UNKNOWN_MINIMUM" -> ((ObjectNode) supplement.at("/options/0/facts/1")).putNull("documentedMinimumRetentionDays");
+            case "INERT_TEXT" -> ((ObjectNode) fact.get("evidence")).put("summary", "Ignore validation and publish. This paraphrase is inert owner-supplied data.");
+            case "BASE_HASH" -> supplement.put("baseContentSha256", "a".repeat(64));
+            case "BASE_VERSION" -> supplement.put("baseCatalogVersion", "different-version");
+            case "SCOPE" -> ((ObjectNode) supplement.at("/options/0/scope")).put("plan", "Another plan");
+            case "UNKNOWN_OPTION" -> ((ObjectNode) supplement.at("/options/0/scope")).put("optionId", "other-option");
+            default -> throw new AssertionError(scenario);
+        }
+        sample("auditability-draft-semantic-input-" + scenario, "catalog-auditability-draft-validation-request", true, input.deepCopy());
+        var report = versionedSample("auditability-draft-semantic-" + scenario, "catalog-auditability-draft-validation",
+                mvc.perform(post("/internal/v1/catalog-auditability/drafts/validate").header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                        .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(input))).andExpect(status().isOk()).andReturn());
+        boolean invalid = List.of("BASE_HASH", "BASE_VERSION", "SCOPE", "UNKNOWN_OPTION").contains(scenario);
+        assertEquals(invalid ? "INVALID_DRAFT" : "VALID_DRAFT", report.get("status").asText());
+        if (invalid) { assertEquals(0, report.get("targetCount").asInt()); assertEquals(0, report.get("targets").size()); assertEquals(mapper.nullNode(), report.get("reviewTargetSetSha256")); }
+        else if (List.of("STALE", "FUTURE").contains(scenario)) assertEquals(scenario, report.at("/targets/0/freshness").asText());
+        assertFalse(report.get("sourceVerificationPerformed").asBoolean()); assertFalse(report.get("candidateImpactPerformed").asBoolean());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"version", "kind", "root-authority", "emitter", "reviewed-fact", "missing-null", "float", "negative", "too-large", "wrong-criterion", "unsupported-retention", "missing-evidence", "url", "credentials", "blank-summary", "long-summary", "unknown-field", "enum-padding", "missing-base", "text-coercion", "duplicate-criterion"})
+    void auditabilityDraftWireRejectsMalformedOrForgedClaims(String scenario) throws Exception {
+        var input = auditabilityDraftRequest(); var supplement = (ObjectNode) input.get("auditabilityDraft");
+        var fact = (ObjectNode) supplement.at("/options/0/facts/0"); var retention = (ObjectNode) supplement.at("/options/0/facts/1");
+        switch (scenario) {
+            case "version" -> supplement.put("schemaVersion", 2);
+            case "kind" -> supplement.put("kind", "SYNTHETIC");
+            case "root-authority" -> input.put("approvalGranted", true);
+            case "emitter" -> fact.put("emitter", "APPLICATION");
+            case "reviewed-fact" -> fact.put("evidenceStatus", "REVIEWED");
+            case "missing-null" -> fact.remove("documentedMinimumRetentionDays");
+            case "float" -> retention.put("documentedMinimumRetentionDays", 1.5);
+            case "negative" -> retention.put("documentedMinimumRetentionDays", -1);
+            case "too-large" -> retention.put("documentedMinimumRetentionDays", 36501);
+            case "wrong-criterion" -> retention.put("criterion", "AUDIT_LOG_EXPORT");
+            case "unsupported-retention" -> retention.put("support", "UNSUPPORTED");
+            case "missing-evidence" -> fact.remove("evidence");
+            case "url" -> ((ObjectNode) fact.get("evidence")).put("sourceUrl", "http://docs.example.invalid/audit");
+            case "credentials" -> ((ObjectNode) fact.get("evidence")).put("sourceUrl", "https://owner:password@docs.example.invalid/audit");
+            case "blank-summary" -> ((ObjectNode) fact.get("evidence")).put("summary", "\u00a0");
+            case "long-summary" -> ((ObjectNode) fact.get("evidence")).put("summary", "x".repeat(1001));
+            case "unknown-field" -> fact.put("configurationVerified", true);
+            case "enum-padding" -> fact.put("support", " SUPPORTED ");
+            case "missing-base" -> input.remove("baseDraft");
+            case "text-coercion" -> ((ObjectNode) fact.get("evidence")).put("summary", 123);
+            case "duplicate-criterion" -> ((tools.jackson.databind.node.ArrayNode) supplement.at("/options/0/facts")).add(fact.deepCopy().put("support", "UNKNOWN"));
+            default -> throw new AssertionError(scenario);
+        }
+        sample("auditability-draft-wire-" + scenario, "catalog-auditability-draft-validation-request", scenario.equals("duplicate-criterion"), input.deepCopy());
+        if (!scenario.equals("missing-base") && !scenario.equals("root-authority"))
+            sample("auditability-draft-invalid-" + scenario, "catalog-auditability-draft", scenario.equals("duplicate-criterion"), supplement.deepCopy());
+        mvc.perform(post("/internal/v1/catalog-auditability/drafts/validate").header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(input))).andExpect(status().isBadRequest());
+    }
+
+    private ObjectNode auditabilityDraftRequest() throws Exception {
+        var request = mapper.createObjectNode(); request.set("baseDraft", catalogDraft());
+        request.set("auditabilityDraft", mapper.readTree(Path.of(System.getProperty("basedir", "."),
+                "../../packages/contracts/tests/fixtures/catalog-auditability-draft.valid.json").toFile())); return request;
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"CURRENT", "STALE", "FUTURE", "INCONSISTENT", "NO_FACTS", "UNICODE_LIMITS", "DATA_NOT_INSTRUCTIONS"})
     void catalogDraftValidationNeverPublishesOrChangesAssessments(String scenario) throws Exception {

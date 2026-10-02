@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +27,11 @@ const samples = (await Promise.all(samplePaths.map(async (file) => {
 assert.ok(Array.isArray(samples) && samples.length > 0, "HTTP contract samples must not be empty.");
 const covered = new Set();
 let auditabilityConsumerSamples = 0;
+let auditabilityDraftSamples = 0;
+// Independent implementation of the documented unordered-collection canonicalization.
+const ordered = value => Array.isArray(value) ? value.map(ordered).sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0) :
+  value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
+const digest = value => createHash("sha256").update(JSON.stringify(ordered(value))).digest("hex");
 for (const { name, schema, valid, payload } of samples) {
   assert.equal(typeof valid, "boolean", `${name}: expected validity is required`);
   const versionedName = /\.v[0-9]+$/.test(schema) ? schema : `${schema}.v1`;
@@ -34,6 +40,21 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "catalog-auditability-draft-validation" && valid) {
+    assert.equal(payload.targetCount, payload.targets.length, `${name}: target count parity`);
+    assert.equal(payload.evaluatedAt, payload.baseValidation.evaluatedAt, `${name}: base clock binding`);
+    const bindings = payload.targets.map(target => {
+      assert.equal(target.baseContentSha256, payload.baseValidation.contentSha256, `${name}: target base digest binding`);
+      assert.equal(target.auditabilityContentSha256, payload.contentSha256, `${name}: target supplement digest binding`);
+      assert.equal(target.factPath, `auditability.${target.fact.criterion}`, `${name}: target path binding`);
+      const binding = { scope: "AUDITABILITY_SOURCE_REVIEW_TARGET_V1", baseContentSha256: target.baseContentSha256,
+        auditabilityContentSha256: target.auditabilityContentSha256, optionScope: target.scope, fact: target.fact };
+      assert.equal(target.targetSha256, digest(binding), `${name}: independently recomputed target digest`);
+      return binding;
+    });
+    assert.equal(payload.reviewTargetSetSha256, payload.status === "VALID_DRAFT" ? digest(bindings) : null, `${name}: exact target set digest`);
+    auditabilityDraftSamples++;
+  }
   if (schema === "auditability-capability-preflight" && valid) {
     const preview = auditabilityPreviewFromCore(payload, { workspaceId: payload.workspaceId,
       assessmentId: payload.assessmentId, expectedVersion: payload.assessmentVersion,
@@ -51,6 +72,9 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-fact-review-summary-page:true", "catalog-fact-review-summary-page:false",
   "catalog-proposal-evidence-page.v2:true", "catalog-proposal-evidence-page.v2:false",
   "provider-catalog-draft:true", "provider-catalog-draft:false",
+  "catalog-auditability-draft:true", "catalog-auditability-draft:false",
+  "catalog-auditability-draft-validation-request:true", "catalog-auditability-draft-validation-request:false",
+  "catalog-auditability-draft-validation:true", "catalog-auditability-draft-validation:false",
   "catalog-draft-validation:true", "catalog-draft-validation:false",
   "catalog-change-preview-request:true", "catalog-change-preview-request:false",
   "catalog-change-preview:true", "catalog-change-preview:false",
@@ -95,3 +119,5 @@ for (const required of ["assessment-response:true", "core-problem:true",
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
 assert.ok(auditabilityConsumerSamples > 0, "Actual auditability HTTP samples must reach the strict BFF consumer.");
 console.log(`Validated ${auditabilityConsumerSamples} actual auditability HTTP responses with the BFF evidence-policy guard.`);
+assert.ok(auditabilityDraftSamples > 0, "Actual auditability draft responses must reach independent digest checks.");
+console.log(`Verified ${auditabilityDraftSamples} actual auditability draft reports with independent target binding checks.`);

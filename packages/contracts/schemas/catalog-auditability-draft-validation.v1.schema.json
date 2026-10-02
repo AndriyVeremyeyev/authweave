@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-draft-validation.v1.schema.json",
+  "title": "Read-only auditability draft validation and unreviewed target inventory v1",
+  "description": "Targets bind the entire supplement, exact base content, scope and claim, not remote pages. Invalid binding yields no partial targets. Core additionally enforces cross-field digests, complete scopes, counts, dates and semantic uniqueness.",
+  "type": "object", "additionalProperties": false,
+  "required": ["scope", "policyVersion", "canonicalizationVersion", "draftSchemaVersion", "evaluatedAt", "status", "evidenceVersion", "contentSha256", "baseValidation", "optionCount", "issues", "targets", "targetCount", "reviewTargetsAvailable", "reviewTargetSetSha256", "sourceReviewWorkflowAvailable", "sourceVerificationPerformed", "candidateImpactPerformed", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"],
+  "properties": {
+    "scope": { "const": "CATALOG_AUDITABILITY_DRAFT_VALIDATION" }, "policyVersion": { "const": "catalog-auditability-draft-validation-1" },
+    "canonicalizationVersion": { "const": "catalog-draft-canonical-json-1" }, "draftSchemaVersion": { "const": 1 },
+    "evaluatedAt": { "type": "string", "format": "date-time" }, "status": { "enum": ["VALID_DRAFT", "INVALID_DRAFT"] },
+    "evidenceVersion": { "$ref": "./provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+    "contentSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+    "baseValidation": { "$ref": "./catalog-draft-validation.v1.schema.json" },
+    "optionCount": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "issues": { "type": "array", "maxItems": 203, "uniqueItems": true, "items": { "$ref": "#/$defs/issue" } },
+    "targets": { "type": "array", "maxItems": 600, "uniqueItems": true, "items": { "$ref": "#/$defs/target" } },
+    "targetCount": { "type": "integer", "minimum": 0, "maximum": 600 }, "reviewTargetsAvailable": { "type": "boolean" },
+    "reviewTargetSetSha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "sourceReviewWorkflowAvailable": { "const": false }, "sourceVerificationPerformed": { "const": false },
+    "candidateImpactPerformed": { "const": false }, "approvalGranted": { "const": false }, "writesPerformed": { "const": false },
+    "publicationReady": { "const": false }, "evaluationReady": { "const": false }, "recommendationReady": { "const": false }
+  },
+  "if": { "properties": { "status": { "const": "VALID_DRAFT" } } },
+  "then": { "properties": {
+    "issues": { "type": "array", "maxItems": 0 }, "reviewTargetsAvailable": { "const": true }, "reviewTargetSetSha256": { "type": "string" },
+    "baseValidation": { "type": "object", "properties": { "status": { "const": "VALID_DRAFT" } } }
+  } },
+  "else": { "properties": { "issues": { "type": "array", "minItems": 1 }, "targets": { "type": "array", "maxItems": 0 }, "targetCount": { "const": 0 }, "reviewTargetsAvailable": { "const": false }, "reviewTargetSetSha256": { "type": "null" } } },
+  "$defs": {
+    "issue": {
+      "type": "object", "additionalProperties": false, "required": ["optionId", "path", "code"],
+      "properties": {
+        "optionId": { "type": ["string", "null"], "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+        "path": { "enum": ["baseDraft", "baseContentSha256", "baseCatalogVersion", "options.scope"] },
+        "code": { "enum": ["BASE_DRAFT_INVALID", "BASE_CONTENT_MISMATCH", "BASE_VERSION_MISMATCH", "UNKNOWN_OPTION", "OPTION_SCOPE_MISMATCH", "MISSING_OPTION_SCOPE"] }
+      }
+    },
+    "target": {
+      "type": "object", "additionalProperties": false,
+      "required": ["baseContentSha256", "auditabilityContentSha256", "scope", "fact", "freshness", "factPath", "evidenceStatus", "targetSha256"],
+      "properties": {
+        "baseContentSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+        "auditabilityContentSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" },
+        "scope": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/scope" },
+        "fact": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/fact" },
+        "freshness": { "enum": ["CURRENT", "STALE", "FUTURE"] }, "evidenceStatus": { "const": "UNREVIEWED" },
+        "factPath": { "enum": ["auditability.AUTHENTICATION_SUCCESS_EVENTS", "auditability.AUTHENTICATION_FAILURE_EVENTS", "auditability.ADMINISTRATIVE_CHANGE_EVENTS", "auditability.PROVISIONING_CHANGE_EVENTS", "auditability.AUDIT_LOG_EXPORT", "auditability.AUDIT_LOG_RETENTION"] },
+        "targetSha256": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/digest" }
+      },
+      "oneOf": [
+        { "properties": { "fact": { "type": "object", "properties": { "criterion": { "const": "AUTHENTICATION_SUCCESS_EVENTS" } } }, "factPath": { "const": "auditability.AUTHENTICATION_SUCCESS_EVENTS" } } },
+        { "properties": { "fact": { "type": "object", "properties": { "criterion": { "const": "AUTHENTICATION_FAILURE_EVENTS" } } }, "factPath": { "const": "auditability.AUTHENTICATION_FAILURE_EVENTS" } } },
+        { "properties": { "fact": { "type": "object", "properties": { "criterion": { "const": "ADMINISTRATIVE_CHANGE_EVENTS" } } }, "factPath": { "const": "auditability.ADMINISTRATIVE_CHANGE_EVENTS" } } },
+        { "properties": { "fact": { "type": "object", "properties": { "criterion": { "const": "PROVISIONING_CHANGE_EVENTS" } } }, "factPath": { "const": "auditability.PROVISIONING_CHANGE_EVENTS" } } },
+        { "properties": { "fact": { "type": "object", "properties": { "criterion": { "const": "AUDIT_LOG_EXPORT" } } }, "factPath": { "const": "auditability.AUDIT_LOG_EXPORT" } } },
+        { "properties": { "fact": { "type": "object", "properties": { "criterion": { "const": "AUDIT_LOG_RETENTION" } } }, "factPath": { "const": "auditability.AUDIT_LOG_RETENTION" } } }
+      ]
+    }
+  }
+}

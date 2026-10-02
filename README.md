@@ -796,6 +796,49 @@ V1/v2/v3/v4 eligibility endpoints, policies and synthetic catalog v4 remain unch
 there is no v5 eligibility endpoint. The separate browser-only `/preview` remains v1
 without a usage-input editor; the private authenticated draft page has one.
 
+### Proposed auditability supplement: exact binding before source review
+
+`POST /internal/v1/catalog-auditability/drafts/validate` accepts a
+[validation envelope](packages/contracts/schemas/catalog-auditability-draft-validation-request.v1.schema.json)
+containing the unchanged `provider-catalog-draft.v1` base and a separate
+[auditability draft v1](packages/contracts/schemas/catalog-auditability-draft.v1.schema.json).
+It requires the server-only service credential, rejects query parameters and returns
+`no-store`; it does not assert a curator identity. Neither document is saved or loaded
+as evaluation evidence. No dependencies, migrations, provider accounts or paid calls
+are added. The [fixture](packages/contracts/tests/fixtures/catalog-auditability-draft.valid.json)
+contains fictional claims and binds the existing base draft fixture.
+
+The supplement records its own evidence version, exact typed base content SHA-256
+and base catalog version. Every base option needs one matching option ID, plan,
+region and configuration, including an explicit empty facts array when unknown.
+The base digest additionally binds provider, product, deployment and all original
+facts. Labels are compared exactly, not treated as wildcard scopes. Up to six
+identity-provider criteria use `SUPPORTED`, `UNSUPPORTED` or `UNKNOWN`, explicit
+conditions and the existing HTTPS URL/date/bounded-paraphrase evidence object.
+There is no caller-supplied review status. A documented retention minimum may be
+null, or 0–36500 days only for supported retention; it is not a retention maximum,
+customer requirement, external-sink guarantee or observed configuration.
+
+Malformed or forged inputs return 400. Well-formed inputs produce `VALID_DRAFT`
+or `INVALID_DRAFT`; invalid base content, digest/version or scope binding produces
+no partial review targets. A valid [report](packages/contracts/schemas/catalog-auditability-draft-validation.v1.schema.json)
+addresses every recorded claim with `auditability.<CRITERION>` and a domain-labelled
+target hash binding the full supplement, exact base hash, scope and fact. The target-set
+hash binds the complete inventory; changing any supplement content invalidates every
+address. All collections are unordered under existing `catalog-draft-canonical-json-1`;
+normalized instants preserve addresses across equivalent timestamp representations.
+Changing the check clock changes freshness, not target hashes. The independent HTTP
+contract check recomputes these addresses from actual responses.
+
+Every target remains `UNREVIEWED`, including current supported claims. A valid
+address is not a completed source review, remote-page hash, signature, approval or
+verified provider fact. `sourceReviewWorkflowAvailable`, `sourceVerificationPerformed`,
+`candidateImpactPerformed`, `approvalGranted`, `writesPerformed`, `publicationReady`,
+`evaluationReady` and `recommendationReady` remain false. Dedicated durable source
+review and before/after auditability impact are subsequent steps. Existing proposal,
+bootstrap review and publication paths do not accept or consume this supplement;
+the synthetic sidecar, draft v1 hashes and historical receipts remain unchanged.
+
 ### Provider catalog drafts: validation before review
 
 `POST /api/v1/catalog-drafts/validate` accepts a separate, versioned

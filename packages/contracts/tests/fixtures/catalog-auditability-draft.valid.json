@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "kind": "AUDITABILITY_CATALOG_DRAFT",
+  "evidenceVersion": "example-auditability-proposal-1",
+  "baseCatalogVersion": "example-proposal-1",
+  "baseContentSha256": "2183c32ee6a03515916d12647344b27f79ed0da45efb8b6259e8d08238ddcf88",
+  "options": [{
+    "scope": { "optionId": "example-managed-eu", "plan": "Example Enterprise", "region": "EU", "configuration": "Primary pilot configuration" },
+    "facts": [
+      {
+        "emitter": "IDENTITY_PROVIDER", "criterion": "AUTHENTICATION_SUCCESS_EVENTS", "support": "SUPPORTED",
+        "documentedMinimumRetentionDays": null,
+        "conditions": ["Configured pilot environment"],
+        "evidence": { "sourceUrl": "https://docs.example.invalid/identity/audit", "observedAt": "2026-09-12T12:00:00Z", "summary": "Fictional source paraphrase for validation tests only; not observed logs or a real provider claim." }
+      },
+      {
+        "emitter": "IDENTITY_PROVIDER", "criterion": "AUDIT_LOG_RETENTION", "support": "SUPPORTED",
+        "documentedMinimumRetentionDays": 30,
+        "conditions": ["Configured pilot environment"],
+        "evidence": { "sourceUrl": "https://docs.example.invalid/identity/audit", "observedAt": "2026-09-12T12:00:00Z", "summary": "Fictional documented minimum for this exact configuration, not a maximum or a customer requirement." }
+      }
+    ]
+  }]
+}
