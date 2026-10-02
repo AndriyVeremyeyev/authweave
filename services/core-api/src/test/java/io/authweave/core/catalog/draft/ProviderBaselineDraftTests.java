@@ -64,6 +64,59 @@ class ProviderBaselineDraftTests {
                 active.options().stream().map(ProviderCatalog.Option::id).sorted().toList());
     }
 
+    @Test
+    void releaseScopedOptionalAssertionsDoNotBecomeReviewedOrAnActiveCatalog() throws Exception {
+        var json = resource("catalog/baselines/scoped/keycloak-26.8.0.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("keycloak-26.8.0-native-self-hosted", option.id());
+        assertEquals(ProviderCatalogDraft.Deployment.SELF_HOSTED, option.deployment());
+        assertEquals("Keycloak upstream 26.8.0", option.product());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC, ProviderCatalog.Capability.SAML,
+                ProviderCatalog.Capability.SCIM, ProviderCatalog.Capability.GROUP_SYNC), option.facts().keySet());
+        var observed = Instant.parse("2026-10-02T21:20:39Z");
+        option.facts().values().forEach(fact -> {
+            assertEquals(ProviderCatalog.Availability.OPTIONAL, fact.availability());
+            assertFalse(fact.conditions().isEmpty());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("github.com", fact.evidence().sourceUrl().getHost());
+            assertTrue(fact.evidence().sourceUrl().getPath().startsWith(
+                    "/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/"));
+        });
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(4, current.factCount());
+        assertUntrusted(current);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+    }
+
+    @Test
+    void scopedAndResearchOptionsCanCoexistWithoutMergingOrCompletingCoverage() throws Exception {
+        var research = mapper.readValue(resource("catalog/baselines/keycloak.v1.json"), ProviderCatalogDraft.class);
+        var scoped = mapper.readValue(resource("catalog/baselines/scoped/keycloak-26.8.0.v1.json"), ProviderCatalogDraft.class);
+        var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "keycloak-research-and-scoped-test", List.of(research.options().getFirst(), scoped.options().getFirst()));
+        var report = validator.validateAt(combined, Instant.parse("2026-10-02T21:20:39Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(2, report.optionCount());
+        assertEquals(7, report.factCount());
+        assertUntrusted(report);
+        assertNotEquals(validator.validate(research).contentSha256(), report.contentSha256());
+        assertNotEquals(validator.validate(scoped).contentSha256(), report.contentSha256());
+        assertTrue(combined.options().stream().allMatch(option -> option.residency().isEmpty()
+                && option.authenticationControls().isEmpty() && option.compatibility().clients().isEmpty()));
+    }
+
     private void assertUntrusted(CatalogDraftValidation report) {
         assertFalse(report.sourceVerificationPerformed());
         assertFalse(report.approvalGranted());

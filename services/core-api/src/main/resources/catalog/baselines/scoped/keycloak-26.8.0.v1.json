@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "keycloak-26.8.0-native-draft-2026.10.02",
+  "options": [{
+    "id": "keycloak-26.8.0-native-self-hosted",
+    "providerId": "keycloak",
+    "product": "Keycloak upstream 26.8.0",
+    "plan": "Upstream release 26.8.0; commercial support not assessed",
+    "deployment": "SELF_HOSTED",
+    "region": "Operator-selected hosting; storage destinations not verified",
+    "configuration": "Native OIDC/SAML clients and configurable inbound realm SCIM; no third-party extensions or outbound bridge",
+    "facts": {
+      "OIDC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Register an OIDC client and enable Standard Flow for authorization-code login.",
+          "Configure exact redirect URIs, client authentication and the intended PKCE policy; documentation support does not verify a deployment.",
+          "This assertion concerns downstream application clients, not upstream enterprise federation or every authentication-control policy."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/oidc/con-basic-settings.adoc",
+          "observedAt": "2026-10-02T21:20:39Z",
+          "summary": "The 26.8.0 source documentation describes configurable OIDC clients, an authorization-code Standard Flow switch, client authentication and a selectable PKCE method."
+        }
+      },
+      "SAML": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Register a SAML client and configure its application endpoints, bindings, signatures and keys.",
+          "A native downstream SAML application does not establish compatibility with a particular upstream Okta or Entra ID tenant."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/saml/proc-creating-saml-client.adoc",
+          "observedAt": "2026-10-02T21:20:39Z",
+          "summary": "Release-pinned documentation describes SAML application client registration, POST/Redirect bindings and configurable signing and encryption. This is not a tested SAML integration."
+        }
+      },
+      "SCIM": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Make the native SCIM server feature available and enable the SCIM API for the intended realm.",
+          "Use an authorized confidential service-account client with operation-specific permissions and the exact realm SCIM audience.",
+          "The scope is inbound realm provisioning; SaaS records, permissions, local sessions and any outbound bridge require separate integration and tests."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/assembly-managing-scim.adoc",
+          "observedAt": "2026-10-02T21:20:39Z",
+          "summary": "The release-pinned SCIM chapter links native user/group lifecycle, per-realm enablement and bearer-token authorization documentation. Endpoint support does not prove application-side lifecycle enforcement."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Use the enabled, authorized native realm SCIM Groups interface; group claims alone are not provisioning.",
+          "Manage group members through PATCH, not Groups POST or PUT; member entries are users.",
+          "Organization-group memberships require the Organization API rather than this SCIM membership path.",
+          "Verify the consuming application's membership mapping and authorization updates independently."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/scim/managing-groups.adoc",
+          "observedAt": "2026-10-02T21:20:39Z",
+          "summary": "The 26.8.0 documentation describes realm SCIM group CRUD and PATCH-based user membership. It excludes organization-group membership management and membership writes in Groups POST/PUT."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

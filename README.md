@@ -1012,6 +1012,35 @@ The active catalog and evaluator remain synthetic. Real-provider baseline comple
 authorized approval/publication and end-user recommendations are still pending.
 No accounts, subscriptions, live provider calls or deployments were added.
 
+#### Release-scoped Keycloak documentation candidate
+
+A separate [Keycloak 26.8.0 draft](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0.v1.json)
+narrows the distribution and native integration scope without changing the five
+initial research files. Its OIDC, SAML, SCIM and group-provisioning assertions are
+`OPTIONAL` proposals with explicit configuration prerequisites, all still
+`UNREVIEWED`. `OPTIONAL` means the documented feature can be configured, not that
+an application integration has passed testing. The upstream
+[26.8.0 release notes](https://github.com/keycloak/keycloak/releases/tag/26.8.0)
+describe native SCIM as supported. Evidence links use the exact source commit
+`4246609cf2024c85016d3fb1254c3d2533367c31`, resolved from that release, rather than
+mutable `latest` documentation. Pinning a source is not a signature, source-content
+capture, security assessment or human approval.
+
+`make inspect-provider-baselines` now reports six distinct options and 19 recorded
+entries: five unresolved research scopes and one release-scoped documentation draft.
+It retains the unknown Keycloak research option alongside the scoped candidate;
+it does not merge facts or inherit review status. The four new assertions remain
+unreviewed even when their observations are current. Offline checks reject release,
+source-path or configuration drift and unexpected coverage claims, but cannot prove
+the truth of a paraphrase or execute its conditions.
+
+The candidate concerns native inbound realm provisioning, not automatic updates to
+SaaS permissions or sessions. Its conditions preserve SCIM authorization and group
+membership limitations. Hosting destinations, application context, authentication
+controls, auditability, commercial support and operating costs remain unverified.
+This is not an installation, an upgrade recommendation or a change to AuthWeave's
+ZITADEL authentication. Full baseline coverage and authorized publication remain pending.
+
 ### Catalog change proposal previews
 
 `POST /api/v1/catalog-change-proposals/preview` compares two supplied draft v1 documents
