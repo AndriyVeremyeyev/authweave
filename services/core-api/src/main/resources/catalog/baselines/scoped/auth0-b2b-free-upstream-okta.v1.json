@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-b2b-free-upstream-okta-draft-2026.10.02",
+  "options": [{
+    "id": "auth0-b2b-free-upstream-okta-workforce",
+    "providerId": "auth0",
+    "product": "Auth0 Public Cloud",
+    "plan": "B2B Free; upstream workforce entitlement unverified",
+    "deployment": "MANAGED",
+    "region": "No tenant regions selected; storage destinations not verified",
+    "configuration": "Okta Workforce connection; manual OIDC web app plus separate SCIM app; no OIN Express or downstream bridge",
+    "facts": {
+      "ENTERPRISE_SSO": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Use the dedicated Okta Workforce connection with an upstream OIDC Web application, its callback/client settings and application enablement in Auth0; not a generic OIDC or SAML connection.",
+          "The B2B Free offer at https://auth0.com/pricing lists Okta connections separately from generic Enterprise Connections; system limits and both tenant entitlements still require verification.",
+          "This is one manual upstream configuration, not OIN Express Configuration, custom authorization-server access, downstream app login or tested customer compatibility."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/identity-providers/okta",
+          "observedAt": "2026-10-02T23:25:54Z",
+          "summary": "The dedicated Okta Workforce guide describes configuring an upstream OIDC Web app and enabling its Auth0 connection. OPTIONAL is a documentation proposal, not a tenant or application test."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "The documented manual path uses separate OIDC and SCIM app instances with matching assignments; disable Federation Broker Mode on the OIDC app and configure connection-specific SCIM externalId mapping.",
+          "Use the bearer-token SCIM app with create, update and deactivate actions, without password provisioning; review PUT attribute mappings and token operation scopes.",
+          "Auth0 Free includes inbound SCIM, but upstream Okta provisioning entitlement and this pair's mappings are unverified; UNKNOWN does not mean unsupported or inherit OPTIONAL from the generic Auth0 draft.",
+          "Provisioning runs from Okta into Auth0, not from Auth0 into the SaaS; downstream permissions, local sessions and revocation behavior require separate enforcement and tests."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/scim/inbound-scim-for-okta-workforce-connections",
+          "observedAt": "2026-10-02T23:25:54Z",
+          "summary": "Auth0 describes a manual two-app Okta provisioning setup. The guide alone does not establish both commercial entitlements or correct identity correlation in this unconfigured pair."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "App assignment is not Group Push; group scopes, push rules and their relation to assignments must be configured separately, as described at https://help.okta.com/en-us/content/topics/users-groups-profiles/usgp-group-push-main.htm.",
+          "Native Auth0 Group resources allow user members, not nested groups; group-specific access and both upstream/downstream entitlements remain unverified.",
+          "Do not infer SaaS organization membership, roles, group deletion cleanup or session enforcement from an inbound group object; no downstream bridge is selected."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim",
+          "observedAt": "2026-10-02T23:25:54Z",
+          "summary": "Auth0 documents Group operations and separate authorization/external-system integrations. This pair has no verified group entitlement or application-side enforcement."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

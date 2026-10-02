@@ -328,6 +328,85 @@ class ProviderBaselineDraftTests {
         assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"okta", "entra"})
+    void auth0WorkforcePairsPreserveConnectorIdentityAndDoNotInheritGenericProvisioning(String upstream) throws Exception {
+        var json = resource("catalog/baselines/scoped/auth0-b2b-free-upstream-" + upstream + ".v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("auth0-b2b-free-upstream-" + upstream + "-workforce", option.id());
+        assertEquals("auth0", option.providerId());
+        assertEquals("Auth0 Public Cloud", option.product());
+        assertEquals("B2B Free; upstream workforce entitlement unverified", option.plan());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        var expected = Map.of(ProviderCatalog.Capability.ENTERPRISE_SSO, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.SCIM, ProviderCatalog.Availability.UNKNOWN,
+                ProviderCatalog.Capability.GROUP_SYNC, ProviderCatalog.Availability.UNKNOWN);
+        assertEquals(expected.keySet(), option.facts().keySet());
+        var observed = Instant.parse("2026-10-02T23:25:54Z");
+        option.facts().forEach((capability, fact) -> {
+            assertEquals(expected.get(capability), fact.availability());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("auth0.com", fact.evidence().sourceUrl().getHost());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        var scim = option.facts().get(ProviderCatalog.Capability.SCIM);
+        var conditions = String.join(" ", scim.conditions());
+        assertTrue(conditions.contains("upstream"));
+        assertTrue(conditions.contains("entitlement"));
+        if (upstream.equals("okta")) {
+            assertEquals("/docs/authenticate/protocols/scim/inbound-scim-for-okta-workforce-connections",
+                    scim.evidence().sourceUrl().getPath());
+            assertTrue(conditions.contains("separate OIDC and SCIM app instances"));
+            assertTrue(conditions.contains("Federation Broker Mode"));
+            assertTrue(conditions.contains("without password provisioning"));
+            assertTrue(String.join(" ", option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).conditions())
+                    .contains("assignment is not Group Push"));
+        } else {
+            assertEquals("/docs/authenticate/protocols/scim/inbound-scim-for-new-azure-ad-connections",
+                    scim.evidence().sourceUrl().getPath());
+            assertTrue(conditions.contains("oid"));
+            assertTrue(conditions.contains("Common Endpoint disabled"));
+            assertTrue(conditions.contains("externalId mapped from Entra objectId"));
+            assertTrue(conditions.contains("legacy pairwise sub mapping"));
+            assertTrue(conditions.contains("Assignment Required"));
+            assertTrue(conditions.contains("separate non-gallery provisioning app"));
+        }
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(3, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        var generic = mapper.readValue(resource("catalog/baselines/scoped/auth0-b2b-free.v1.json"), ProviderCatalogDraft.class);
+        var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "auth0-generic-and-" + upstream + "-test", List.of(generic.options().getFirst(), option));
+        var combinedReport = validator.validateAt(combined, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, combinedReport.status());
+        assertEquals(2, combinedReport.optionCount());
+        assertEquals(7, combinedReport.factCount());
+        assertUntrusted(combinedReport);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL,
+                generic.options().getFirst().facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, scim.availability());
+        assertNotEquals(validator.validate(generic).contentSha256(), combinedReport.contentSha256());
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+    }
+
     private void assertUntrusted(CatalogDraftValidation report) {
         assertFalse(report.sourceVerificationPerformed());
         assertFalse(report.approvalGranted());

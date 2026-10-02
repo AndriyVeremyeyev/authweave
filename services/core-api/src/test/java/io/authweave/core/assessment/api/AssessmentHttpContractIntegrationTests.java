@@ -2076,7 +2076,8 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"keycloak-26.8.0", "zitadel-cloud-free", "auth0-b2b-free", "workos-directory-sync-staging", "entra-external-id-basic"})
+    @ValueSource(strings = {"keycloak-26.8.0", "zitadel-cloud-free", "auth0-b2b-free", "workos-directory-sync-staging",
+            "entra-external-id-basic", "auth0-b2b-free-upstream-okta", "auth0-b2b-free-upstream-entra"})
     void scopedProviderDraftRetainsItsActualObservationsAndCannotChangeEvaluation(String scope) throws Exception {
         var assessment = create();
         var path = assessment.path().replace("/api/v1/", "/api/v4/") + "/eligibility-preflight";
@@ -2091,7 +2092,12 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         var report = versionedSample(scope + "-scoped-report", "catalog-draft-validation", result);
         assertEquals("VALID_DRAFT", report.get("status").asText());
         assertEquals(1, report.get("optionCount").asInt());
-        assertEquals(scope.equals("workos-directory-sync-staging") ? 2 : 4, report.get("factCount").asInt());
+        var expectedFactCount = switch (scope) {
+            case "workos-directory-sync-staging" -> 2;
+            case "auth0-b2b-free-upstream-okta", "auth0-b2b-free-upstream-entra" -> 3;
+            default -> 4;
+        };
+        assertEquals(expectedFactCount, report.get("factCount").asInt());
         assertEquals(io.authweave.core.catalog.draft.CatalogDraftCanonicalizer.sha256(
                 mapper.treeToValue(input, io.authweave.core.catalog.draft.ProviderCatalogDraft.class)), report.get("contentSha256").asText());
         for (String field : List.of("sourceVerificationPerformed", "approvalGranted", "writesPerformed", "evaluationReady")) {

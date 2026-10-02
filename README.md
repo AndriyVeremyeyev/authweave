@@ -1057,8 +1057,9 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports ten distinct options and 33 recorded
-entries: five unresolved research scopes, one release-scoped and four plan-scoped drafts.
+`make inspect-provider-baselines` now reports twelve distinct options and 39 recorded
+entries: five unresolved research scopes, one release-scoped, four plan-scoped and
+two upstream-scoped drafts.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1143,6 +1144,34 @@ must not be mistaken for inbound provisioning; HSC mode excludes that outbound f
 do not prove native inbound SCIM Group lifecycle or application access/session enforcement.
 Full commercial, compatibility, residency and control coverage, manual review and
 authorized catalog publication remain pending; the active evaluator stays synthetic.
+
+#### Upstream workforce compatibility candidates for Auth0
+
+Two separate documentation candidates use the existing draft format:
+[Okta Workforce into Auth0](services/core-api/src/main/resources/catalog/baselines/scoped/auth0-b2b-free-upstream-okta.v1.json)
+and [Entra ID workforce into Auth0](services/core-api/src/main/resources/catalog/baselines/scoped/auth0-b2b-free-upstream-entra.v1.json).
+They propose `ENTERPRISE_SSO` as `OPTIONAL`; pair-specific SCIM and group availability
+remain `UNKNOWN` pending entitlements and configuration checks. Every entry is
+`UNREVIEWED`. Downstream OIDC/SAML and other provider pairings are omitted, not inferred.
+Neither candidate changes AuthWeave's ZITADEL authentication or the synthetic evaluator.
+
+The [dedicated Okta connection](https://auth0.com/docs/authenticate/identity-providers/okta)
+is not the existing generic OIDC candidate or OIN Express Configuration. Its
+[manual provisioning guide](https://auth0.com/docs/authenticate/protocols/scim/inbound-scim-for-okta-workforce-connections)
+uses separate login/provisioning apps; application assignment alone is not Group Push.
+The [dedicated Entra connection](https://auth0.com/docs/authenticate/identity-providers/enterprise-identity-providers/azure-active-directory/v2)
+uses a workforce tenant, not Entra External ID. Its
+[new-connection SCIM guide](https://auth0.com/docs/authenticate/protocols/scim/inbound-scim-for-new-azure-ad-connections)
+correlates `oid/objectId` with `externalId`, unlike generic OIDC or legacy `sub` mapping.
+
+[Auth0 B2B Free inclusion](https://auth0.com/pricing) does not establish free upstream
+workforce provisioning. No accounts, paid plans, credentials or runtime integrations
+were created. These routes provision into Auth0; downstream application permissions,
+local sessions and group enforcement remain separate. Existing drafts retain their
+original observations and do not transfer positive facts into these new scopes.
+The offline inspector labels the pairings `UPSTREAM_SCOPED_DOCUMENTATION_DRAFT`,
+but neither tests live interoperability nor approves facts. Remaining provider
+pairings, full coverage, manual review and authorized publication are still pending.
 
 ### Catalog change proposal previews
 

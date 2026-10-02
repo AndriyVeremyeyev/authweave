@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-b2b-free-upstream-entra-draft-2026.10.02",
+  "options": [{
+    "id": "auth0-b2b-free-upstream-entra-workforce",
+    "providerId": "auth0",
+    "product": "Auth0 Public Cloud",
+    "plan": "B2B Free; upstream workforce entitlement unverified",
+    "deployment": "MANAGED",
+    "region": "No tenant regions selected; storage destinations not verified",
+    "configuration": "Entra workforce; new Azure AD connection, v2/oid/single-tenant; separate non-gallery SCIM app; no downstream bridge",
+    "facts": {
+      "ENTERPRISE_SSO": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Register a single-tenant Web app in the upstream workforce tenant, configure callback/client credentials and enable the dedicated Microsoft Azure AD connection for the Auth0 application.",
+          "Select the Microsoft Identity Platform v2 Identity API; generic OIDC, SAML, workforce-to-External-ID federation and legacy v1 Graph features are different configurations.",
+          "The B2B Free offer at https://auth0.com/pricing has one non-Okta Enterprise Connection; both tenant entitlements and limits remain unverified, not a multi-customer or zero-cost guarantee.",
+          "Optional Graph profile/group reads and consent do not establish SCIM provisioning or arbitrary custom claims; no runtime application was tested."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/identity-providers/enterprise-identity-providers/azure-active-directory/v2",
+          "observedAt": "2026-10-02T23:25:54Z",
+          "summary": "The dedicated Azure AD guide describes registration, connection enablement and single-tenant configuration for provisioning. The selected upstream is Entra workforce, not the Entra External ID candidate."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Use a new dedicated Azure AD connection with User Object Identifier (oid), Common Endpoint disabled and SCIM externalId mapped from Entra objectId; do not reuse a generic OIDC or legacy pairwise sub mapping.",
+          "Set Assignment Required on the OIDC app and assign the same users to a separate non-gallery provisioning app; review its connection-specific bearer token, operation scopes and attribute mappings.",
+          "Auth0 Free includes inbound SCIM, but upstream Entra provisioning entitlement and this pair's identity mapping remain unverified; UNKNOWN is not unsupported or inherited from another option.",
+          "Entra provisions into Auth0; SaaS permissions, local-session revocation and downstream lifecycle need independent application integration and tests."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/scim/inbound-scim-for-new-azure-ad-connections",
+          "observedAt": "2026-10-02T23:25:54Z",
+          "summary": "The new-connection SCIM guide requires tenant-specific oid identity correlation and a separate provisioning app. Neither this setup nor upstream commercial access has been verified."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Enable group provisioning and group operation scopes separately on the provisioning app; OIDC group claims or delegated Graph reads do not establish Group lifecycle synchronization.",
+          "Auth0 group names must be unique per connection and members must be users, not nested groups; group-specific entitlement remains unverified.",
+          "Organization membership, role assignments, deletion cleanup and SaaS session/access enforcement are separate from inbound group records; no downstream bridge is selected."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim",
+          "observedAt": "2026-10-02T23:25:54Z",
+          "summary": "Auth0 describes native Group operations with bounded membership and separate authorization/external-system steps. It does not verify the selected upstream pair's group availability or enforcement."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

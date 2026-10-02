@@ -117,6 +117,38 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
   },
+  {
+    file: "auth0-b2b-free-upstream-okta.v1.json",
+    catalogVersion: "auth0-b2b-free-upstream-okta-draft-2026.10.02",
+    scope: {
+      id: "auth0-b2b-free-upstream-okta-workforce", providerId: "auth0", product: "Auth0 Public Cloud", deployment: "MANAGED",
+      plan: "B2B Free; upstream workforce entitlement unverified",
+      region: "No tenant regions selected; storage destinations not verified",
+      configuration: "Okta Workforce connection; manual OIDC web app plus separate SCIM app; no OIN Express or downstream bridge",
+    },
+    facts: {
+      ENTERPRISE_SSO: { availability: "OPTIONAL", sourceUrl: "https://auth0.com/docs/authenticate/identity-providers/okta" },
+      SCIM: { availability: "UNKNOWN", sourceUrl: "https://auth0.com/docs/authenticate/protocols/scim/inbound-scim-for-okta-workforce-connections" },
+      GROUP_SYNC: { availability: "UNKNOWN", sourceUrl: "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim" },
+    },
+    metadata: { basis: "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free", upstreamProviderId: "okta-workforce" },
+  },
+  {
+    file: "auth0-b2b-free-upstream-entra.v1.json",
+    catalogVersion: "auth0-b2b-free-upstream-entra-draft-2026.10.02",
+    scope: {
+      id: "auth0-b2b-free-upstream-entra-workforce", providerId: "auth0", product: "Auth0 Public Cloud", deployment: "MANAGED",
+      plan: "B2B Free; upstream workforce entitlement unverified",
+      region: "No tenant regions selected; storage destinations not verified",
+      configuration: "Entra workforce; new Azure AD connection, v2/oid/single-tenant; separate non-gallery SCIM app; no downstream bridge",
+    },
+    facts: {
+      ENTERPRISE_SSO: { availability: "OPTIONAL", sourceUrl: "https://auth0.com/docs/authenticate/identity-providers/enterprise-identity-providers/azure-active-directory/v2" },
+      SCIM: { availability: "UNKNOWN", sourceUrl: "https://auth0.com/docs/authenticate/protocols/scim/inbound-scim-for-new-azure-ad-connections" },
+      GROUP_SYNC: { availability: "UNKNOWN", sourceUrl: "https://auth0.com/docs/authenticate/protocols/scim/configure-inbound-scim" },
+    },
+    metadata: { basis: "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free", upstreamProviderId: "entra-id-workforce" },
+  },
 ]);
 
 function requireCondition(condition, message) {
