@@ -2,8 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { capabilityFields, capabilityValues, criticalities, type Capability, type CapabilityValues } from "@/lib/assessment/capabilities";
-import { hasStaleSyntheticEvidence } from "@/lib/assessment/comparison-evidence";
+import { capabilityFields, capabilityValues, criticalities, type CapabilityValues } from "@/lib/assessment/capabilities";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
 import { auditabilityValues } from "@/lib/assessment/auditability";
@@ -11,7 +10,7 @@ import type { AuditabilityPreview } from "@/lib/assessment/auditability-preview"
 import { authConfiguration } from "@/lib/auth/config";
 import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning, readPersonalAuditability,
   readSyntheticComparison,
-  type ArchitecturePatternPreflightSummary, type ComparisonCandidate, type ComparisonFinding,
+  type ArchitecturePatternPreflightSummary,
   type PersonalAssessment, type SyntheticComparisonSummary,
   type UsagePlanningPreflightSummary } from "@/lib/auth/core-client";
 import { sessionCookieName } from "@/lib/auth/session-policy";
@@ -26,6 +25,7 @@ import { AuditabilityPreflight, AuditabilityPreflightUnavailable } from "./audit
 import { assessmentStepFromQuery } from "@/lib/assessment/workflow";
 import { AssessmentWorkflow } from "./assessment-workflow";
 import { SavedRequirementsOverview } from "./saved-requirements-overview";
+import { ComparisonSection } from "./comparison-section";
 
 export const runtime = "nodejs";
 
@@ -160,8 +160,9 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
             {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : <PreviewUnavailable name="Usage input check" />}
           </>,
           review: <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"} />,
-          comparison: comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values}
-            assessmentId={assessment.id} preferred={preferred} /> : <PreviewUnavailable name="Synthetic comparison" />,
+          comparison: comparison ? <ComparisonSection comparison={comparison} profile={assessment.profile} editable={assessment.status === "DRAFT"}
+            preferencePreview={preferred.length > 0 ? <WeightedPreviewForm key={`${assessment.id}-${comparison.assessmentVersion}`}
+              assessmentId={assessment.id} version={comparison.assessmentVersion} preferred={preferred} /> : null} /> : <PreviewUnavailable name="Synthetic comparison" />,
           architecture: patterns ? <ArchitecturePatterns preview={patterns} assessmentId={assessment.id} />
             : <PreviewUnavailable name="Architecture pattern preflight" />,
         }} />
@@ -227,93 +228,6 @@ function CapabilityEditor({ assessment, values }: { assessment: PersonalAssessme
         </button>
       </form>
     </section>
-  );
-}
-
-function ComparisonSection({ comparison, editable, assessmentId, preferred }: {
-  comparison: SyntheticComparisonSummary; editable: boolean; assessmentId: string;
-  preferred: { capability: Capability; label: string }[];
-}) {
-  const preferences = comparison.candidates[0]?.capabilityPreferences.length ?? 0;
-  return (
-    <section className="mt-10" aria-labelledby="comparison-heading">
-      <h2 id="comparison-heading" className="text-2xl font-semibold">Synthetic option comparison</h2>
-      <p className="mt-3 text-slate-300">These are fictional plans for learning and testing the decision rules, not real provider recommendations. The checks below do not cover every requirement or establish a winner.</p>
-      <p className="mt-2 text-sm text-slate-400">Assessment version {comparison.assessmentVersion} · Catalog {comparison.catalogVersion} · Checked {new Date(comparison.evaluatedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</p>
-      {hasStaleSyntheticEvidence(comparison.candidates) && (
-        <p role="status" className="mt-5 rounded-lg border border-amber-700 p-4 text-amber-100">
-          At least one fictional catalog fact is stale under the 90-day policy. It cannot prove support or a mismatch,
-          and affected scores remain withheld. Changing its observation date alone would not verify the source.
-        </p>
-      )}
-      {preferences === 0 && <p className="mt-5 rounded-lg border border-slate-700 p-4 text-slate-300">
-        No capability preferences are recorded in this draft. {editable && "Choose Preferred in the Requirements step and save to see how the fictional plans compare. "}The optional weight preview requires at least one saved preference.
-      </p>}
-      <ul className="mt-6 space-y-5">
-        {comparison.candidates.map(candidate => <ComparisonCard key={candidate.optionId} candidate={candidate} />)}
-      </ul>
-      {preferred.length > 0 && <WeightedPreviewForm key={`${assessmentId}-${comparison.assessmentVersion}`}
-        assessmentId={assessmentId} version={comparison.assessmentVersion} preferred={preferred} />}
-      <details className="mt-6 rounded-xl border border-slate-700 p-5 text-sm text-slate-300">
-        <summary className="cursor-pointer font-medium">Checks not included in this comparison</summary>
-        <p className="mt-3">A passing result applies only to checked constraints. Cost, operations and other listed topics still need review.</p>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          {comparison.deferredPaths.map(path => <li key={path}>{path}</li>)}
-        </ul>
-      </details>
-    </section>
-  );
-}
-
-function ComparisonCard({ candidate }: { candidate: ComparisonCandidate }) {
-  const verdict = {
-    EXCLUDED: "Excluded by a checked requirement",
-    UNRESOLVED: "Needs more information",
-    PASSES_CHECKED_REQUIREMENTS: "Passes checked requirements only",
-  }[candidate.hardVerdict];
-  return (
-    <li className="rounded-xl border border-slate-700 p-6">
-      <h3 className="text-xl font-semibold">{candidate.displayName}</h3>
-      <p className="mt-1 text-sm text-slate-400">{candidate.plan} · {candidate.region}</p>
-      <p className="mt-4 font-medium text-cyan-200">{verdict}</p>
-      <FindingList title="Reasons for exclusion" findings={candidate.exclusionReasons} />
-      <FindingList title="Information still needed" findings={candidate.informationGaps} />
-      {candidate.capabilityPreferences.length > 0 && (
-        <div className="mt-5">
-          <h4 className="font-medium">Recorded capability preferences</h4>
-          <ul className="mt-2 space-y-2 text-sm text-slate-300">
-            {candidate.capabilityPreferences.map(preference => (
-              <li key={preference.capability} className="rounded-lg bg-slate-800/60 p-3">
-                <span className="font-medium">{preference.capability.replaceAll("_", " ")}</span>
-                <span className="text-slate-400"> · {preference.outcome.toLowerCase()}</span>
-                <p className="mt-1">{preference.explanation}</p>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-sm text-slate-400">Preferences do not override exclusions. No weights or scores are inferred.</p>
-        </div>
-      )}
-    </li>
-  );
-}
-
-function FindingList({ title, findings }: { title: string; findings: ComparisonFinding[] }) {
-  if (findings.length === 0) return null;
-  return (
-    <div className="mt-5">
-      <h4 className="font-medium">{title}</h4>
-      <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-slate-300">
-        {findings.map((finding, index) => (
-          <li key={`${finding.dimension}-${finding.profilePath}-${finding.reasonCode}-${index}`}>
-            <span className="font-medium text-slate-200">
-              {finding.dimension.toLowerCase().replaceAll("_", " ")}: {" "}
-            </span>
-            {finding.explanation}
-            <span className="ml-1 text-slate-400">({finding.reasonCode})</span>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
 

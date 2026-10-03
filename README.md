@@ -225,6 +225,17 @@ a bounded unavailable notice instead of inferred answers. These display labels a
 not Core validation errors, applicability rules or a completeness/readiness score;
 other profile fields remain available in the saved JSON.
 
+Comparison presents Core's three partial statuses, their option counts, exclusion
+reasons, information gaps and capability preferences separately. Known checked
+paths show the related saved answers and offer navigation to the existing editor;
+read-only assessments return to Review instead. Unknown paths never guess an editor,
+and unreadable inputs never invent a value. Catalog evidence gaps are not proof of
+incompatibility and cannot be resolved by merely weakening a requirement. Core's
+explanations, reason codes, scope paths, catalog version and evaluation time remain
+available; technical identifiers are in expandable details. Deferred topics stay
+visible. Options retain Core's order, not a ranking, and a partial pass is not a
+real-provider recommendation or a complete suitability check.
+
 This workspace requires the local BFF session, Core API and PostgreSQL. It does not
 add autosave, expand editable profile fields, change ownership/version checks or
 turn synthetic comparisons into real-provider recommendations. Temporary what-if

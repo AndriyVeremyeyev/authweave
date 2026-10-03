@@ -6,7 +6,7 @@ import { assessmentSteps, workflowTransition, type AssessmentStep } from "@/lib/
 
 const AssessmentNavigation = createContext<((step: AssessmentStep, button: HTMLButtonElement) => void) | null>(null);
 
-// Server-rendered review cards use the same in-memory navigation and dirty guard as the sidebar.
+// Server-rendered cards use the same in-memory navigation and dirty guard as the sidebar.
 export function AssessmentStepButton({ step, children }: { step: AssessmentStep; children: ReactNode }) {
   const navigate = useContext(AssessmentNavigation);
   return <button type="button" disabled={!navigate} aria-controls="assessment-step-panel"
