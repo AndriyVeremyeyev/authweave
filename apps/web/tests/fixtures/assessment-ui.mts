@@ -75,5 +75,12 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/comparison-presentation"', JSON.stringify(new URL("../../src/lib/assessment/comparison-presentation.ts", import.meta.url).href))));
   const context = await import(moduleUrl((await compile("../../src/app/assessments/[id]/saved-context-summary.tsx"))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
-  return { ...workflow, ...overview, ...comparison, ...context };
+  const prerequisitesUrl = moduleUrl((await compile("../../src/app/assessments/[id]/architecture-prerequisites.tsx"))
+    .replaceAll('"@/lib/assessment/architecture-prerequisites"', JSON.stringify(new URL("../../src/lib/assessment/architecture-prerequisites.ts", import.meta.url).href)));
+  const prerequisites = await import(prerequisitesUrl);
+  const architecture = await import(moduleUrl((await compile("../../src/app/assessments/[id]/architecture-patterns.tsx"))
+    .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
+    .replaceAll('"./architecture-prerequisites"', JSON.stringify(prerequisitesUrl))
+    .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
+  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture };
 }

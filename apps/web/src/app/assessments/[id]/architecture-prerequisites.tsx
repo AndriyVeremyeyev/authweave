@@ -67,8 +67,12 @@ export function ArchitecturePrerequisites({ assessmentId, version, patternId, de
   }
 
   return <details className="mt-4 text-sm text-slate-300">
-    <summary className="cursor-pointer font-medium">Try a prerequisite what-if preview</summary>
+    <summary className="cursor-pointer font-medium">Try design conditions — temporary what-if</summary>
     <p className="mt-3">Describe your proposed design, not verified deployment settings. Answers and results are temporary and are not saved. No IdP configuration is read or changed.</p>
+    {clientScope !== "SELECTED" && <p className="mt-3 rounded-lg border border-amber-300/20 bg-amber-300/5 p-3 text-amber-100">
+      {clientScope === "UNKNOWN" ? "Client types are not recorded. These declarations cannot establish a match; select and save clients in Context first."
+        : "This client type is not selected. These declarations cannot make the pattern applicable; review saved Context first."}
+    </p>}
     <form className="mt-4 space-y-4" onSubmit={submit} onChange={() => { setPreview(null); setError(null); }}>
       <input type="hidden" name="expectedVersion" value={version} />
       <input type="hidden" name="patternId" value={patternId} />
@@ -86,6 +90,7 @@ export function ArchitecturePrerequisites({ assessmentId, version, patternId, de
       </fieldset>
     </form>
     <div aria-live="polite" aria-atomic="true" className="mt-4">
+      {!preview && !error && !pending && <p className="text-xs text-slate-400">No current what-if result. Choose declarations and preview them; changing an answer clears the result. Nothing is saved.</p>}
       {error && <p className="text-amber-100">{error}</p>}
       {preview && <div className="rounded-lg border border-slate-600 p-4">
         <p className="font-medium text-cyan-200">{statusText[preview.analysis.status]}</p>

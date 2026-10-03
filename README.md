@@ -353,6 +353,13 @@ server-side session, SPA Code+PKCE, native Code+PKCE and M2M client credentials.
 response includes advantages, tradeoffs, prerequisites and references for each pattern.
 Patterns address individual client types; mixed applications may need several patterns.
 
+The personal workspace's Architecture step separates saved-input results from
+temporary design-condition previews. It shows the two recorded inputs, a Context
+navigation button, readable token locations and per-criterion outcomes; Not applied
+is explicitly not a pass. All five alternatives remain in the policy's display order,
+not a ranking. Core explanations, pros/trade-offs, prerequisites and protocol links
+are preserved; technical paths/reasons remain available in expandable details.
+
 Only client selection and browser token minimization are checked. `PREFERRED` preserves
 the browser alternatives without scoring. For `REQUIRED`, server-side patterns satisfy
 the token-handling check under their stated prerequisites; SPA needs clarification of
@@ -374,6 +381,9 @@ Each pattern card on a personal assessment offers a prerequisite what-if form.
 Choose `SATISFIED`, `NOT_SATISFIED` or `UNKNOWN` for conditions in your proposed design;
 every control defaults to unknown. Answers and results are temporary, never saved.
 The form does not read or change IdP settings, tokens or credentials.
+Unknown or unselected client scope has an explicit notice before declarations are
+entered. Changing a declaration clears the current result and requires another
+preview; leaving the step or reloading discards these temporary inputs and results.
 
 The same-origin BFF POST `/api/assessments/{id}/architecture-prerequisites` requires a
 live database-backed session. It calls the separate Core POST
