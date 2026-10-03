@@ -49,6 +49,17 @@ inside `apps/web` or `packages/contracts` for the same check locally. A clean au
 only reflects the registry's currently reported advisories; it is not proof that
 the application is secure.
 
+The Web runtime and Next.js ESLint configuration are pinned together to 16.3.8,
+a [security patch release](https://github.com/vercel/next.js/releases/tag/v16.3.8).
+The plugin's development-only `fast-glob` dependency is scoped to a local
+directory-search adapter using `tinyglobby` 0.2.17. This removes the unpatched
+[`braces` dependency](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), rather than
+ignoring its advisory or downgrading Next.js. The adapter supports only the
+plugin's root-directory discovery call, not the full `fast-glob` API; regression
+tests exercise the actual Next.js resolver and lint rule. Review this override
+when upgrading the plugin, and remove it once upstream no longer needs the
+vulnerable chain. Reinstall with `npm ci` in `apps/web` after pulling this change.
+
 ### Optional local identity lab
 
 Local ZITADEL infrastructure, an AuthWeave OIDC project/application and two ordinary synthetic

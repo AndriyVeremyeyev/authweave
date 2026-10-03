@@ -15,7 +15,7 @@
     "test:auth-db": "node --test tests/auth-db.integration.mts"
   },
   "dependencies": {
-    "next": "16.3.6",
+    "next": "16.3.8",
     "openid-client": "^6.8.8",
     "pg": "^8.23.0",
     "react": "19.2.8",
@@ -28,9 +28,15 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.6",
+    "eslint-config-next": "16.3.8",
+    "fast-glob": "file:tooling/eslint-root-glob",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@next/eslint-plugin-next@16.3.8": {
+      "fast-glob": "$fast-glob"
+    }
   },
   "packageManager": "npm@11.17.0"
 }
