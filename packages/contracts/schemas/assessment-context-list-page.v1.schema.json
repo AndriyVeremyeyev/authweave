@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-context-list-page.v1.schema.json",
+  "title": "Assessment context list page v1",
+  "description": "Read-only navigation projection of saved context, not profile completeness or evaluation readiness. Null context means the stored profile could not be decoded.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items", "nextBeforeId"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "version", "createdAt", "updatedAt", "context"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "status": { "enum": ["DRAFT", "READY_FOR_EVALUATION", "EVALUATED", "DECIDED", "ARCHIVED"] },
+          "version": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "updatedAt": { "type": "string", "format": "date-time" },
+          "context": {
+            "oneOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["applicationType", "clients", "userPopulations"],
+                "properties": {
+                  "applicationType": { "enum": ["UNKNOWN", "B2B_SAAS", "PARTNER_PORTAL", "PUBLIC_SECTOR_PORTAL", "INTERNAL_WORKFORCE", "OTHER"] },
+                  "clients": {
+                    "type": "array", "maxItems": 3, "uniqueItems": true,
+                    "items": { "enum": ["BROWSER", "NATIVE_MOBILE", "MACHINE_TO_MACHINE"] }
+                  },
+                  "userPopulations": {
+                    "type": "array", "maxItems": 6, "uniqueItems": true,
+                    "items": { "enum": ["EXTERNAL_CUSTOMERS", "PARTNERS", "CITIZENS", "EMPLOYEES", "CONTRACTORS", "INTERNAL_OPERATORS"] }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "nextBeforeId": { "type": ["string", "null"], "format": "uuid" }
+  }
+}

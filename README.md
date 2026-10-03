@@ -226,6 +226,19 @@ and leaving through the workspace's back button or reloading warns about them.
 Successful saves and known validation/version conflicts return to the relevant
 step. The step URL remembers location, not unsaved answers or completion.
 
+The protected `/assessments` list identifies saved drafts by application type, users
+and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown
+and empty selections stay unrecorded; Other needs definition. An unreadable stored
+profile keeps its metadata with an unavailable-context notice. Cards open the same
+personal assessment; bounded older-page navigation can return to the latest page.
+The additive Core `/api/v6/workspaces/{workspaceId}/assessments/context-index` route
+projects only these three context fields from the same stored row as its metadata,
+without per-item API reads or full profiles in the list response. The existing
+metadata-only list contract is unchanged. BFF validates the bounded response and
+derives workspace ownership from its server session. Listing does not change
+assessment versions, timestamps or history, and these labels do not assert
+completeness, applicability or recommendation readiness.
+
 A saved-context summary above every step identifies the recorded application type,
 user populations and client types. It uses the same checked context projection as
 the editor, not unsaved edits or an inferred scenario. Unknown and empty fields stay

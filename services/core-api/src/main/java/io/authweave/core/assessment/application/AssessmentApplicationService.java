@@ -9,6 +9,7 @@ import io.authweave.core.assessment.domain.WorkspaceId;
 import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
 import io.authweave.core.assessment.persistence.AssessmentNotFoundException;
 import io.authweave.core.assessment.persistence.AssessmentListPage;
+import io.authweave.core.assessment.persistence.AssessmentContextListPage;
 import io.authweave.core.assessment.persistence.AssessmentEvent;
 import io.authweave.core.assessment.persistence.AssessmentHistoryRepository;
 import io.authweave.core.assessment.persistence.AssessmentRevision;
@@ -60,6 +61,12 @@ public class AssessmentApplicationService {
     public AssessmentListPage listAssessments(WorkspaceId workspaceId, UUID beforeId, int limit) {
         requireWorkspace(workspaceId);
         return assessmentRepository.list(workspaceId, beforeId, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public AssessmentContextListPage listAssessmentContexts(WorkspaceId workspaceId, UUID beforeId, int limit) {
+        requireWorkspace(workspaceId);
+        return assessmentRepository.listWithContext(workspaceId, beforeId, limit);
     }
 
     @Transactional

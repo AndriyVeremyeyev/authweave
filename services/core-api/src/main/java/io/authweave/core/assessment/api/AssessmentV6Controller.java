@@ -33,6 +33,12 @@ public class AssessmentV6Controller {
             @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
         return service.listAssessments(new WorkspaceId(workspaceId), beforeId, limit);
     }
+    @GetMapping("/context-index")
+    public AssessmentContextListPage contextIndex(@PathVariable UUID workspaceId,
+            @RequestParam(required = false) UUID beforeId,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
+        return service.listAssessmentContexts(new WorkspaceId(workspaceId), beforeId, limit);
+    }
     @GetMapping("/{assessmentId}")
     public AssessmentV6Response get(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId) {
         return AssessmentV6Response.from(service.getAssessment(new WorkspaceId(workspaceId), new AssessmentId(assessmentId)), mapper);

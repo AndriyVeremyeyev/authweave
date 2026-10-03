@@ -82,5 +82,10 @@ export async function assessmentUiComponents() {
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"./architecture-prerequisites"', JSON.stringify(prerequisitesUrl))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
-  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture };
+  const link = moduleUrl(`import { jsx } from ${JSON.stringify(import.meta.resolve("react/jsx-runtime"))};
+    export default function Link({ children, ...props }) { return jsx("a", { ...props, children }); }`);
+  const list = await import(moduleUrl((await compile("../../src/app/assessments/assessment-list.tsx"))
+    .replaceAll('"next/link"', JSON.stringify(link))
+    .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
+  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list };
 }

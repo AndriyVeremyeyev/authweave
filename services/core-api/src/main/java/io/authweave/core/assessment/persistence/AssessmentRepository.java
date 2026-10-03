@@ -15,6 +15,8 @@ public interface AssessmentRepository {
 
     AssessmentListPage list(WorkspaceId workspaceId, UUID beforeId, int limit);
 
+    AssessmentContextListPage listWithContext(WorkspaceId workspaceId, UUID beforeId, int limit);
+
     boolean exists(WorkspaceId workspaceId, AssessmentId assessmentId);
 
     PersistedAssessment update(Assessment assessment, long expectedVersion);

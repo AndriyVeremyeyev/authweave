@@ -701,26 +701,55 @@ test("BFF lists bounded assessment summaries using only its session workspace", 
   const item = {
     id: assessmentId, status: "DRAFT", version: 0,
     createdAt: "2026-09-22T12:00:00Z", updatedAt: "2026-09-22T12:00:00Z",
+    context: { applicationType: "B2B_SAAS", clients: ["BROWSER"], userPopulations: ["PARTNERS"] },
   };
+  const cursor = "90000000-0000-4000-8000-000000000002";
   let calls = 0;
   globalThis.fetch = async (input, init) => {
     calls++;
     assert.equal(input,
-      `http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments?limit=20&beforeId=${assessmentId}`);
+      `http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/context-index?limit=20&beforeId=${cursor}`);
     assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
     assert.equal(init?.cache, "no-store");
+    assert.equal(init?.redirect, "error");
     return Response.json({ items: [item], nextBeforeId: assessmentId });
   };
   try {
     await assert.rejects(listPersonalAssessments(session, "../other"), /cursor is invalid/);
     assert.equal(calls, 0);
-    assert.deepEqual(await listPersonalAssessments(session, assessmentId), {
+    assert.deepEqual(await listPersonalAssessments(session, cursor), {
       items: [item], nextBeforeId: assessmentId,
     });
     assert.equal(calls, 1);
     globalThis.fetch = async () => Response.json({ items: [{ ...item, profile: {} }], nextBeforeId: null });
     await assert.rejects(listPersonalAssessments(session), /response is invalid/);
+    for (const context of [undefined, {}, [], "B2B_SAAS",
+      { ...item.context, applicationType: "<script>private</script>" },
+      { ...item.context, clients: ["BROWSER", "BROWSER"] },
+      { ...item.context, userPopulations: ["PARTNERS", "PARTNERS"] },
+      { ...item.context, clients: ["CUSTOM_CLIENT"] },
+      { ...item.context, userPopulations: ["PRIVATE_POPULATION"] },
+      { ...item.context, profile: { secret: "private" } },
+      { ...item.context, recommendationReady: true }]) {
+      globalThis.fetch = async () => Response.json({ items: [{ ...item, context }], nextBeforeId: null });
+      await assert.rejects(listPersonalAssessments(session), /response is invalid/);
+    }
+    for (const body of [{ items: [item, item], nextBeforeId: null },
+      { items: Array(21).fill(item), nextBeforeId: null },
+      { items: [], nextBeforeId: item.id },
+      { items: [item] }, { items: [item], nextBeforeId: null, workspaceId: session.workspaceId },
+      { items: [{ ...item, version: Number.MAX_SAFE_INTEGER + 1 }], nextBeforeId: null }]) {
+      globalThis.fetch = async () => Response.json(body);
+      await assert.rejects(listPersonalAssessments(session), /response is invalid/);
+    }
+    for (const context of [null, { applicationType: "UNKNOWN", clients: [], userPopulations: [] },
+      { applicationType: "OTHER", clients: ["MACHINE_TO_MACHINE"], userPopulations: [] }]) {
+      globalThis.fetch = async () => Response.json({ items: [{ ...item, context }], nextBeforeId: null });
+      assert.deepEqual((await listPersonalAssessments(session)).items[0].context, context);
+    }
+    globalThis.fetch = async () => Response.json({ items: [item], nextBeforeId: null });
+    await assert.rejects(listPersonalAssessments(session, item.id), /response is invalid/);
     globalThis.fetch = async () => Response.json({ items: [item], nextBeforeId:
       "90000000-0000-4000-8000-000000000001" });
     await assert.rejects(listPersonalAssessments(session), /response is invalid/);

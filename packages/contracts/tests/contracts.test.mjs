@@ -597,6 +597,31 @@ test("assessment list pages are bounded summaries with a valid cursor", () => {
   assert.equal(validate({ items: Array(51).fill(item), nextBeforeId: null }), false);
 });
 
+test("saved context index is a separate bounded navigation projection with no profile or authority", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/assessment-context-list-page.v1.schema.json");
+  const item = { id: validAssessmentResponse.id, status: "DRAFT", version: 0,
+    createdAt: validAssessmentResponse.createdAt, updatedAt: validAssessmentResponse.updatedAt,
+    context: { applicationType: "B2B_SAAS", clients: ["BROWSER"], userPopulations: ["PARTNERS"] } };
+  for (const applicationType of ["UNKNOWN", "B2B_SAAS", "PARTNER_PORTAL", "PUBLIC_SECTOR_PORTAL", "INTERNAL_WORKFORCE", "OTHER"]) {
+    assert.equal(validate({ items: [{ ...item, context: { applicationType,
+      clients: ["BROWSER", "NATIVE_MOBILE", "MACHINE_TO_MACHINE"],
+      userPopulations: ["EXTERNAL_CUSTOMERS", "PARTNERS", "CITIZENS", "EMPLOYEES", "CONTRACTORS", "INTERNAL_OPERATORS"] } }], nextBeforeId: null }), true, validationMessage(validate));
+  }
+  for (const context of [null, { applicationType: "UNKNOWN", clients: [], userPopulations: [] }]) {
+    assert.equal(validate({ items: [{ ...item, context }], nextBeforeId: null }), true, validationMessage(validate));
+  }
+  for (const context of [{}, { ...item.context, applicationType: "UNREGISTERED" },
+    { ...item.context, clients: ["BROWSER", "BROWSER"] }, { ...item.context, userPopulations: ["PARTNERS", "PARTNERS"] },
+    { ...item.context, clients: ["FREE_TEXT"] }, { ...item.context, userPopulations: ["PRIVATE_LABEL"] },
+    { ...item.context, profile: {} }, { ...item.context, recommendationReady: true }]) {
+    assert.equal(validate({ items: [{ ...item, context }], nextBeforeId: null }), false);
+  }
+  assert.equal(validate({ items: [{ ...item, profile: validAssessmentResponse.profile }], nextBeforeId: null }), false);
+  assert.equal(validate({ items: [{ ...item, version: 9007199254740992 }], nextBeforeId: null }), false);
+  assert.equal(validate({ items: Array(51).fill(item), nextBeforeId: null }), false);
+  assert.equal(ajv.getSchema("https://authweave.dev/contracts/assessment-list-page.v1.schema.json")({ items: [item], nextBeforeId: null }), false);
+});
+
 test("hard-constraint summary cannot claim a winner or hide its synthetic scope", () => {
   const validate = ajv.getSchema("https://authweave.dev/contracts/hard-constraint-preflight.v1.schema.json");
   const finding = {

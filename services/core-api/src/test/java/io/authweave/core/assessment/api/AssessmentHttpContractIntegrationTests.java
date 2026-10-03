@@ -2889,6 +2889,62 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         return payload;
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"B2B_SAAS", "PUBLIC_SECTOR_PORTAL", "INTERNAL_WORKFORCE"})
+    void contextIndexProjectsSavedNavigationDataWithoutChangingMetadataHistoryOrProfiles(String type) throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var indexPath = "/api/v6/workspaces/" + assessment.workspaceId().value() + "/assessments/context-index";
+        var initial = versionedSample("context-index-initial", "assessment-context-list-page", mvc.perform(get(indexPath)).andExpect(status().isOk()).andReturn());
+        assertEquals("UNKNOWN", initial.at("/items/0/context/applicationType").asText());
+        assertEquals(0, initial.at("/items/0/context/clients").size());
+        assertEquals(0, initial.at("/items/0/context/userPopulations").size());
+        var profile = versionedSample("context-index-profile", "assessment-response.v6", mvc.perform(get(path)).andExpect(status().isOk()).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", profile.get("profile").deepCopy());
+        var application = (ObjectNode) update.at("/profile/application"); application.put("type", type);
+        application.putArray("clients").add("BROWSER").add("NATIVE_MOBILE");
+        var populations = ((ObjectNode) update.at("/profile/audience")).putArray("populations");
+        populations.add(type.equals("PUBLIC_SECTOR_PORTAL") ? "CITIZENS" : type.equals("INTERNAL_WORKFORCE") ? "EMPLOYEES" : "PARTNERS");
+        var saved = saveV6("context-index-save", path, update);
+        var history = versionedSample("context-index-history-before", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn());
+        var events = historyResponse("context-index-events-before", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        var metadataPath = indexPath.replace("/context-index", "");
+        var metadata = versionedSample("context-index-original-metadata", "assessment-list-page", mvc.perform(get(metadataPath)).andReturn());
+        var page = versionedSample("context-index-saved", "assessment-context-list-page", mvc.perform(get(indexPath)).andExpect(status().isOk()).andReturn());
+        assertEquals(saved.get("id"), page.at("/items/0/id")); assertEquals(saved.get("version"), page.at("/items/0/version"));
+        assertEquals(type, page.at("/items/0/context/applicationType").asText());
+        assertEquals(populations, page.at("/items/0/context/userPopulations"));
+        assertEquals(application.get("clients"), page.at("/items/0/context/clients"));
+        var projected = (ObjectNode) page.at("/items/0").deepCopy(); projected.remove("context");
+        assertEquals(metadata.at("/items/0"), projected);
+        assertEquals(saved, versionedSample("context-index-profile-unchanged", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, versionedSample("context-index-history-unchanged", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn()));
+        assertEquals(events, historyResponse("context-index-events-unchanged", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+        var rawProfile = (ObjectNode) page.deepCopy(); ((ObjectNode) rawProfile.at("/items/0")).set("profile", saved.get("profile"));
+        sample("context-index-no-raw-profile", "assessment-context-list-page", false, rawProfile);
+        var authority = (ObjectNode) page.deepCopy(); ((ObjectNode) authority.at("/items/0/context")).put("recommendationReady", true);
+        sample("context-index-no-authority", "assessment-context-list-page", false, authority);
+        var duplicated = (ObjectNode) page.deepCopy(); ((ObjectNode) duplicated.at("/items/0/context")).putArray("clients").add("BROWSER").add("BROWSER");
+        sample("context-index-no-duplicate-clients", "assessment-context-list-page", false, duplicated);
+        mvc.perform(get(indexPath + "?limit=0")).andExpect(status().isBadRequest());
+        mvc.perform(get(indexPath + "?limit=51")).andExpect(status().isBadRequest());
+        mvc.perform(get(indexPath + "?beforeId=" + UUID.randomUUID())).andExpect(status().isNotFound());
+        var corrupt = versionedSample("context-index-second-draft", "assessment-response.v6", mvc.perform(post(metadataPath)).andExpect(status().isCreated()).andReturn());
+        proposalDsl.update(io.authweave.core.generated.jooq.tables.Assessments.ASSESSMENTS)
+                .set(io.authweave.core.generated.jooq.tables.Assessments.ASSESSMENTS.PROFILE, org.jooq.JSONB.valueOf("{}"))
+                .where(io.authweave.core.generated.jooq.tables.Assessments.ASSESSMENTS.ID.eq(UUID.fromString(corrupt.get("id").asText()))).execute();
+        var mixed = versionedSample("context-index-isolated-unreadable", "assessment-context-list-page", mvc.perform(get(indexPath)).andExpect(status().isOk()).andReturn());
+        assertEquals(2, mixed.get("items").size());
+        for (var item : mixed.get("items")) {
+            if (item.get("id").equals(corrupt.get("id"))) org.junit.jupiter.api.Assertions.assertTrue(item.get("context").isNull());
+            else assertEquals(type, item.at("/context/applicationType").asText());
+        }
+        var first = versionedSample("context-index-first-page", "assessment-context-list-page", mvc.perform(get(indexPath + "?limit=1")).andReturn());
+        assertEquals(1, first.get("items").size());
+        var older = versionedSample("context-index-older-page", "assessment-context-list-page", mvc.perform(get(indexPath + "?limit=1&beforeId=" + first.get("nextBeforeId").asText())).andReturn());
+        assertEquals(1, older.get("items").size()); org.junit.jupiter.api.Assertions.assertTrue(older.get("nextBeforeId").isNull());
+        org.junit.jupiter.api.Assertions.assertNotEquals(first.at("/items/0/id"), older.at("/items/0/id"));
+    }
+
     @Test
     void v6AuditScopeUsesLosslessStorageAtomicHistoryAndPreventsOlderApiDataLoss() throws Exception {
         var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
@@ -2908,6 +2964,10 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         requirements.put("minimumRetentionDays", 30);
         var saved = saveV6("v6-auditability-saved", path, update);
         assertEquals(1, saved.get("version").asInt());
+        var contextIndex = versionedSample("v6-auditability-context-index", "assessment-context-list-page", mvc.perform(get(
+                "/api/v6/workspaces/" + assessment.workspaceId().value() + "/assessments/context-index")).andExpect(status().isOk()).andReturn());
+        assertEquals(saved.get("version"), contextIndex.at("/items/0/version"));
+        assertEquals("UNKNOWN", contextIndex.at("/items/0/context/applicationType").asText());
         assertEquals(saved, versionedSample("v6-auditability-loaded", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
         update.put("expectedVersion", 1); assertEquals(saved, saveV6("v6-recorded-no-op", path, update));
         var history = versionedSample("v6-mixed-exact-history", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn());

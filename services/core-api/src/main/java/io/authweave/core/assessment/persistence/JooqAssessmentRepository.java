@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.jooq.Condition;
 import org.jooq.DSLContext;
+import org.jooq.JSONB;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -67,6 +68,53 @@ public class JooqAssessmentRepository implements AssessmentRepository {
     @Override
     @Transactional(readOnly = true)
     public AssessmentListPage list(WorkspaceId workspaceId, UUID beforeId, int limit) {
+        Condition scope = listScope(workspaceId, beforeId, limit);
+        List<AssessmentListItem> rows = dsl.select(ASSESSMENTS.ID, ASSESSMENTS.STATUS,
+                        ASSESSMENTS.LOCK_VERSION, ASSESSMENTS.CREATED_AT, ASSESSMENTS.UPDATED_AT)
+                .from(ASSESSMENTS)
+                .where(scope)
+                .orderBy(ASSESSMENTS.CREATED_AT.desc(), ASSESSMENTS.ID.desc())
+                .limit(limit + 1)
+                .fetch(row -> new AssessmentListItem(
+                        Objects.requireNonNull(row.value1()),
+                        AssessmentStatus.valueOf(Objects.requireNonNull(row.value2())),
+                        Objects.requireNonNull(row.value3()),
+                        Objects.requireNonNull(row.value4()).toInstant(),
+                        Objects.requireNonNull(row.value5()).toInstant()));
+        return AssessmentListPage.from(rows, limit);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AssessmentContextListPage listWithContext(WorkspaceId workspaceId, UUID beforeId, int limit) {
+        // Metadata and profile come from the same row snapshot; no per-item reads.
+        var rows = dsl.select(ASSESSMENTS.ID, ASSESSMENTS.STATUS, ASSESSMENTS.LOCK_VERSION,
+                        ASSESSMENTS.CREATED_AT, ASSESSMENTS.UPDATED_AT,
+                        ASSESSMENTS.PROFILE, ASSESSMENTS.PROFILE_SCHEMA_VERSION)
+                .from(ASSESSMENTS)
+                .where(listScope(workspaceId, beforeId, limit))
+                .orderBy(ASSESSMENTS.CREATED_AT.desc(), ASSESSMENTS.ID.desc())
+                .limit(limit + 1)
+                .fetch(row -> new AssessmentContextListItem(
+                        Objects.requireNonNull(row.value1()),
+                        AssessmentStatus.valueOf(Objects.requireNonNull(row.value2())),
+                        Objects.requireNonNull(row.value3()),
+                        Objects.requireNonNull(row.value4()).toInstant(),
+                        Objects.requireNonNull(row.value5()).toInstant(),
+                        navigationContext(Objects.requireNonNull(row.value6()), Objects.requireNonNull(row.value7()))));
+        return AssessmentContextListPage.from(rows, limit);
+    }
+
+    private AssessmentContextListItem.Context navigationContext(JSONB profile, short schemaVersion) {
+        try {
+            return AssessmentContextListItem.Context.from(profileJsonCodec.decode(profile, schemaVersion));
+        } catch (AssessmentProfileSerializationException | UnsupportedAssessmentProfileVersionException exception) {
+            // Keep the bounded metadata visible, without guessing from an unreadable profile.
+            return null;
+        }
+    }
+
+    private Condition listScope(WorkspaceId workspaceId, UUID beforeId, int limit) {
         if (limit < 1 || limit > 50) {
             throw new IllegalArgumentException("limit must be between 1 and 50");
         }
@@ -83,19 +131,7 @@ public class JooqAssessmentRepository implements AssessmentRepository {
             scope = scope.and(ASSESSMENTS.CREATED_AT.lt(createdAt)
                     .or(ASSESSMENTS.CREATED_AT.eq(createdAt).and(ASSESSMENTS.ID.lt(beforeId))));
         }
-        List<AssessmentListItem> rows = dsl.select(ASSESSMENTS.ID, ASSESSMENTS.STATUS,
-                        ASSESSMENTS.LOCK_VERSION, ASSESSMENTS.CREATED_AT, ASSESSMENTS.UPDATED_AT)
-                .from(ASSESSMENTS)
-                .where(scope)
-                .orderBy(ASSESSMENTS.CREATED_AT.desc(), ASSESSMENTS.ID.desc())
-                .limit(limit + 1)
-                .fetch(row -> new AssessmentListItem(
-                        Objects.requireNonNull(row.value1()),
-                        AssessmentStatus.valueOf(Objects.requireNonNull(row.value2())),
-                        Objects.requireNonNull(row.value3()),
-                        Objects.requireNonNull(row.value4()).toInstant(),
-                        Objects.requireNonNull(row.value5()).toInstant()));
-        return AssessmentListPage.from(rows, limit);
+        return scope;
     }
 
     @Override

@@ -2229,6 +2229,38 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/WorkspaceNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/context-index:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+    get:
+      tags: [Assessments]
+      summary: List saved application contexts in the authenticated workspace
+      description: >-
+        Read-only bounded navigation data: metadata, application type, clients and
+        audience populations from the same stored row snapshot. No full profiles,
+        free text, evaluation results or inferred readiness. Unreadable profiles
+        retain their metadata with null context. The existing metadata-only list
+        contract is unchanged. Service credentials and personal workspace ownership
+        are required; a cursor must belong to the same workspace.
+      operationId: listAssessmentContextsV6
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: "#/components/parameters/AssessmentListBeforeId"
+        - $ref: "#/components/parameters/AssessmentListLimit"
+      responses:
+        "200":
+          description: Saved context summaries without profile contents.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-context-list-page.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
   /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"

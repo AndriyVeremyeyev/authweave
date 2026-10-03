@@ -66,6 +66,45 @@ class JooqAssessmentRepositoryIntegrationTests extends PostgresIntegrationTest {
                 () -> assessmentRepository.list(other, second, 1));
         assertThrows(IllegalArgumentException.class,
                 () -> assessmentRepository.list(workspace, null, 0));
+
+        var contexts = assessmentRepository.listWithContext(workspace, null, 2);
+        assertEquals(List.of(third, second), contexts.items().stream().map(AssessmentContextListItem::id).toList());
+        assertEquals(second, contexts.nextBeforeId());
+        var olderContexts = assessmentRepository.listWithContext(workspace, second, 2);
+        assertEquals(List.of(first), olderContexts.items().stream().map(AssessmentContextListItem::id).toList());
+        assertNull(olderContexts.nextBeforeId());
+        assertTrue(contexts.items().stream().allMatch(item -> item.context().applicationType().name().equals("UNKNOWN")
+                && item.context().clients().isEmpty() && item.context().userPopulations().isEmpty()));
+        assertThrows(AssessmentNotFoundException.class, () -> assessmentRepository.listWithContext(other, second, 1));
+        assertThrows(IllegalArgumentException.class, () -> assessmentRepository.listWithContext(workspace, null, 0));
+        assertThrows(IllegalArgumentException.class, () -> assessmentRepository.listWithContext(workspace, null, 51));
+    }
+
+    @Test
+    void contextIndexIsReadOnlyAndIsolatesUnreadableStoredProfiles() {
+        var workspace = new WorkspaceId(UUID.randomUUID());
+        workspaceRepository.insertIfAbsent(workspace);
+        var readable = Assessment.createDraft(new AssessmentId(UUID.randomUUID()), workspace);
+        var unreadable = Assessment.createDraft(new AssessmentId(UUID.randomUUID()), workspace);
+        assessmentRepository.insert(readable);
+        assessmentRepository.insert(unreadable);
+        readable.archive();
+        assessmentRepository.update(readable, 0);
+        // A malformed enum in one persisted profile must not be relabeled as UNKNOWN.
+        dsl.update(ASSESSMENTS).set(ASSESSMENTS.PROFILE, org.jooq.JSONB.valueOf("{\"application\":{\"type\":\"UNREADABLE\"}}"))
+                .where(ASSESSMENTS.ID.eq(unreadable.id().value())).execute();
+        var before = dsl.selectFrom(ASSESSMENTS).where(ASSESSMENTS.WORKSPACE_ID.eq(workspace.value()))
+                .orderBy(ASSESSMENTS.ID).fetch();
+        var page = assessmentRepository.listWithContext(workspace, null, 50);
+        assertEquals(2, page.items().size());
+        var saved = page.items().stream().filter(item -> item.id().equals(readable.id().value())).findFirst().orElseThrow();
+        assertEquals(1, saved.version()); assertEquals(AssessmentStatus.ARCHIVED, saved.status());
+        assertEquals("UNKNOWN", saved.context().applicationType().name());
+        var broken = page.items().stream().filter(item -> item.id().equals(unreadable.id().value())).findFirst().orElseThrow();
+        assertNull(broken.context()); assertEquals(0, broken.version());
+        assertEquals(before, dsl.selectFrom(ASSESSMENTS).where(ASSESSMENTS.WORKSPACE_ID.eq(workspace.value()))
+                .orderBy(ASSESSMENTS.ID).fetch());
+        assertEquals(2, assessmentRepository.list(workspace, null, 50).items().size());
     }
 
     @Test

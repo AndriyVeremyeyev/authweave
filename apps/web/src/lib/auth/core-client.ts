@@ -19,7 +19,8 @@ import { withCapabilityValues, type CapabilityValues } from "../assessment/capab
 import { auditabilityValues, withAuditabilityValues, type AuditabilityValues } from "../assessment/auditability.ts";
 import { auditabilityPreviewBinding, auditabilityPreviewByteLimit, auditabilityPreviewFromCore,
   type AuditabilityPreview } from "../assessment/auditability-preview.ts";
-import { evaluationContextValues, withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
+import { applicationTypes, clientTypes, populations, evaluationContextValues,
+  withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
   type PrerequisiteInput, type PrerequisitePreview } from "../assessment/architecture-prerequisites.ts";
 import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
@@ -72,6 +73,11 @@ export type PersonalAssessment = {
 export type PersonalAssessmentListItem = Omit<PersonalAssessment, "profile"> & {
   createdAt: string;
   updatedAt: string;
+  context: {
+    applicationType: (typeof applicationTypes)[number];
+    clients: (typeof clientTypes)[number][];
+    userPopulations: (typeof populations)[number][];
+  } | null;
 };
 
 export type PersonalAssessmentListPage = {
@@ -573,7 +579,7 @@ export async function listPersonalAssessments(
 ): Promise<PersonalAssessmentListPage> {
   if (beforeId !== undefined && !UUID.test(beforeId)) throw new Error("Assessment cursor is invalid");
   const headers = assessmentHeaders(session);
-  const url = new URL(`/api/v6/workspaces/${session.workspaceId}/assessments`, CORE_ORIGIN);
+  const url = new URL(`/api/v6/workspaces/${session.workspaceId}/assessments/context-index`, CORE_ORIGIN);
   url.searchParams.set("limit", "20");
   if (beforeId) url.searchParams.set("beforeId", beforeId);
   const response = await fetch(url.toString(), {
@@ -585,7 +591,7 @@ export async function listPersonalAssessments(
     throw new Error("Core assessment list response is invalid");
   }
   const page = body as Record<string, unknown>;
-  if (Object.keys(page).some((key) => !["items", "nextBeforeId"].includes(key)) ||
+  if (Object.keys(page).length !== 2 || Object.keys(page).some((key) => !["items", "nextBeforeId"].includes(key)) ||
       !Array.isArray(page.items) || page.items.length > 20 ||
       (page.nextBeforeId !== null &&
         (typeof page.nextBeforeId !== "string" || !UUID.test(page.nextBeforeId)))) {
@@ -596,7 +602,8 @@ export async function listPersonalAssessments(
       throw new Error("Core assessment list response is invalid");
     }
     const item = value as Record<string, unknown>;
-    if (Object.keys(item).some((key) => !["id", "status", "version", "createdAt", "updatedAt"].includes(key)) ||
+    if (Object.keys(item).length !== 6 ||
+        Object.keys(item).some((key) => !["id", "status", "version", "createdAt", "updatedAt", "context"].includes(key)) ||
         typeof item.id !== "string" || !UUID.test(item.id) ||
         typeof item.status !== "string" ||
         !["DRAFT", "READY_FOR_EVALUATION", "EVALUATED", "DECIDED", "ARCHIVED"].includes(item.status) ||
@@ -608,13 +615,39 @@ export async function listPersonalAssessments(
     return {
       id: item.id, status: item.status as PersonalAssessment["status"],
       version: item.version as number, createdAt: item.createdAt, updatedAt: item.updatedAt,
+      context: assessmentListContext(item.context),
     };
   });
-  if (page.nextBeforeId !== null &&
-      (items.length === 0 || items.at(-1)?.id !== page.nextBeforeId)) {
+  if (new Set(items.map(item => item.id)).size !== items.length ||
+      items.some(item => item.id === beforeId) ||
+      (page.nextBeforeId !== null &&
+      (items.length === 0 || items.at(-1)?.id !== page.nextBeforeId))) {
     throw new Error("Core assessment list response is invalid");
   }
   return { items, nextBeforeId: page.nextBeforeId };
+}
+
+function assessmentListContext(value: unknown): PersonalAssessmentListItem["context"] {
+  if (value === null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Core assessment list response is invalid");
+  }
+  const context = value as Record<string, unknown>;
+  const selected = <T extends string>(input: unknown, choices: readonly T[]): T[] => {
+    if (!Array.isArray(input) || input.length > choices.length || new Set(input).size !== input.length ||
+        input.some(item => typeof item !== "string" || !choices.includes(item as T))) {
+      throw new Error("Core assessment list response is invalid");
+    }
+    return [...input] as T[];
+  };
+  if (Object.keys(context).length !== 3 ||
+      Object.keys(context).some(key => !["applicationType", "clients", "userPopulations"].includes(key)) ||
+      typeof context.applicationType !== "string" ||
+      !applicationTypes.includes(context.applicationType as (typeof applicationTypes)[number])) {
+    throw new Error("Core assessment list response is invalid");
+  }
+  return { applicationType: context.applicationType as (typeof applicationTypes)[number],
+    clients: selected(context.clients, clientTypes), userPopulations: selected(context.userPopulations, populations) };
 }
 
 function object(value: unknown): Record<string, unknown> {

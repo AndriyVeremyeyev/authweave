@@ -275,6 +275,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     session: () => state.live ? identity : null, assessment,
     list: async (session: typeof identity, before: string | undefined) => {
       state.listReads++; assert.deepEqual(session, identity); assert.equal(before, id);
+      if (state.fail) throw new Error("synthetic upstream credential must not appear");
       return { items: [], nextBeforeId: id };
     },
     read: async (session: typeof identity, assessmentId: string, version: number, values: AuditabilityValues) => {
@@ -285,6 +286,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     }, comparison: () => state.comparison,
     ...component, SavedRequirementsOverview: overview.SavedRequirementsOverview, ComparisonSection: overview.ComparisonSection,
     SavedContextSummary: overview.SavedContextSummary,
+    AssessmentList: overview.AssessmentList,
   };
   const shimSource = `import { createElement } from ${JSON.stringify(import.meta.resolve("react"))};
     const state = globalThis[${JSON.stringify(slot)}];
@@ -308,6 +310,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const SavedRequirementsOverview = state.SavedRequirementsOverview;
     export const ComparisonSection = state.ComparisonSection;
     export const SavedContextSummary = state.SavedContextSummary;
+    export const AssessmentList = state.AssessmentList;
     export const AuditabilityPreflight = state.AuditabilityPreflight, AuditabilityPreflightUnavailable = state.AuditabilityPreflightUnavailable;`;
   const shim = `data:text/javascript;base64,${Buffer.from(shimSource).toString("base64")}`;
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
@@ -339,7 +342,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
       jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
       .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
     for (const name of ["next/link", "next/headers", "next/navigation", "@/lib/auth/config", "@/lib/auth/core-client",
-      "@/lib/auth/session-policy", "@/lib/auth/store"]) listCompiled = listCompiled.replaceAll(JSON.stringify(name), JSON.stringify(shim));
+      "@/lib/auth/session-policy", "@/lib/auth/store", "./assessment-list"]) listCompiled = listCompiled.replaceAll(JSON.stringify(name), JSON.stringify(shim));
     const listPage = await import(`data:text/javascript;base64,${Buffer.from(listCompiled).toString("base64")}`);
     const listHtml = renderToStaticMarkup(await listPage.default({ searchParams: Promise.resolve({ before: id }) }));
     assert.ok(listHtml.includes(`/assessments?before=${id}`)); assert.equal(state.listReads, 1);
@@ -348,6 +351,9 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     }
     assert.equal(state.listReads, 1);
     state.fail = true;
+    const unavailableList = renderToStaticMarkup(await listPage.default({ searchParams: Promise.resolve({ before: id }) }));
+    assert.ok(unavailableList.includes("Assessments unavailable"));
+    assert.equal(unavailableList.includes("synthetic upstream credential"), false);
     const unavailable = renderToStaticMarkup(await page.default(props));
     assert.ok(unavailable.includes("Identity auditability preview unavailable"));
     assert.ok(unavailable.includes("Saved profile and technical details"));
@@ -369,6 +375,9 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(!review.includes("synthetic upstream credential"));
     state.live = false; const count = state.reads;
     await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count);
+    const listReads = state.listReads;
+    await assert.rejects(listPage.default({ searchParams: Promise.resolve({ before: id }) }), /redirect-account/);
+    assert.equal(state.listReads, listReads);
     await assert.rejects(page.default(reviewProps), /redirect-account/); assert.equal(state.reads, count);
     await assert.rejects(page.default({ ...props, searchParams: Promise.resolve({ step: "comparison" }) }), /redirect-account/);
     assert.equal(state.reads, count);
