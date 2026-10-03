@@ -57,7 +57,10 @@ versioned workspace routes require the BFF's server-only credential and an OIDC 
 that owns that workspace. Signed-in users can create a private assessment draft, edit
 selected fields through the BFF, and browse a bounded list of their assessments.
 Catalog-curator permissions are not enabled yet. The public browser-only preview is
-unchanged. Browser sign-in and editing still need a manual end-to-end check.
+unchanged. The ordinary local B2B browser path through sign-in, saved editors,
+Review and fictional Comparison has been manually checked, including a stale-tab
+conflict, sign-out and a second user's denied read. This is not automated browser
+coverage, a hosted security assessment or a complete three-profile walkthrough.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -158,11 +161,16 @@ terminal, run `make migrate-web-auth` to apply the replay-safe web migrations, t
 `make dev-web`. Open `http://localhost:3000/account` to try sign-in, same-account
 reauthentication and sign-out with a synthetic user. Once signed in, use
 **Create assessment draft** to open a private
-version-5 assessment page with selected draft editors. **View your assessments**
+version-6 assessment page with selected draft editors. **View your assessments**
 lists up to 20 recent summaries per page, with an Older link for earlier drafts. The ignored
 `apps/web/.env.local` must already contain the issuer, client ID, project ID and organization ID
 created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
-rotation/revocation and database role isolation.
+rotation/revocation and database role isolation. It also exercises sequential
+context/capability/audit/usage saves through the actual BFF handlers, with a live
+session database and a stateful Core test double: section preservation, saved
+Review/Comparison input projections, explicit zero versus unknown, stale forms
+and a conditional-write race. That regression does not run ZITADEL, the browser or
+the real Core evaluation engine.
 
 The internal provisioning route and every `/api/vN/workspaces/...` route require the
 server-only bearer credential. Versioned workspace routes additionally require
@@ -172,7 +180,8 @@ The browser must never supply these credentials or principal headers directly.
 The BFF creates, lists, reads and edits selected draft fields using only the workspace
 from its server-side session. Writes require an exact same-origin request and optimistic
 version check; anonymous sessions are denied. Catalog routes remain unauthenticated and
-loopback-only. Curator authorization and browser end-to-end verification are still pending.
+loopback-only. Curator authorization verification, automated authenticated browser
+coverage and the complete three-profile walkthrough are still pending.
 Do not expose the local HTTP lab or Core API.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key

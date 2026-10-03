@@ -13,7 +13,7 @@ import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
 import { POST as auditabilityRoute } from "../src/app/api/assessments/[id]/auditability/route.ts";
-import { readPersonalAuditability } from "../src/lib/auth/core-client.ts";
+import { readPersonalAssessment, readPersonalAuditability } from "../src/lib/auth/core-client.ts";
 import { auditabilityFixture, auditabilityInput, auditabilityAssessmentId,
   auditabilityWorkspaceId } from "./fixtures/auditability-preview.mts";
 import { POST as rejectProposalRoute } from "../src/app/api/catalog-change-proposals/[id]/rejection/route.ts";
@@ -22,6 +22,9 @@ import { POST as prepareBootstrapRoute } from "../src/app/api/catalog-bootstrap-
 import { POST as recordBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/route.ts";
 import { GET as readBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/[id]/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
+import { savedRequirementGroups } from "../src/lib/assessment/saved-requirements.ts";
+import { relatedComparisonInput } from "../src/lib/assessment/comparison-presentation.ts";
+import { savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { authDatabase, beginLogin, beginReauthentication, consumeLogin, createSession,
   revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
@@ -29,6 +32,125 @@ import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
+
+test("guided saves share one versioned profile, preserve other sections and feed saved Review/Comparison inputs", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-guided-flow-token-000000000000000000" });
+  const id = "80000000-0000-4000-8000-000000000001", workspaceId = "70000000-0000-4000-8000-000000000001";
+  const identity = { workspaceId, issuer: "http://localhost:8081", subject: "synthetic-guided-flow-owner",
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined);
+  const fixture = savedRequirementsFixture();
+  fixture.security.auditability = "UNKNOWN";
+  fixture.security.auditabilityRequirements = { selectedCriteria: [], minimumRetentionDays: null };
+  let profile: Record<string, unknown> = fixture, version = 0, created = false, raceOnWrite = false;
+  const calls: string[] = [], writes: number[] = [];
+  const coreUrl = `http://127.0.0.1:8080/api/v6/workspaces/${workspaceId}/assessments`;
+  const assessment = () => ({ id, workspaceId, status: "DRAFT", version, profileSchemaVersion: 6, profile });
+  // Stateful Core test double, not an OIDC/browser E2E test. Only the session database is live.
+  globalThis.fetch = async (input, init) => {
+    calls.push(String(init?.method));
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal(headers["X-AuthWeave-Oidc-Issuer"], identity.issuer);
+    assert.equal(headers.Authorization, `Bearer ${process.env.AUTHWEAVE_CORE_SERVICE_TOKEN}`);
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error");
+    if (init?.method === "POST") {
+      assert.equal(String(input), coreUrl); assert.equal(created, false); created = true;
+      return Response.json(assessment(), { status: 201 });
+    }
+    assert.equal(created, true);
+    assert.equal(String(input), `${coreUrl}/${id}${init?.method === "PUT" ? "/profile" : ""}`);
+    if (init?.method === "GET") return Response.json(assessment());
+    assert.equal(init?.method, "PUT");
+    const update = JSON.parse(String(init?.body));
+    assert.equal(update.expectedVersion, version);
+    if (raceOnWrite) {
+      // Another editor wins after this BFF read, before the conditional Core write.
+      raceOnWrite = false;
+      profile = { ...profile, operations: { ...profile.operations as Record<string, unknown>, hosting: "MANAGED" } };
+      version++;
+      return new Response("Private upstream conflict details", { status: 409 });
+    }
+    writes.push(update.expectedVersion); profile = update.profile; version++;
+    return Response.json(assessment());
+  };
+  const context = { params: Promise.resolve({ id }) };
+  const request = (path: string, form?: URLSearchParams) => new NextRequest(`http://localhost:3000/api/assessments${path}`, {
+    method: "POST", headers: { Origin: "http://localhost:3000", "Content-Type": "application/x-www-form-urlencoded",
+      Cookie: `${sessionCookieName(false)}=${sessionId}`, "X-AuthWeave-Oidc-Subject": "browser-spoof" }, body: form?.toString(),
+  });
+  const expectSaved = (response: Response, step: string, expectedVersion: number) => {
+    assert.equal(response.status, 303); assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("location"), `http://localhost:3000/assessments/${id}?step=${step}`);
+    assert.equal(version, expectedVersion);
+  };
+  try {
+    const createdResponse = await createAssessmentRoute(request(""));
+    assert.equal(createdResponse.status, 303);
+    assert.equal(createdResponse.headers.get("location"), `http://localhost:3000/assessments/${id}`);
+    const contextForm = new URLSearchParams({ expectedVersion: "0", applicationType: "B2B_SAAS",
+      tenancy: "MULTI_TENANT_ORGANIZATIONS", membership: "MULTIPLE_ORGANIZATIONS_PER_USER",
+      dataResidency: "UNKNOWN", allowedCountries: "", browserTokenExposureMinimization: "REQUIRED",
+      phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN",
+      complianceScopeStatus: "UNKNOWN", clients: "BROWSER", selectedPopulations: "EXTERNAL_CUSTOMERS" });
+    expectSaved(await evaluationContextRoute(request(`/${id}/evaluation-context`, contextForm), context), "context", 1);
+    const savedContext = structuredClone({ application: profile.application, audience: profile.audience });
+    const capabilities = new URLSearchParams({ expectedVersion: "1" });
+    for (const field of capabilityFields) capabilities.set(field.capability, "UNKNOWN");
+    for (const key of ["OIDC", "SCIM", "MFA"]) capabilities.set(key, "REQUIRED");
+    capabilities.set("ENTERPRISE_SSO", "PREFERRED");
+    expectSaved(await updateCapabilitiesRoute(request(`/${id}/capabilities`, capabilities), context), "capabilities", 2);
+    const savedCapabilities = structuredClone({ protocols: profile.protocols, provisioning: profile.provisioning });
+    const audit = new URLSearchParams({ expectedVersion: "2", criticality: "REQUIRED", minimumRetentionDays: "180" });
+    audit.append("selectedCriteria", "AUTHENTICATION_FAILURE_EVENTS"); audit.append("selectedCriteria", "AUDIT_LOG_RETENTION");
+    expectSaved(await auditabilityRoute(request(`/${id}/auditability`, audit), context), "auditability", 3);
+    const savedSecurity = structuredClone(profile.security);
+    const usage = new URLSearchParams({ expectedVersion: "3", scopeDescription: "Synthetic first-year production assumptions" });
+    for (let index = 0; index < 10; index++) usage.append("assumption", index === 0 ? "No M2M clients in this scenario" : "");
+    for (const metric of ["MONTHLY_ACTIVE_USERS", "ENTERPRISE_SSO_CONNECTIONS", "MONTHLY_M2M_TOKEN_ISSUANCES", "PEAK_HUMAN_LOGINS_PER_SECOND"]) {
+      usage.set(`basis_${metric}`, "UNKNOWN"); usage.set(`value_${metric}`, "");
+    }
+    usage.set("basis_MONTHLY_ACTIVE_USERS", "ASSUMED"); usage.set("value_MONTHLY_ACTIVE_USERS", "100");
+    usage.set("basis_MONTHLY_M2M_TOKEN_ISSUANCES", "ASSUMED"); usage.set("value_MONTHLY_M2M_TOKEN_ISSUANCES", "0");
+    expectSaved(await usagePlanningRoute(request(`/${id}/usage-planning`, usage), context), "usage", 4);
+    assert.deepEqual({ application: profile.application, audience: profile.audience }, savedContext);
+    assert.deepEqual({ protocols: profile.protocols, provisioning: profile.provisioning }, savedCapabilities);
+    assert.deepEqual(profile.security, savedSecurity); assert.deepEqual(writes, [0, 1, 2, 3]);
+
+    const live = await touchSession(sessionId); assert.ok(live);
+    const fresh = await readPersonalAssessment(live, id); assert.ok(fresh); assert.equal(fresh.version, 4);
+    const groups = savedRequirementGroups(fresh.profile);
+    const row = (group: string, label: string) => groups.find(item => item.id === group)?.rows?.find(item => item.label === label);
+    assert.equal(row("application", "Application type")?.value, "B2B SaaS");
+    assert.equal(row("auditability", "Minimum retention")?.value, "180 days");
+    assert.equal(row("usage", "Monthly M2M token issuances")?.value, "0 · Assumed");
+    assert.equal(row("usage", "Enterprise SSO connections")?.state, "not-recorded");
+    assert.equal(relatedComparisonInput("provisioning.scim", groups)?.rows?.[0].value, "Required");
+    assert.equal(relatedComparisonInput("protocols.enterpriseSingleSignOn", groups)?.rows?.[0].value, "Preferred");
+
+    const beforeConflict = structuredClone(profile), writeCount = writes.length;
+    capabilities.set("SCIM", "PREFERRED"); // This form still carries saved version 1.
+    const stale = await updateCapabilitiesRoute(request(`/${id}/capabilities`, capabilities), context);
+    assert.equal(stale.headers.get("location"), `http://localhost:3000/assessments/${id}?step=capabilities&editError=stale`);
+    assert.equal(version, 4); assert.equal(writes.length, writeCount); assert.deepEqual(profile, beforeConflict);
+    capabilities.set("expectedVersion", "4"); raceOnWrite = true;
+    const raced = await updateCapabilitiesRoute(request(`/${id}/capabilities`, capabilities), context);
+    assert.equal(raced.headers.get("location"), `http://localhost:3000/assessments/${id}?step=capabilities&editError=stale`);
+    assert.equal((await raced.text()).includes("Private upstream"), false);
+    assert.equal(version, 5); assert.equal(writes.length, writeCount);
+    assert.deepEqual(profile, { ...beforeConflict, operations: { ...beforeConflict.operations as Record<string, unknown>, hosting: "MANAGED" } });
+    await revokeSession(sessionId);
+    const callCount = calls.length;
+    assert.equal((await usagePlanningRoute(request(`/${id}/usage-planning`, usage), context)).status, 401);
+    assert.equal(calls.length, callCount);
+  } finally {
+    await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name];
+  }
+});
 
 test("auditability preview reads with a live DB session, cannot cross ownership/version and never writes", async () => {
   const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
