@@ -17,6 +17,7 @@ function noStore(status: number): Response {
 
 function returnToAssessment(origin: URL, id: string, error?: string): NextResponse {
   const destination = new URL(`/assessments/${id}`, origin);
+  destination.searchParams.set("step", "context");
   if (error) destination.searchParams.set("contextError", error);
   const response = NextResponse.redirect(destination, { status: 303 });
   response.headers.set("Cache-Control", "no-store");

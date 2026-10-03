@@ -14,7 +14,7 @@ export function ArchitecturePatterns({ preview, assessmentId }: { preview: Archi
       <p className="mt-3 text-slate-300">Compare how five common client patterns handle sign-in and tokens. This check uses only your selected client types and browser-token minimization requirement. It does not verify prerequisites, score patterns or recommend a winner.</p>
       <p className="mt-2 text-sm text-slate-400">Assessment version {preview.assessmentVersion} · Browser token minimization: {preview.browserTokenExposureRequirement.toLowerCase().replaceAll("_", " ")}</p>
       {preview.selectedClients.length === 0 && <p className="mt-4 rounded-lg border border-amber-700 p-4 text-amber-100">
-        Select at least one client type in the application context above to assess applicability.
+        Select at least one client type in the Context step and save to assess applicability.
       </p>}
       <ul className="mt-6 space-y-4">
         {preview.patterns.map(pattern => <li key={pattern.patternId} className="rounded-xl border border-slate-700 p-5">

@@ -31,6 +31,7 @@ export async function POST(request: NextRequest,
     const result = await updatePersonalAuditability(session, id, input.expectedVersion, input.values);
     if (result === "not-found") return noStore(404);
     const target = new URL(`/assessments/${id}`, config.origin);
+    target.searchParams.set("step", "auditability");
     if (result !== "saved") target.searchParams.set("auditError",
       result === "conflict" ? "stale" : result === "not-editable" ? "locked" : "invalid");
     const response = NextResponse.redirect(target, 303);

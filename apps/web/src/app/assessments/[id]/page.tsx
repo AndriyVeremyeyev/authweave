@@ -23,6 +23,8 @@ import { UsagePlanningEditor } from "./usage-planning-editor";
 import { UsagePlanningPreflight } from "./usage-planning-preflight";
 import { AuditabilityEditor } from "./auditability-editor";
 import { AuditabilityPreflight, AuditabilityPreflightUnavailable } from "./auditability-preflight";
+import { assessmentStepFromQuery } from "@/lib/assessment/workflow";
+import { AssessmentWorkflow } from "./assessment-workflow";
 
 export const runtime = "nodejs";
 
@@ -117,84 +119,76 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-20 text-slate-100">
-      <Link href="/assessments" className="text-sm text-cyan-200 hover:underline">← Your assessments</Link>
-      <h1 className="mt-8 text-4xl font-semibold">Assessment</h1>
-      <dl className="mt-8 grid gap-4 rounded-xl border border-slate-700 p-6 sm:grid-cols-3">
-        <div><dt className="text-sm text-slate-400">Status</dt><dd>{assessment.status}</dd></div>
-        <div><dt className="text-sm text-slate-400">Version</dt><dd>{assessment.version}</dd></div>
-        <div><dt className="text-sm text-slate-400">ID</dt><dd className="break-all text-sm">{assessment.id}</dd></div>
-      </dl>
-      <p className="mt-6 text-slate-300">This is your private assessment. You can record application context and selected requirements below; other profile details remain read-only.</p>
-      {typeof editError === "string" && Object.hasOwn(editErrors, editError) && (
-        <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">
-          {editErrors[editError]}
-        </p>
-      )}
-      {typeof contextError === "string" && Object.hasOwn(contextErrors, contextError) && (
-        <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">
-          {contextErrors[contextError]}
-        </p>
-      )}
-      {typeof usageError === "string" && Object.hasOwn(usageErrors, usageError) && (
-        <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">
-          {usageErrors[usageError]}
-        </p>
-      )}
-      {typeof auditError === "string" && Object.hasOwn(auditErrors, auditError) && (
-        <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">{auditErrors[auditError]}</p>
-      )}
-      {assessment.status === "DRAFT" && contextValues &&
-        <EvaluationContextEditor assessmentId={assessment.id} version={assessment.version} values={contextValues} />}
-      {assessment.status === "DRAFT" && !contextValues && (
-        <p className="mt-8 rounded-lg border border-amber-700 p-4 text-amber-100">
-          Context editing is unavailable because this profile cannot be read safely.
-        </p>
-      )}
-      {assessment.status === "DRAFT" && values && <CapabilityEditor assessment={assessment} values={values} />}
-      {assessment.status === "DRAFT" && !values && (
-        <p className="mt-8 rounded-lg border border-amber-700 p-4 text-amber-100">
-          Capability editing is unavailable because this profile cannot be read safely.
-        </p>
-      )}
-      {assessment.status === "DRAFT" && auditValues &&
-        <AuditabilityEditor key={`${assessment.id}-${assessment.version}`} assessmentId={assessment.id}
-          version={assessment.version} values={auditValues} />}
-      {assessment.status === "DRAFT" && usageValues &&
-        <UsagePlanningEditor assessmentId={assessment.id} version={assessment.version} values={usageValues} />}
-      {assessment.status === "DRAFT" && !usageValues && (
-        <p className="mt-8 rounded-lg border border-amber-700 p-4 text-amber-100">
-          Usage editing is unavailable because this profile cannot be read safely.
-        </p>
-      )}
-      {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : (
-        <section className="mt-6 rounded-xl border border-amber-700 p-6" aria-labelledby="usage-preflight-heading">
-          <h2 id="usage-preflight-heading" className="text-xl font-semibold">Usage input check unavailable</h2>
-          <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
-        </section>
-      )}
-      {auditPreview ? <AuditabilityPreflight preview={auditPreview} /> : <AuditabilityPreflightUnavailable />}
-      {comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values}
-        assessmentId={assessment.id} preferred={preferred} /> : (
-        <section className="mt-10 rounded-xl border border-amber-700 p-6" aria-labelledby="comparison-heading">
-          <h2 id="comparison-heading" className="text-xl font-semibold">Synthetic comparison unavailable</h2>
-          <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
-        </section>
-      )}
-      {patterns ? <ArchitecturePatterns preview={patterns} assessmentId={assessment.id} /> : (
-        <section className="mt-10 rounded-xl border border-amber-700 p-6" aria-labelledby="patterns-heading">
-          <h2 id="patterns-heading" className="text-xl font-semibold">Architecture pattern preflight unavailable</h2>
-          <p className="mt-2 text-slate-300">Your assessment is still available. Try reloading this page later.</p>
-        </section>
-      )}
-      <details className="mt-6 rounded-xl border border-slate-700 p-6">
-        <summary className="cursor-pointer font-medium">Current profile JSON</summary>
-        <pre className="mt-4 overflow-x-auto whitespace-pre-wrap break-words text-sm text-slate-300">
-          {JSON.stringify(assessment.profile, null, 2)}
-        </pre>
+    <main className="mx-auto max-w-6xl px-5 py-10 text-slate-100 sm:px-8 sm:py-14">
+      <div className="flex flex-wrap items-start justify-between gap-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200">AuthWeave · Personal workspace</p>
+          <h1 className="mt-3 text-4xl font-semibold tracking-tight">Your identity decision</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-300">Build your requirements one section at a time, then explore the available checks and trade-offs.</p>
+        </div>
+        <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm">
+          <span className="rounded-md bg-cyan-300/10 px-2 py-1 text-xs font-semibold text-cyan-200">{assessment.status}</span>
+          <span className="text-slate-300">Saved version {assessment.version}</span>
+        </div>
+      </div>
+      <AssessmentWorkflow key={`${assessment.id}-${assessment.version}`} initialStep={assessmentStepFromQuery(query)}
+        editable={assessment.status === "DRAFT"} panels={{
+          context: <>
+            <StepError error={contextError} messages={contextErrors} />
+            {assessment.status !== "DRAFT" ? <ReadOnlyStep /> : contextValues
+              ? <EvaluationContextEditor assessmentId={assessment.id} version={assessment.version} values={contextValues} />
+              : <UnreadableStep name="Context" />}
+          </>,
+          capabilities: <>
+            <StepError error={editError} messages={editErrors} />
+            {assessment.status !== "DRAFT" ? <ReadOnlyStep /> : values
+              ? <CapabilityEditor assessment={assessment} values={values} /> : <UnreadableStep name="Requirement" />}
+          </>,
+          auditability: <>
+            <StepError error={auditError} messages={auditErrors} />
+            {assessment.status !== "DRAFT" ? <ReadOnlyStep /> : auditValues
+              ? <AuditabilityEditor assessmentId={assessment.id} version={assessment.version} values={auditValues} />
+              : <UnreadableStep name="Audit" />}
+            {auditPreview ? <AuditabilityPreflight preview={auditPreview} /> : <AuditabilityPreflightUnavailable />}
+          </>,
+          usage: <>
+            <StepError error={usageError} messages={usageErrors} />
+            {assessment.status !== "DRAFT" ? <ReadOnlyStep /> : usageValues
+              ? <UsagePlanningEditor assessmentId={assessment.id} version={assessment.version} values={usageValues} />
+              : <UnreadableStep name="Usage" />}
+            {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : <PreviewUnavailable name="Usage input check" />}
+          </>,
+          comparison: comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values}
+            assessmentId={assessment.id} preferred={preferred} /> : <PreviewUnavailable name="Synthetic comparison" />,
+          architecture: patterns ? <ArchitecturePatterns preview={patterns} assessmentId={assessment.id} />
+            : <PreviewUnavailable name="Architecture pattern preflight" />,
+        }} />
+      <details className="mt-8 rounded-xl border border-white/10 p-5 text-sm text-slate-400">
+        <summary className="cursor-pointer font-medium text-slate-300">Saved profile and technical details</summary>
+        <p className="mt-4 break-all">Assessment ID: {assessment.id} · Saved version {assessment.version}</p>
+        <p className="mt-2">Some profile fields remain read-only. The comparison uses fictional catalog data, not approved real-provider facts.</p>
+        <pre className="mt-4 overflow-x-auto whitespace-pre-wrap break-words">{JSON.stringify(assessment.profile, null, 2)}</pre>
       </details>
     </main>
   );
+}
+
+function StepError({ error, messages }: { error: string | string[] | undefined; messages: Record<string, string> }) {
+  return typeof error === "string" && Object.hasOwn(messages, error)
+    ? <p role="alert" className="mt-6 rounded-lg border border-amber-700 p-4 text-amber-100">{messages[error]}</p> : null;
+}
+
+function ReadOnlyStep() {
+  return <p className="mt-6 rounded-xl border border-slate-700 p-5 text-sm text-slate-300">This assessment is read-only. View its saved profile in the technical details below.</p>;
+}
+
+function UnreadableStep({ name }: { name: string }) {
+  return <p role="alert" className="mt-6 rounded-xl border border-amber-700 p-5 text-sm text-amber-100">{name} editing is unavailable because this profile cannot be read safely. Other steps remain available.</p>;
+}
+
+function PreviewUnavailable({ name }: { name: string }) {
+  return <section className="mt-6 rounded-xl border border-amber-700 p-5"><h3 className="font-semibold">{name} unavailable</h3>
+    <p className="mt-2 text-sm text-slate-300">Your saved assessment is still available. Try reloading this page later.</p></section>;
 }
 
 function CapabilityEditor({ assessment, values }: { assessment: PersonalAssessment; values: CapabilityValues }) {
@@ -251,7 +245,7 @@ function ComparisonSection({ comparison, editable, assessmentId, preferred }: {
         </p>
       )}
       {preferences === 0 && <p className="mt-5 rounded-lg border border-slate-700 p-4 text-slate-300">
-        No capability preferences are recorded in this draft. {editable && "Choose Preferred above and save to see how the fictional plans compare. "}The optional weight preview requires at least one saved preference.
+        No capability preferences are recorded in this draft. {editable && "Choose Preferred in the Requirements step and save to see how the fictional plans compare. "}The optional weight preview requires at least one saved preference.
       </p>}
       <ul className="mt-6 space-y-5">
         {comparison.candidates.map(candidate => <ComparisonCard key={candidate.optionId} candidate={candidate} />)}

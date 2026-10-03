@@ -300,6 +300,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const WeightedPreviewForm = () => null, EvaluationContextEditor = () => null,
       ArchitecturePatterns = () => null, UsagePlanningEditor = () => null, UsagePlanningPreflight = () => null,
       AuditabilityEditor = () => null;
+    export const AssessmentWorkflow = ({ initialStep, panels }) => createElement('section', { 'data-step': initialStep }, panels[initialStep]);
     export const AuditabilityPreflight = state.AuditabilityPreflight, AuditabilityPreflightUnavailable = state.AuditabilityPreflightUnavailable;`;
   const shim = `data:text/javascript;base64,${Buffer.from(shimSource).toString("base64")}`;
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
@@ -308,16 +309,16 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
   for (const name of ["next/link", "next/headers", "next/navigation", "@/lib/auth/config", "@/lib/auth/core-client",
     "@/lib/auth/session-policy", "@/lib/auth/store", "./weighted-preview", "./evaluation-context-editor", "./architecture-patterns",
-    "./usage-planning-editor", "./usage-planning-preflight", "./auditability-editor", "./auditability-preflight"]) {
+    "./usage-planning-editor", "./usage-planning-preflight", "./auditability-editor", "./auditability-preflight", "./assessment-workflow"]) {
     compiled = compiled.replaceAll(JSON.stringify(name), JSON.stringify(shim));
   }
-  for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "auditability"]) {
+  for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "auditability", "workflow"]) {
     compiled = compiled.replaceAll(JSON.stringify(`@/lib/assessment/${name}`),
       JSON.stringify(new URL(`../src/lib/assessment/${name}.ts`, import.meta.url).href));
   }
   try {
     const page = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
-    const props = { params: Promise.resolve({ id }), searchParams: Promise.resolve({}) };
+    const props = { params: Promise.resolve({ id }), searchParams: Promise.resolve({ step: "auditability" }) };
     const html = renderToStaticMarkup(await page.default(props));
     assert.ok(html.includes("Identity auditability capability preview")); assert.equal(state.reads, 1);
     const invalidIds = ["80000000-0000-4000-000000000001", "../other", "not-a-uuid", "80000000-0000-4000-8000-00000000000G"];
@@ -341,7 +342,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     state.fail = true;
     const unavailable = renderToStaticMarkup(await page.default(props));
     assert.ok(unavailable.includes("Identity auditability preview unavailable"));
-    assert.ok(unavailable.includes("Current profile JSON")); assert.ok(unavailable.includes("Synthetic comparison unavailable"));
+    assert.ok(unavailable.includes("Saved profile and technical details"));
+    const comparison = renderToStaticMarkup(await page.default({ ...props, searchParams: Promise.resolve({ step: "comparison" }) }));
+    assert.ok(comparison.includes("Synthetic comparison unavailable"));
+    assert.ok(!comparison.includes("Identity auditability capability preview"));
     assert.ok(!unavailable.includes("synthetic upstream credential")); assert.ok(!unavailable.includes("Matches selected capability"));
     state.live = false; const count = state.reads;
     await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count);

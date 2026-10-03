@@ -206,6 +206,21 @@ The preview checks the shared JSON Schema only. It does not check cross-field do
 contradictions, verify compliance or compute provider recommendations. Empty
 selections mean no choice was recorded, not that a topic is unnecessary.
 
+Separately, the protected local assessment workspace at `/assessments/{id}` groups
+the existing editors and previews into six steps: Context, Requirements, Audit,
+Usage, Comparison and Architecture. Only one section is shown at a time, with
+responsive navigation and keyboard focus on the selected heading. Draft inputs
+require an explicit Save; switching steps with unsaved edits offers stay/discard,
+and leaving through the workspace's back button or reloading warns about them.
+Successful saves and known validation/version conflicts return to the relevant
+step. The step URL remembers location, not unsaved answers or completion.
+
+This workspace requires the local BFF session, Core API and PostgreSQL. It does not
+add autosave, expand editable profile fields, change ownership/version checks or
+turn synthetic comparisons into real-provider recommendations. Temporary what-if
+inputs reset when switching steps. The public landing page and `/preview` are
+unchanged; pushing this code does not deploy the protected workspace.
+
 The Core API stores immutable assessment revisions and atomic state-change events,
 with workspace-scoped paginated history reads. Runtime database roles cannot update
 or delete history. Versioned workspace routes now enforce a local BFF credential and

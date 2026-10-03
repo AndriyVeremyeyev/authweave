@@ -117,16 +117,16 @@ test("auditability route binds a real session to v6 writes, explicit clear and s
     assert.equal(calls.length, 0);
     const result = await auditabilityRoute(request(), context);
     assert.equal(result.status, 303); assert.equal(result.headers.get("referrer-policy"), "no-referrer");
-    assert.equal(result.headers.get("location"), `http://localhost:3000/assessments/${id}`);
+    assert.equal(result.headers.get("location"), `http://localhost:3000/assessments/${id}?step=auditability`);
     assert.equal(profile.security.auditabilityRequirements.minimumRetentionDays, 180);
     const stale = await auditabilityRoute(request(), context);
-    assert.equal(stale.headers.get("location"), `http://localhost:3000/assessments/${id}?auditError=stale`);
+    assert.equal(stale.headers.get("location"), `http://localhost:3000/assessments/${id}?step=auditability&auditError=stale`);
     assert.equal(calls.length, 3);
     const clear = "expectedVersion=3&criticality=REQUIRED";
     for (const [code, error] of [[409, "stale"], [400, "invalid"], [422, "invalid"]] as const) {
       upstream = code;
       const failed = await auditabilityRoute(request(clear), context);
-      assert.equal(failed.headers.get("location"), `http://localhost:3000/assessments/${id}?auditError=${error}`);
+      assert.equal(failed.headers.get("location"), `http://localhost:3000/assessments/${id}?step=auditability&auditError=${error}`);
       assert.equal((await failed.text()).includes("Private upstream"), false);
     }
     for (const [code, expected] of [[404, 404], [403, 503], [503, 503]] as const) {
@@ -136,7 +136,7 @@ test("auditability route binds a real session to v6 writes, explicit clear and s
     }
     upstream = 200; status = "ARCHIVED";
     const locked = await auditabilityRoute(request(clear), context);
-    assert.equal(locked.headers.get("location"), `http://localhost:3000/assessments/${id}?auditError=locked`);
+    assert.equal(locked.headers.get("location"), `http://localhost:3000/assessments/${id}?step=auditability&auditError=locked`);
     status = "DRAFT"; wrongWorkspace = true;
     assert.equal((await auditabilityRoute(request(clear), context)).status, 503);
     wrongWorkspace = false;
@@ -848,7 +848,7 @@ test("capability route enforces session, origin, form scope and optimistic versi
     assert.equal(calls.length, 0);
     const saved = await updateCapabilitiesRoute(request("http://localhost:3000", sessionId), context);
     assert.equal(saved.status, 303);
-    assert.equal(saved.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}`);
+    assert.equal(saved.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}?step=capabilities`);
     assert.equal(saved.headers.get("cache-control"), "no-store");
     assert.equal(calls.length, 2);
     const stale = new URLSearchParams(form);
@@ -857,7 +857,7 @@ test("capability route enforces session, origin, form scope and optimistic versi
       request("http://localhost:3000", sessionId, stale.toString()), context);
     assert.equal(conflict.status, 303);
     assert.equal(conflict.headers.get("location"),
-      `http://localhost:3000/assessments/${assessmentId}?editError=stale`);
+      `http://localhost:3000/assessments/${assessmentId}?step=capabilities&editError=stale`);
     assert.equal(calls.length, 3);
   } finally {
     await revokeSession(sessionId);
@@ -1089,21 +1089,21 @@ test("evaluation context route accepts only a scoped form from the personal sess
     assert.equal(calls.length, 0);
     const response = await evaluationContextRoute(request("http://localhost:3000", sessionId), context);
     assert.equal(response.status, 303);
-    assert.equal(response.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}`);
+    assert.equal(response.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}?step=context`);
     assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT"]);
     const invalidCountry = new URLSearchParams(form);
     invalidCountry.set("allowedCountries", "ZZ");
     const rejected = await evaluationContextRoute(request("http://localhost:3000", sessionId,
       invalidCountry.toString()), context);
     assert.equal(rejected.headers.get("location"),
-      `http://localhost:3000/assessments/${assessmentId}?contextError=invalid`);
+      `http://localhost:3000/assessments/${assessmentId}?step=context&contextError=invalid`);
     assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT", "GET", "PUT"]);
     const stale = new URLSearchParams(form);
     stale.set("expectedVersion", "1");
     const conflict = await evaluationContextRoute(request("http://localhost:3000", sessionId,
       stale.toString()), context);
     assert.equal(conflict.headers.get("location"),
-      `http://localhost:3000/assessments/${assessmentId}?contextError=stale`);
+      `http://localhost:3000/assessments/${assessmentId}?step=context&contextError=stale`);
     assert.equal(calls.length, 5);
   } finally {
     await revokeSession(sessionId);
@@ -1192,14 +1192,14 @@ test("usage planning route preserves the personal session and writes only scoped
     assert.equal(calls.length, 0);
     const saved = await usagePlanningRoute(request("http://localhost:3000", sessionId), context);
     assert.equal(saved.status, 303);
-    assert.equal(saved.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}`);
+    assert.equal(saved.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}?step=usage`);
     assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT"]);
     const stale = new URLSearchParams(form);
     stale.set("expectedVersion", "1");
     const conflict = await usagePlanningRoute(request("http://localhost:3000", sessionId,
       stale.toString()), context);
     assert.equal(conflict.headers.get("location"),
-      `http://localhost:3000/assessments/${assessmentId}?usageError=stale`);
+      `http://localhost:3000/assessments/${assessmentId}?step=usage&usageError=stale`);
     assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT", "GET"]);
   } finally {
     await revokeSession(sessionId);

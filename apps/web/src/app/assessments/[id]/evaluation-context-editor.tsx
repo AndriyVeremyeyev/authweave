@@ -30,7 +30,7 @@ export function EvaluationContextEditor({ assessmentId, version, values }: {
   return (
     <section className="mt-10 rounded-xl border border-slate-700 p-6" aria-labelledby="context-heading">
       <h2 id="context-heading" className="text-2xl font-semibold">Application context and checked security scope</h2>
-      <p className="mt-3 text-slate-300">Record facts about the application before relying on a comparison. Unknown is safer than guessing. These fields are checked separately from the nine capability preferences below.</p>
+      <p className="mt-3 text-slate-300">Record facts about the application before relying on a comparison. Unknown is safer than guessing. These fields are checked separately from the nine capabilities in the Requirements step.</p>
       <form action={`/api/assessments/${assessmentId}/evaluation-context`} method="post" className="mt-6">
         <input type="hidden" name="expectedVersion" value={version} />
         <div className="grid gap-5 sm:grid-cols-2">
