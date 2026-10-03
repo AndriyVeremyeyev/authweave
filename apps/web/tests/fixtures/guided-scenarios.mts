@@ -1,0 +1,35 @@
+// Synthetic editor inputs, not complete golden profiles or provider recommendations.
+export const guidedScenarios = [
+  {
+    key: "b2b", applicationType: "B2B_SAAS", clients: ["BROWSER"], populations: ["EXTERNAL_CUSTOMERS"],
+    tenancy: "MULTI_TENANT_ORGANIZATIONS", membership: "MULTIPLE_ORGANIZATIONS_PER_USER",
+    tokenExposure: "REQUIRED", phishingResistance: "UNKNOWN",
+    capabilities: { OIDC: "REQUIRED", SCIM: "REQUIRED", MFA: "REQUIRED", ENTERPRISE_SSO: "PREFERRED" },
+    audit: ["AUTHENTICATION_FAILURE_EVENTS", "AUDIT_LOG_RETENTION"], retention: 180,
+    monthlyUsers: 100, ssoConnections: null, m2mTokens: 0, peakLogins: null,
+    assumption: "Synthetic forecast; no M2M clients in this scenario",
+    expected: { application: "B2B SaaS", users: "External customers", clients: "Browser", scim: "Required", sso: "Preferred" },
+  },
+  {
+    key: "citizen", applicationType: "PUBLIC_SECTOR_PORTAL", clients: ["BROWSER"], populations: ["CITIZENS"],
+    tenancy: "NO_ORGANIZATION_BOUNDARY", membership: "NOT_APPLICABLE", tokenExposure: "REQUIRED", phishingResistance: "REQUIRED",
+    capabilities: { OIDC: "REQUIRED", OAUTH2_APIS: "REQUIRED", SOCIAL_LOGIN: "FORBIDDEN", ENTERPRISE_SSO: "NOT_REQUIRED",
+      SCIM: "NOT_REQUIRED", GROUP_SYNC: "NOT_REQUIRED", MFA: "REQUIRED" },
+    audit: ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "AUDIT_LOG_RETENTION"], retention: 90,
+    monthlyUsers: 1000, ssoConnections: 0, m2mTokens: 0, peakLogins: 5,
+    assumption: "Synthetic forecast; no enterprise customer IdP connections or M2M clients",
+    expected: { application: "Public-sector portal", users: "Citizens", clients: "Browser", scim: "Not required", sso: "Not required" },
+  },
+  {
+    key: "workforce", applicationType: "INTERNAL_WORKFORCE", clients: ["BROWSER", "MACHINE_TO_MACHINE"],
+    populations: ["CONTRACTORS", "EMPLOYEES"], tenancy: "SINGLE_ORGANIZATION", membership: "SINGLE_ORGANIZATION_PER_USER",
+    tokenExposure: "PREFERRED", phishingResistance: "UNKNOWN",
+    capabilities: { OIDC: "REQUIRED", SAML: "PREFERRED", OAUTH2_APIS: "REQUIRED", SOCIAL_LOGIN: "FORBIDDEN",
+      ENTERPRISE_SSO: "REQUIRED", GROUP_SYNC: "REQUIRED", MFA: "REQUIRED" },
+    audit: ["ADMINISTRATIVE_CHANGE_EVENTS", "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_RETENTION"], retention: 30,
+    monthlyUsers: 250, ssoConnections: 1, m2mTokens: 5000, peakLogins: 2,
+    assumption: "Synthetic workforce IdP and workload-token forecast, not observed traffic",
+    expected: { application: "Internal workforce application", users: "Contractors, Employees", clients: "Browser, Machine to machine",
+      scim: "Unknown / not recorded", sso: "Required" },
+  },
+] as const;

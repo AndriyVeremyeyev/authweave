@@ -57,10 +57,11 @@ versioned workspace routes require the BFF's server-only credential and an OIDC 
 that owns that workspace. Signed-in users can create a private assessment draft, edit
 selected fields through the BFF, and browse a bounded list of their assessments.
 Catalog-curator permissions are not enabled yet. The public browser-only preview is
-unchanged. The ordinary local B2B browser path through sign-in, saved editors,
-Review and fictional Comparison has been manually checked, including a stale-tab
-conflict, sign-out and a second user's denied read. This is not automated browser
-coverage, a hosted security assessment or a complete three-profile walkthrough.
+unchanged. Ordinary local B2B, citizen-portal and workforce paths through the saved
+editors, Review and fictional Comparison have been manually checked with synthetic
+inputs supported by the current editors. B2B also covered a stale-tab conflict,
+sign-out and a second user's denied read. This is not automated browser coverage,
+a hosted security assessment or a complete golden-profile architecture/export flow.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -166,9 +167,10 @@ lists up to 20 recent summaries per page, with an Older link for earlier drafts.
 `apps/web/.env.local` must already contain the issuer, client ID, project ID and organization ID
 created by `make auth-register`. `make check-web-auth-db` tests state replay, expiry, session
 rotation/revocation and database role isolation. It also exercises sequential
-context/capability/audit/usage saves through the actual BFF handlers, with a live
-session database and a stateful Core test double: section preservation, saved
-Review/Comparison input projections, explicit zero versus unknown, stale forms
+context/capability/audit/usage saves for B2B, citizen and workforce scenarios through
+the actual BFF handlers, with a live session database and a stateful Core test double:
+section preservation, saved Review/Comparison input projections, explicit zero
+versus unknown, stale forms
 and a conditional-write race. That regression does not run ZITADEL, the browser or
 the real Core evaluation engine.
 
@@ -181,7 +183,7 @@ The BFF creates, lists, reads and edits selected draft fields using only the wor
 from its server-side session. Writes require an exact same-origin request and optimistic
 version check; anonymous sessions are denied. Catalog routes remain unauthenticated and
 loopback-only. Curator authorization verification, automated authenticated browser
-coverage and the complete three-profile walkthrough are still pending.
+coverage and complete golden-profile architecture/export walkthroughs are still pending.
 Do not expose the local HTTP lab or Core API.
 
 Use `make auth-down` to stop only this stack and preserve both volumes. Keep the master key
@@ -223,6 +225,13 @@ require an explicit Save; switching steps with unsaved edits offers stay/discard
 and leaving through the workspace's back button or reloading warns about them.
 Successful saves and known validation/version conflicts return to the relevant
 step. The step URL remembers location, not unsaved answers or completion.
+
+A saved-context summary above every step identifies the recorded application type,
+user populations and client types. It uses the same checked context projection as
+the editor, not unsaved edits or an inferred scenario. Unknown and empty fields stay
+unrecorded; Other still needs definition. An unreadable context shows a bounded
+notice without hiding the remaining assessment sections. This summary is not a
+validation, applicability or readiness result.
 
 Review shows five read-only cards from the existing saved editor projections:
 application/audience, security/compliance scope, identity capabilities, provider

@@ -26,6 +26,7 @@ import { assessmentStepFromQuery } from "@/lib/assessment/workflow";
 import { AssessmentWorkflow } from "./assessment-workflow";
 import { SavedRequirementsOverview } from "./saved-requirements-overview";
 import { ComparisonSection } from "./comparison-section";
+import { SavedContextSummary } from "./saved-context-summary";
 
 export const runtime = "nodejs";
 
@@ -132,6 +133,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           <span className="text-slate-300">Saved version {assessment.version}</span>
         </div>
       </div>
+      <SavedContextSummary values={contextValues} />
       <AssessmentWorkflow key={`${assessment.id}-${assessment.version}`} initialStep={assessmentStepFromQuery(query)}
         editable={assessment.status === "DRAFT"} panels={{
           context: <>

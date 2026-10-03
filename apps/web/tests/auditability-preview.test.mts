@@ -284,6 +284,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
       return auditabilityPreviewFromCore(auditabilityFixture(), binding);
     }, comparison: () => state.comparison,
     ...component, SavedRequirementsOverview: overview.SavedRequirementsOverview, ComparisonSection: overview.ComparisonSection,
+    SavedContextSummary: overview.SavedContextSummary,
   };
   const shimSource = `import { createElement } from ${JSON.stringify(import.meta.resolve("react"))};
     const state = globalThis[${JSON.stringify(slot)}];
@@ -306,6 +307,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const AssessmentWorkflow = ({ initialStep, panels }) => createElement('section', { 'data-step': initialStep }, panels[initialStep]);
     export const SavedRequirementsOverview = state.SavedRequirementsOverview;
     export const ComparisonSection = state.ComparisonSection;
+    export const SavedContextSummary = state.SavedContextSummary;
     export const AuditabilityPreflight = state.AuditabilityPreflight, AuditabilityPreflightUnavailable = state.AuditabilityPreflightUnavailable;`;
   const shim = `data:text/javascript;base64,${Buffer.from(shimSource).toString("base64")}`;
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
@@ -314,7 +316,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
   for (const name of ["next/link", "next/headers", "next/navigation", "@/lib/auth/config", "@/lib/auth/core-client",
     "@/lib/auth/session-policy", "@/lib/auth/store", "./weighted-preview", "./evaluation-context-editor", "./architecture-patterns",
-    "./usage-planning-editor", "./usage-planning-preflight", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section"]) {
+    "./usage-planning-editor", "./usage-planning-preflight", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary"]) {
     compiled = compiled.replaceAll(JSON.stringify(name), JSON.stringify(shim));
   }
   for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "auditability", "workflow"]) {
@@ -326,6 +328,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     const props = { params: Promise.resolve({ id }), searchParams: Promise.resolve({ step: "auditability" }) };
     const html = renderToStaticMarkup(await page.default(props));
     assert.ok(html.includes("Identity auditability capability preview")); assert.equal(state.reads, 1);
+    assert.ok(html.includes('aria-label="Saved application context"')); assert.ok(html.includes("Saved context cannot be read safely"));
     const invalidIds = ["80000000-0000-4000-000000000001", "../other", "not-a-uuid", "80000000-0000-4000-8000-00000000000G"];
     for (const invalid of invalidIds) {
       await assert.rejects(page.default({ ...props, params: Promise.resolve({ id: invalid }) }), /not-found/);

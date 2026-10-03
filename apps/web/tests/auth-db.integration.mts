@@ -25,6 +25,7 @@ import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { savedRequirementGroups } from "../src/lib/assessment/saved-requirements.ts";
 import { relatedComparisonInput } from "../src/lib/assessment/comparison-presentation.ts";
 import { savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
+import { guidedScenarios } from "./fixtures/guided-scenarios.mts";
 import { authDatabase, beginLogin, beginReauthentication, consumeLogin, createSession,
   revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
@@ -33,7 +34,7 @@ import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/aut
 
 after(async () => { await authDatabase().end(); });
 
-test("guided saves share one versioned profile, preserve other sections and feed saved Review/Comparison inputs", async () => {
+for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves preserve sections and feed versioned Review/Comparison inputs`, async () => {
   const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
   const previous = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
   Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
@@ -91,30 +92,32 @@ test("guided saves share one versioned profile, preserve other sections and feed
     const createdResponse = await createAssessmentRoute(request(""));
     assert.equal(createdResponse.status, 303);
     assert.equal(createdResponse.headers.get("location"), `http://localhost:3000/assessments/${id}`);
-    const contextForm = new URLSearchParams({ expectedVersion: "0", applicationType: "B2B_SAAS",
-      tenancy: "MULTI_TENANT_ORGANIZATIONS", membership: "MULTIPLE_ORGANIZATIONS_PER_USER",
-      dataResidency: "UNKNOWN", allowedCountries: "", browserTokenExposureMinimization: "REQUIRED",
-      phishingResistance: "UNKNOWN", nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN",
-      complianceScopeStatus: "UNKNOWN", clients: "BROWSER", selectedPopulations: "EXTERNAL_CUSTOMERS" });
+    const contextForm = new URLSearchParams({ expectedVersion: "0", applicationType: scenario.applicationType,
+      tenancy: scenario.tenancy, membership: scenario.membership, dataResidency: "UNKNOWN", allowedCountries: "",
+      browserTokenExposureMinimization: scenario.tokenExposure, phishingResistance: scenario.phishingResistance,
+      nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN", complianceScopeStatus: "UNKNOWN" });
+    for (const client of scenario.clients) contextForm.append("clients", client);
+    for (const population of scenario.populations) contextForm.append("selectedPopulations", population);
     expectSaved(await evaluationContextRoute(request(`/${id}/evaluation-context`, contextForm), context), "context", 1);
     const savedContext = structuredClone({ application: profile.application, audience: profile.audience });
     const capabilities = new URLSearchParams({ expectedVersion: "1" });
-    for (const field of capabilityFields) capabilities.set(field.capability, "UNKNOWN");
-    for (const key of ["OIDC", "SCIM", "MFA"]) capabilities.set(key, "REQUIRED");
-    capabilities.set("ENTERPRISE_SSO", "PREFERRED");
+    const capabilityInputs: Readonly<Record<string, string>> = scenario.capabilities;
+    for (const field of capabilityFields) capabilities.set(field.capability, capabilityInputs[field.capability] ?? "UNKNOWN");
     expectSaved(await updateCapabilitiesRoute(request(`/${id}/capabilities`, capabilities), context), "capabilities", 2);
     const savedCapabilities = structuredClone({ protocols: profile.protocols, provisioning: profile.provisioning });
-    const audit = new URLSearchParams({ expectedVersion: "2", criticality: "REQUIRED", minimumRetentionDays: "180" });
-    audit.append("selectedCriteria", "AUTHENTICATION_FAILURE_EVENTS"); audit.append("selectedCriteria", "AUDIT_LOG_RETENTION");
+    const audit = new URLSearchParams({ expectedVersion: "2", criticality: "REQUIRED", minimumRetentionDays: String(scenario.retention) });
+    for (const criterion of scenario.audit) audit.append("selectedCriteria", criterion);
     expectSaved(await auditabilityRoute(request(`/${id}/auditability`, audit), context), "auditability", 3);
     const savedSecurity = structuredClone(profile.security);
-    const usage = new URLSearchParams({ expectedVersion: "3", scopeDescription: "Synthetic first-year production assumptions" });
-    for (let index = 0; index < 10; index++) usage.append("assumption", index === 0 ? "No M2M clients in this scenario" : "");
+    const usage = new URLSearchParams({ expectedVersion: "3", scopeDescription: `Synthetic ${scenario.key}: first-year monthly forecast` });
+    for (let index = 0; index < 10; index++) usage.append("assumption", index === 0 ? scenario.assumption : "");
     for (const metric of ["MONTHLY_ACTIVE_USERS", "ENTERPRISE_SSO_CONNECTIONS", "MONTHLY_M2M_TOKEN_ISSUANCES", "PEAK_HUMAN_LOGINS_PER_SECOND"]) {
       usage.set(`basis_${metric}`, "UNKNOWN"); usage.set(`value_${metric}`, "");
     }
-    usage.set("basis_MONTHLY_ACTIVE_USERS", "ASSUMED"); usage.set("value_MONTHLY_ACTIVE_USERS", "100");
-    usage.set("basis_MONTHLY_M2M_TOKEN_ISSUANCES", "ASSUMED"); usage.set("value_MONTHLY_M2M_TOKEN_ISSUANCES", "0");
+    for (const [metric, value] of [["MONTHLY_ACTIVE_USERS", scenario.monthlyUsers], ["ENTERPRISE_SSO_CONNECTIONS", scenario.ssoConnections],
+      ["MONTHLY_M2M_TOKEN_ISSUANCES", scenario.m2mTokens], ["PEAK_HUMAN_LOGINS_PER_SECOND", scenario.peakLogins]] as const) {
+      if (value !== null) { usage.set(`basis_${metric}`, "ASSUMED"); usage.set(`value_${metric}`, String(value)); }
+    }
     expectSaved(await usagePlanningRoute(request(`/${id}/usage-planning`, usage), context), "usage", 4);
     assert.deepEqual({ application: profile.application, audience: profile.audience }, savedContext);
     assert.deepEqual({ protocols: profile.protocols, provisioning: profile.provisioning }, savedCapabilities);
@@ -124,12 +127,14 @@ test("guided saves share one versioned profile, preserve other sections and feed
     const fresh = await readPersonalAssessment(live, id); assert.ok(fresh); assert.equal(fresh.version, 4);
     const groups = savedRequirementGroups(fresh.profile);
     const row = (group: string, label: string) => groups.find(item => item.id === group)?.rows?.find(item => item.label === label);
-    assert.equal(row("application", "Application type")?.value, "B2B SaaS");
-    assert.equal(row("auditability", "Minimum retention")?.value, "180 days");
-    assert.equal(row("usage", "Monthly M2M token issuances")?.value, "0 · Assumed");
-    assert.equal(row("usage", "Enterprise SSO connections")?.state, "not-recorded");
-    assert.equal(relatedComparisonInput("provisioning.scim", groups)?.rows?.[0].value, "Required");
-    assert.equal(relatedComparisonInput("protocols.enterpriseSingleSignOn", groups)?.rows?.[0].value, "Preferred");
+    assert.equal(row("application", "Application type")?.value, scenario.expected.application);
+    assert.equal(row("application", "User populations")?.value, scenario.expected.users);
+    assert.equal(row("application", "Client types")?.value, scenario.expected.clients);
+    assert.equal(row("auditability", "Minimum retention")?.value, `${scenario.retention} days`);
+    assert.equal(row("usage", "Monthly M2M token issuances")?.value, `${scenario.m2mTokens.toLocaleString("en-US")} · Assumed`);
+    assert.equal(row("usage", "Enterprise SSO connections")?.state, scenario.ssoConnections === null ? "not-recorded" : "recorded");
+    assert.equal(relatedComparisonInput("provisioning.scim", groups)?.rows?.[0].value, scenario.expected.scim);
+    assert.equal(relatedComparisonInput("protocols.enterpriseSingleSignOn", groups)?.rows?.[0].value, scenario.expected.sso);
 
     const beforeConflict = structuredClone(profile), writeCount = writes.length;
     capabilities.set("SCIM", "PREFERRED"); // This form still carries saved version 1.

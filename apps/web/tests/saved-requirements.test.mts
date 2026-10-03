@@ -5,6 +5,30 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { savedRequirementGroups } from "../src/lib/assessment/saved-requirements.ts";
 import { assessmentSteps } from "../src/lib/assessment/workflow.ts";
 import { assessmentUiComponents, savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
+import { evaluationContextValues, withEvaluationContextValues } from "../src/lib/assessment/evaluation-context.ts";
+import { guidedScenarios } from "./fixtures/guided-scenarios.mts";
+
+for (const scenario of guidedScenarios) test(`saved context header identifies ${scenario.key} without guessing or changing the profile`, async () => {
+  const components = await assessmentUiComponents();
+  const profile = savedRequirementsFixture(), values = evaluationContextValues(profile)!;
+  const saved = withEvaluationContextValues(profile, { ...values, applicationType: scenario.applicationType,
+    clients: [...scenario.clients], selectedPopulations: [...scenario.populations], tenancy: scenario.tenancy, membership: scenario.membership });
+  const before = structuredClone(saved);
+  const html = renderToStaticMarkup(createElement(components.SavedContextSummary, { values: evaluationContextValues(saved) }));
+  for (const expected of [scenario.expected.application, scenario.expected.users, scenario.expected.clients]) assert.ok(html.includes(expected), expected);
+  assert.ok(html.includes('aria-label="Saved application context"')); assert.ok(html.includes("not unsaved edits"));
+  assert.equal(html.includes("<form"), false); assert.equal(html.includes("complete"), false); assert.deepEqual(saved, before);
+});
+
+test("saved context header preserves unknown, empty and Other without leaking malformed raw context", async () => {
+  const components = await assessmentUiComponents(), profile = savedRequirementsFixture();
+  profile.application.type = "UNKNOWN"; profile.application.clients = []; profile.audience.populations = [];
+  const render = () => renderToStaticMarkup(createElement(components.SavedContextSummary, { values: evaluationContextValues(profile) }));
+  assert.equal((render().match(/Not recorded/g) ?? []).length, 3);
+  profile.application.type = "OTHER"; assert.ok(render().includes("Other (needs definition)"));
+  profile.application.type = "synthetic-sensitive-invalid";
+  assert.ok(render().includes("cannot be read safely")); assert.equal(render().includes("synthetic-sensitive-invalid"), false);
+});
 
 test("saved overview reads only the five bounded existing editor groups without mutating the profile", () => {
   const profile = savedRequirementsFixture();
