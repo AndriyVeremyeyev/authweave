@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { capabilityFields, capabilityValues, criticalities, type CapabilityValues } from "@/lib/assessment/capabilities";
+import { capabilityFields, capabilityValues } from "@/lib/assessment/capabilities";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
 import { auditabilityValues } from "@/lib/assessment/auditability";
@@ -28,6 +28,7 @@ import { SavedRequirementsOverview } from "./saved-requirements-overview";
 import { ComparisonSection } from "./comparison-section";
 import { SavedContextSummary } from "./saved-context-summary";
 import { SavedRequirementsExport } from "./saved-requirements-export";
+import { CapabilityEditor } from "./capability-editor";
 
 export const runtime = "nodejs";
 
@@ -146,7 +147,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           capabilities: <>
             <StepError error={editError} messages={editErrors} />
             {assessment.status !== "DRAFT" ? <ReadOnlyStep /> : values
-              ? <CapabilityEditor assessment={assessment} values={values} /> : <UnreadableStep name="Requirement" />}
+              ? <CapabilityEditor assessmentId={assessment.id} version={assessment.version} values={values} /> : <UnreadableStep name="Requirement" />}
           </>,
           auditability: <>
             <StepError error={auditError} messages={auditErrors} />
@@ -196,43 +197,6 @@ function UnreadableStep({ name }: { name: string }) {
 function PreviewUnavailable({ name }: { name: string }) {
   return <section className="mt-6 rounded-xl border border-amber-700 p-5"><h3 className="font-semibold">{name} unavailable</h3>
     <p className="mt-2 text-sm text-slate-300">Your saved assessment is still available. Try reloading this page later.</p></section>;
-}
-
-function CapabilityEditor({ assessment, values }: { assessment: PersonalAssessment; values: CapabilityValues }) {
-  const labels = {
-    UNKNOWN: "Unknown",
-    REQUIRED: "Required",
-    PREFERRED: "Preferred",
-    NOT_REQUIRED: "Not required",
-    FORBIDDEN: "Forbidden",
-  };
-  return (
-    <section className="mt-10 rounded-xl border border-slate-700 p-6" aria-labelledby="capabilities-heading">
-      <h2 id="capabilities-heading" className="text-2xl font-semibold">Capability requirements</h2>
-      <p className="mt-3 text-slate-300">Set what the application needs. Required and forbidden are hard constraints; preferred is shown as a preference in the synthetic comparison, not as a score or recommendation.</p>
-      <p className="mt-2 text-sm text-slate-400">Unknown means you have not decided. Not required means the capability does not affect this decision. Only these nine fields will change.</p>
-      <form action={`/api/assessments/${assessment.id}/capabilities`} method="post" className="mt-6">
-        <input type="hidden" name="expectedVersion" value={assessment.version} />
-        <div className="grid gap-4 sm:grid-cols-2">
-          {capabilityFields.map(field => (
-            <div key={field.capability}>
-              <label htmlFor={`capability-${field.capability}`} className="mb-2 block text-sm font-medium">
-                {field.label}
-              </label>
-              <select id={`capability-${field.capability}`} name={field.capability}
-                defaultValue={values[field.capability]}
-                className="w-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-slate-100">
-                {criticalities.map(value => <option key={value} value={value}>{labels[value]}</option>)}
-              </select>
-            </div>
-          ))}
-        </div>
-        <button type="submit" className="mt-6 rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200">
-          Save capability requirements
-        </button>
-      </form>
-    </section>
-  );
 }
 
 function Unavailable() {

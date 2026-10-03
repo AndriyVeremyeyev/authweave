@@ -8,7 +8,7 @@ import type { AuditabilityValues } from "../src/lib/assessment/auditability.ts";
 import { auditabilityPreviewByteLimit, auditabilityPreviewFromCore,
   type AuditabilityReason } from "../src/lib/assessment/auditability-preview.ts";
 import { readPersonalAuditability } from "../src/lib/auth/core-client.ts";
-import { assessmentUiComponents, comparisonUiFixture } from "./fixtures/assessment-ui.mts";
+import { assessmentUiComponents, comparisonUiFixture, savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { auditabilityAssessmentId as id, auditabilityWorkspaceId as workspaceId, auditabilityBinding as binding,
   auditabilityFixture, auditabilityInput, replaceAuditabilityCheck } from "./fixtures/auditability-preview.mts";
 
@@ -288,6 +288,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     SavedContextSummary: overview.SavedContextSummary,
     AssessmentList: overview.AssessmentList,
     SavedRequirementsExport: overview.SavedRequirementsExport,
+    CapabilityEditor: overview.CapabilityEditor,
   };
   const shimSource = `import { createElement } from ${JSON.stringify(import.meta.resolve("react"))};
     const state = globalThis[${JSON.stringify(slot)}];
@@ -313,6 +314,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const SavedContextSummary = state.SavedContextSummary;
     export const AssessmentList = state.AssessmentList;
     export const SavedRequirementsExport = state.SavedRequirementsExport;
+    export const CapabilityEditor = state.CapabilityEditor;
     export const AuditabilityPreflight = state.AuditabilityPreflight, AuditabilityPreflightUnavailable = state.AuditabilityPreflightUnavailable;`;
   const shim = `data:text/javascript;base64,${Buffer.from(shimSource).toString("base64")}`;
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
@@ -321,7 +323,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
   for (const name of ["next/link", "next/headers", "next/navigation", "@/lib/auth/config", "@/lib/auth/core-client",
     "@/lib/auth/session-policy", "@/lib/auth/store", "./weighted-preview", "./evaluation-context-editor", "./architecture-patterns",
-    "./usage-planning-editor", "./usage-planning-preflight", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export"]) {
+    "./usage-planning-editor", "./usage-planning-preflight", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export", "./capability-editor"]) {
     compiled = compiled.replaceAll(JSON.stringify(name), JSON.stringify(shim));
   }
   for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "auditability", "workflow"]) {
@@ -377,6 +379,20 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(review.includes("It uses saved version 2, not unsaved edits"));
     assert.ok(review.includes("30 days")); assert.ok(review.includes("cannot be read safely"));
     assert.ok(!review.includes("synthetic upstream credential"));
+    const requirementsProps = { ...props, searchParams: Promise.resolve({ step: "capabilities" }) };
+    const unreadableRequirements = renderToStaticMarkup(await page.default(requirementsProps));
+    assert.ok(unreadableRequirements.includes("Requirement editing is unavailable"));
+    assert.ok(!unreadableRequirements.includes("Save capability requirements"));
+    Object.assign(assessment, { profile: savedRequirementsFixture() });
+    const requirements = renderToStaticMarkup(await page.default(requirementsProps));
+    assert.ok(requirements.includes("How to choose a requirement level"));
+    assert.ok(requirements.includes(`action="/api/assessments/${id}/capabilities"`));
+    assert.ok(requirements.includes('name="expectedVersion" value="2"'));
+    Object.assign(assessment, { status: "ARCHIVED" });
+    const readOnlyRequirements = renderToStaticMarkup(await page.default(requirementsProps));
+    assert.ok(readOnlyRequirements.includes("This assessment is read-only"));
+    assert.ok(!readOnlyRequirements.includes("Save capability requirements"));
+    assert.ok(!readOnlyRequirements.includes("<select"));
     state.live = false; const count = state.reads;
     await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count);
     const listReads = state.listReads;

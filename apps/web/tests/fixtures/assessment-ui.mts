@@ -89,5 +89,8 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
   const requirementsExport = await import(moduleUrl((await compile("../../src/app/assessments/[id]/saved-requirements-export.tsx"))
     .replaceAll('"@/lib/assessment/requirements-brief"', JSON.stringify(new URL("../../src/lib/assessment/requirements-brief.ts", import.meta.url).href))));
-  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport };
+  const capabilities = await import(moduleUrl((await compile("../../src/app/assessments/[id]/capability-editor.tsx"))
+    .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
+    .replaceAll('"@/lib/assessment/capability-guidance"', JSON.stringify(new URL("../../src/lib/assessment/capability-guidance.ts", import.meta.url).href))));
+  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport, ...capabilities };
 }

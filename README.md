@@ -237,6 +237,14 @@ and leaving through the workspace's back button or reloading warns about them.
 Successful saves and known validation/version conflicts return to the relevant
 step. The step URL remembers location, not unsaved answers or completion.
 
+Requirements explains all nine capabilities next to their saved selections, with
+expandable use cases, limits and questions to discuss with your team. A separate
+guide distinguishes all five requirement levels, including not-required versus
+forbidden and hard constraints versus preferences. Native disclosures do not
+change answers or save the draft. Concept references link to standards or official
+documentation; they are not evidence of a provider's support, plan or pricing.
+The existing explicit-save and version-conflict behavior is unchanged.
+
 The protected `/assessments` list identifies saved drafts by application type, users
 and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown
 and empty selections stay unrecorded; Other needs definition. An unreadable stored
