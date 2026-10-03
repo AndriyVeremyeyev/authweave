@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFile } from "node:fs/promises";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import ts from "typescript";
+import { assessmentUiComponents } from "./fixtures/assessment-ui.mts";
 import { assessmentSteps, assessmentStepFromQuery, workflowTransition,
   type WorkflowState } from "../src/lib/assessment/workflow.ts";
 
-test("workflow has four saved-input sections followed by two conditional previews, not completion flags", () => {
-  assert.deepEqual(assessmentSteps.map(step => step.id), ["context", "capabilities", "auditability", "usage", "comparison", "architecture"]);
-  assert.deepEqual(assessmentSteps.map(step => step.input), [true, true, true, true, false, false]);
-  assert.equal(new Set(assessmentSteps.map(step => step.id)).size, 6);
+test("workflow has four saved-input sections, a read-only review and two conditional previews, not completion flags", () => {
+  assert.deepEqual(assessmentSteps.map(step => step.id), ["context", "capabilities", "auditability", "usage", "review", "comparison", "architecture"]);
+  assert.deepEqual(assessmentSteps.map(step => step.input), [true, true, true, true, false, false, false]);
+  assert.equal(new Set(assessmentSteps.map(step => step.id)).size, 7);
   for (const step of assessmentSteps) assert.ok(step.title && step.description && step.short);
 });
 
@@ -51,28 +50,20 @@ test("submitting clears only local navigation guard state and preview edits cann
   assert.deepEqual(submitted, { step: "auditability", dirty: false, pending: null });
   assert.deepEqual(Object.keys(submitted).sort(), ["dirty", "pending", "step"]);
   assert.deepEqual(workflowTransition(submitted, { type: "navigate", step: "usage" }), { step: "usage", dirty: false, pending: null });
-  for (const step of ["comparison", "architecture"] as const) {
+  for (const step of ["review", "comparison", "architecture"] as const) {
     const preview: WorkflowState = { step, dirty: false, pending: null };
     assert.equal(workflowTransition(preview, { type: "edit" }), preview);
   }
 });
 
-test("workflow renders one labelled panel, six keyboard buttons and honest saved/read-only status", async () => {
-  const source = await readFile(new URL("../src/app/assessments/[id]/assessment-workflow.tsx", import.meta.url), "utf8");
-  const router = `data:text/javascript;base64,${Buffer.from('export function useRouter() { return { push() { throw new Error("No navigation during rendering"); } }; }').toString("base64")}`;
-  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext,
-    jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
-    .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
-    .replaceAll('"react"', JSON.stringify(import.meta.resolve("react")))
-    .replaceAll('"next/navigation"', JSON.stringify(router))
-    .replaceAll('"@/lib/assessment/workflow"', JSON.stringify(new URL("../src/lib/assessment/workflow.ts", import.meta.url).href));
-  const component = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+test("workflow renders one labelled panel, seven keyboard buttons and honest saved/read-only status", async () => {
+  const component = await assessmentUiComponents();
   const panels = Object.fromEntries(assessmentSteps.map(step => [step.id,
     createElement("div", { "data-fixture-panel": step.id }, `Saved ${step.id} fixture`)]));
   for (const step of assessmentSteps) {
     const html = renderToStaticMarkup(createElement(component.AssessmentWorkflow, { initialStep: step.id, panels, editable: true }));
     assert.equal((html.match(/aria-current="step"/g) ?? []).length, 1);
-    assert.equal((html.match(/aria-controls="assessment-step-panel"/g) ?? []).length, 6);
+    assert.equal((html.match(/aria-controls="assessment-step-panel"/g) ?? []).length, 7);
     assert.equal((html.match(/data-fixture-panel=/g) ?? []).length, 1);
     assert.ok(html.includes(`data-fixture-panel="${step.id}"`));
     assert.ok(html.includes('aria-labelledby="assessment-step-heading"'));
@@ -81,6 +72,10 @@ test("workflow renders one labelled panel, six keyboard buttons and honest saved
     assert.ok(html.includes("Step numbers show your location, not completion"));
     assert.ok(html.includes('aria-labelledby="discard-edits-heading"'));
     assert.equal(html.includes("100% complete"), false);
+    if (step.id === "review") {
+      assert.ok(html.includes("Only saved answers are shown here"));
+      assert.equal(html.includes("Temporary what-if inputs"), false);
+    }
   }
   const readOnly = renderToStaticMarkup(createElement(component.AssessmentWorkflow, { initialStep: "context", panels, editable: false }));
   assert.ok(readOnly.includes("Showing a read-only saved assessment"));

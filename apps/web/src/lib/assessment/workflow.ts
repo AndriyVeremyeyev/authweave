@@ -7,6 +7,8 @@ export const assessmentSteps = [
     description: "Record the events and retention your application needs, without assuming a provider meets them." },
   { id: "usage", title: "Usage and budget inputs", short: "Usage", input: true,
     description: "Capture expected usage and its assumptions. Missing information is not treated as zero cost." },
+  { id: "review", title: "Review saved requirements", short: "Review", input: false,
+    description: "See what is actually saved and return to the relevant section to clarify your inputs." },
   { id: "comparison", title: "Compare options", short: "Comparison", input: false,
     description: "Explore the fictional options against your saved requirements. No real provider or winner is established." },
   { id: "architecture", title: "Explore architectures", short: "Architecture", input: false,

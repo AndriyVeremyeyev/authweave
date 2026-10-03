@@ -25,6 +25,7 @@ import { AuditabilityEditor } from "./auditability-editor";
 import { AuditabilityPreflight, AuditabilityPreflightUnavailable } from "./auditability-preflight";
 import { assessmentStepFromQuery } from "@/lib/assessment/workflow";
 import { AssessmentWorkflow } from "./assessment-workflow";
+import { SavedRequirementsOverview } from "./saved-requirements-overview";
 
 export const runtime = "nodejs";
 
@@ -158,6 +159,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
               : <UnreadableStep name="Usage" />}
             {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : <PreviewUnavailable name="Usage input check" />}
           </>,
+          review: <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"} />,
           comparison: comparison ? <ComparisonSection comparison={comparison} editable={assessment.status === "DRAFT" && !!values}
             assessmentId={assessment.id} preferred={preferred} /> : <PreviewUnavailable name="Synthetic comparison" />,
           architecture: patterns ? <ArchitecturePatterns preview={patterns} assessmentId={assessment.id} />

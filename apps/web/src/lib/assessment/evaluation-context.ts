@@ -13,6 +13,27 @@ export const complianceScopeStatuses = ["UNKNOWN", "NONE_IDENTIFIED", "TARGETS_I
 export const complianceTargets = ["SOC_2", "ISO_27001", "HIPAA", "FEDRAMP", "GDPR", "OTHER"] as const;
 export const dataCategories = ["USER_PROFILES", "CREDENTIALS", "AUDIT_LOGS", "BACKUPS"] as const;
 
+export const evaluationContextLabels: Record<string, string> = {
+  UNKNOWN: "Unknown / not recorded",
+  B2B_SAAS: "B2B SaaS", PARTNER_PORTAL: "Partner portal",
+  PUBLIC_SECTOR_PORTAL: "Public-sector portal", INTERNAL_WORKFORCE: "Internal workforce application",
+  OTHER: "Other (needs definition)",
+  BROWSER: "Browser", NATIVE_MOBILE: "Native mobile", MACHINE_TO_MACHINE: "Machine to machine",
+  EXTERNAL_CUSTOMERS: "External customers", PARTNERS: "Partners", CITIZENS: "Citizens",
+  EMPLOYEES: "Employees", CONTRACTORS: "Contractors", INTERNAL_OPERATORS: "Internal operators",
+  MULTI_TENANT_ORGANIZATIONS: "Multiple customer organizations",
+  SINGLE_ORGANIZATION: "One organization", NO_ORGANIZATION_BOUNDARY: "No organization boundary",
+  SINGLE_ORGANIZATION_PER_USER: "One organization per user",
+  MULTIPLE_ORGANIZATIONS_PER_USER: "Multiple organizations per user",
+  NOT_APPLICABLE: "Not applicable",
+  REQUIRED: "Required", PREFERRED: "Preferred", NOT_REQUIRED: "Not required", FORBIDDEN: "Forbidden",
+  NONE_IDENTIFIED: "No compliance targets identified after review",
+  TARGETS_IDENTIFIED: "Compliance targets identified (not yet evaluated)",
+  SOC_2: "SOC 2", ISO_27001: "ISO 27001", HIPAA: "HIPAA", FEDRAMP: "FedRAMP", GDPR: "GDPR",
+  USER_PROFILES: "User profiles", CREDENTIALS: "Credentials", AUDIT_LOGS: "Audit logs",
+  BACKUPS: "Backups and recovery copies",
+};
+
 export type EvaluationContextValues = {
   applicationType: (typeof applicationTypes)[number];
   clients: (typeof clientTypes)[number][];

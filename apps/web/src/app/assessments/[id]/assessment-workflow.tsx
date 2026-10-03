@@ -1,8 +1,20 @@
 "use client";
 
-import { useEffect, useReducer, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useReducer, useRef, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { assessmentSteps, workflowTransition, type AssessmentStep } from "@/lib/assessment/workflow";
+
+const AssessmentNavigation = createContext<((step: AssessmentStep, button: HTMLButtonElement) => void) | null>(null);
+
+// Server-rendered review cards use the same in-memory navigation and dirty guard as the sidebar.
+export function AssessmentStepButton({ step, children }: { step: AssessmentStep; children: ReactNode }) {
+  const navigate = useContext(AssessmentNavigation);
+  return <button type="button" disabled={!navigate} aria-controls="assessment-step-panel"
+    onClick={event => navigate?.(step, event.currentTarget)}
+    className="rounded-lg border border-cyan-300/30 px-3 py-2 text-sm font-medium text-cyan-200 hover:bg-cyan-300/10 disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">
+    {children}
+  </button>;
+}
 
 export function AssessmentWorkflow({ initialStep, panels, editable }: {
   initialStep: AssessmentStep; panels: Record<AssessmentStep, ReactNode>; editable: boolean;
@@ -97,10 +109,12 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
               ? "Showing a read-only saved assessment. No editing is available."
               : step.input
               ? "Showing saved inputs. Changes are saved only when you submit this section."
+              : state.step === "review"
+              ? "Only saved answers are shown here. This is not a validation result or a completeness score."
               : "These previews use saved requirements. Temporary what-if inputs reset when you switch steps."}
           </p>
         </div>
-        <noscript><p className="mt-5 rounded-xl border border-amber-700 p-4 text-sm text-amber-100">Step navigation needs JavaScript. You can still submit the form in the current section.</p></noscript>
+        <noscript><p className="mt-5 rounded-xl border border-amber-700 p-4 text-sm text-amber-100">Step navigation needs JavaScript.{step.input && " You can still submit the form in the current section."}</p></noscript>
         <div key={state.step} onChangeCapture={() => {
           if (!editable || !step.input) return;
           dirty.current = true;
@@ -110,7 +124,7 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
           dirty.current = false;
           dispatch({ type: "submit" });
         }}>
-          {panels[state.step]}
+          <AssessmentNavigation.Provider value={navigate}>{panels[state.step]}</AssessmentNavigation.Provider>
         </div>
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
           <button type="button" disabled={index === 0}

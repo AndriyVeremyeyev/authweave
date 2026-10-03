@@ -207,13 +207,23 @@ contradictions, verify compliance or compute provider recommendations. Empty
 selections mean no choice was recorded, not that a topic is unnecessary.
 
 Separately, the protected local assessment workspace at `/assessments/{id}` groups
-the existing editors and previews into six steps: Context, Requirements, Audit,
-Usage, Comparison and Architecture. Only one section is shown at a time, with
+the existing editors and previews into seven steps: Context, Requirements, Audit,
+Usage, Review, Comparison and Architecture. Only one section is shown at a time, with
 responsive navigation and keyboard focus on the selected heading. Draft inputs
 require an explicit Save; switching steps with unsaved edits offers stay/discard,
 and leaving through the workspace's back button or reloading warns about them.
 Successful saves and known validation/version conflicts return to the relevant
 step. The step URL remembers location, not unsaved answers or completion.
+
+Review shows five read-only cards from the existing saved editor projections:
+application/audience, security/compliance scope, identity capabilities, provider
+auditability and usage assumptions. Unknown or empty inputs remain visibly
+unrecorded; "Other" needs definition, explicit not-required stays distinct, and
+observed zero usage is not substituted for missing usage. Cards offer scoped
+navigation back to the editors without starting a write. Unreadable sections show
+a bounded unavailable notice instead of inferred answers. These display labels are
+not Core validation errors, applicability rules or a completeness/readiness score;
+other profile fields remain available in the saved JSON.
 
 This workspace requires the local BFF session, Core API and PostgreSQL. It does not
 add autosave, expand editable profile fields, change ownership/version checks or
