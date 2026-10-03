@@ -1,12 +1,13 @@
 import { savedRequirementGroups, type SavedInputState } from "@/lib/assessment/saved-requirements";
 import { AssessmentStepButton } from "./assessment-workflow";
+import type { ReactNode } from "react";
 
 const stateLabels: Record<SavedInputState, string> = {
   recorded: "Recorded", "not-recorded": "Not recorded", "needs-definition": "Needs definition",
 };
 
-export function SavedRequirementsOverview({ profile, version, editable }: {
-  profile: Record<string, unknown>; version: number; editable: boolean;
+export function SavedRequirementsOverview({ profile, version, editable, exportPanel }: {
+  profile: Record<string, unknown>; version: number; editable: boolean; exportPanel?: ReactNode;
 }) {
   const groups = savedRequirementGroups(profile);
   return <div className="mt-6 space-y-6">
@@ -15,6 +16,7 @@ export function SavedRequirementsOverview({ profile, version, editable }: {
       <p className="mt-2 text-sm leading-6 text-slate-300">These cards show the existing editable input sections from your saved profile, not unsaved edits or temporary what-if answers. Other profile fields remain in the technical details below.</p>
       <p className="mt-2 text-xs leading-5 text-slate-400">Not recorded and needs definition are display labels, not validation errors. Some inputs may not apply. Recorded answers do not mean the assessment is complete, compliant or ready for a recommendation.</p>
     </div>
+    {exportPanel}
     <div className="grid items-start gap-5 xl:grid-cols-2">
       {groups.map(group => <section key={group.id} aria-labelledby={`saved-${group.id}-heading`}
         className="min-w-0 rounded-xl border border-white/10 bg-white/[0.02] p-5">

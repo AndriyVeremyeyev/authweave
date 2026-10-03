@@ -13,6 +13,8 @@ import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
 import { POST as auditabilityRoute } from "../src/app/api/assessments/[id]/auditability/route.ts";
+import { POST as requirementsBriefRoute } from "../src/app/api/assessments/[id]/requirements-brief/route.ts";
+import { requirementsBriefFilename } from "../src/lib/assessment/requirements-brief.ts";
 import { readPersonalAssessment, readPersonalAuditability } from "../src/lib/auth/core-client.ts";
 import { auditabilityFixture, auditabilityInput, auditabilityAssessmentId,
   auditabilityWorkspaceId } from "./fixtures/auditability-preview.mts";
@@ -136,6 +138,18 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     assert.equal(relatedComparisonInput("provisioning.scim", groups)?.rows?.[0].value, scenario.expected.scim);
     assert.equal(relatedComparisonInput("protocols.enterpriseSingleSignOn", groups)?.rows?.[0].value, scenario.expected.sso);
 
+    const beforeExport = structuredClone(profile);
+    const exportForm = new URLSearchParams({ expectedVersion: "4" });
+    const exported = await requirementsBriefRoute(request(`/${id}/requirements-brief`, exportForm), context);
+    assert.equal(exported.status, 200); assert.equal(exported.headers.get("cache-control"), "no-store");
+    assert.equal(exported.headers.get("content-disposition"), `attachment; filename="${requirementsBriefFilename(id, 4)}"`);
+    const markdown = await exported.text(), readable = markdown.replace(/\\([!-~])/g, "$1");
+    for (const label of [scenario.expected.application, scenario.expected.users, scenario.expected.clients, `${scenario.retention} days`, scenario.assumption]) assert.ok(readable.includes(label), label);
+    assert.ok(markdown.includes("- Saved version: `4`")); assert.equal(markdown.includes(identity.subject), false);
+    assert.equal(await (await requirementsBriefRoute(request(`/${id}/requirements-brief`, exportForm), context)).text(), markdown);
+    assert.equal((await requirementsBriefRoute(request(`/${id}/requirements-brief`, new URLSearchParams({ expectedVersion: "3" })), context)).status, 409);
+    assert.equal(version, 4); assert.deepEqual(writes, [0, 1, 2, 3]); assert.deepEqual(profile, beforeExport);
+
     const beforeConflict = structuredClone(profile), writeCount = writes.length;
     capabilities.set("SCIM", "PREFERRED"); // This form still carries saved version 1.
     const stale = await updateCapabilitiesRoute(request(`/${id}/capabilities`, capabilities), context);
@@ -150,7 +164,78 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     await revokeSession(sessionId);
     const callCount = calls.length;
     assert.equal((await usagePlanningRoute(request(`/${id}/usage-planning`, usage), context)).status, 401);
+    assert.equal((await requirementsBriefRoute(request(`/${id}/requirements-brief`, exportForm), context)).status, 401);
     assert.equal(calls.length, callCount);
+  } finally {
+    await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name];
+  }
+});
+
+test("saved-brief download requires a real live session, same origin and exact version with only a workspace-scoped Core GET", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-export-token-000000000000000000000" });
+  const id = "80000000-0000-4000-8000-000000000001", workspaceId = "70000000-0000-4000-8000-000000000001";
+  const identity = { workspaceId, issuer: "http://localhost:8081", subject: "synthetic-export-owner",
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined), context = { params: Promise.resolve({ id }) };
+  let calls = 0, status = 200;
+  let payload: Record<string, unknown> = { id, workspaceId, status: "ARCHIVED", version: 7, profileSchemaVersion: 6, profile: savedRequirementsFixture() };
+  globalThis.fetch = async (url, init) => {
+    calls++; assert.equal(url, `http://127.0.0.1:8080/api/v6/workspaces/${workspaceId}/assessments/${id}`);
+    assert.equal(init?.method, "GET"); assert.equal(init?.body, undefined);
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error");
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal(headers["X-AuthWeave-Oidc-Issuer"], identity.issuer);
+    assert.equal(headers.Authorization, process.env.AUTHWEAVE_CORE_SERVICE_TOKEN ? `Bearer ${process.env.AUTHWEAVE_CORE_SERVICE_TOKEN}` : "not-configured");
+    return status === 200 ? Response.json(payload) : new Response("private Core failure and credential", { status });
+  };
+  const request = (body = "expectedVersion=7", overrides: { origin?: string; cookie?: string; type?: string; query?: string; contentLength?: string } = {}) =>
+    new NextRequest(`http://localhost:3000/api/assessments/${id}/requirements-brief${overrides.query ?? ""}`, {
+      method: "POST", headers: { Origin: overrides.origin ?? "http://localhost:3000", "Content-Type": overrides.type ?? "application/x-www-form-urlencoded",
+        Cookie: overrides.cookie ?? `${sessionCookieName(false)}=${sessionId}`, "X-AuthWeave-Oidc-Subject": "browser-spoof",
+        ...(overrides.contentLength === undefined ? {} : { "Content-Length": overrides.contentLength }) }, body,
+    });
+  const expect = async (response: Response, code: number) => {
+    assert.equal(response.status, code); assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal((await response.text()).includes("private Core"), false);
+  };
+  try {
+    await expect(await requirementsBriefRoute(request("expectedVersion=7", { origin: "https://other.invalid" }), context), 403);
+    await expect(await requirementsBriefRoute(request("expectedVersion=7", { origin: "" }), context), 403);
+    await expect(await requirementsBriefRoute(request("expectedVersion=7", { cookie: "" }), context), 401);
+    await expect(await requirementsBriefRoute(request(), { params: Promise.resolve({ id: "../other" }) }), 404);
+    await expect(await requirementsBriefRoute(request("{}", { type: "application/json" }), context), 415);
+    await expect(await requirementsBriefRoute(request("expectedVersion=7", { query: "?workspaceId=other" }), context), 400);
+    for (const body of ["", "expectedVersion=07", "expectedVersion=7&expectedVersion=7", "expectedVersion=7&profile=private", "expectedVersion=7&workspaceId=other", "expectedVersion=9007199254740992"]) {
+      await expect(await requirementsBriefRoute(request(body), context), 400);
+    }
+    await expect(await requirementsBriefRoute(request("expectedVersion=7&padding=" + "x".repeat(500), { contentLength: "1" }), context), 413);
+    assert.equal(calls, 0);
+    const before = structuredClone(payload), response = await requirementsBriefRoute(request(), context);
+    assert.equal(response.status, 200); assert.equal(response.headers.get("content-type"), "text/markdown; charset=utf-8");
+    assert.equal(response.headers.get("x-content-type-options"), "nosniff"); assert.equal(response.headers.get("cache-control"), "no-store");
+    const text = await response.text(); assert.ok(text.includes("- Assessment status: `ARCHIVED`"));
+    for (const value of [identity.subject, identity.issuer, workspaceId, "browser-spoof", process.env.AUTHWEAVE_CORE_SERVICE_TOKEN!]) assert.equal(text.includes(value), false);
+    assert.deepEqual(payload, before); assert.equal(calls, 1);
+    await expect(await requirementsBriefRoute(request("expectedVersion=6"), context), 409); assert.equal(calls, 2);
+    for (const code of [404, 403, 500]) {
+      status = code; await expect(await requirementsBriefRoute(request(), context), code === 404 ? 404 : 503);
+    }
+    status = 200;
+    for (const changed of [{ ...before, workspaceId: "70000000-0000-4000-8000-000000000002" },
+      { ...before, id: "80000000-0000-4000-8000-000000000002" }, { ...before, profileSchemaVersion: 5 }]) {
+      payload = changed; await expect(await requirementsBriefRoute(request(), context), 503);
+    }
+    payload = before;
+    delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    const beforeMissingCredential = calls;
+    await expect(await requirementsBriefRoute(request(), context), 503); assert.equal(calls, beforeMissingCredential);
+    await revokeSession(sessionId); const beforeRevoked = calls;
+    await expect(await requirementsBriefRoute(request(), context), 401); assert.equal(calls, beforeRevoked);
   } finally {
     await revokeSession(sessionId); globalThis.fetch = previousFetch;
     for (const name of names) if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name];

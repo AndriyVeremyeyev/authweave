@@ -256,6 +256,15 @@ a bounded unavailable notice instead of inferred answers. These display labels a
 not Core validation errors, applicability rules or a completeness/readiness score;
 other profile fields remain available in the saved JSON.
 
+Review also offers **Download saved brief (.md)**: a deterministic, version-bound
+Markdown export of those five saved input sections and their display gaps. The
+same-origin, session-scoped BFF re-reads the assessment and rejects a stale page
+version before downloading; it does not write the assessment or store an export.
+Free text remains literal, output is bounded and responses are not cached. This
+is not a full-profile backup, evaluation snapshot, final ADR or provider
+recommendation; temporary what-if answers and comparison results are excluded.
+Review the file for private details before sharing it.
+
 Comparison presents Core's three partial statuses, their option counts, exclusion
 reasons, information gaps and capability preferences separately. Known checked
 paths show the related saved answers and offer navigation to the existing editor;

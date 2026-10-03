@@ -87,5 +87,7 @@ export async function assessmentUiComponents() {
   const list = await import(moduleUrl((await compile("../../src/app/assessments/assessment-list.tsx"))
     .replaceAll('"next/link"', JSON.stringify(link))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
-  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list };
+  const requirementsExport = await import(moduleUrl((await compile("../../src/app/assessments/[id]/saved-requirements-export.tsx"))
+    .replaceAll('"@/lib/assessment/requirements-brief"', JSON.stringify(new URL("../../src/lib/assessment/requirements-brief.ts", import.meta.url).href))));
+  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport };
 }

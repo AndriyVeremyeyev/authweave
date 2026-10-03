@@ -27,6 +27,7 @@ import { AssessmentWorkflow } from "./assessment-workflow";
 import { SavedRequirementsOverview } from "./saved-requirements-overview";
 import { ComparisonSection } from "./comparison-section";
 import { SavedContextSummary } from "./saved-context-summary";
+import { SavedRequirementsExport } from "./saved-requirements-export";
 
 export const runtime = "nodejs";
 
@@ -161,7 +162,8 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
               : <UnreadableStep name="Usage" />}
             {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : <PreviewUnavailable name="Usage input check" />}
           </>,
-          review: <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"} />,
+          review: <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"}
+            exportPanel={<SavedRequirementsExport assessmentId={assessment.id} version={assessment.version} />} />,
           comparison: comparison ? <ComparisonSection comparison={comparison} profile={assessment.profile} editable={assessment.status === "DRAFT"}
             preferencePreview={preferred.length > 0 ? <WeightedPreviewForm key={`${assessment.id}-${comparison.assessmentVersion}`}
               assessmentId={assessment.id} version={comparison.assessmentVersion} preferred={preferred} /> : null} /> : <PreviewUnavailable name="Synthetic comparison" />,
