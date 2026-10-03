@@ -1057,9 +1057,9 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twelve distinct options and 39 recorded
+`make inspect-provider-baselines` now reports fourteen distinct options and 47 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
-two upstream-scoped drafts.
+four upstream-scoped drafts.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1172,6 +1172,29 @@ original observations and do not transfer positive facts into these new scopes.
 The offline inspector labels the pairings `UPSTREAM_SCOPED_DOCUMENTATION_DRAFT`,
 but neither tests live interoperability nor approves facts. Remaining provider
 pairings, full coverage, manual review and authorized publication are still pending.
+
+#### Upstream-scoped ZITADEL workforce candidates
+
+Separate [Okta](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free-upstream-okta.v1.json)
+and [Entra](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free-upstream-entra.v1.json)
+drafts select org-scoped ZITADEL Cloud Free login: generic OIDC for Okta and a fixed
+workforce Tenant ID for the Microsoft template. `ENTERPRISE_SSO` and login-time `JIT`
+are `OPTIONAL` proposals; neither changes AuthWeave's actual authentication.
+
+The [provider settings](https://zitadel.com/docs/guides/integrate/identity-providers/introduction)
+describe opt-in creation and profile updates at login, not background provisioning.
+`SCIM` remains `UNKNOWN`: the [Okta provisioning guide](https://zitadel.com/docs/guides/integrate/scim-okta-guide)
+assumes SAML, not the selected OIDC pair, and the [Preview API](https://zitadel.com/docs/apis/scim2)
+does not establish this Entra pairing, Cloud release or commercial access.
+Native inbound `GROUP_SYNC` is proposed `UNAVAILABLE` only for the
+[User-only SCIM interface](https://zitadel.com/docs/guides/manage/user/scim2), without a bridge.
+
+All eight entries are `UNREVIEWED`. Identity correlation, email trust, upstream
+entitlements and SaaS lifecycle/session enforcement still need review and tests.
+The original Free and research options retain their own observations; no facts are
+inherited across configurations. Offline scope/source checks, typed validation and
+HTTP regression coverage do not verify sources or activate recommendations.
+Remaining pairings, complete baseline coverage and authorized publication stay open.
 
 ### Catalog change proposal previews
 

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-cloud-free-upstream-entra-draft-2026.10.03",
+  "options": [{
+    "id": "zitadel-cloud-free-upstream-entra-workforce",
+    "providerId": "zitadel",
+    "product": "ZITADEL Cloud",
+    "plan": "Free; upstream workforce entitlement unverified",
+    "deployment": "MANAGED",
+    "region": "No tenant regions selected; storage destinations not verified",
+    "configuration": "Org-scoped Entra OIDC, fixed workforce tenant; JIT create/update; native SCIM User only; no group or SaaS bridge",
+    "facts": {
+      "ENTERPRISE_SSO": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Use the Microsoft provider template with a registered Entra Web app, callback, client credentials and a fixed workforce Tenant ID; activate org-scoped external login with explicit organization targeting.",
+          "Common, Organizations and Consumers tenant selectors are outside this single-tenant scope; do not substitute Entra External ID or assume verified email from profile claims.",
+          "The Free offer at https://zitadel.com/pricing has quotas; Cloud and upstream Entra entitlements are unverified, not a zero-cost guarantee."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/integrate/identity-providers/azure-ad-oidc",
+          "observedAt": "2026-10-03T00:27:18Z",
+          "summary": "The Microsoft guide provides tenant selection and organization activation. This proposal selects one workforce tenant, not a tested customer or AuthWeave login change."
+        }
+      },
+      "JIT": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Explicitly select automatic creation and automatic update for this org-scoped provider; creation and profile updates occur at login, not through background provisioning.",
+          "Account linking and email trust require a separate reviewed policy; login-time JIT is not SCIM deactivation or SaaS session revocation."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/integrate/identity-providers/introduction",
+          "observedAt": "2026-10-03T00:27:18Z",
+          "summary": "Provider settings describe optional automatic user creation and profile updates at login. They do not establish lifecycle synchronization."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "The API is marked Preview; Free-plan access, deployed Cloud version and upstream Entra provisioning entitlement remain unverified. UNKNOWN is not UNAVAILABLE.",
+          "An organization-scoped User API alone does not prove this Entra pairing or its identity correlation; do not inherit Auth0-specific oid/objectId/externalId mapping.",
+          "Inbound SCIM users in ZITADEL are not outbound provisioning into the SaaS; authorization, account linking, deactivation and consuming-app session enforcement need separate tests."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/apis/scim2",
+          "observedAt": "2026-10-03T00:27:18Z",
+          "summary": "The Preview API documents organization-scoped User operations. It does not verify commercial access, a Cloud release or interoperability with this Entra OIDC configuration."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNAVAILABLE",
+        "conditions": [
+          "Limited to native inbound SCIM Group provisioning: the User-only interface excludes Group resources, and no external bridge is selected.",
+          "Do not generalize to other APIs or extensions; login claims and user metadata are not synchronized SaaS group membership."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/manage/user/scim2",
+          "observedAt": "2026-10-03T00:27:18Z",
+          "summary": "The SCIM guide excludes Groups from the native User interface. The proposed absence is limited to this interface, not all ZITADEL integrations."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

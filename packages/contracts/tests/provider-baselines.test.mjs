@@ -16,6 +16,7 @@ const auth0Draft = scopedDrafts.find((draft) => draft.options[0].providerId === 
 const workosDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "workos");
 const entraDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "entra-external-id");
 const upstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("auth0-b2b-free-upstream-"));
+const zitadelUpstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("zitadel-cloud-free-upstream-"));
 const observedAt = new Date("2026-10-02T19:58:06Z");
 const copy = () => structuredClone(drafts);
 
@@ -498,25 +499,127 @@ test("upstream inspection rejects mixed connector sources, identity/configuratio
   }
 });
 
+test("ZITADEL workforce pairs separate org-scoped login-time JIT from unverified SCIM and native group absence", () => {
+  const at = new Date("2026-10-03T00:27:18Z");
+  assert.equal(zitadelUpstreamDrafts.length, 2);
+  assert.equal(Object.hasOwn(zitadelDraft.options[0].facts, "JIT"), false);
+  for (const draft of zitadelUpstreamDrafts) {
+    const before = JSON.stringify(draft);
+    const report = inspectScopedBaselineDraft(draft, at);
+    assertUntrusted(report);
+    assert.equal(report.optionCount, 1);
+    assert.equal(report.factCount, 4);
+    const option = report.options[0];
+    assert.equal(option.basis, "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
+    assert.equal(option.sourcePlan, "Free");
+    assert.ok(["okta-workforce", "entra-id-workforce"].includes(option.upstreamProviderId));
+    assert.equal(option.product, "ZITADEL Cloud");
+    assert.equal(option.plan, "Free; upstream workforce entitlement unverified");
+    assert.equal(Object.hasOwn(option, "sourceRelease"), false);
+    assert.equal(Object.hasOwn(option, "sourceCommit"), false);
+    assert.deepEqual(Object.fromEntries(option.facts.map((fact) => [fact.path, fact.availability])), {
+      "facts.ENTERPRISE_SSO": "OPTIONAL", "facts.GROUP_SYNC": "UNAVAILABLE", "facts.JIT": "OPTIONAL", "facts.SCIM": "UNKNOWN",
+    });
+    assert.equal(option.omittedCapabilities.length, 5);
+    assert.ok(["OIDC", "SAML"].every((capability) => option.omittedCapabilities.includes(capability)));
+    assert.ok(option.facts.every((fact) => fact.freshness === "CURRENT"));
+    const claims = draft.options[0].facts;
+    assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /organization targeting/);
+    assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /upstream.*entitlements.*unverified.*not a zero-cost guarantee/);
+    assert.match(claims.JIT.conditions.join(" "), /automatic creation and automatic update.*at login, not.*background/);
+    assert.match(claims.JIT.conditions.join(" "), /Account linking and email trust.*not SCIM deactivation/);
+    assert.match(claims.SCIM.conditions.join(" "), /Preview.*Free-plan access.*Cloud version.*upstream/);
+    assert.match(claims.SCIM.conditions.join(" "), /UNKNOWN is not UNAVAILABLE/);
+    assert.match(claims.GROUP_SYNC.conditions.join(" "), /native inbound SCIM Group.*User-only.*no external bridge/);
+    assert.match(claims.GROUP_SYNC.conditions.join(" "), /Do not generalize.*not synchronized SaaS group membership/);
+    if (option.upstreamProviderId === "okta-workforce") {
+      assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /generic OIDC.*Okta Web app/);
+      assert.match(claims.SCIM.conditions.join(" "), /existing SAML.*does not validate.*generic OIDC pairing/);
+    } else {
+      assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /Microsoft provider template.*fixed workforce Tenant ID/);
+      assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /Common, Organizations and Consumers.*outside.*single-tenant/);
+      assert.match(claims.SCIM.conditions.join(" "), /do not inherit Auth0-specific oid\/objectId\/externalId mapping/);
+    }
+    for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
+      const later = inspectScopedBaselineDraft(draft, new Date(at.getTime() + offset));
+      assertUntrusted(later);
+      assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness
+        && fact.evidence.observedAt === "2026-10-03T00:27:18Z"));
+    }
+    assert.equal(JSON.stringify(draft), before);
+  }
+});
+
+test("ZITADEL pair inspection rejects connector drift, inherited mappings and JIT/SCIM/group promotion", () => {
+  for (const draft of zitadelUpstreamDrafts) {
+    const other = zitadelUpstreamDrafts.find((candidate) => candidate !== draft);
+    const mutations = [
+      (input) => { input.approvalGranted = true; },
+      (input) => { input.upstreamProviderId = "verified-workforce"; },
+      (input) => { input.options[0].upstreamProviderId = "verified-workforce"; },
+      (input) => { input.options[0].configuration = other.options[0].configuration; },
+      (input) => { input.options[0].configuration = "Instance-wide default, automatic email linking and outbound SaaS provisioning"; },
+      (input) => { input.options[0].configuration = "Auth0 Entra oid/objectId/externalId mapping"; },
+      (input) => { input.options[0].plan = "Pro; verified upstream entitlement"; },
+      (input) => { input.options[0].product = "ZITADEL self-hosted"; },
+      (input) => { input.options[0].providerId = "auth0"; },
+      (input) => { input.options[0].id = other.options[0].id; },
+      (input) => { input.options[0].region = "EU"; },
+      (input) => { input.options[0].deployment = "SELF_HOSTED"; },
+      (input) => { input.catalogVersion = other.catalogVersion; },
+      (input) => { input.options[0].facts.ENTERPRISE_SSO.evidence.sourceUrl = other.options[0].facts.ENTERPRISE_SSO.evidence.sourceUrl; },
+      (input) => { input.options[0].facts.SCIM.evidence.sourceUrl = other.options[0].facts.SCIM.evidence.sourceUrl; },
+      (input) => { input.options[0].facts.SCIM.evidence.sourceUrl = auth0Draft.options[0].facts.SCIM.evidence.sourceUrl; },
+      (input) => { input.options[0].facts.JIT.evidence.sourceUrl = input.options[0].facts.ENTERPRISE_SSO.evidence.sourceUrl; },
+      (input) => { input.options[0].facts.SCIM.evidence.sourceUrl += "?reviewed=true"; },
+      (input) => { input.options[0].facts.SCIM.evidence.observedAt = "2026-02-30T00:27:18Z"; },
+      (input) => { input.options[0].facts.SCIM.availability = "OPTIONAL"; },
+      (input) => { input.options[0].facts.SCIM.availability = "UNAVAILABLE"; },
+      (input) => { input.options[0].facts.JIT.availability = "MANDATORY"; },
+      (input) => { input.options[0].facts.GROUP_SYNC.availability = "UNKNOWN"; },
+      (input) => { input.options[0].facts.GROUP_SYNC.availability = "OPTIONAL"; },
+      (input) => { input.options[0].facts.SCIM.conditions = []; },
+      (input) => { input.options[0].facts.JIT.conditions.push(input.options[0].facts.JIT.conditions[0]); },
+      (input) => { input.options[0].facts.OIDC = structuredClone(zitadelDraft.options[0].facts.OIDC); },
+      (input) => { delete input.options[0].facts.JIT; },
+      (input) => { input.options.push(structuredClone(input.options[0])); },
+      (input) => { input.options[0].compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER = {
+        support: "SUPPORTED", conditions: [], evidence: structuredClone(input.options[0].facts.JIT.evidence),
+      }; },
+    ];
+    for (const mutate of mutations) {
+      const input = structuredClone(draft); mutate(input);
+      assert.throws(() => inspectScopedBaselineDraft(input, observedAt));
+    }
+  }
+});
+
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-02T23:25:54Z");
+  const at = new Date("2026-10-03T00:27:18Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 12);
-  assert.equal(report.factCount, 39);
+  assert.equal(report.optionCount, 14);
+  assert.equal(report.factCount, 47);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 7);
+  assert.equal(report.scopedDraftOptionCount, 9);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 2);
   assert.notEqual(keycloak[0].optionId, keycloak[1].optionId);
   assert.equal(keycloak.filter((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").length, 1);
   assert.ok(keycloak.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").facts.every((fact) => fact.availability === "UNKNOWN"));
   const zitadel = report.options.filter((option) => option.providerId === "zitadel");
-  assert.equal(zitadel.length, 2);
+  assert.equal(zitadel.length, 4);
+  assert.equal(new Set(zitadel.map((option) => option.optionId)).size, 4);
   assert.equal(zitadel.filter((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").length, 1);
   assert.ok(zitadel.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").facts.every((fact) => fact.availability === "UNKNOWN"));
   assert.equal(zitadel.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT").sourcePlan, "Free");
+  const zitadelPairs = zitadel.filter((option) => option.basis === "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(zitadelPairs.length, 2);
+  assert.deepEqual(zitadelPairs.map((option) => option.upstreamProviderId).sort(), ["entra-id-workforce", "okta-workforce"]);
+  assert.ok(zitadelPairs.every((option) => option.facts.find((fact) => fact.path === "facts.SCIM").availability === "UNKNOWN"));
+  assert.equal(zitadel.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT")
+    .facts.some((fact) => fact.path === "facts.JIT"), false);
   const auth0 = report.options.filter((option) => option.providerId === "auth0");
   assert.equal(auth0.length, 4);
   assert.equal(new Set(auth0.map((option) => option.optionId)).size, 4);
@@ -591,7 +694,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 39);
+  assert.equal(JSON.parse(run.stdout).factCount, 47);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

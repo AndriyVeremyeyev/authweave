@@ -407,6 +407,84 @@ class ProviderBaselineDraftTests {
         assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"okta", "entra"})
+    void zitadelWorkforcePairsKeepLoginTimeJitSeparateFromScimAndGenericCloudScope(String upstream) throws Exception {
+        var json = resource("catalog/baselines/scoped/zitadel-cloud-free-upstream-" + upstream + ".v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("zitadel-cloud-free-upstream-" + upstream + "-workforce", option.id());
+        assertEquals("zitadel", option.providerId());
+        assertEquals("ZITADEL Cloud", option.product());
+        assertEquals("Free; upstream workforce entitlement unverified", option.plan());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        var expected = Map.of(ProviderCatalog.Capability.ENTERPRISE_SSO, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.JIT, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.SCIM, ProviderCatalog.Availability.UNKNOWN,
+                ProviderCatalog.Capability.GROUP_SYNC, ProviderCatalog.Availability.UNAVAILABLE);
+        assertEquals(expected.keySet(), option.facts().keySet());
+        var observed = Instant.parse("2026-10-03T00:27:18Z");
+        option.facts().forEach((capability, fact) -> {
+            assertEquals(expected.get(capability), fact.availability());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("zitadel.com", fact.evidence().sourceUrl().getHost());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        var jit = option.facts().get(ProviderCatalog.Capability.JIT);
+        assertEquals("/docs/guides/integrate/identity-providers/introduction", jit.evidence().sourceUrl().getPath());
+        assertTrue(String.join(" ", jit.conditions()).contains("at login, not through background provisioning"));
+        assertTrue(String.join(" ", jit.conditions()).contains("Account linking and email trust"));
+        var scim = option.facts().get(ProviderCatalog.Capability.SCIM);
+        var conditions = String.join(" ", scim.conditions());
+        assertTrue(conditions.contains("Preview"));
+        assertTrue(conditions.contains("Free-plan access"));
+        assertTrue(conditions.contains("UNKNOWN is not UNAVAILABLE"));
+        if (upstream.equals("okta")) {
+            assertEquals("/docs/guides/integrate/scim-okta-guide", scim.evidence().sourceUrl().getPath());
+            assertTrue(conditions.contains("existing SAML integration"));
+            assertTrue(conditions.contains("does not validate this selected generic OIDC pairing"));
+        } else {
+            assertEquals("/docs/apis/scim2", scim.evidence().sourceUrl().getPath());
+            assertTrue(conditions.contains("do not inherit Auth0-specific oid/objectId/externalId mapping"));
+            assertTrue(String.join(" ", option.facts().get(ProviderCatalog.Capability.ENTERPRISE_SSO).conditions())
+                    .contains("fixed workforce Tenant ID"));
+        }
+        var groups = option.facts().get(ProviderCatalog.Capability.GROUP_SYNC);
+        assertTrue(String.join(" ", groups.conditions()).contains("native inbound SCIM Group"));
+        assertTrue(String.join(" ", groups.conditions()).contains("Do not generalize"));
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(4, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        var generic = mapper.readValue(resource("catalog/baselines/scoped/zitadel-cloud-free.v1.json"), ProviderCatalogDraft.class);
+        assertFalse(generic.options().getFirst().facts().containsKey(ProviderCatalog.Capability.JIT));
+        var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "zitadel-generic-and-" + upstream + "-test", List.of(generic.options().getFirst(), option));
+        var combinedReport = validator.validateAt(combined, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, combinedReport.status());
+        assertEquals(2, combinedReport.optionCount());
+        assertEquals(8, combinedReport.factCount());
+        assertUntrusted(combinedReport);
+        assertNotEquals(validator.validate(generic).contentSha256(), combinedReport.contentSha256());
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+    }
+
     private void assertUntrusted(CatalogDraftValidation report) {
         assertFalse(report.sourceVerificationPerformed());
         assertFalse(report.approvalGranted());

@@ -149,6 +149,40 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free", upstreamProviderId: "entra-id-workforce" },
   },
+  {
+    file: "zitadel-cloud-free-upstream-okta.v1.json",
+    catalogVersion: "zitadel-cloud-free-upstream-okta-draft-2026.10.03",
+    scope: {
+      id: "zitadel-cloud-free-upstream-okta-workforce", providerId: "zitadel", product: "ZITADEL Cloud", deployment: "MANAGED",
+      plan: "Free; upstream workforce entitlement unverified",
+      region: "No tenant regions selected; storage destinations not verified",
+      configuration: "Org-scoped generic OIDC to Okta; explicit JIT create/update; native inbound SCIM User only; no group or SaaS bridge",
+    },
+    facts: {
+      ENTERPRISE_SSO: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/integrate/identity-providers/okta-oidc" },
+      JIT: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/integrate/identity-providers/introduction" },
+      SCIM: { availability: "UNKNOWN", sourceUrl: "https://zitadel.com/docs/guides/integrate/scim-okta-guide" },
+      GROUP_SYNC: { availability: "UNAVAILABLE", sourceUrl: "https://zitadel.com/docs/guides/manage/user/scim2" },
+    },
+    metadata: { basis: "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free", upstreamProviderId: "okta-workforce" },
+  },
+  {
+    file: "zitadel-cloud-free-upstream-entra.v1.json",
+    catalogVersion: "zitadel-cloud-free-upstream-entra-draft-2026.10.03",
+    scope: {
+      id: "zitadel-cloud-free-upstream-entra-workforce", providerId: "zitadel", product: "ZITADEL Cloud", deployment: "MANAGED",
+      plan: "Free; upstream workforce entitlement unverified",
+      region: "No tenant regions selected; storage destinations not verified",
+      configuration: "Org-scoped Entra OIDC, fixed workforce tenant; JIT create/update; native SCIM User only; no group or SaaS bridge",
+    },
+    facts: {
+      ENTERPRISE_SSO: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/integrate/identity-providers/azure-ad-oidc" },
+      JIT: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/integrate/identity-providers/introduction" },
+      SCIM: { availability: "UNKNOWN", sourceUrl: "https://zitadel.com/docs/apis/scim2" },
+      GROUP_SYNC: { availability: "UNAVAILABLE", sourceUrl: "https://zitadel.com/docs/guides/manage/user/scim2" },
+    },
+    metadata: { basis: "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free", upstreamProviderId: "entra-id-workforce" },
+  },
 ]);
 
 function requireCondition(condition, message) {

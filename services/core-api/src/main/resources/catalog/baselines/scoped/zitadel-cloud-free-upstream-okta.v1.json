@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-cloud-free-upstream-okta-draft-2026.10.03",
+  "options": [{
+    "id": "zitadel-cloud-free-upstream-okta-workforce",
+    "providerId": "zitadel",
+    "product": "ZITADEL Cloud",
+    "plan": "Free; upstream workforce entitlement unverified",
+    "deployment": "MANAGED",
+    "region": "No tenant regions selected; storage destinations not verified",
+    "configuration": "Org-scoped generic OIDC to Okta; explicit JIT create/update; native inbound SCIM User only; no group or SaaS bridge",
+    "facts": {
+      "ENTERPRISE_SSO": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Configure a generic OIDC provider with an Okta Web app, issuer, callback and client credentials; activate it for the organization and allow external login with explicit organization targeting.",
+          "The Free offer at https://zitadel.com/pricing has quotas; Cloud and upstream Okta entitlements are unverified, not a zero-cost guarantee.",
+          "This is an org-scoped upstream login proposal, not instance-wide defaults, downstream application compatibility or AuthWeave's configured authentication."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/integrate/identity-providers/okta-oidc",
+          "observedAt": "2026-10-03T00:27:18Z",
+          "summary": "The Okta guide uses ZITADEL's generic OIDC template and explicit provider activation. No tenant pairing was configured or tested."
+        }
+      },
+      "JIT": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Explicitly select automatic creation and automatic update for this org-scoped provider; creation and profile updates occur at login, not through background provisioning.",
+          "Account linking and email trust require a separate reviewed policy; login-time JIT is not SCIM deactivation or SaaS session revocation."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/integrate/identity-providers/introduction",
+          "observedAt": "2026-10-03T00:27:18Z",
+          "summary": "Provider settings describe optional automatic user creation and profile updates at login. They do not establish lifecycle synchronization."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "The Okta SCIM guide assumes an existing SAML integration; it does not validate this selected generic OIDC pairing. UNKNOWN is not UNAVAILABLE.",
+          "The Preview API at https://zitadel.com/docs/apis/scim2 does not verify Free-plan access, deployed Cloud version or upstream provisioning entitlement.",
+          "Service-account authorization, identity correlation and deactivation must be tested separately; inbound users in ZITADEL do not enforce consuming-SaaS permissions or sessions."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/integrate/scim-okta-guide",
+          "observedAt": "2026-10-03T00:27:18Z",
+          "summary": "The provisioning instructions target a SAML app. This is evidence of a configuration boundary, not proof of SCIM support for the untested OIDC pair."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNAVAILABLE",
+        "conditions": [
+          "Limited to native inbound SCIM Group provisioning: the User-only interface excludes Group resources, and no external bridge is selected.",
+          "Do not generalize to other APIs or extensions; login claims and user metadata are not synchronized SaaS group membership."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/manage/user/scim2",
+          "observedAt": "2026-10-03T00:27:18Z",
+          "summary": "The SCIM guide excludes Groups from the native User interface. The proposed absence is limited to this interface, not all ZITADEL integrations."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}
