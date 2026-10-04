@@ -289,6 +289,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     AssessmentList: overview.AssessmentList,
     SavedRequirementsExport: overview.SavedRequirementsExport,
     CapabilityEditor: overview.CapabilityEditor,
+    EvaluationContextEditor: overview.EvaluationContextEditor,
   };
   const shimSource = `import { createElement } from ${JSON.stringify(import.meta.resolve("react"))};
     const state = globalThis[${JSON.stringify(slot)}];
@@ -305,7 +306,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const readPersonalArchitecturePatterns = async () => null;
     export const readPersonalUsagePlanning = async () => null;
     export const readPersonalAuditability = (...args) => state.read(...args);
-    export const WeightedPreviewForm = () => null, EvaluationContextEditor = () => null,
+    export const WeightedPreviewForm = () => null,
       ArchitecturePatterns = () => null, UsagePlanningEditor = () => null, UsagePlanningPreflight = () => null,
       AuditabilityEditor = () => null;
     export const AssessmentWorkflow = ({ initialStep, panels }) => createElement('section', { 'data-step': initialStep }, panels[initialStep]);
@@ -315,6 +316,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const AssessmentList = state.AssessmentList;
     export const SavedRequirementsExport = state.SavedRequirementsExport;
     export const CapabilityEditor = state.CapabilityEditor;
+    export const EvaluationContextEditor = state.EvaluationContextEditor;
     export const AuditabilityPreflight = state.AuditabilityPreflight, AuditabilityPreflightUnavailable = state.AuditabilityPreflightUnavailable;`;
   const shim = `data:text/javascript;base64,${Buffer.from(shimSource).toString("base64")}`;
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
@@ -383,22 +385,36 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     const unreadableRequirements = renderToStaticMarkup(await page.default(requirementsProps));
     assert.ok(unreadableRequirements.includes("Requirement editing is unavailable"));
     assert.ok(!unreadableRequirements.includes("Save capability requirements"));
+    const contextProps = { ...props, searchParams: Promise.resolve({ step: "context" }) };
+    const unreadableContext = renderToStaticMarkup(await page.default(contextProps));
+    assert.ok(unreadableContext.includes("Context editing is unavailable"));
+    assert.ok(!unreadableContext.includes("Save application context"));
     Object.assign(assessment, { profile: savedRequirementsFixture() });
     const requirements = renderToStaticMarkup(await page.default(requirementsProps));
     assert.ok(requirements.includes("How to choose a requirement level"));
     assert.ok(requirements.includes(`action="/api/assessments/${id}/capabilities"`));
     assert.ok(requirements.includes('name="expectedVersion" value="2"'));
+    const context = renderToStaticMarkup(await page.default(contextProps));
+    assert.ok(context.includes("Protect sign-in and sensitive actions"));
+    assert.ok(context.includes("Compliance scope to investigate"));
+    assert.ok(context.includes(`action="/api/assessments/${id}/evaluation-context"`));
+    assert.ok(context.includes('name="expectedVersion" value="2"'));
     Object.assign(assessment, { status: "ARCHIVED" });
     const readOnlyRequirements = renderToStaticMarkup(await page.default(requirementsProps));
     assert.ok(readOnlyRequirements.includes("This assessment is read-only"));
     assert.ok(!readOnlyRequirements.includes("Save capability requirements"));
     assert.ok(!readOnlyRequirements.includes("<select"));
+    const readOnlyContext = renderToStaticMarkup(await page.default(contextProps));
+    assert.ok(readOnlyContext.includes("This assessment is read-only"));
+    assert.ok(!readOnlyContext.includes("Save application context"));
+    assert.ok(!readOnlyContext.includes("<select"));
     state.live = false; const count = state.reads;
     await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count);
     const listReads = state.listReads;
     await assert.rejects(listPage.default({ searchParams: Promise.resolve({ before: id }) }), /redirect-account/);
     assert.equal(state.listReads, listReads);
     await assert.rejects(page.default(reviewProps), /redirect-account/); assert.equal(state.reads, count);
+    await assert.rejects(page.default(contextProps), /redirect-account/); assert.equal(state.reads, count);
     await assert.rejects(page.default({ ...props, searchParams: Promise.resolve({ step: "comparison" }) }), /redirect-account/);
     assert.equal(state.reads, count);
   } finally {

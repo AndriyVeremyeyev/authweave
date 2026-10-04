@@ -245,6 +245,15 @@ change answers or save the draft. Concept references link to standards or offici
 documentation; they are not evidence of a provider's support, plan or pricing.
 The existing explicit-save and version-conflict behavior is unchanged.
 
+Context groups application/audience, at-rest storage, authentication controls and
+compliance scope separately. Five security fields have expandable examples, limits
+and team questions. Security-level help reflects the existing partial policies:
+forbidden needs clarification here, rather than implying weaker authentication or
+a country denylist. Compliance help distinguishes the three scope states and six
+target labels, with official concept references. These labels are not a legal
+applicability decision, certification or proof of provider compliance. No answers,
+controls or evidence are inferred, and the same scoped Save form is preserved.
+
 The protected `/assessments` list identifies saved drafts by application type, users
 and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown
 and empty selections stay unrecorded; Other needs definition. An unreadable stored
