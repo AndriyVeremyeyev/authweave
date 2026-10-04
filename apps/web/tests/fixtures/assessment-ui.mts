@@ -96,5 +96,9 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/context-guidance"', JSON.stringify(new URL("../../src/lib/assessment/context-guidance.ts", import.meta.url).href))));
-  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor };
+  const auditEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/auditability-editor.tsx"))
+    .replaceAll('"@/lib/assessment/auditability"', JSON.stringify(new URL("../../src/lib/assessment/auditability.ts", import.meta.url).href))
+    .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
+    .replaceAll('"@/lib/assessment/audit-guidance"', JSON.stringify(new URL("../../src/lib/assessment/audit-guidance.ts", import.meta.url).href))));
+  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor };
 }

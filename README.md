@@ -254,6 +254,15 @@ target labels, with official concept references. These labels are not a legal
 applicability decision, certification or proof of provider compliance. No answers,
 controls or evidence are inferred, and the same scoped Save form is preserved.
 
+Audit separates provider-side event scope from export and retention requirements.
+Each of its six criteria has expandable examples, limits and team questions; the
+shared-level help describes the separate partial auditability policy. Retention
+help distinguishes the requested provider minimum from a configurable maximum,
+source age and an external sink's duration. Illustrative numbers do not fill the
+input. Concept references are not a compliance baseline or provider evidence.
+The existing six selections, conditional duration, explicit Save and version
+checks remain unchanged; opening help neither selects criteria nor saves a draft.
+
 The protected `/assessments` list identifies saved drafts by application type, users
 and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown
 and empty selections stay unrecorded; Other needs definition. An unreadable stored

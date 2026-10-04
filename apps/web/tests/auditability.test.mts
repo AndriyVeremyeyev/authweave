@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import ts from "typescript";
+import { assessmentUiComponents } from "./fixtures/assessment-ui.mts";
 import { auditCriteria, auditabilityValues, InvalidAuditabilityForm, maximumRetentionDays,
   parseAuditabilityForm, withAuditabilityValues } from "../src/lib/assessment/auditability.ts";
 
@@ -85,14 +85,7 @@ test("auditability reads fail closed on missing, future or contradictory Core sh
 });
 
 test("auditability form renders labelled criteria, disabled unknown duration and explicit limits", async () => {
-  const source = await readFile(new URL("../src/app/assessments/[id]/auditability-editor.tsx", import.meta.url), "utf8");
-  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext,
-    jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
-    .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
-    .replaceAll('"react"', JSON.stringify(import.meta.resolve("react")))
-    .replaceAll('"@/lib/assessment/auditability"', JSON.stringify(new URL("../src/lib/assessment/auditability.ts", import.meta.url).href))
-    .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../src/lib/assessment/capabilities.ts", import.meta.url).href));
-  const component = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+  const component = await assessmentUiComponents();
   const render = (values: ReturnType<typeof auditabilityValues>) => renderToStaticMarkup(createElement(component.AuditabilityEditor,
     { assessmentId: "80000000-0000-4000-8000-000000000001", version: 2, values }));
   const empty = render(unknown);

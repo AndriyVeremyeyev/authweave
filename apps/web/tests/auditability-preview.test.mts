@@ -290,6 +290,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     SavedRequirementsExport: overview.SavedRequirementsExport,
     CapabilityEditor: overview.CapabilityEditor,
     EvaluationContextEditor: overview.EvaluationContextEditor,
+    AuditabilityEditor: overview.AuditabilityEditor,
   };
   const shimSource = `import { createElement } from ${JSON.stringify(import.meta.resolve("react"))};
     const state = globalThis[${JSON.stringify(slot)}];
@@ -307,8 +308,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const readPersonalUsagePlanning = async () => null;
     export const readPersonalAuditability = (...args) => state.read(...args);
     export const WeightedPreviewForm = () => null,
-      ArchitecturePatterns = () => null, UsagePlanningEditor = () => null, UsagePlanningPreflight = () => null,
-      AuditabilityEditor = () => null;
+      ArchitecturePatterns = () => null, UsagePlanningEditor = () => null, UsagePlanningPreflight = () => null;
     export const AssessmentWorkflow = ({ initialStep, panels }) => createElement('section', { 'data-step': initialStep }, panels[initialStep]);
     export const SavedRequirementsOverview = state.SavedRequirementsOverview;
     export const ComparisonSection = state.ComparisonSection;
@@ -317,6 +317,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const SavedRequirementsExport = state.SavedRequirementsExport;
     export const CapabilityEditor = state.CapabilityEditor;
     export const EvaluationContextEditor = state.EvaluationContextEditor;
+    export const AuditabilityEditor = state.AuditabilityEditor;
     export const AuditabilityPreflight = state.AuditabilityPreflight, AuditabilityPreflightUnavailable = state.AuditabilityPreflightUnavailable;`;
   const shim = `data:text/javascript;base64,${Buffer.from(shimSource).toString("base64")}`;
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
@@ -337,6 +338,9 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     const props = { params: Promise.resolve({ id }), searchParams: Promise.resolve({ step: "auditability" }) };
     const html = renderToStaticMarkup(await page.default(props));
     assert.ok(html.includes("Identity auditability capability preview")); assert.equal(state.reads, 1);
+    assert.ok(html.includes("Identity events to investigate"));
+    assert.ok(html.includes(`action="/api/assessments/${id}/auditability"`));
+    assert.ok(html.includes('name="expectedVersion" value="2"'));
     assert.ok(html.includes('aria-label="Saved application context"')); assert.ok(html.includes("Saved context cannot be read safely"));
     const invalidIds = ["80000000-0000-4000-000000000001", "../other", "not-a-uuid", "80000000-0000-4000-8000-00000000000G"];
     for (const invalid of invalidIds) {
@@ -389,6 +393,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     const unreadableContext = renderToStaticMarkup(await page.default(contextProps));
     assert.ok(unreadableContext.includes("Context editing is unavailable"));
     assert.ok(!unreadableContext.includes("Save application context"));
+    Object.assign(assessment, { profile: { security: { auditability: "REQUIRED" } } });
+    const unreadableAudit = renderToStaticMarkup(await page.default(props));
+    assert.ok(unreadableAudit.includes("Audit editing is unavailable"));
+    assert.ok(!unreadableAudit.includes("Save auditability requirements"));
     Object.assign(assessment, { profile: savedRequirementsFixture() });
     const requirements = renderToStaticMarkup(await page.default(requirementsProps));
     assert.ok(requirements.includes("How to choose a requirement level"));
@@ -408,6 +416,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(readOnlyContext.includes("This assessment is read-only"));
     assert.ok(!readOnlyContext.includes("Save application context"));
     assert.ok(!readOnlyContext.includes("<select"));
+    const readOnlyAudit = renderToStaticMarkup(await page.default(props));
+    assert.ok(readOnlyAudit.includes("This assessment is read-only"));
+    assert.ok(!readOnlyAudit.includes("Save auditability requirements"));
+    assert.ok(!readOnlyAudit.includes("<form"));
     state.live = false; const count = state.reads;
     await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count);
     const listReads = state.listReads;
