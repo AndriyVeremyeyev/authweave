@@ -100,8 +100,12 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/auditability"', JSON.stringify(new URL("../../src/lib/assessment/auditability.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/audit-guidance"', JSON.stringify(new URL("../../src/lib/assessment/audit-guidance.ts", import.meta.url).href))));
+  const usageFormUrl = moduleUrl((await compile("../../src/app/assessments/[id]/usage-planning-form.tsx"))
+    .replaceAll('"@/lib/assessment/usage-form-validation"', JSON.stringify(new URL("../../src/lib/assessment/usage-form-validation.ts", import.meta.url).href)));
+  const usageForm = await import(usageFormUrl);
   const usageEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/usage-planning-editor.tsx"))
+    .replaceAll('"./usage-planning-form"', JSON.stringify(usageFormUrl))
     .replaceAll('"@/lib/assessment/usage-planning"', JSON.stringify(new URL("../../src/lib/assessment/usage-planning.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/usage-guidance"', JSON.stringify(new URL("../../src/lib/assessment/usage-guidance.ts", import.meta.url).href))));
-  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor };
+  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm };
 }

@@ -119,8 +119,8 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
           if (!editable || !step.input) return;
           dirty.current = true;
           dispatch({ type: "edit" });
-        }} onSubmitCapture={() => {
-          if (!step.input) return;
+        }} onSubmit={event => {
+          if (!step.input || event.defaultPrevented) return;
           dirty.current = false;
           dispatch({ type: "submit" });
         }}>

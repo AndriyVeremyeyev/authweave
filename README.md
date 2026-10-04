@@ -272,6 +272,14 @@ saves. These definitions are not provider billing units, verified measurements,
 capacity results or a cost estimate. The existing four pairs, ten assumption fields,
 explicit Save and saved-version input check remain unchanged.
 
+Usage also checks the existing form rules before a JavaScript-enabled native POST.
+An Unknown/value mismatch, a missing Assumed/Observed number or an invalid assumption
+stays on the same page with fixed feedback and links to the affected fields. Nothing
+is sent or automatically corrected; edits and the unsaved-navigation guard remain.
+The small client form wrapper receives server-rendered controls and keeps the same
+POST route and payload. The server still validates every submission independently;
+client feedback is not a security check, a successful-save receipt or input readiness.
+
 The protected `/assessments` list identifies saved drafts by application type, users
 and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown
 and empty selections stay unrecorded; Other needs definition. An unreadable stored

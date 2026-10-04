@@ -1,5 +1,6 @@
 import { usageMetrics, type UsagePlanningValues } from "@/lib/assessment/usage-planning";
 import { usageAssumptionGuidance, usageBasisGuidance, usageGuidance, usageScopeGuidance } from "@/lib/assessment/usage-guidance";
+import { UsagePlanningForm } from "./usage-planning-form";
 
 export function UsagePlanningEditor({ assessmentId, version, values }: {
   assessmentId: string; version: number; values: UsagePlanningValues;
@@ -9,7 +10,7 @@ export function UsagePlanningEditor({ assessmentId, version, values }: {
       <h2 id="usage-heading" className="text-2xl font-semibold">Usage planning inputs</h2>
       <p className="mt-3 text-sm leading-6 text-slate-300">Record a specific environment and time horizon before comparing costs. These are your planning inputs, not verified usage or provider billing units. No price is calculated here.</p>
       <p className="mt-2 text-sm leading-6 text-slate-400">Examples explain AuthWeave&apos;s four planning units. They do not fill answers, look up tariffs or promise a free tier.</p>
-      <form action={`/api/assessments/${assessmentId}/usage-planning`} method="post" className="mt-6 space-y-6">
+      <UsagePlanningForm action={`/api/assessments/${assessmentId}/usage-planning`}>
         <input type="hidden" name="expectedVersion" value={version} />
         <section aria-labelledby="usage-scope-heading" className="rounded-xl border border-white/10 p-4 sm:p-5">
           <h3 id="usage-scope-heading" className="text-lg font-semibold">Set the environment and planning horizon</h3>
@@ -105,7 +106,7 @@ export function UsagePlanningEditor({ assessmentId, version, values }: {
         <button type="submit" className="rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">
           Save usage inputs
         </button>
-      </form>
+      </UsagePlanningForm>
     </section>
   );
 }

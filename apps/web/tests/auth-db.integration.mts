@@ -1401,6 +1401,22 @@ test("usage planning route preserves the personal session and writes only scoped
     invalidNumber.set("value_MONTHLY_ACTIVE_USERS", "9007199254740992");
     assert.equal((await usagePlanningRoute(request("http://localhost:3000", sessionId,
       invalidNumber.toString()), context)).status, 400);
+    // Bypassing browser feedback still fails before any Core read or write.
+    const unknownWithNumber = new URLSearchParams(form);
+    unknownWithNumber.set("basis_MONTHLY_ACTIVE_USERS", "UNKNOWN");
+    const assumedWithoutNumber = new URLSearchParams(form);
+    assumedWithoutNumber.set("value_MONTHLY_ACTIVE_USERS", "");
+    const duplicateAssumptions = new URLSearchParams(form);
+    duplicateAssumptions.delete("assumption");
+    for (let index = 0; index < 10; index++) duplicateAssumptions.append("assumption", index < 2 ? "Launch forecast" : "");
+    const whitespaceAssumption = new URLSearchParams(form);
+    whitespaceAssumption.delete("assumption");
+    for (let index = 0; index < 10; index++) whitespaceAssumption.append("assumption", index === 0 ? " \n " : "");
+    for (const invalid of [unknownWithNumber, assumedWithoutNumber, duplicateAssumptions, whitespaceAssumption]) {
+      const rejected = await usagePlanningRoute(request("http://localhost:3000", sessionId, invalid.toString()), context);
+      assert.equal(rejected.status, 400); assert.equal(rejected.headers.get("cache-control"), "no-store");
+      assert.equal(calls.length, 0);
+    }
     assert.equal(calls.length, 0);
     const saved = await usagePlanningRoute(request("http://localhost:3000", sessionId), context);
     assert.equal(saved.status, 303);
