@@ -291,6 +291,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     CapabilityEditor: overview.CapabilityEditor,
     EvaluationContextEditor: overview.EvaluationContextEditor,
     AuditabilityEditor: overview.AuditabilityEditor,
+    UsagePlanningEditor: overview.UsagePlanningEditor,
   };
   const shimSource = `import { createElement } from ${JSON.stringify(import.meta.resolve("react"))};
     const state = globalThis[${JSON.stringify(slot)}];
@@ -308,7 +309,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const readPersonalUsagePlanning = async () => null;
     export const readPersonalAuditability = (...args) => state.read(...args);
     export const WeightedPreviewForm = () => null,
-      ArchitecturePatterns = () => null, UsagePlanningEditor = () => null, UsagePlanningPreflight = () => null;
+      ArchitecturePatterns = () => null, UsagePlanningPreflight = () => null;
     export const AssessmentWorkflow = ({ initialStep, panels }) => createElement('section', { 'data-step': initialStep }, panels[initialStep]);
     export const SavedRequirementsOverview = state.SavedRequirementsOverview;
     export const ComparisonSection = state.ComparisonSection;
@@ -318,6 +319,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const CapabilityEditor = state.CapabilityEditor;
     export const EvaluationContextEditor = state.EvaluationContextEditor;
     export const AuditabilityEditor = state.AuditabilityEditor;
+    export const UsagePlanningEditor = state.UsagePlanningEditor;
     export const AuditabilityPreflight = state.AuditabilityPreflight, AuditabilityPreflightUnavailable = state.AuditabilityPreflightUnavailable;`;
   const shim = `data:text/javascript;base64,${Buffer.from(shimSource).toString("base64")}`;
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
@@ -397,6 +399,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     const unreadableAudit = renderToStaticMarkup(await page.default(props));
     assert.ok(unreadableAudit.includes("Audit editing is unavailable"));
     assert.ok(!unreadableAudit.includes("Save auditability requirements"));
+    const usageProps = { ...props, searchParams: Promise.resolve({ step: "usage" }) };
+    const unreadableUsage = renderToStaticMarkup(await page.default(usageProps));
+    assert.ok(unreadableUsage.includes("Usage editing is unavailable"));
+    assert.ok(!unreadableUsage.includes("Save usage inputs"));
     Object.assign(assessment, { profile: savedRequirementsFixture() });
     const requirements = renderToStaticMarkup(await page.default(requirementsProps));
     assert.ok(requirements.includes("How to choose a requirement level"));
@@ -407,6 +413,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(context.includes("Compliance scope to investigate"));
     assert.ok(context.includes(`action="/api/assessments/${id}/evaluation-context"`));
     assert.ok(context.includes('name="expectedVersion" value="2"'));
+    const usage = renderToStaticMarkup(await page.default(usageProps));
+    assert.ok(usage.includes("How to choose Unknown, Assumed or Observed"));
+    assert.ok(usage.includes(`action="/api/assessments/${id}/usage-planning"`));
+    assert.ok(usage.includes('name="expectedVersion" value="2"'));
     Object.assign(assessment, { status: "ARCHIVED" });
     const readOnlyRequirements = renderToStaticMarkup(await page.default(requirementsProps));
     assert.ok(readOnlyRequirements.includes("This assessment is read-only"));
@@ -420,6 +430,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(readOnlyAudit.includes("This assessment is read-only"));
     assert.ok(!readOnlyAudit.includes("Save auditability requirements"));
     assert.ok(!readOnlyAudit.includes("<form"));
+    const readOnlyUsage = renderToStaticMarkup(await page.default(usageProps));
+    assert.ok(readOnlyUsage.includes("This assessment is read-only"));
+    assert.ok(!readOnlyUsage.includes("Save usage inputs"));
+    assert.ok(!readOnlyUsage.includes("<form"));
     state.live = false; const count = state.reads;
     await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count);
     const listReads = state.listReads;
@@ -427,6 +441,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.equal(state.listReads, listReads);
     await assert.rejects(page.default(reviewProps), /redirect-account/); assert.equal(state.reads, count);
     await assert.rejects(page.default(contextProps), /redirect-account/); assert.equal(state.reads, count);
+    await assert.rejects(page.default(usageProps), /redirect-account/); assert.equal(state.reads, count);
     await assert.rejects(page.default({ ...props, searchParams: Promise.resolve({ step: "comparison" }) }), /redirect-account/);
     assert.equal(state.reads, count);
   } finally {

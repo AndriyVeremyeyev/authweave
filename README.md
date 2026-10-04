@@ -263,6 +263,15 @@ input. Concept references are not a compliance baseline or provider evidence.
 The existing six selections, conditional duration, explicit Save and version
 checks remain unchanged; opening help neither selects criteria nor saves a draft.
 
+Usage shows the four project planning units beside uniquely labelled inputs, with
+examples, limits and team questions for each metric. Scope and basis help separate
+monthly volumes, configured inventory and a one-second peak, as well as Unknown,
+Assumed and owner-stated Observed values. Unknown requires a blank value; an
+explicit zero stays zero. Assumption examples do not fill fields or prevent partial
+saves. These definitions are not provider billing units, verified measurements,
+capacity results or a cost estimate. The existing four pairs, ten assumption fields,
+explicit Save and saved-version input check remain unchanged.
+
 The protected `/assessments` list identifies saved drafts by application type, users
 and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown
 and empty selections stay unrecorded; Other needs definition. An unreadable stored
