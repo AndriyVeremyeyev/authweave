@@ -280,6 +280,17 @@ The small client form wrapper receives server-rendered controls and keeps the sa
 POST route and payload. The server still validates every submission independently;
 client feedback is not a security check, a successful-save receipt or input readiness.
 
+Context and Audit use the same local error summary with links to the existing fields
+when their existing parsers refuse a payload. Country-list syntax, repeated codes and
+length/count limits point to the country input. Missing or noncanonical retention
+points to its duration input; an orphan duration points to the Log retention checkbox
+instead of a disabled field. Messages
+never echo or correct the supplied values. Existing parsers decide whether the form
+can be sent; country membership and domain policy are still checked by Core. Native
+Context format/length and Audit number/range/required checks remain enabled. Empty
+selections and explicit clear do not acquire new requirements. Following a field link or correcting an input
+does not save or release the unsaved-navigation guard.
+
 Within the guided workspace, Context, Requirements, Audit and Usage share one form
 save boundary and opt into a small same-origin JSON acknowledgement on their existing
 POST routes. The response binds only the assessment ID, submitted

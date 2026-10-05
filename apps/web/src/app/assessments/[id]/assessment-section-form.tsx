@@ -3,13 +3,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { postProfileSection, profileReloadPath, profileSaveFeedback, profileSaveSections, profileFormIssues,
   type ProfileSaveResult, type ProfileSection } from "@/lib/assessment/profile-save";
-import type { UsageFormIssue } from "@/lib/assessment/usage-form-validation";
+import type { SectionFormIssue } from "@/lib/assessment/section-form-validation";
 import { useAssessmentSave } from "./assessment-workflow";
 
 export function AssessmentSectionForm({ section, action, children }: {
   section: ProfileSection; action: string; children: ReactNode;
 }) {
-  const [issues, setIssues] = useState<UsageFormIssue[]>([]);
+  const [issues, setIssues] = useState<SectionFormIssue[]>([]);
   const [result, setResult] = useState<Exclude<ProfileSaveResult, "saved"> | null>(null);
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);

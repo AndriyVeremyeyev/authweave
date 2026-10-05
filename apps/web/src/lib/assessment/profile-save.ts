@@ -3,7 +3,8 @@ import { parseUsagePlanningForm } from "./usage-planning.ts";
 import { parseEvaluationContextForm } from "./evaluation-context.ts";
 import { parseCapabilityForm } from "./capabilities.ts";
 import { parseAuditabilityForm } from "./auditability.ts";
-import { usagePlanningFormIssues, type UsageFormIssue } from "./usage-form-validation.ts";
+import { usagePlanningFormIssues } from "./usage-form-validation.ts";
+import { evaluationContextFormIssues, auditabilityFormIssues, type SectionFormIssue } from "./section-form-validation.ts";
 
 export const profileSaveSections = {
   context: { route: "evaluation-context", label: "Context", save: "Save application context", parse: parseEvaluationContextForm },
@@ -27,8 +28,10 @@ export function profileReloadPath(section: ProfileSection, action: string): stri
   return id ? `/assessments/${id}?step=${section}` : null;
 }
 
-export function profileFormIssues(section: ProfileSection, params: URLSearchParams): UsageFormIssue[] {
+export function profileFormIssues(section: ProfileSection, params: URLSearchParams): SectionFormIssue[] {
   if (section === "usage") return usagePlanningFormIssues(params);
+  if (section === "context") return evaluationContextFormIssues(params);
+  if (section === "auditability") return auditabilityFormIssues(params);
   try { profileSaveSections[section].parse(params); return []; }
   catch { return [{ fieldId: null, message: "Check this section's selections and values. Nothing was sent or automatically corrected." }]; }
 }

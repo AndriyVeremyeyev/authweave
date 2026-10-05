@@ -125,6 +125,37 @@ test("all four real section form handlers retain conflict edits, block duplicate
       memory.cursor=0; memory.refCursor=0;
       assert.ok(renderToStaticMarkup(AssessmentSectionForm({section,action,children:"Fields"})).includes("Nothing was sent"));
     }
+    for (const [section, key, invalid, fieldId] of [
+      ["context", "allowedCountries", "US, US", "context-allowedCountries"],
+      ["auditability", "minimumRetentionDays", "030", "audit-retention-days"],
+    ] as const) {
+      params=profileFormFixture(section); const valid=params.toString(); params.set(key,invalid);
+      const before=params.toString(); let calls=0, focus=0, releases=0;
+      const busy: boolean[]=[];
+      const memory={cursor:0,refCursor:0,states:[] as unknown[],refs:[] as unknown[],
+        lifecycle:{setSaving:(value:boolean)=>busy.push(value),allowReload:()=>{releases++;}},
+        save:async()=>{calls++; assert.equal(params.toString(),valid); return "invalid";}};
+      globals[slot]=memory;
+      const render=()=>{memory.cursor=0;memory.refCursor=0;return AssessmentSectionForm({
+        section,action:profileSectionAction(section),children:"Unchanged fields"});};
+      const event={currentTarget:{isConnected:true},prevented:false,preventDefault(){this.prevented=true;}};
+      await render().props.onSubmit(event);
+      assert.equal(event.prevented,true);assert.equal(calls,0);assert.equal(releases,0);assert.deepEqual(busy,[]);
+      assert.equal(params.toString(),before);
+      let form=render();assert.ok(renderToStaticMarkup(form).includes("Nothing was sent"));
+      const link=elements(form).find(node=>node.type==="a" && node.props.href===`#${fieldId}`)!;
+      assert.ok(link);let prevented=false;
+      const field={focus(){focus++;},closest(selector:string){assert.equal(selector,"details");return null;}};
+      const ownerForm={querySelector(selector:string){assert.equal(selector,`#${fieldId}`);return field;}};
+      (link.props.onClick as (event:unknown)=>void)({preventDefault(){prevented=true;},
+        currentTarget:{closest(selector:string){assert.equal(selector,"form");return ownerForm;}}});
+      assert.equal(prevented,true);assert.equal(focus,1);assert.equal(calls,0);assert.equal(releases,0);
+      params=new URLSearchParams(valid);form.props.onChange();form=render();
+      assert.equal(renderToStaticMarkup(form).includes('role="alert"'),false);
+      assert.equal(calls,0); // Editing and following a field link never submit.
+      await form.props.onSubmit({...event,prevented:false});
+      assert.equal(calls,1);assert.equal(releases,0);assert.deepEqual(busy,[true,false]);
+    }
   } finally {
     Reflect.deleteProperty(globals, slot);
     if (originalFormData) Object.defineProperty(globalThis, "FormData", originalFormData);
