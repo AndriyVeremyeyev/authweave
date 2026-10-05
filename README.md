@@ -565,7 +565,7 @@ enforcement, removal/access rechecks and transport-specific operations. All omit
 conditions remain unknown, hard failures retain every gap, and even all-met answers
 are only a conditional design hypothesis. Every verification, write and readiness
 flag stays false. V1, saved profiles, history, eligibility and publication gates are
-unchanged; the existing personal BFF/UI still uses v1. V2 does not inspect an IdP or
+unchanged; the personal BFF/UI now uses v2, while the v1 route remains available. V2 does not inspect an IdP or
 execute a provisioning, group, logout or revocation operation.
 
 The personal assessment's Architecture step now shows all three alternatives with
@@ -575,10 +575,14 @@ Changing an answer clears its result, and leaving the step or reloading discards
 temporary answers. Each form permits one in-flight request, explicit cancellation
 and a ten-second deadline; canceled or late replies cannot restore stale results.
 Every requirement and condition remains visible, including unknown gaps after a
-hard mismatch. Required/forbidden group delivery and actual access revocation are
-not established by these declarations.
+hard mismatch. Each form also explains four explicit group strategies and their
+advantages and limits: unknown, no synchronization, SCIM Groups or an application-owned
+bridge. Changing the strategy clears the result and resets its group conditions to
+unknown; account lifecycle answers are retained. Account disablement, application
+sessions and token revocation/expiry have separate conditions. Group delivery and
+actual access revocation are not established by these declarations.
 
-Same-origin POST `/api/assessments/{id}/provisioning-lifecycle` requires a live
+Same-origin POST `/api/assessments/{id}/provisioning-lifecycle-v2` requires a live
 database-backed browser session. It rejects query parameters, duplicate form fields,
 foreign conditions and caller-supplied requirements. The BFF reads the canonical v6
 assessment, binds its version and saved criticalities, then sends only the typed
@@ -587,7 +591,9 @@ Bounded response guards independently replay every check and status, require the
 exact educational inventory and reject promoted readiness or verification flags.
 The browser receives only a checked version-bound analysis, not credentials or raw
 upstream errors. Stale versions require reload; session and transport failures use
-fixed safe messages. Existing assessment, history and publication gates are unchanged.
+fixed safe messages. The v1 BFF route remains available for its unchanged v1 design
+contract; the UI does not silently fall back to it. Existing assessment, history and
+publication gates are unchanged.
 
 Concept sources are [SCIM operations](https://www.rfc-editor.org/rfc/rfc7644.html),
 [SCIM User and Group schemas](https://www.rfc-editor.org/rfc/rfc7643.html), and a

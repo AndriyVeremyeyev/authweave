@@ -11,6 +11,10 @@ import { prerequisiteAssessmentId, prerequisiteWorkspaceId, prerequisiteFixture,
   prerequisiteProfile } from "./fixtures/architecture-prerequisites.mts";
 import { POST as lifecyclePreviewRoute } from "../src/app/api/assessments/[id]/provisioning-lifecycle/route.ts";
 import { lifecycleFixture, lifecycleInput, lifecycleRequirements } from "./fixtures/provisioning-lifecycle.mts";
+import { POST as lifecycleV2PreviewRoute } from "../src/app/api/assessments/[id]/provisioning-lifecycle-v2/route.ts";
+import { lifecycleV2Fixture } from "./fixtures/provisioning-lifecycle-v2.mts";
+import { lifecycleV2Conditions, parseLifecycleV2Form, type LifecycleGroupStrategy } from "../src/lib/assessment/provisioning-lifecycle-v2.ts";
+import type { LifecyclePattern } from "../src/lib/assessment/provisioning-lifecycle.ts";
 import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
@@ -566,6 +570,66 @@ test("provisioning BFF uses live DB session and origin guards, rejects query/sco
       assert.equal(failed.status, [400, 404, 409].includes(upstream) ? upstream : 503); assert.equal((await failed.text()).includes("private"), false); }
     status = 200; forged = true; assert.equal((await lifecyclePreviewRoute(request(), context)).status, 503);
     await revokeSession(sessionId); const before = calls; assert.equal((await lifecyclePreviewRoute(request(), context)).status, 401); assert.equal(calls, before);
+  } finally { await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; }
+});
+
+test("v2 provisioning BFF binds real DB sessions, saved requirements and scoped groups without exposing identity or writes", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-lifecycle-v2-token-000000000000000" });
+  const identity = { workspaceId: prerequisiteWorkspaceId, issuer: "http://localhost:8081", subject: "synthetic-lifecycle-v2-owner", email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined), context = { params: Promise.resolve({ id: prerequisiteAssessmentId }) };
+  const form = "expectedVersion=2&patternId=SCIM_PUSH&groupStrategy=UNKNOWN";
+  const request = (body = form, cookie: string | null = sessionId, origin = "http://localhost:3000", query = "", contentType = "application/x-www-form-urlencoded") =>
+    new NextRequest(`http://localhost:3000/api/assessments/${prerequisiteAssessmentId}/provisioning-lifecycle-v2${query}`, { method: "POST",
+      headers: { Origin: origin, "Content-Type": contentType, "X-AuthWeave-Oidc-Subject": "browser-spoof", ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}) }, body });
+  let calls = 0, version = 2, status = 200, forged = false, oversized = false;
+  const requirements = { ...lifecycleRequirements, groupSynchronization: "REQUIRED" as const };
+  globalThis.fetch = async (url, init) => {
+    calls++; const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject); assert.equal(headers["X-AuthWeave-Oidc-Issuer"], identity.issuer);
+    assert.equal(headers.Authorization, `Bearer ${process.env.AUTHWEAVE_CORE_SERVICE_TOKEN}`);
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error"); assert.ok(init?.signal instanceof AbortSignal);
+    if (init?.method === "GET") {
+      assert.equal(url, `http://127.0.0.1:8080/api/v6/workspaces/${identity.workspaceId}/assessments/${prerequisiteAssessmentId}`);
+      return Response.json({ id: prerequisiteAssessmentId, workspaceId: identity.workspaceId, status: "DRAFT", version,
+        profileSchemaVersion: 6, profile: { ...prerequisiteProfile, provisioning: requirements } });
+    }
+    assert.equal(init?.method, "POST");
+    assert.equal(url, `http://127.0.0.1:8080/api/v2/workspaces/${identity.workspaceId}/assessments/${prerequisiteAssessmentId}/provisioning-lifecycle-preview`);
+    const input = JSON.parse(String(init?.body));
+    assert.deepEqual(Object.keys(input).sort(), ["declarations", "expectedVersion", "groupStrategy", "patternId"]);
+    const raw = lifecycleV2Fixture(input, requirements); if (forged) raw.accessRevocationVerified = true;
+    return oversized ? new Response("private".repeat(5000)) : status === 200 ? Response.json(raw) : new Response("private details", { status });
+  };
+  try {
+    for (const [req, code] of [[request(form, null), 401], [request(form, sessionId, "https://other.example.invalid"), 403],
+      [request(form, sessionId, "http://localhost:3000", "?workspaceId=spoof"), 400], [request(form + "&requirements=spoof"), 400],
+      [request(form.replace("&groupStrategy=UNKNOWN", "")), 400], [request(form + "&groupStrategy=NONE"), 400],
+      [request(form + "&GROUP_SOURCE_AND_MEMBERSHIP_MAPPING=SATISFIED"), 400], [request(form + "&OFFBOARDING_AND_ACCESS_REVOCATION=SATISFIED"), 400],
+      [request(form.replace("UNKNOWN", "SCIM_GROUPS") + "&APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY=SATISFIED"), 400],
+      [request(form.replace("UNKNOWN", "APPLICATION_BRIDGE") + "&SCIM_GROUP_OPERATIONS=SATISFIED"), 400],
+      [request("x".repeat(2049)), 413], [request(form, sessionId, "http://localhost:3000", "", "application/json"), 415]] as const) {
+      const result = await lifecycleV2PreviewRoute(req, context); assert.equal(result.status, code); assert.equal(result.headers.get("cache-control"), "no-store");
+    }
+    assert.equal((await lifecycleV2PreviewRoute(request(), { params: Promise.resolve({ id: "invalid" }) })).status, 404);
+    assert.equal(calls, 0);
+    for (const patternId of ["SCIM_PUSH", "JIT_LOGIN", "SCIM_AND_JIT"] as LifecyclePattern[]) for (const groupStrategy of ["UNKNOWN", "NONE", "SCIM_GROUPS", "APPLICATION_BRIDGE"] as LifecycleGroupStrategy[]) {
+      const params = new URLSearchParams({ expectedVersion: "2", patternId, groupStrategy });
+      for (const id of lifecycleV2Conditions(patternId, groupStrategy)) params.set(id, "SATISFIED");
+      const result = await lifecycleV2PreviewRoute(request(params.toString()), context); assert.equal(result.status, 200); assert.equal(result.headers.get("cache-control"), "no-store");
+      const preview = await result.json(), expected = lifecycleV2Fixture(parseLifecycleV2Form(params), requirements);
+      assert.deepEqual(preview, { assessmentVersion: 2, analysis: expected.analysis });
+      assert.equal(JSON.stringify(preview).includes(identity.subject), false); assert.equal(Object.hasOwn(preview, "workspaceId"), false);
+    }
+    for (const upstream of [400, 404, 409, 403, 503]) { status = upstream; const failed = await lifecycleV2PreviewRoute(request(), context);
+      assert.equal(failed.status, [400, 404, 409].includes(upstream) ? upstream : 503); assert.equal((await failed.text()).includes("private"), false); }
+    status = 200; forged = true; assert.equal((await lifecycleV2PreviewRoute(request(), context)).status, 503); forged = false;
+    oversized = true; assert.equal((await lifecycleV2PreviewRoute(request(), context)).status, 503); oversized = false;
+    version = 3; const beforeVersion = calls; assert.equal((await lifecycleV2PreviewRoute(request(), context)).status, 409); assert.equal(calls, beforeVersion + 1);
+    await revokeSession(sessionId); const beforeRevoked = calls; assert.equal((await lifecycleV2PreviewRoute(request(), context)).status, 401); assert.equal(calls, beforeRevoked);
   } finally { await revokeSession(sessionId); globalThis.fetch = previousFetch;
     for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; }
 });

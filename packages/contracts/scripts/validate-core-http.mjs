@@ -9,6 +9,7 @@ import addFormats from "ajv-formats";
 import { auditabilityPreviewFromCore } from "../../../apps/web/src/lib/assessment/auditability-preview.ts";
 import { comparisonFromCore } from "../../../apps/web/src/lib/assessment/comparison.ts";
 import { lifecyclePreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle.ts";
+import { lifecycleV2PreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle-v2.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -111,6 +112,8 @@ function validateLifecycleV2(payload, name) {
   const requirements = savedProvisioning.get(JSON.stringify([payload.workspaceId, payload.assessmentId, payload.assessmentVersion]));
   assert.ok(requirements, `${name}: V2 requires an exact saved workspace/assessment/version`);
   assert.deepEqual(a.requirements, requirements);
+  const consumer = lifecycleV2PreviewFromCore(payload, { workspaceId: saved.workspaceId, assessmentId: saved.id, input, requirements });
+  assert.deepEqual(consumer.analysis, a, "Actual Core v2 responses must pass the personal BFF consumer, not only the schema.");
   const satisfied = ["REQUIRED_MECHANISM_PLANNED", "FORBIDDEN_MECHANISM_ABSENT", "DECLARED_CONDITION_SATISFIED", "GROUP_TRANSPORT_PLANNED"];
   const failed = ["REQUIRED_MECHANISM_ABSENT", "FORBIDDEN_MECHANISM_PLANNED", "DECLARED_CONDITION_NOT_SATISFIED", "SCIM_GROUPS_REQUIRE_SCIM_PATTERN"];
   const outcome = reason => satisfied.includes(reason) ? "CONDITIONALLY_SATISFIED" : failed.includes(reason) ? "CONDITIONALLY_NOT_SATISFIED"

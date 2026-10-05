@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { boundedPrerequisiteText } from "@/lib/assessment/architecture-prerequisites";
-import { lifecycleAnalysis, lifecycleByteLimit, lifecycleConditions, lifecycleDescriptions, lifecyclePatterns, parseLifecycleForm,
-  type LifecycleAnalysis, type LifecycleInput, type LifecyclePattern, type LifecyclePreview, type ProvisioningRequirements } from "@/lib/assessment/provisioning-lifecycle";
+import { lifecyclePatterns, type LifecyclePattern, type ProvisioningRequirements } from "@/lib/assessment/provisioning-lifecycle";
+import { lifecycleV2Analysis, lifecycleV2ByteLimit, lifecycleV2PatternConditions, lifecycleGroupConditions, lifecycleGroupStrategies,
+  lifecycleV2Descriptions, lifecycleOffboardingReferences, parseLifecycleV2Form, type LifecycleGroupStrategy,
+  type LifecycleV2Analysis, type LifecycleV2Input, type LifecycleV2Preview, type LifecycleV2Condition } from "@/lib/assessment/provisioning-lifecycle-v2";
 import { AssessmentStepButton } from "./assessment-workflow";
 
 export const lifecycleReasonText: Record<string, string> = {
@@ -14,8 +16,10 @@ export const lifecycleReasonText: Record<string, string> = {
   REQUIREMENT_UNKNOWN: "Saved requirement is unknown — clarify it in Requirements",
   PREFERENCE_NOT_SCORED: "Preference is not scored — not a passed check",
   NO_REQUIREMENT: "Not required — not a passed check",
-  GROUP_LIFECYCLE_UNASSESSED: "Group synchronization is required but remains unassessed",
-  GROUP_PROHIBITION_UNASSESSED: "The group synchronization prohibition remains unassessed",
+  GROUP_STRATEGY_UNKNOWN: "Group strategy is unknown — select a design or explicitly choose no synchronization",
+  GROUP_TRANSPORT_PLANNED: "Group delivery is planned — operations and enforcement unverified",
+  NO_GROUP_TRANSPORT_PLANNED: "No group delivery is planned — not a passed synchronization check",
+  SCIM_GROUPS_REQUIRE_SCIM_PATTERN: "This preview's SCIM Group option needs a SCIM user-lifecycle pattern; JIT-only does not match this option",
   DECLARED_CONDITION_SATISFIED: "Declared met in proposed design — unverified",
   DECLARED_CONDITION_NOT_SATISFIED: "Declared not met in proposed design — unverified",
   CONDITION_UNKNOWN: "Condition is unknown — more information needed",
@@ -23,7 +27,7 @@ export const lifecycleReasonText: Record<string, string> = {
 const requirementLabels: Record<keyof ProvisioningRequirements, string> = {
   scim: "SCIM provisioning", justInTimeProvisioning: "Login-time JIT", groupSynchronization: "Group synchronization",
 };
-const statusText: Record<LifecycleAnalysis["status"], string> = {
+const statusText: Record<LifecycleV2Analysis["status"], string> = {
   CONDITIONALLY_MATCHES: "Matches your proposed design only — unverified",
   CONDITIONALLY_DOES_NOT_MATCH: "This proposed design has a mismatch",
   NEEDS_INFORMATION: "More information is needed",
@@ -59,9 +63,11 @@ export function ProvisioningLifecycle({ assessmentId, version, requirements }: {
 export function LifecycleConditions({ assessmentId, version, patternId, requirements }: {
   assessmentId: string; version: number; patternId: LifecyclePattern; requirements: ProvisioningRequirements;
 }) {
-  const [preview, setPreview] = useState<LifecyclePreview | null>(null);
+  const [preview, setPreview] = useState<LifecycleV2Preview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [groupStrategy, setGroupStrategy] = useState<LifecycleGroupStrategy>("UNKNOWN");
+  const group = lifecycleGroupStrategies.find(g => g.groupStrategy === groupStrategy)!;
   const active = useRef<AbortController | null>(null);
   useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
   function change() {
@@ -73,26 +79,33 @@ export function LifecycleConditions({ assessmentId, version, patternId, requirem
     active.current.abort(); active.current = null; setPending(false);
     setError("Preview canceled. Your declarations are still here; preview again when ready.");
   }
+  function selectGroup(event: ChangeEvent<HTMLSelectElement>) {
+    event.stopPropagation();
+    change();
+    const value = event.currentTarget.value;
+    if (!Object.hasOwn(lifecycleGroupConditions, value)) { setError("Choose a valid group strategy."); return; }
+    setGroupStrategy(value as LifecycleGroupStrategy);
+  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (active.current) return;
     setPreview(null); setError(null);
     const params = new URLSearchParams();
-    let input: LifecycleInput;
+    let input: LifecycleV2Input;
     try {
       for (const [key, value] of new FormData(event.currentTarget)) {
         if (typeof value !== "string") throw new Error();
         params.append(key, value);
       }
-      input = parseLifecycleForm(params);
-      if (input.patternId !== patternId || input.expectedVersion !== version) throw new Error();
+      input = parseLifecycleV2Form(params);
+      if (input.patternId !== patternId || input.expectedVersion !== version || input.groupStrategy !== groupStrategy) throw new Error();
     } catch { setError("Choose valid declarations for this provisioning pattern."); return; }
     const controller = new AbortController();
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
     active.current = controller; setPending(true);
     let failure = "The provisioning preview is temporarily unavailable. Try again.";
     try {
-      const response = await fetch(`/api/assessments/${assessmentId}/provisioning-lifecycle`, {
+      const response = await fetch(`/api/assessments/${assessmentId}/provisioning-lifecycle-v2`, {
         method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params.toString(),
         credentials: "same-origin", cache: "no-store", redirect: "error", signal,
       });
@@ -105,25 +118,44 @@ export function LifecycleConditions({ assessmentId, version, patternId, requirem
         setError(messages[response.status] ?? failure); return;
       }
       failure = "The provisioning preview could not be read safely. Try again.";
-      const body = JSON.parse(await boundedPrerequisiteText(response, lifecycleByteLimit));
+      const body = JSON.parse(await boundedPrerequisiteText(response, lifecycleV2ByteLimit));
       if (controller.signal.aborted) return;
       signal.throwIfAborted();
       if (!body || Object.keys(body).length !== 2 || body.assessmentVersion !== version) throw new Error();
-      setPreview({ assessmentVersion: version, analysis: lifecycleAnalysis(body.analysis, input, requirements) });
+      setPreview({ assessmentVersion: version, analysis: lifecycleV2Analysis(body.analysis, input, requirements) });
     } catch {
       if (!controller.signal.aborted) setError(signal.aborted ? "The preview took too long. Your declarations are still here; try again." : failure);
     } finally { if (active.current === controller) { active.current = null; setPending(false); } }
   }
+  const condition = (id: LifecycleV2Condition, key: string = id) => <div key={key}><label htmlFor={`lifecycle-${patternId}-${id}`} className="block">{lifecycleV2Descriptions[id]}</label>
+    <select id={`lifecycle-${patternId}-${id}`} name={id} defaultValue="UNKNOWN" className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 p-2">
+      <option value="UNKNOWN">Unknown / not yet assessed</option><option value="SATISFIED">Met in proposed design (unverified)</option><option value="NOT_SATISFIED">Not met in proposed design (unverified)</option>
+    </select></div>;
   return <details className="mt-4 text-sm text-slate-300">
     <summary className="cursor-pointer font-medium">Try provisioning conditions — temporary what-if</summary>
     <p className="mt-3">Describe a proposed design, not verified deployment settings. Answers and results are not saved. No IdP configuration is read or changed.</p>
     <form className="mt-4 space-y-4" onSubmit={submit} onChange={change} aria-busy={pending}>
       <input type="hidden" name="expectedVersion" value={version} /><input type="hidden" name="patternId" value={patternId} />
-      <fieldset disabled={pending} className="space-y-4"><legend className="mb-3 font-medium">Unverified provisioning conditions</legend>
-        {lifecycleConditions[patternId].map(id => <div key={id}><label htmlFor={`lifecycle-${patternId}-${id}`} className="block">{lifecycleDescriptions[id]}</label>
-          <select id={`lifecycle-${patternId}-${id}`} name={id} defaultValue="UNKNOWN" className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 p-2">
-            <option value="UNKNOWN">Unknown / not yet assessed</option><option value="SATISFIED">Met in proposed design (unverified)</option><option value="NOT_SATISFIED">Not met in proposed design (unverified)</option>
-          </select></div>)}
+      <fieldset disabled={pending} className="space-y-4"><legend className="mb-3 font-medium">Unverified provisioning and offboarding design</legend>
+        <div><label htmlFor={`lifecycle-${patternId}-groupStrategy`} className="block font-medium">How will group memberships reach the application?</label>
+          <select id={`lifecycle-${patternId}-groupStrategy`} name="groupStrategy" value={groupStrategy} onChange={selectGroup}
+            className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 p-2">
+            {lifecycleGroupStrategies.map(g => <option key={g.groupStrategy} value={g.groupStrategy}>{g.displayName}</option>)}
+          </select>
+          <p className="mt-2 text-xs text-slate-400">Unknown is not the same as no synchronization. This choice is temporary and does not select a provider.</p>
+        </div>
+        <div className="rounded-lg border border-slate-700 p-3" aria-live="polite">
+          <p className="font-medium">{group.displayName}</p>
+          {group.advantages.length > 0 && <div className="mt-2"><p className="font-medium">Advantages</p><ul className="list-disc pl-5">{group.advantages.map(t => <li key={t}>{t}</li>)}</ul></div>}
+          <p className="mt-2 font-medium">Trade-offs / limits</p><ul className="mt-1 list-disc space-y-2 pl-5">{group.tradeoffs.map(t => <li key={t}>{t}</li>)}</ul>
+        </div>
+        <h4 className="font-medium">Account lifecycle and existing access</h4>
+        <p className="text-xs text-slate-400">Account disablement, application sessions and issued tokens have separate paths. Describe the accepted residual-access window; these answers do not test it.</p>
+        {lifecycleV2PatternConditions[patternId].map(id => condition(id))}
+        {group.conditions.length > 0 && <fieldset className="space-y-4"><legend className="mb-3 font-medium">Group delivery and application authorization</legend>
+          <p className="text-xs text-slate-400">Changing the group strategy resets its conditions to Unknown. Account lifecycle answers stay here, but the current result is cleared.</p>
+          {group.conditions.map(id => condition(id, `${groupStrategy}-${id}`))}
+        </fieldset>}
         <button type="submit" className="rounded-lg border border-cyan-700 px-4 py-2 text-cyan-100 disabled:opacity-50">{pending ? "Previewing…" : "Preview provisioning design"}</button>
       </fieldset>
       {pending && <div className="flex flex-wrap items-center gap-3"><p role="status">Previewing temporary conditions. Inputs are locked until this finishes or you cancel.</p>
@@ -133,15 +165,22 @@ export function LifecycleConditions({ assessmentId, version, patternId, requirem
       {!preview && !error && !pending && <p className="text-xs text-slate-400">No current what-if result. Changing an answer clears the result. Nothing is saved.</p>}
       {error && <p role="alert" className="text-amber-100">{error}</p>}
       {preview && <div className="rounded-lg border border-slate-600 p-4"><p className="font-medium text-cyan-200">{statusText[preview.analysis.status]}</p>
+        <p className="mt-2">Temporary group plan: {group.displayName}</p>
+        <h4 className="mt-4 font-medium">Group transport design</h4>
+        <ul className="mt-2 space-y-2">{preview.analysis.designChecks.map(check => <li key={check.boundary}>{lifecycleReasonText[check.reasonCode]}</li>)}</ul>
         <h4 className="mt-4 font-medium">Saved requirement checks</h4>
         <ul className="mt-2 space-y-3">{preview.analysis.requirementChecks.map(check => <li key={check.profilePath}>
           <p>{requirementLabels[check.profilePath.slice("provisioning.".length) as keyof ProvisioningRequirements]} · {check.criticality.toLowerCase().replaceAll("_", " ")}</p>
           <p className="text-slate-400">{lifecycleReasonText[check.reasonCode]}</p></li>)}</ul>
         <h4 className="mt-4 font-medium">Temporary condition checks</h4>
-        <ul className="mt-2 space-y-3">{preview.analysis.conditionChecks.map(check => <li key={check.conditionId}><p>{lifecycleDescriptions[check.conditionId]}</p>
+        <ul className="mt-2 space-y-3">{preview.analysis.conditionChecks.map(check => <li key={check.conditionId}><p>{lifecycleV2Descriptions[check.conditionId]}</p>
           <p className="text-slate-400">{lifecycleReasonText[check.reasonCode]}</p></li>)}</ul>
         <p className="mt-4 text-amber-100">Provider operations and entitlements, actual delivery, group membership and authorization, session/token revocation and failure recovery remain unverified. This is not a recommendation, approval or ready-to-deploy design.</p>
       </div>}
     </div>
+    <details className="mt-4 text-xs text-slate-400"><summary className="cursor-pointer">Group / offboarding concept references (not implementation evidence)</summary>
+      <ul className="mt-2 space-y-2">{[...group.references, ...lifecycleOffboardingReferences].map(url => <li key={url}><a href={url} target="_blank" rel="noopener noreferrer" className="text-cyan-200 underline">
+        {url.includes("rfc7009") ? "OAuth token revocation and enforcement limits" : url.includes("section-4.2") ? "SCIM Group schema" : url.includes("rfc7644") ? "SCIM operations" : "SCIM account status"}</a></li>)}</ul>
+    </details>
   </details>;
 }

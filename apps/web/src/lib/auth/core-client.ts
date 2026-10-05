@@ -26,6 +26,8 @@ import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
   type PrerequisiteInput, type PrerequisitePreview } from "../assessment/architecture-prerequisites.ts";
 import { validateLifecycleInput, lifecycleByteLimit, lifecyclePreviewFromCore, provisioningRequirements,
   type LifecycleInput, type LifecyclePreview } from "../assessment/provisioning-lifecycle.ts";
+import { validateLifecycleV2Input, lifecycleV2ByteLimit, lifecycleV2PreviewFromCore,
+  type LifecycleV2Input, type LifecycleV2Preview } from "../assessment/provisioning-lifecycle-v2.ts";
 import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
   type UsageMetric, type UsagePlanningValues } from "../assessment/usage-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
@@ -788,6 +790,26 @@ export async function previewPersonalProvisioningLifecycle(session: BrowserSessi
   if (response.status === 400) return { kind: "invalid" };
   if (response.status !== 200) throw new Error("Core provisioning preview failed");
   return { kind: "preview", preview: lifecyclePreviewFromCore(JSON.parse(await boundedPrerequisiteText(response, lifecycleByteLimit)),
+    { workspaceId: session.workspaceId, assessmentId: id, input, requirements }) };
+}
+
+export async function previewPersonalProvisioningLifecycleV2(session: BrowserSession, id: string,
+  input: LifecycleV2Input): Promise<{ kind: "preview"; preview: LifecycleV2Preview } | { kind: "not-found" | "conflict" | "invalid" }> {
+  if (!UUID.test(id)) throw new Error("Invalid group and offboarding preview request");
+  validateLifecycleV2Input(input);
+  const assessment = await readPersonalAssessment(session, id);
+  if (!assessment) return { kind: "not-found" };
+  if (assessment.version !== input.expectedVersion) return { kind: "conflict" };
+  const requirements = provisioningRequirements(assessment.profile);
+  const response = await fetch(`${CORE_ORIGIN}/api/v2/workspaces/${session.workspaceId}/assessments/${id}/provisioning-lifecycle-preview`, {
+    method: "POST", headers: { ...assessmentHeaders(session), "Content-Type": "application/json" }, body: JSON.stringify(input),
+    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status === 404) return { kind: "not-found" };
+  if (response.status === 409) return { kind: "conflict" };
+  if (response.status === 400) return { kind: "invalid" };
+  if (response.status !== 200) throw new Error("Core group and offboarding preview failed");
+  return { kind: "preview", preview: lifecycleV2PreviewFromCore(JSON.parse(await boundedPrerequisiteText(response, lifecycleV2ByteLimit)),
     { workspaceId: session.workspaceId, assessmentId: id, input, requirements }) };
 }
 
