@@ -90,7 +90,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
 
   let comparison: SyntheticComparisonSummary | null = null;
   try {
-    comparison = await readSyntheticComparison(session, id, assessment.version);
+    if (auditValues) comparison = await readSyntheticComparison(session, id, assessment.version, auditValues);
   } catch {
     // Keep the private assessment readable if the diagnostic comparison is unavailable.
   }

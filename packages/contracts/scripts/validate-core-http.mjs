@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { auditabilityPreviewFromCore } from "../../../apps/web/src/lib/assessment/auditability-preview.ts";
+import { comparisonFromCore } from "../../../apps/web/src/lib/assessment/comparison.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -31,6 +32,7 @@ let auditabilityDraftSamples = 0;
 let auditabilityReviewSamples = 0;
 let auditabilityImpactSamples = 0;
 let combinedConstraintSamples = 0;
+let combinedConsumerSamples = 0;
 const constraintKey = value => JSON.stringify([value.workspaceId, value.assessmentId, value.assessmentVersion,
   value.catalogVersion, value.catalogKind, value.evaluatedAt]);
 const legacyConstraints = new Map(samples.filter(s => s.schema === "hard-constraint-preflight" && s.valid)
@@ -169,6 +171,17 @@ for (const { name, schema, valid, payload } of samples) {
     comparison.auditability.assessmentVersion++;
     assert.throws(() => validateCombinedConstraints(forged), undefined, `${name}: reject foreign audit version`);
     combinedConstraintSamples++;
+    if (schema !== "hard-constraint-preflight.v2") {
+      const combined = payload.comparison ?? payload;
+      const binding = { workspaceId: combined.workspaceId, assessmentId: combined.assessmentId,
+        expectedVersion: combined.assessmentVersion, values: { criticality: combined.auditability.criticality,
+          selectedCriteria: combined.auditability.requirements.selectedCriteria,
+          minimumRetentionDays: combined.auditability.requirements.minimumRetentionDays } };
+      const projected = comparisonFromCore(combined, binding);
+      assert.deepEqual(projected.candidates.map(c => c.hardVerdict), combined.candidates.map(c => c.hardVerdict));
+      assert.throws(() => comparisonFromCore((forged.comparison ?? forged), binding), undefined, `${name}: BFF rejects foreign audit version`);
+      combinedConsumerSamples++;
+    }
   }
   if (schema === "catalog-auditability-impact" && valid) {
     const before = reviewRequests.get(payload.beforeReview.reviewSha256), after = reviewRequests.get(payload.afterReview.reviewSha256);
@@ -316,6 +329,8 @@ for (const required of ["assessment-response:true", "core-problem:true",
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
 assert.ok(combinedConstraintSamples > 0, "Combined v6 HTTP responses must reach independent auditability/aggregate/scoring checks.");
 console.log(`Verified ${combinedConstraintSamples} combined constraint responses with independent auditability, binding and score guards.`);
+assert.ok(combinedConsumerSamples > 0, "Actual v6 comparison/weighted/sensitivity HTTP responses must reach the BFF consumer guard.");
+console.log(`Verified ${combinedConsumerSamples} combined comparison HTTP responses through the strict BFF consumer guard.`);
 assert.ok(auditabilityConsumerSamples > 0, "Actual auditability HTTP samples must reach the strict BFF consumer.");
 console.log(`Validated ${auditabilityConsumerSamples} actual auditability HTTP responses with the BFF evidence-policy guard.`);
 assert.ok(auditabilityDraftSamples > 0, "Actual auditability draft responses must reach independent digest checks.");

@@ -632,9 +632,15 @@ events or evidence dates. Full audit verification, catalog publication and final
 recommendations remain unavailable; the auditability deferred path still denotes
 unchecked deployed logging/compliance boundaries, not ignored capability inputs.
 
-The v5 endpoints and historical policies/receipts are unchanged. The personal Web
-comparison still uses v5; switching its strict BFF consumer and visible findings to
-the new v6 result is the next step, not a completed UI change in this slice.
+The personal Web Comparison and both temporary weight previews use these v6
+endpoints through the existing session-bound BFF. Its bounded response guard
+replays embedded audit evidence against the exact saved criteria and retention,
+binds catalog/time/option scopes, and rejects hidden or mismatched audit findings.
+Failures and gaps link to saved Audit inputs; fixed explanatory copy distinguishes
+documented capabilities from deployed logs and compliance. Neither preview saves
+answers or awards scores/deltas to excluded or unresolved options. Actual Core HTTP
+samples also pass this strict Web consumer. The v5 endpoints and historical
+policies/receipts remain unchanged.
 
 ### Scoped synthetic auditability regression
 

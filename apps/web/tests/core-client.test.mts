@@ -20,6 +20,9 @@ import { usageMetrics, type UsagePlanningValues } from "../src/lib/assessment/us
 import { storedImpactFixture } from "./fixtures/stored-impact.mts";
 import { candidateEvidenceFixture } from "./fixtures/candidate-evidence.mts";
 import { factReviewSummaryFixture } from "./fixtures/fact-review-summary.mts";
+import { comparisonAuditFixture, noAuditRequirement } from "./fixtures/comparison-auditability.mts";
+import { auditabilityPreviewByteLimit } from "../src/lib/assessment/auditability-preview.ts";
+import type { AuditabilityValues } from "../src/lib/assessment/auditability.ts";
 
 const identity = {
   issuer: "http://localhost:8081",
@@ -762,7 +765,7 @@ test("BFF lists bounded assessment summaries using only its session workspace", 
   }
 });
 
-const coreComparison = {
+const coreComparison = comparisonAuditFixture({
   workspaceId: session.workspaceId, assessmentId, assessmentVersion: 2,
   catalogVersion: "synthetic-test", catalogKind: "SYNTHETIC",
   policyVersion: "synthetic-comparison-1",
@@ -780,7 +783,7 @@ const coreComparison = {
       outcome: "UNKNOWN", reasonCode: "EVIDENCE_MISSING", explanation: "Evidence is missing.",
       evidence: null }],
   }],
-};
+});
 
 test("BFF reads synthetic comparison only for the session workspace and assessment version", async () => {
   const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
@@ -791,7 +794,7 @@ test("BFF reads synthetic comparison only for the session workspace and assessme
   globalThis.fetch = async (input, init) => {
     calls++;
     assert.equal(input,
-      `http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/comparison-preflight`);
+      `http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}/comparison-preflight`);
     assert.equal(init?.method, "GET");
     assert.equal((init?.headers as Record<string, string>).Authorization, `Bearer ${token}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], session.subject);
@@ -800,7 +803,7 @@ test("BFF reads synthetic comparison only for the session workspace and assessme
     return Response.json(coreComparison);
   };
   try {
-    const result = await readSyntheticComparison(session, assessmentId, 2);
+    const result = await readSyntheticComparison(session, assessmentId, 2, noAuditRequirement);
     assert.equal(result.assessmentVersion, 2);
     assert.equal(result.candidates[0].hardVerdict, "UNRESOLVED");
     assert.equal(result.candidates[0].informationGaps[0].reasonCode, "NO_AFFIRMATIVE_CHECKS");
@@ -822,9 +825,9 @@ test("BFF rejects forged ranking, stale or cross-workspace comparisons before re
   let calls = 0;
   globalThis.fetch = async () => { calls++; return Response.json(coreComparison); };
   try {
-    await assert.rejects(readSyntheticComparison(session, "../other", 2), /request is invalid/);
-    await assert.rejects(readSyntheticComparison(session, assessmentId, -1), /request is invalid/);
-    await assert.rejects(readSyntheticComparison({ ...session, workspaceId: "../other" }, assessmentId, 2), /session is invalid/);
+    await assert.rejects(readSyntheticComparison(session, "../other", 2, noAuditRequirement), /request is invalid/);
+    await assert.rejects(readSyntheticComparison(session, assessmentId, -1, noAuditRequirement), /request is invalid/);
+    await assert.rejects(readSyntheticComparison({ ...session, workspaceId: "../other" }, assessmentId, 2, noAuditRequirement), /session is invalid/);
     assert.equal(calls, 0);
     for (const invalid of [
       { ...coreComparison, workspaceId: "70000000-0000-4000-8000-000000000002" },
@@ -836,10 +839,10 @@ test("BFF rejects forged ranking, stale or cross-workspace comparisons before re
         hardVerdict: "PASSES_CHECKED_REQUIREMENTS" }] },
     ]) {
       globalThis.fetch = async () => Response.json(invalid);
-      await assert.rejects(readSyntheticComparison(session, assessmentId, 2), /response is invalid/);
+      await assert.rejects(readSyntheticComparison(session, assessmentId, 2, noAuditRequirement), /response is invalid/);
     }
     globalThis.fetch = async () => new Response(null, { status: 403 });
-    await assert.rejects(readSyntheticComparison(session, assessmentId, 2), /read failed/);
+    await assert.rejects(readSyntheticComparison(session, assessmentId, 2, noAuditRequirement), /read failed/);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
@@ -1081,6 +1084,8 @@ test("BFF accepts a fully recorded all-observed input inventory without an assum
 const preferredProfile = {
   ...editableProfile,
   protocols: { ...editableProfile.protocols, socialLogin: "PREFERRED" },
+  security: { ...editableProfile.security, auditability: "NOT_REQUIRED",
+    auditabilityRequirements: { selectedCriteria: [], minimumRetentionDays: null } },
 };
 const scoredComparison = {
   ...coreComparison,
@@ -1126,7 +1131,7 @@ test("BFF previews explicit weights through the session workspace and projects s
     assert.equal("winnerId" in result.preview, false);
     assert.deepEqual(calls, [
       `GET http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
-      `POST http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/weighted-comparison-preview`,
+      `POST http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}/weighted-comparison-preview`,
     ]);
   } finally {
     globalThis.fetch = previousFetch;
@@ -1265,7 +1270,7 @@ test("BFF compares explicit weights on one Core snapshot without exposing eviden
     assert.equal("winnerId" in result.preview, false);
     assert.deepEqual(calls, [
       `GET http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}`,
-      `POST http://127.0.0.1:8080/api/v5/workspaces/${session.workspaceId}/assessments/${assessmentId}/weight-sensitivity-preview`,
+      `POST http://127.0.0.1:8080/api/v6/workspaces/${session.workspaceId}/assessments/${assessmentId}/weight-sensitivity-preview`,
     ]);
   } finally {
     globalThis.fetch = previousFetch;
@@ -1331,5 +1336,78 @@ test("BFF withholds paired deltas and rejects stale, mismatched or forged sensit
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
     else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+for (const criticality of ["REQUIRED", "UNKNOWN"] as const) test(`v6 BFF ${criticality} auditability gates both weighted scores and sensitivity deltas`, async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN, previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const values: AuditabilityValues = criticality === "REQUIRED"
+    ? { criticality, selectedCriteria: ["AUDIT_LOG_RETENTION"], minimumRetentionDays: 180 }
+    : { criticality, selectedCriteria: [], minimumRetentionDays: null };
+  const profile = { ...pairedProfile, security: { ...pairedProfile.security, auditability: criticality,
+    auditabilityRequirements: { selectedCriteria: values.selectedCriteria, minimumRetentionDays: values.minimumRetentionDays } } };
+  const comparison = comparisonAuditFixture(pairedComparison, values);
+  const status = criticality === "REQUIRED" ? "EXCLUDED" : "UNRESOLVED_HARD_CONSTRAINTS";
+  const scores = [{ optionId: "fictional-plan", status, score: null, contributions: [] }];
+  let weighted: unknown = { ...coreWeightedPreview, comparison, weights: pairedWeights.baselineWeights, scores };
+  let sensitivity: unknown = { ...pairedSensitivity, comparison,
+    baseline: { ...pairedSensitivity.baseline, scores }, alternative: { ...pairedSensitivity.alternative, scores },
+    deltas: [{ optionId: "fictional-plan", status, scoreDelta: null, capabilityDeltas: [] }] };
+  globalThis.fetch = async (input, init) => {
+    assert.ok(String(input).includes("/api/v6/"), "Never fall back to a legacy comparison.");
+    return init?.method === "GET" ? Response.json({ ...coreAssessment, version: 2, profile })
+      : Response.json(String(input).endsWith("/weight-sensitivity-preview") ? sensitivity : weighted);
+  };
+  try {
+    const result = await previewPersonalWeightedComparison(session, assessmentId, 2, pairedWeights.baselineWeights);
+    assert.equal(result.kind, "preview"); if (result.kind === "preview") {
+      assert.equal(result.preview.candidates[0].status, status); assert.equal(result.preview.candidates[0].score, null);
+    }
+    const paired = await previewPersonalWeightSensitivity(session, assessmentId, 2,
+      pairedWeights.baselineWeights, pairedWeights.alternativeWeights);
+    assert.equal(paired.kind, "preview"); if (paired.kind === "preview") assert.equal(paired.preview.candidates[0].scoreDelta, null);
+    weighted = { ...coreWeightedPreview, comparison, weights: pairedWeights.baselineWeights };
+    await assert.rejects(previewPersonalWeightedComparison(session, assessmentId, 2, pairedWeights.baselineWeights));
+    sensitivity = { ...pairedSensitivity, comparison };
+    await assert.rejects(previewPersonalWeightSensitivity(session, assessmentId, 2,
+      pairedWeights.baselineWeights, pairedWeights.alternativeWeights));
+    const foreign = structuredClone(comparison); foreign.auditability.requirements.minimumRetentionDays = 181;
+    weighted = { ...coreWeightedPreview, comparison: foreign, weights: pairedWeights.baselineWeights, scores };
+    await assert.rejects(previewPersonalWeightedComparison(session, assessmentId, 2, pairedWeights.baselineWeights));
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN; else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("all combined BFF transports reject oversized, malformed or legacy bodies without fallback", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN, previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  try {
+    for (const action of [() => readSyntheticComparison(session, assessmentId, 2, noAuditRequirement),
+      () => previewPersonalWeightedComparison(session, assessmentId, 2, pairedWeights.baselineWeights),
+      () => previewPersonalWeightSensitivity(session, assessmentId, 2, pairedWeights.baselineWeights, pairedWeights.alternativeWeights)]) {
+      for (const makeResponse of [
+        () => new Response("{}", { headers: { "Content-Length": String(auditabilityPreviewByteLimit + 1) } }),
+        () => new Response(" ".repeat(auditabilityPreviewByteLimit + 1)),
+        () => new Response("{malformed"),
+        () => Response.json({ ...coreComparison, auditability: undefined }),
+      ]) {
+        let previewCalls = 0;
+        globalThis.fetch = async (input, init) => {
+          assert.ok(String(input).includes("/api/v6/"));
+          if (init?.method === "GET" && !String(input).endsWith("/comparison-preflight")) return Response.json({ ...coreAssessment, version: 2, profile: pairedProfile });
+          previewCalls++; return makeResponse();
+        };
+        await assert.rejects(action()); assert.equal(previewCalls, 1);
+      }
+    }
+    let calls = 0; globalThis.fetch = async () => { calls++; return Response.json(coreComparison); };
+    await assert.rejects(readSyntheticComparison(session, assessmentId, 2, { ...noAuditRequirement, minimumRetentionDays: 1 }));
+    assert.equal(calls, 0, "Reject invalid saved audit inputs before contacting Core.");
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN; else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
   }
 });

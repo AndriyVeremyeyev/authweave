@@ -24,6 +24,7 @@ export function ComparisonSection({ comparison, profile, editable, preferencePre
       <h3 id="comparison-heading" className="mt-2 text-xl font-semibold">Understand each option</h3>
       <p className="mt-3 text-sm leading-6 text-slate-300">These are fictional plans for learning and testing the decision rules, not real provider recommendations. The checks do not cover every requirement or establish a winner.</p>
       <p className="mt-3 text-xs leading-5 text-slate-400">Saved assessment version {comparison.assessmentVersion}. Results use saved answers, not unsaved edits. Options remain in the order returned by Core, not a ranking.</p>
+      <p className="mt-3 text-sm leading-6 text-slate-300">Auditability capability checks are included: a failed required criterion can exclude an option, and unknown evidence remains a gap. This does not verify deployed logs, export delivery or compliance. Auditability preferences are not scored.</p>
       <div className="mt-4"><AssessmentStepButton step="review">Review saved requirements →</AssessmentStepButton></div>
     </div>
     <dl aria-label="Option statuses, not scores" className="mt-5 grid gap-3 sm:grid-cols-3">
@@ -47,7 +48,7 @@ export function ComparisonSection({ comparison, profile, editable, preferencePre
     {preferencePreview}
     <section aria-labelledby="comparison-scope-heading" className="mt-6 rounded-xl border border-slate-700 p-5">
       <h3 id="comparison-scope-heading" className="font-semibold">What this comparison does not check</h3>
-      <p className="mt-3 text-sm leading-6 text-slate-300">A passing result applies only to checked constraints. These topics still need separate review; recording an answer does not add it to this comparison.</p>
+      <p className="mt-3 text-sm leading-6 text-slate-300">A passing result applies only to checked constraints. These remaining boundaries still need separate review; recording an answer does not verify them.</p>
       <ul className="mt-4 space-y-2 text-sm text-slate-300">{comparison.deferredPaths.map((path, index) => <li key={`${path}-${index}`} className="rounded-lg bg-white/5 p-3">
         {deferredComparisonLabel(path)}<details className="mt-2 text-xs text-slate-400"><summary className="cursor-pointer">Technical scope path</summary><p className="mt-2 break-all">{path}</p></details>
       </li>)}</ul>
@@ -55,6 +56,7 @@ export function ComparisonSection({ comparison, profile, editable, preferencePre
     <details className="mt-5 rounded-xl border border-white/10 p-4 text-xs text-slate-400">
       <summary className="cursor-pointer font-medium">Comparison technical details</summary>
       <p className="mt-3 break-all">Catalog: {comparison.catalogVersion}</p>
+      <p className="mt-2 break-all">Scoped auditability evidence: {comparison.auditabilityEvidenceVersion}</p>
       <p className="mt-2">Checked: {new Date(comparison.evaluatedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC</p>
     </details>
   </section>;

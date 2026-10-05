@@ -19,6 +19,7 @@ import { withCapabilityValues, type CapabilityValues } from "../assessment/capab
 import { auditabilityValues, withAuditabilityValues, type AuditabilityValues } from "../assessment/auditability.ts";
 import { auditabilityPreviewBinding, auditabilityPreviewByteLimit, auditabilityPreviewFromCore,
   type AuditabilityPreview } from "../assessment/auditability-preview.ts";
+import { comparisonFromCore, type SyntheticComparisonSummary } from "../assessment/comparison.ts";
 import { applicationTypes, clientTypes, populations, evaluationContextValues,
   withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
@@ -85,39 +86,7 @@ export type PersonalAssessmentListPage = {
   nextBeforeId: string | null;
 };
 
-export type ComparisonFinding = {
-  dimension: string;
-  profilePath: string;
-  reasonCode: string;
-  explanation: string;
-};
-
-export type ComparisonPreference = {
-  capability: string;
-  profilePath: string;
-  outcome: "AVAILABLE" | "UNAVAILABLE" | "UNKNOWN";
-  reasonCode: string;
-  explanation: string;
-};
-
-export type ComparisonCandidate = {
-  optionId: string;
-  displayName: string;
-  plan: string;
-  region: string;
-  hardVerdict: "EXCLUDED" | "UNRESOLVED" | "PASSES_CHECKED_REQUIREMENTS";
-  exclusionReasons: ComparisonFinding[];
-  informationGaps: ComparisonFinding[];
-  capabilityPreferences: ComparisonPreference[];
-};
-
-export type SyntheticComparisonSummary = {
-  assessmentVersion: number;
-  catalogVersion: string;
-  evaluatedAt: string;
-  deferredPaths: string[];
-  candidates: ComparisonCandidate[];
-};
+export type { ComparisonFinding, ComparisonPreference, ComparisonCandidate, SyntheticComparisonSummary } from "../assessment/comparison.ts";
 
 export type ArchitecturePatternSummary = {
   patternId: "BFF_SESSION" | "SERVER_SIDE_SESSION" | "SPA_CODE_PKCE" |
@@ -670,117 +639,18 @@ function boundedText(value: unknown, max: number): string {
   return value;
 }
 
-function findings(value: unknown): ComparisonFinding[] {
-  if (!Array.isArray(value) || value.length > 500) throw new Error("Core comparison response is invalid");
-  return value.map(item => {
-    const finding = object(item);
-    exactKeys(finding, ["dimension", "profilePath", "reasonCode", "explanation"]);
-    if (!(["CAPABILITY", "CONTEXT", "RESIDENCY", "AUTHENTICATION_CONTROL", "COMPLIANCE_SCOPE", "COVERAGE"] as unknown[]).includes(finding.dimension)) {
-      throw new Error("Core comparison response is invalid");
-    }
-    return {
-      dimension: finding.dimension as string,
-      profilePath: boundedText(finding.profilePath, 200),
-      reasonCode: boundedText(finding.reasonCode, 100),
-      explanation: boundedText(finding.explanation, 1000),
-    };
-  });
-}
-
-function preferences(value: unknown): ComparisonPreference[] {
-  if (!Array.isArray(value) || value.length > 9) throw new Error("Core comparison response is invalid");
-  const seen = new Set<string>();
-  return value.map(item => {
-    const preference = object(item);
-    exactKeys(preference, ["capability", "profilePath", "outcome", "reasonCode", "explanation", "evidence"]);
-    const capability = boundedText(preference.capability, 100);
-    if (!(["OIDC", "SAML", "OAUTH2_APIS", "SOCIAL_LOGIN", "ENTERPRISE_SSO", "SCIM", "JIT", "GROUP_SYNC", "MFA"] as string[]).includes(capability) ||
-        seen.has(capability) ||
-        !(["AVAILABLE", "UNAVAILABLE", "UNKNOWN"] as unknown[]).includes(preference.outcome) ||
-        (preference.evidence !== null && (typeof preference.evidence !== "object" || Array.isArray(preference.evidence)))) {
-      throw new Error("Core comparison response is invalid");
-    }
-    seen.add(capability);
-    return {
-      capability,
-      profilePath: boundedText(preference.profilePath, 200),
-      outcome: preference.outcome as ComparisonPreference["outcome"],
-      reasonCode: boundedText(preference.reasonCode, 100),
-      explanation: boundedText(preference.explanation, 300),
-    };
-  });
-}
-
-function comparisonFromCore(value: unknown, session: BrowserSession, id: string,
-  expectedVersion: number): SyntheticComparisonSummary {
-  const body = object(value);
-  exactKeys(body, ["workspaceId", "assessmentId", "assessmentVersion", "catalogVersion", "catalogKind",
-    "policyVersion", "hardConstraintPolicyVersion", "preferencePolicyVersion", "evaluatedAt", "scope",
-    "recommendationReady", "rankingPerformed", "deferredPaths", "candidates"]);
-  if (body.workspaceId !== session.workspaceId || body.assessmentId !== id ||
-      body.assessmentVersion !== expectedVersion || body.catalogKind !== "SYNTHETIC" ||
-      body.policyVersion !== "synthetic-comparison-1" ||
-      body.hardConstraintPolicyVersion !== "hard-constraint-preflight-1" ||
-      body.preferencePolicyVersion !== "capability-preference-1" ||
-      body.scope !== "SYNTHETIC_UNRANKED_COMPARISON" ||
-      body.recommendationReady !== false || body.rankingPerformed !== false ||
-      !Array.isArray(body.deferredPaths) || body.deferredPaths.length < 1 ||
-      !body.deferredPaths.every(path => typeof path === "string" && path.length > 0) ||
-      !Array.isArray(body.candidates) || body.candidates.length < 1 || body.candidates.length > 100) {
-    throw new Error("Core comparison response is invalid");
-  }
-  const evaluatedAt = boundedText(body.evaluatedAt, 100);
-  if (Number.isNaN(Date.parse(evaluatedAt))) throw new Error("Core comparison response is invalid");
-  const seen = new Set<string>();
-  const candidates = body.candidates.map((item: unknown): ComparisonCandidate => {
-    const candidate = object(item);
-    exactKeys(candidate, ["optionId", "displayName", "plan", "region", "hardVerdict",
-      "exclusionReasons", "informationGaps", "capabilityPreferences"]);
-    const optionId = boundedText(candidate.optionId, 100);
-    if (!/^[a-z0-9][a-z0-9.-]{0,99}$/.test(optionId) || seen.has(optionId) ||
-        !(["EXCLUDED", "UNRESOLVED", "PASSES_CHECKED_REQUIREMENTS"] as unknown[]).includes(candidate.hardVerdict)) {
-      throw new Error("Core comparison response is invalid");
-    }
-    seen.add(optionId);
-    const exclusionReasons = findings(candidate.exclusionReasons);
-    const informationGaps = findings(candidate.informationGaps);
-    const hardVerdict = candidate.hardVerdict as ComparisonCandidate["hardVerdict"];
-    if ((hardVerdict === "EXCLUDED" && exclusionReasons.length === 0) ||
-        (hardVerdict === "UNRESOLVED" && informationGaps.length === 0) ||
-        (hardVerdict === "PASSES_CHECKED_REQUIREMENTS" && (exclusionReasons.length > 0 || informationGaps.length > 0))) {
-      throw new Error("Core comparison response is invalid");
-    }
-    return {
-      optionId,
-      displayName: boundedText(candidate.displayName, 120),
-      plan: boundedText(candidate.plan, 120),
-      region: boundedText(candidate.region, 120),
-      hardVerdict,
-      exclusionReasons,
-      informationGaps,
-      capabilityPreferences: preferences(candidate.capabilityPreferences),
-    };
-  });
-  return {
-    assessmentVersion: expectedVersion,
-    catalogVersion: boundedText(body.catalogVersion, 100),
-    evaluatedAt,
-    deferredPaths: [...body.deferredPaths] as string[],
-    candidates,
-  };
-}
-
 export async function readSyntheticComparison(session: BrowserSession, id: string,
-  expectedVersion: number): Promise<SyntheticComparisonSummary> {
+  expectedVersion: number, values: AuditabilityValues): Promise<SyntheticComparisonSummary> {
   if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) {
     throw new Error("Comparison request is invalid");
   }
   const headers = assessmentHeaders(session);
-  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/comparison-preflight`, {
+  const binding = auditabilityPreviewBinding(session.workspaceId, id, expectedVersion, values);
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/comparison-preflight`, {
     method: "GET", headers, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
   });
   if (response.status !== 200) throw new Error("Core comparison read failed");
-  return comparisonFromCore(await response.json(), session, id, expectedVersion);
+  return comparisonFromCore(JSON.parse(await boundedPrerequisiteText(response, auditabilityPreviewByteLimit)), binding);
 }
 
 const patternMetadata = {
@@ -1017,10 +887,10 @@ export async function readPersonalUsagePlanning(session: BrowserSession, id: str
 }
 
 function weightedPreviewFromCore(value: unknown, session: BrowserSession, id: string,
-  expectedVersion: number, weights: CapabilityWeights): WeightedPreview {
+  expectedVersion: number, weights: CapabilityWeights, values: AuditabilityValues): WeightedPreview {
   const body = object(value);
   exactKeys(body, ["comparison", "scoringPolicyVersion", "weights", "rankingPerformed", "recommendationReady", "scores"]);
-  const comparison = comparisonFromCore(body.comparison, session, id, expectedVersion);
+  const comparison = comparisonFromCore(body.comparison, auditabilityPreviewBinding(session.workspaceId, id, expectedVersion, values));
   const echoedWeights = object(body.weights);
   const expectedKeys = Object.keys(weights);
   if (body.scoringPolicyVersion !== "explicit-capability-weights-1" ||
@@ -1110,7 +980,9 @@ export async function previewPersonalWeightedComparison(
   const preferred = preferredCapabilities(current.profile);
   if (!preferred) throw new Error("Core profile cannot be read safely");
   if (!weightsMatchPreferences(weights, preferred)) return { kind: "invalid" };
-  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/weighted-comparison-preview`, {
+  const audit = auditabilityValues(current.profile);
+  if (!audit) throw new Error("Core profile cannot be read safely");
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/weighted-comparison-preview`, {
     method: "POST",
     headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
     body: JSON.stringify({ weights }),
@@ -1119,18 +991,18 @@ export async function previewPersonalWeightedComparison(
   if (response.status === 400) return { kind: "conflict" };
   if (response.status === 404) return { kind: "not-found" };
   if (response.status !== 200) throw new Error("Core weighted preview failed");
-  const body: unknown = await response.json();
+  const body: unknown = JSON.parse(await boundedPrerequisiteText(response, auditabilityPreviewByteLimit));
   const comparison = object(object(body).comparison);
   if (comparison.workspaceId === session.workspaceId && comparison.assessmentId === id &&
       Number.isSafeInteger(comparison.assessmentVersion) &&
       comparison.assessmentVersion !== expectedVersion) return { kind: "conflict" };
   return { kind: "preview", preview: weightedPreviewFromCore(body, session, id,
-    expectedVersion, weights) };
+    expectedVersion, weights, audit) };
 }
 
 function sensitivityFromCore(value: unknown, session: BrowserSession, id: string,
   expectedVersion: number, baselineWeights: CapabilityWeights,
-  alternativeWeights: CapabilityWeights): SensitivityPreview {
+  alternativeWeights: CapabilityWeights, values: AuditabilityValues): SensitivityPreview {
   const body = object(value);
   exactKeys(body, ["comparison", "scoringPolicyVersion", "sensitivityPolicyVersion", "baseline",
     "alternative", "deltas", "rankingPerformed", "recommendationReady"]);
@@ -1146,7 +1018,7 @@ function sensitivityFromCore(value: unknown, session: BrowserSession, id: string
   const scenario = (raw: Record<string, unknown>, weights: CapabilityWeights) => weightedPreviewFromCore({
     comparison: body.comparison, scoringPolicyVersion: body.scoringPolicyVersion,
     weights: raw.weights, rankingPerformed: false, recommendationReady: false, scores: raw.scores,
-  }, session, id, expectedVersion, weights);
+  }, session, id, expectedVersion, weights, values);
   const before = scenario(baseline, baselineWeights);
   const after = scenario(alternative, alternativeWeights);
   if (!Array.isArray(body.deltas) || body.deltas.length !== before.candidates.length) {
@@ -1231,7 +1103,9 @@ export async function previewPersonalWeightSensitivity(
   if (!preferred) throw new Error("Core profile cannot be read safely");
   if (!weightsMatchPreferences(baselineWeights, preferred) ||
       !weightsMatchPreferences(alternativeWeights, preferred)) return { kind: "invalid" };
-  const response = await fetch(`${CORE_ORIGIN}/api/v5/workspaces/${session.workspaceId}/assessments/${id}/weight-sensitivity-preview`, {
+  const audit = auditabilityValues(current.profile);
+  if (!audit) throw new Error("Core profile cannot be read safely");
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/weight-sensitivity-preview`, {
     method: "POST",
     headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
     body: JSON.stringify({ baselineWeights, alternativeWeights }),
@@ -1240,11 +1114,11 @@ export async function previewPersonalWeightSensitivity(
   if (response.status === 400) return { kind: "conflict" };
   if (response.status === 404) return { kind: "not-found" };
   if (response.status !== 200) throw new Error("Core sensitivity preview failed");
-  const body: unknown = await response.json();
+  const body: unknown = JSON.parse(await boundedPrerequisiteText(response, auditabilityPreviewByteLimit));
   const comparison = object(object(body).comparison);
   if (comparison.workspaceId === session.workspaceId && comparison.assessmentId === id &&
       Number.isSafeInteger(comparison.assessmentVersion) &&
       comparison.assessmentVersion !== expectedVersion) return { kind: "conflict" };
   return { kind: "preview", preview: sensitivityFromCore(body, session, id,
-    expectedVersion, baselineWeights, alternativeWeights) };
+    expectedVersion, baselineWeights, alternativeWeights, audit) };
 }

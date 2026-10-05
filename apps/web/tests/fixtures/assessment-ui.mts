@@ -26,7 +26,8 @@ export function savedRequirementsFixture() {
 // Already-projected display data; this fixture does not claim to run Core or verify facts.
 export function comparisonUiFixture(): SyntheticComparisonSummary {
   return {
-    assessmentVersion: 7, catalogVersion: "synthetic-ui-fixture", evaluatedAt: "2026-10-03T12:00:00Z",
+    assessmentVersion: 7, catalogVersion: "synthetic-ui-fixture", auditabilityEvidenceVersion: "synthetic-audit-ui-fixture",
+    evaluatedAt: "2026-10-03T12:00:00Z",
     deferredPaths: ["security.browserTokenExposureMinimization", "security.auditability", "security.assurance", "security.complianceTargets", "operations"],
     candidates: [
       { optionId: "fictional-excluded", displayName: "Fictional Limited Plan", plan: "Demo", region: "Synthetic region",

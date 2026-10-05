@@ -28,6 +28,10 @@ const inputMappings: Record<string, InputMapping> = {
   "security.authenticationControls.stepUpAuthentication": { group: "security", label: "Stronger authentication for sensitive actions", rows: ["Stronger authentication for sensitive actions"] },
   "security.complianceScopeStatus": { group: "security", label: "Compliance target scope",
     rows: ["Compliance target scope", "Compliance target labels"] },
+  "security.auditability": { group: "auditability", label: "Auditability requirement",
+    rows: ["Criticality of selected criteria"] },
+  "security.auditabilityRequirements": { group: "auditability", label: "Auditability criteria and retention",
+    rows: ["Criticality of selected criteria", "Selected logging criteria", "Minimum retention"] },
 };
 
 export type RelatedComparisonInput = { label: string; rows: SavedInput[] | null; step: AssessmentStep | null };
@@ -48,7 +52,7 @@ export function isComparisonEvidenceGap(reason: string): boolean { return eviden
 
 const deferredLabels: Record<string, string> = {
   "security.browserTokenExposureMinimization": "Browser token exposure and architecture handling",
-  "security.auditability": "Identity-provider auditability",
+  "security.auditability": "Deployed logging, delivery, integrity and compliance evidence (capability checks are included above)",
   "security.assurance": "Authentication assurance requirements",
   "security.complianceTargets": "Compliance obligations and supporting evidence",
   operations: "Operations, usage, pricing and budget",

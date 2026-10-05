@@ -49,6 +49,22 @@ test("unknown paths, lookalikes and prototype keys cannot select an editor or tr
   assert.deepEqual(profile, before);
 });
 
+test("auditability findings link to exact saved criteria and retention in the Audit step", async () => {
+  const groups = savedRequirementGroups(savedRequirementsFixture());
+  assert.equal(relatedComparisonInput("security.auditability", groups)?.step, "auditability");
+  assert.deepEqual(relatedComparisonInput("security.auditabilityRequirements", groups)?.rows?.map(r => r.label),
+    ["Criticality of selected criteria", "Selected logging criteria", "Minimum retention"]);
+  assert.equal(relatedComparisonInput("security.auditabilityRequirements.extra", groups), null);
+  const html = await rendered(true, comparison => {
+    comparison.candidates[0].exclusionReasons.push({ dimension: "AUDITABILITY", profilePath: "security.auditabilityRequirements",
+      reasonCode: "RETENTION_BELOW_MINIMUM", explanation: "Log retention: Documented minimum is below your requested duration." });
+  });
+  for (const copy of ["Auditability criteria and retention", "Saved Selected logging criteria:", "Saved Minimum retention:",
+    "Auditability capability checks are included", "This does not verify deployed logs, export delivery or compliance",
+    "Scoped auditability evidence:", "RETENTION_BELOW_MINIMUM"]) assert.ok(html.includes(copy), copy);
+  assert.ok(html.includes('aria-controls="assessment-step-panel"'));
+});
+
 test("unreadable related inputs have no edit target and do not hide independent capability inputs", () => {
   const profile = savedRequirementsFixture() as Record<string, unknown>;
   profile.application = { type: "invalid-sensitive-value" };
@@ -61,7 +77,7 @@ test("unreadable related inputs have no edit target and do not hide independent 
 test("catalog evidence notes use only known Core evidence reasons, never invent a verdict", () => {
   for (const reason of ["EVIDENCE_MISSING", "EVIDENCE_UNREVIEWED", "EVIDENCE_STALE", "EVIDENCE_FROM_FUTURE"]) assert.equal(isComparisonEvidenceGap(reason), true);
   for (const reason of ["REQUIREMENT_UNKNOWN", "REQUIRED_CAPABILITY_UNAVAILABLE", "CAPABILITY_UNKNOWN", "EVIDENCE_NEW", "__proto__"]) assert.equal(isComparisonEvidenceGap(reason), false);
-  assert.equal(deferredComparisonLabel("security.auditability"), "Identity-provider auditability");
+  assert.equal(deferredComparisonLabel("security.auditability"), "Deployed logging, delivery, integrity and compliance evidence (capability checks are included above)");
   assert.equal(deferredComparisonLabel("operations"), "Operations, usage, pricing and budget");
   assert.equal(deferredComparisonLabel("unknown.scope"), "Additional unchecked scope");
   assert.equal(deferredComparisonLabel("__proto__"), "Additional unchecked scope");

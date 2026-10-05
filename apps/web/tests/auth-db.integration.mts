@@ -18,6 +18,7 @@ import { requirementsBriefFilename } from "../src/lib/assessment/requirements-br
 import { readPersonalAssessment, readPersonalAuditability } from "../src/lib/auth/core-client.ts";
 import { auditabilityFixture, auditabilityInput, auditabilityAssessmentId,
   auditabilityWorkspaceId } from "./fixtures/auditability-preview.mts";
+import { comparisonAuditFixture } from "./fixtures/comparison-auditability.mts";
 import { POST as rejectProposalRoute } from "../src/app/api/catalog-change-proposals/[id]/rejection/route.ts";
 import { POST as factReviewRoute } from "../src/app/api/catalog-change-proposals/[id]/fact-reviews/route.ts";
 import { POST as prepareBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/prepare/route.ts";
@@ -1203,7 +1204,7 @@ test("weighted preview route enforces origin and session without saving an asses
     security: { multiFactorAuthentication: "UNKNOWN", auditability: "UNKNOWN",
       auditabilityRequirements: { selectedCriteria: [], minimumRetentionDays: null } },
   };
-  const comparison = {
+  const comparison = comparisonAuditFixture({
     workspaceId, assessmentId, assessmentVersion: 2, catalogVersion: "synthetic-test",
     catalogKind: "SYNTHETIC", policyVersion: "synthetic-comparison-1",
     hardConstraintPolicyVersion: "hard-constraint-preflight-1",
@@ -1218,7 +1219,7 @@ test("weighted preview route enforces origin and session without saving an asses
         outcome: "UNKNOWN", reasonCode: "EVIDENCE_MISSING", explanation: "Evidence is missing.",
         evidence: null }],
     }],
-  };
+  }, { criticality: "UNKNOWN", selectedCriteria: [], minimumRetentionDays: null });
   const context = { params: Promise.resolve({ id: assessmentId }) };
   const request = (origin: string, cookie: string | null, body = "expectedVersion=2&OIDC=100") => new NextRequest(
     `http://localhost:3000/api/assessments/${assessmentId}/weighted-preview`, {
@@ -1241,6 +1242,7 @@ test("weighted preview route enforces origin and session without saving an asses
   globalThis.fetch = async (input, init) => {
     calls.push(`${init?.method} ${input}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal(String(input), `http://127.0.0.1:8080/api/v6/workspaces/${workspaceId}/assessments/${assessmentId}${init?.method === "GET" ? "" : String(input).endsWith("/weight-sensitivity-preview") ? "/weight-sensitivity-preview" : "/weighted-comparison-preview"}`);
     if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
       status: "DRAFT", version: 2, profileSchemaVersion: 6, profile });
     if (String(input).endsWith("/weight-sensitivity-preview")) {
