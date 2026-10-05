@@ -547,8 +547,28 @@ linking and hybrid collision policy. Even all-satisfied declarations are an unve
 design hypothesis, not observed provider support, interoperability, session revocation
 or lifecycle verification. Assessment state, revisions, events, existing eligibility,
 coverage and publication gates are unchanged. No declarations or result are saved,
-and no IdP configuration, accounts, dependencies or paid calls are added. This Core
-slice has no BFF route or browser form yet.
+and no IdP configuration, accounts, dependencies or paid calls are added.
+
+The personal assessment's Architecture step now shows all three alternatives with
+advantages, trade-offs, saved SCIM/JIT/group requirements and temporary condition
+forms. All answers start unknown; no architecture or provider is selected or saved.
+Changing an answer clears its result, and leaving the step or reloading discards all
+temporary answers. Each form permits one in-flight request, explicit cancellation
+and a ten-second deadline; canceled or late replies cannot restore stale results.
+Every requirement and condition remains visible, including unknown gaps after a
+hard mismatch. Required/forbidden group delivery and actual access revocation are
+not established by these declarations.
+
+Same-origin POST `/api/assessments/{id}/provisioning-lifecycle` requires a live
+database-backed browser session. It rejects query parameters, duplicate form fields,
+foreign conditions and caller-supplied requirements. The BFF reads the canonical v6
+assessment, binds its version and saved criticalities, then sends only the typed
+preview request with server-held credentials and the session's issuer/subject.
+Bounded response guards independently replay every check and status, require the
+exact educational inventory and reject promoted readiness or verification flags.
+The browser receives only a checked version-bound analysis, not credentials or raw
+upstream errors. Stale versions require reload; session and transport failures use
+fixed safe messages. Existing assessment, history and publication gates are unchanged.
 
 Concept sources are [SCIM operations](https://www.rfc-editor.org/rfc/rfc7644.html),
 [SCIM User and Group schemas](https://www.rfc-editor.org/rfc/rfc7643.html), and a

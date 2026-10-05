@@ -24,6 +24,8 @@ import { applicationTypes, clientTypes, populations, evaluationContextValues,
   withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
   type PrerequisiteInput, type PrerequisitePreview } from "../assessment/architecture-prerequisites.ts";
+import { validateLifecycleInput, lifecycleByteLimit, lifecyclePreviewFromCore, provisioningRequirements,
+  type LifecycleInput, type LifecyclePreview } from "../assessment/provisioning-lifecycle.ts";
 import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
   type UsageMetric, type UsagePlanningValues } from "../assessment/usage-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
@@ -766,6 +768,27 @@ export async function readPersonalArchitecturePatterns(session: BrowserSession, 
   });
   if (response.status !== 200) throw new Error("Core architecture pattern read failed");
   return architecturePatternsFromCore(await response.json(), session, id, expectedVersion, context);
+}
+
+export async function previewPersonalProvisioningLifecycle(session: BrowserSession, id: string,
+  input: LifecycleInput): Promise<{ kind: "preview"; preview: LifecyclePreview } | { kind: "not-found" | "conflict" | "invalid" }> {
+  if (!UUID.test(id)) throw new Error("Invalid provisioning preview request");
+  // Validate runtime callers before any network request; do not accept caller-supplied requirements.
+  validateLifecycleInput(input);
+  const assessment = await readPersonalAssessment(session, id);
+  if (!assessment) return { kind: "not-found" };
+  if (assessment.version !== input.expectedVersion) return { kind: "conflict" };
+  const requirements = provisioningRequirements(assessment.profile);
+  const response = await fetch(`${CORE_ORIGIN}/api/v1/workspaces/${session.workspaceId}/assessments/${id}/provisioning-lifecycle-preview`, {
+    method: "POST", headers: { ...assessmentHeaders(session), "Content-Type": "application/json" }, body: JSON.stringify(input),
+    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status === 404) return { kind: "not-found" };
+  if (response.status === 409) return { kind: "conflict" };
+  if (response.status === 400) return { kind: "invalid" };
+  if (response.status !== 200) throw new Error("Core provisioning preview failed");
+  return { kind: "preview", preview: lifecyclePreviewFromCore(JSON.parse(await boundedPrerequisiteText(response, lifecycleByteLimit)),
+    { workspaceId: session.workspaceId, assessmentId: id, input, requirements }) };
 }
 
 export async function previewPersonalArchitecturePrerequisites(session: BrowserSession, id: string,

@@ -9,6 +9,8 @@ import { POST as weightedPreviewRoute } from "../src/app/api/assessments/[id]/we
 import { POST as prerequisitePreviewRoute } from "../src/app/api/assessments/[id]/architecture-prerequisites/route.ts";
 import { prerequisiteAssessmentId, prerequisiteWorkspaceId, prerequisiteFixture, prerequisiteInput,
   prerequisiteProfile } from "./fixtures/architecture-prerequisites.mts";
+import { POST as lifecyclePreviewRoute } from "../src/app/api/assessments/[id]/provisioning-lifecycle/route.ts";
+import { lifecycleFixture, lifecycleInput, lifecycleRequirements } from "./fixtures/provisioning-lifecycle.mts";
 import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
@@ -523,6 +525,49 @@ test("prerequisite preview uses a real DB session, same origin and server-only i
     await revokeSession(sessionId); globalThis.fetch = previousFetch;
     for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
   }
+});
+
+test("provisioning BFF uses live DB session and origin guards, rejects query/scope drift and never writes assessments", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-lifecycle-token-000000000000000000" });
+  const identity = { workspaceId: prerequisiteWorkspaceId, issuer: "http://localhost:8081", subject: "synthetic-lifecycle-owner", email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined), context = { params: Promise.resolve({ id: prerequisiteAssessmentId }) };
+  const form = "expectedVersion=2&patternId=SCIM_PUSH";
+  const request = (body = form, cookie: string | null = sessionId, origin = "http://localhost:3000", query = "", contentType = "application/x-www-form-urlencoded") =>
+    new NextRequest(`http://localhost:3000/api/assessments/${prerequisiteAssessmentId}/provisioning-lifecycle${query}`, { method: "POST",
+      headers: { Origin: origin, "Content-Type": contentType, "X-AuthWeave-Oidc-Subject": "browser-spoof", ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}) }, body });
+  let calls = 0, status = 200, forged = false;
+  globalThis.fetch = async (url, init) => {
+    calls++;
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject); assert.equal(headers["X-AuthWeave-Oidc-Issuer"], identity.issuer);
+    assert.equal(headers.Authorization, `Bearer ${process.env.AUTHWEAVE_CORE_SERVICE_TOKEN}`);
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error");
+    if (init?.method === "GET") return Response.json({ id: prerequisiteAssessmentId, workspaceId: identity.workspaceId, status: "DRAFT", version: 2,
+      profileSchemaVersion: 6, profile: { ...prerequisiteProfile, provisioning: lifecycleRequirements } });
+    assert.equal(init?.method, "POST"); assert.ok(String(url).endsWith("/provisioning-lifecycle-preview"));
+    assert.deepEqual(JSON.parse(String(init?.body)), lifecycleInput);
+    const raw = lifecycleFixture(); if (forged) raw.analysis.status = "CONDITIONALLY_MATCHES";
+    return status === 200 ? Response.json(raw) : new Response("private details", { status });
+  };
+  try {
+    for (const [req, code] of [[request(form, null), 401], [request(form, sessionId, "https://other.example.invalid"), 403],
+      [request(form, sessionId, "http://localhost:3000", "?workspaceId=spoof"), 400], [request(form + "&requirements=spoof"), 400],
+      [request(form + "&JIT_TRUSTED_LOGIN_AND_LINKING=SATISFIED"), 400], [request(form + "&patternId=SCIM_PUSH"), 400],
+      [request("x".repeat(2049)), 413], [request(form, sessionId, "http://localhost:3000", "", "application/json"), 415]] as const) {
+      const result = await lifecyclePreviewRoute(req, context); assert.equal(result.status, code); assert.equal(result.headers.get("cache-control"), "no-store");
+    }
+    assert.equal(calls, 0);
+    const result = await lifecyclePreviewRoute(request(), context); assert.equal(result.status, 200); assert.equal(result.headers.get("cache-control"), "no-store");
+    const preview = await result.json(); assert.equal(preview.analysis.status, "NEEDS_INFORMATION"); assert.equal(JSON.stringify(preview).includes(identity.subject), false);
+    for (const upstream of [400, 404, 409, 403, 503]) { status = upstream; const failed = await lifecyclePreviewRoute(request(), context);
+      assert.equal(failed.status, [400, 404, 409].includes(upstream) ? upstream : 503); assert.equal((await failed.text()).includes("private"), false); }
+    status = 200; forged = true; assert.equal((await lifecyclePreviewRoute(request(), context)).status, 503);
+    await revokeSession(sessionId); const before = calls; assert.equal((await lifecyclePreviewRoute(request(), context)).status, 401); assert.equal(calls, before);
+  } finally { await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; }
 });
 
 test("bootstrap routes use real DB sessions, exact curator scope and same-origin writes without publication or source fetch", async () => {

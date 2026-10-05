@@ -18,6 +18,7 @@ import { touchSession, type BrowserSession } from "@/lib/auth/store";
 import { WeightedPreviewForm } from "./weighted-preview";
 import { EvaluationContextEditor } from "./evaluation-context-editor";
 import { ArchitecturePatterns } from "./architecture-patterns";
+import { ProvisioningLifecycle } from "./provisioning-lifecycle";
 import { UsagePlanningEditor } from "./usage-planning-editor";
 import { UsagePlanningPreflight } from "./usage-planning-preflight";
 import { AuditabilityEditor } from "./auditability-editor";
@@ -168,8 +169,12 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
           comparison: comparison ? <ComparisonSection comparison={comparison} profile={assessment.profile} editable={assessment.status === "DRAFT"}
             preferencePreview={preferred.length > 0 ? <WeightedPreviewForm key={`${assessment.id}-${comparison.assessmentVersion}`}
               assessmentId={assessment.id} version={comparison.assessmentVersion} preferred={preferred} /> : null} /> : <PreviewUnavailable name="Synthetic comparison" />,
-          architecture: patterns ? <ArchitecturePatterns preview={patterns} assessmentId={assessment.id} />
-            : <PreviewUnavailable name="Architecture pattern preflight" />,
+          architecture: <>
+            {patterns ? <ArchitecturePatterns preview={patterns} assessmentId={assessment.id} /> : <PreviewUnavailable name="Architecture pattern preflight" />}
+            {values ? <ProvisioningLifecycle key={`${assessment.id}-${assessment.version}`} assessmentId={assessment.id} version={assessment.version}
+              requirements={{ scim: values.SCIM, justInTimeProvisioning: values.JIT, groupSynchronization: values.GROUP_SYNC }} />
+              : <PreviewUnavailable name="Provisioning design inputs" />}
+          </>,
         }} />
       <details className="mt-8 rounded-xl border border-white/10 p-5 text-sm text-slate-400">
         <summary className="cursor-pointer font-medium text-slate-300">Saved profile and technical details</summary>

@@ -8,6 +8,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { auditabilityPreviewFromCore } from "../../../apps/web/src/lib/assessment/auditability-preview.ts";
 import { comparisonFromCore } from "../../../apps/web/src/lib/assessment/comparison.ts";
+import { lifecyclePreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -52,6 +53,8 @@ function validateLifecycle(payload, name) {
   const requirements = savedProvisioning.get(JSON.stringify([payload.workspaceId, payload.assessmentId, payload.assessmentVersion]));
   assert.ok(requirements, `${name}: exact stored workspace/assessment/version is required`);
   assert.deepEqual(analysis.requirements, requirements, "Temporary declarations cannot replace saved criticalities.");
+  const consumer = lifecyclePreviewFromCore(payload, { workspaceId: payload.workspaceId, assessmentId: payload.assessmentId, input, requirements });
+  assert.deepEqual(consumer.analysis, analysis, "Actual Core lifecycle responses must also pass the independent personal BFF consumer.");
   const satisfies = ["REQUIRED_MECHANISM_PLANNED", "FORBIDDEN_MECHANISM_ABSENT", "DECLARED_CONDITION_SATISFIED"];
   const violates = ["REQUIRED_MECHANISM_ABSENT", "FORBIDDEN_MECHANISM_PLANNED", "DECLARED_CONDITION_NOT_SATISFIED"];
   const outcome = reason => satisfies.includes(reason) ? "CONDITIONALLY_SATISFIED" : violates.includes(reason) ? "CONDITIONALLY_NOT_SATISFIED"
