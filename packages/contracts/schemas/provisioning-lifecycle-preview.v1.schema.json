@@ -1,0 +1,528 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/provisioning-lifecycle-preview.v1.schema.json",
+  "title": "Read-only saved-requirement provisioning lifecycle design preview",
+  "description": "Explicit design alternatives only. Saved SCIM/JIT criticalities cannot be overridden by temporary conditions; required/forbidden groups remain unassessed. No provider facts, observed behavior, writes or recommendation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "evaluatedAt",
+    "analysis",
+    "policyVersion",
+    "scope",
+    "analysisBasis",
+    "patterns",
+    "conditionDefinitions",
+    "checkedProfilePaths",
+    "deferredBoundaries",
+    "configurationVerified",
+    "providerCompatibilityVerified",
+    "lifecycleVerified",
+    "groupSynchronizationVerified",
+    "accessRevocationVerified",
+    "writesPerformed",
+    "publicationReady",
+    "recommendationReady"
+  ],
+  "properties": {
+    "workspaceId": {"type":"string","format":"uuid"},
+    "assessmentId": {"type":"string","format":"uuid"},
+    "assessmentVersion": {"type":"integer","minimum":0,"maximum":9007199254740991},
+    "evaluatedAt": {"type":"string","format":"date-time"},
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patternId","requirements","declarations","requirementChecks","conditionChecks","status"],
+      "properties": {
+        "patternId": {"$ref":"./provisioning-lifecycle-request.v1.schema.json#/$defs/patternId"},
+        "requirements": {"$ref":"./application-identity-profile.v1.schema.json#/properties/provisioning"},
+        "declarations": {"type":"object","maxProperties":8},
+        "requirementChecks": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {"$ref":"#/$defs/requirementCheck"},
+          "allOf": [
+            {
+              "contains": {"type":"object","properties":{"profilePath":{"const":"provisioning.scim"}},"required":["profilePath"]},
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {"type":"object","properties":{"profilePath":{"const":"provisioning.justInTimeProvisioning"}},"required":["profilePath"]},
+              "minContains": 1,
+              "maxContains": 1
+            },
+            {
+              "contains": {"type":"object","properties":{"profilePath":{"const":"provisioning.groupSynchronization"}},"required":["profilePath"]},
+              "minContains": 1,
+              "maxContains": 1
+            }
+          ]
+        },
+        "conditionChecks": {"type":"array","minItems":5,"maxItems":8,"uniqueItems":true,"items":{"$ref":"#/$defs/conditionCheck"}},
+        "status": {"type":"string","enum":["CONDITIONALLY_MATCHES","CONDITIONALLY_DOES_NOT_MATCH","NEEDS_INFORMATION"]}
+      },
+      "allOf": [
+        {"$ref":"./provisioning-lifecycle-request.v1.schema.json#/$defs/selection"},
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "requirementChecks": {
+                    "type": "array",
+                    "contains": {"type":"object","properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}},"required":["outcome"]}
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "conditionChecks": {
+                    "type": "array",
+                    "contains": {"type":"object","properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}},"required":["outcome"]}
+                  }
+                }
+              }
+            ]
+          },
+          "then": {"properties":{"status":{"const":"CONDITIONALLY_DOES_NOT_MATCH"}}},
+          "else": {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "requirementChecks": {"type":"array","contains":{"type":"object","properties":{"outcome":{"const":"UNKNOWN"}},"required":["outcome"]}}
+                  }
+                },
+                {
+                  "properties": {
+                    "conditionChecks": {"type":"array","contains":{"type":"object","properties":{"outcome":{"const":"UNKNOWN"}},"required":["outcome"]}}
+                  }
+                }
+              ]
+            },
+            "then": {"properties":{"status":{"const":"NEEDS_INFORMATION"}}},
+            "else": {"properties":{"status":{"const":"CONDITIONALLY_MATCHES"}}}
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_PUSH"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 6,
+                "maxItems": 6,
+                "allOf": [
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"OFFBOARDING_AND_ACCESS_REVOCATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"JIT_LOGIN"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 5,
+                "maxItems": 5,
+                "allOf": [
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"OFFBOARDING_AND_ACCESS_REVOCATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_AND_JIT"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 8,
+                "maxItems": 8,
+                "allOf": [
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"OFFBOARDING_AND_ACCESS_REVOCATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  },
+                  {
+                    "contains": {"type":"object","properties":{"conditionId":{"const":"SCIM_JIT_COLLISION_POLICY"}},"required":["conditionId"]},
+                    "minContains": 1,
+                    "maxContains": 1
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "policyVersion": {"const":"provisioning-lifecycle-design-1"},
+    "scope": {"const":"PROVISIONING_LIFECYCLE_DESIGN_PREVIEW"},
+    "analysisBasis": {"const":"SAVED_REQUIREMENTS_AND_UNVERIFIED_DESIGN_DECLARATIONS"},
+    "patterns": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {"$ref":"#/$defs/pattern"},
+      "allOf": [
+        {"contains":{"type":"object","properties":{"patternId":{"const":"SCIM_PUSH"}},"required":["patternId"]},"minContains":1,"maxContains":1},
+        {"contains":{"type":"object","properties":{"patternId":{"const":"JIT_LOGIN"}},"required":["patternId"]},"minContains":1,"maxContains":1},
+        {
+          "contains": {"type":"object","properties":{"patternId":{"const":"SCIM_AND_JIT"}},"required":["patternId"]},
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "conditionDefinitions": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["conditionId","description"],
+        "properties": {"conditionId":{"$ref":"#/$defs/conditionId"},"description":{"type":"string","minLength":1,"maxLength":500}}
+      },
+      "allOf": [
+        {
+          "contains": {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}},"required":["conditionId"]},
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}},"required":["conditionId"]},
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {"type":"object","properties":{"conditionId":{"const":"OFFBOARDING_AND_ACCESS_REVOCATION"}},"required":["conditionId"]},
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}},"required":["conditionId"]},
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}},"required":["conditionId"]},
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}},"required":["conditionId"]},
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}},"required":["conditionId"]},
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {"type":"object","properties":{"conditionId":{"const":"SCIM_JIT_COLLISION_POLICY"}},"required":["conditionId"]},
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "checkedProfilePaths": {"const":["provisioning.scim","provisioning.justInTimeProvisioning","provisioning.groupSynchronization"]},
+    "deferredBoundaries": {
+      "const": [
+        "providerOperationsAndEntitlements",
+        "observedProvisioningDelivery",
+        "groupMembershipAndAuthorization",
+        "sessionAndTokenRevocation",
+        "reconciliationAndFailureRecovery"
+      ]
+    },
+    "configurationVerified": {"const":false},
+    "providerCompatibilityVerified": {"const":false},
+    "lifecycleVerified": {"const":false},
+    "groupSynchronizationVerified": {"const":false},
+    "accessRevocationVerified": {"const":false},
+    "writesPerformed": {"const":false},
+    "publicationReady": {"const":false},
+    "recommendationReady": {"const":false}
+  },
+  "$defs": {
+    "conditionId": {
+      "type": "string",
+      "enum": [
+        "TENANT_AND_SUBJECT_CORRELATION",
+        "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+        "OFFBOARDING_AND_ACCESS_REVOCATION",
+        "FAILURE_RECOVERY_AND_RECONCILIATION",
+        "SCIM_CLIENT_SERVER_DIRECTION",
+        "SCIM_USER_OPERATIONS",
+        "JIT_TRUSTED_LOGIN_AND_LINKING",
+        "SCIM_JIT_COLLISION_POLICY"
+      ]
+    },
+    "requirementCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profilePath","criticality","outcome","reasonCode"],
+      "properties": {
+        "profilePath": {"type":"string","enum":["provisioning.scim","provisioning.justInTimeProvisioning","provisioning.groupSynchronization"]},
+        "criticality": {"$ref":"./application-identity-profile.v1.schema.json#/$defs/criticality"},
+        "outcome": {"type":"string","enum":["CONDITIONALLY_SATISFIED","CONDITIONALLY_NOT_SATISFIED","UNKNOWN","NOT_APPLIED"]},
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "REQUIRED_MECHANISM_PLANNED",
+            "FORBIDDEN_MECHANISM_ABSENT",
+            "REQUIRED_MECHANISM_ABSENT",
+            "FORBIDDEN_MECHANISM_PLANNED",
+            "REQUIREMENT_UNKNOWN",
+            "GROUP_LIFECYCLE_UNASSESSED",
+            "GROUP_PROHIBITION_UNASSESSED",
+            "PREFERENCE_NOT_SCORED",
+            "NO_REQUIREMENT"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {"outcome":{"const":"CONDITIONALLY_SATISFIED"},"reasonCode":{"enum":["REQUIRED_MECHANISM_PLANNED","FORBIDDEN_MECHANISM_ABSENT"]}}
+            },
+            {
+              "properties": {
+                "outcome": {"const":"CONDITIONALLY_NOT_SATISFIED"},
+                "reasonCode": {"enum":["REQUIRED_MECHANISM_ABSENT","FORBIDDEN_MECHANISM_PLANNED"]}
+              }
+            },
+            {
+              "properties": {
+                "outcome": {"const":"UNKNOWN"},
+                "reasonCode": {"enum":["REQUIREMENT_UNKNOWN","GROUP_LIFECYCLE_UNASSESSED","GROUP_PROHIBITION_UNASSESSED"]}
+              }
+            },
+            {"properties":{"outcome":{"const":"NOT_APPLIED"},"reasonCode":{"enum":["PREFERENCE_NOT_SCORED","NO_REQUIREMENT"]}}}
+          ]
+        },
+        {
+          "if": {"properties":{"profilePath":{"const":"provisioning.groupSynchronization"}}},
+          "then": {
+            "oneOf": [
+              {"properties":{"criticality":{"const":"REQUIRED"},"reasonCode":{"enum":["GROUP_LIFECYCLE_UNASSESSED"]}}},
+              {"properties":{"criticality":{"const":"FORBIDDEN"},"reasonCode":{"enum":["GROUP_PROHIBITION_UNASSESSED"]}}},
+              {"properties":{"criticality":{"const":"UNKNOWN"},"reasonCode":{"enum":["REQUIREMENT_UNKNOWN"]}}},
+              {"properties":{"criticality":{"const":"PREFERRED"},"reasonCode":{"enum":["PREFERENCE_NOT_SCORED"]}}},
+              {"properties":{"criticality":{"const":"NOT_REQUIRED"},"reasonCode":{"enum":["NO_REQUIREMENT"]}}}
+            ]
+          },
+          "else": {
+            "oneOf": [
+              {
+                "properties": {"criticality":{"const":"REQUIRED"},"reasonCode":{"enum":["REQUIRED_MECHANISM_PLANNED","REQUIRED_MECHANISM_ABSENT"]}}
+              },
+              {
+                "properties": {"criticality":{"const":"FORBIDDEN"},"reasonCode":{"enum":["FORBIDDEN_MECHANISM_PLANNED","FORBIDDEN_MECHANISM_ABSENT"]}}
+              },
+              {"properties":{"criticality":{"const":"UNKNOWN"},"reasonCode":{"enum":["REQUIREMENT_UNKNOWN"]}}},
+              {"properties":{"criticality":{"const":"PREFERRED"},"reasonCode":{"enum":["PREFERENCE_NOT_SCORED"]}}},
+              {"properties":{"criticality":{"const":"NOT_REQUIRED"},"reasonCode":{"enum":["NO_REQUIREMENT"]}}}
+            ]
+          }
+        }
+      ]
+    },
+    "conditionCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conditionId","outcome","reasonCode"],
+      "properties": {
+        "conditionId": {"$ref":"#/$defs/conditionId"},
+        "outcome": {"type":"string","enum":["CONDITIONALLY_SATISFIED","CONDITIONALLY_NOT_SATISFIED","UNKNOWN"]},
+        "reasonCode": {"type":"string","enum":["DECLARED_CONDITION_SATISFIED","DECLARED_CONDITION_NOT_SATISFIED","CONDITION_UNKNOWN"]}
+      },
+      "oneOf": [
+        {"properties":{"outcome":{"const":"CONDITIONALLY_SATISFIED"},"reasonCode":{"enum":["DECLARED_CONDITION_SATISFIED"]}}},
+        {"properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"},"reasonCode":{"enum":["DECLARED_CONDITION_NOT_SATISFIED"]}}},
+        {"properties":{"outcome":{"const":"UNKNOWN"},"reasonCode":{"enum":["CONDITION_UNKNOWN"]}}}
+      ]
+    },
+    "pattern": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patternId","displayName","scimPlanned","jitPlanned","advantages","tradeoffs","conditions","references"],
+      "properties": {
+        "patternId": {"$ref":"./provisioning-lifecycle-request.v1.schema.json#/$defs/patternId"},
+        "displayName": {"type":"string","minLength":1,"maxLength":100},
+        "scimPlanned": {"type":"boolean"},
+        "jitPlanned": {"type":"boolean"},
+        "advantages": {"type":"array","minItems":1,"maxItems":3,"uniqueItems":true,"items":{"type":"string","minLength":1,"maxLength":500}},
+        "tradeoffs": {"type":"array","minItems":1,"maxItems":3,"uniqueItems":true,"items":{"type":"string","minLength":1,"maxLength":500}},
+        "conditions": {"type":"array","uniqueItems":true,"items":{"$ref":"#/$defs/conditionId"}},
+        "references": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "format": "uri",
+            "enum": [
+              "https://www.rfc-editor.org/rfc/rfc7644.html",
+              "https://www.rfc-editor.org/rfc/rfc7643.html",
+              "https://zitadel.com/docs/guides/integrate/identity-providers/introduction"
+            ]
+          }
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "patternId": {"const":"SCIM_PUSH"},
+            "scimPlanned": {"const":true},
+            "jitPlanned": {"const":false},
+            "conditions": {
+              "const": [
+                "TENANT_AND_SUBJECT_CORRELATION",
+                "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                "OFFBOARDING_AND_ACCESS_REVOCATION",
+                "FAILURE_RECOVERY_AND_RECONCILIATION",
+                "SCIM_CLIENT_SERVER_DIRECTION",
+                "SCIM_USER_OPERATIONS"
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "patternId": {"const":"JIT_LOGIN"},
+            "scimPlanned": {"const":false},
+            "jitPlanned": {"const":true},
+            "conditions": {
+              "const": [
+                "TENANT_AND_SUBJECT_CORRELATION",
+                "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                "OFFBOARDING_AND_ACCESS_REVOCATION",
+                "FAILURE_RECOVERY_AND_RECONCILIATION",
+                "JIT_TRUSTED_LOGIN_AND_LINKING"
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "patternId": {"const":"SCIM_AND_JIT"},
+            "scimPlanned": {"const":true},
+            "jitPlanned": {"const":true},
+            "conditions": {
+              "const": [
+                "TENANT_AND_SUBJECT_CORRELATION",
+                "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                "OFFBOARDING_AND_ACCESS_REVOCATION",
+                "FAILURE_RECOVERY_AND_RECONCILIATION",
+                "SCIM_CLIENT_SERVER_DIRECTION",
+                "SCIM_USER_OPERATIONS",
+                "JIT_TRUSTED_LOGIN_AND_LINKING",
+                "SCIM_JIT_COLLISION_POLICY"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -523,6 +523,39 @@ cannot override the separate client/token-exposure preflight, verify configurati
 provider compatibility, or establish recommendation/approval/deployment readiness.
 The existing GET response and historical impact receipts remain unchanged.
 
+### Provisioning lifecycle design preview
+
+Core POST `/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview`
+compares an explicit SCIM, login-time JIT or SCIM-and-JIT design with the exact saved
+provisioning criticalities. The [request](packages/contracts/schemas/provisioning-lifecycle-request.v1.schema.json)
+contains only `expectedVersion`, `patternId` and typed temporary declarations;
+missing declarations stay unknown. Foreign-pattern conditions, supplied requirements,
+evaluation time, extra fields and query parameters are rejected. The existing service
+credential and personal-workspace ownership boundary applies. Stale versions return
+409; missing or cross-workspace assessments return 404 after authorization.
+
+The [no-store preview](packages/contracts/schemas/provisioning-lifecycle-preview.v1.schema.json)
+includes all three alternatives' advantages, tradeoffs, scoped conditions and concept
+references. JIT-only cannot satisfy required SCIM; a hybrid cannot bypass forbidden
+SCIM or JIT. Explicit preferences are not scored. Required or forbidden group
+synchronization remains unknown: selecting SCIM does not establish group delivery or
+application role mapping. A hard mismatch takes precedence without hiding other gaps.
+
+Declarations cover tenant/subject correlation, attribute ownership, offboarding and
+access revocation, failure recovery, SCIM direction/User operations, trusted JIT
+linking and hybrid collision policy. Even all-satisfied declarations are an unverified
+design hypothesis, not observed provider support, interoperability, session revocation
+or lifecycle verification. Assessment state, revisions, events, existing eligibility,
+coverage and publication gates are unchanged. No declarations or result are saved,
+and no IdP configuration, accounts, dependencies or paid calls are added. This Core
+slice has no BFF route or browser form yet.
+
+Concept sources are [SCIM operations](https://www.rfc-editor.org/rfc/rfc7644.html),
+[SCIM User and Group schemas](https://www.rfc-editor.org/rfc/rfc7643.html), and a
+[login-time creation/update example](https://zitadel.com/docs/guides/integrate/identity-providers/introduction).
+The last reference illustrates an implementation, not any plan's entitlement or a
+verified provider catalog fact. Evaluation never fetches these references.
+
 ### Auditability capability rule kernel
 
 The separate `auditability-capability-preflight-1` kernel evaluates explicit requirements

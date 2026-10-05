@@ -26,6 +26,54 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+    post:
+      tags: [Assessments]
+      operationId: previewProvisioningLifecycleV1
+      summary: Compare provisioning design alternatives against exact saved criticalities
+      description: >-
+        Personal read-only preview; no query parameters. The expected assessment version
+        is mandatory. Core derives all SCIM, JIT and group criticalities from the stored
+        profile. Missing design declarations remain unknown, foreign-pattern conditions
+        are rejected, and JIT cannot replace required SCIM. Required or forbidden groups
+        remain unassessed. Pros, tradeoffs and references describe design alternatives,
+        not provider support or real lifecycle behavior. No writes, recommendation or
+        changes to existing eligibility, impact coverage or publication policy.
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/provisioning-lifecycle-request.v1.schema.json
+      responses:
+        '200':
+          description: Version-bound conditional design results only
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/provisioning-lifecycle-preview.v1.schema.json
+        '400':
+          description: Malformed version, pattern or declarations, supplied fields or query
+        '401':
+          description: Service credential or singular identity assertions missing or invalid
+        '403':
+          description: Identity does not own the requested workspace
+        '404':
+          $ref: '#/components/responses/AssessmentNotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
   /internal/v1/catalog-curator/auditability-impact/coverage-preview:
     post:
       operationId: previewAuditabilityImpactCoverage

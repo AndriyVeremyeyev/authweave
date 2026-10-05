@@ -242,6 +242,26 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test void lifecyclePreviewUsesTheExistingServiceAndPersonalOwnershipBoundary() throws Exception {
+        String issuer = "http://localhost:8081", alice = "lifecycle-alice-" + UUID.randomUUID(), bob = "lifecycle-bob-" + UUID.randomUUID();
+        UUID workspace = provision(issuer, alice); var request = post("/api/v1/workspaces/" + workspace + "/assessments");
+        var created = mvc.perform(request.header("Authorization", TOKEN).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", alice))
+                .andExpect(status().isCreated()).andReturn();
+        String path = "/api/v1/workspaces/" + workspace + "/assessments/" + mapper.readTree(created.getResponse().getContentAsString()).get("id").asText() + "/provisioning-lifecycle-preview";
+        String body = "{\"expectedVersion\":0,\"patternId\":\"SCIM_PUSH\",\"declarations\":{}}";
+        for (String target : List.of(path, path.replace("/v1/", "/v2/"))) {
+            mvc.perform(post(target).contentType(MediaType.APPLICATION_JSON).content("not-json")).andExpect(status().isUnauthorized());
+            mvc.perform(post(target).header("Authorization", "wrong").contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+            mvc.perform(post(target).header("Authorization", TOKEN, TOKEN).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+            mvc.perform(post(target).header("Authorization", TOKEN).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+            mvc.perform(post(target).header("Authorization", TOKEN).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", alice, alice).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
+            mvc.perform(post(target).header("Authorization", TOKEN).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", bob).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+            mvc.perform(post(target).header("Authorization", TOKEN).header("X-AuthWeave-Oidc-Issuer", "https://other.example.test").header("X-AuthWeave-Oidc-Subject", alice).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isForbidden());
+        }
+        mvc.perform(post(path).header("Authorization", TOKEN).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", alice).contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.analysis.status").value("NEEDS_INFORMATION"));
+    }
+
     @Test
     void listsOnlyOwnedAssessmentsAndRejectsForeignPaginationCursor() throws Exception {
         String issuer = "http://localhost:8081";

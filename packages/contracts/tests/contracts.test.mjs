@@ -50,6 +50,50 @@ const validateAssessmentResponse = ajv.getSchema(assessmentResponseSchemaId);
 const validateUpdateAssessmentProfile = ajv.getSchema(updateAssessmentProfileSchemaId);
 const validateCoreProblem = ajv.getSchema(coreProblemSchemaId);
 
+test("provisioning lifecycle requests allow only version-bound pattern-specific declarations", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/provisioning-lifecycle-request.v1.schema.json");
+  const common = ["TENANT_AND_SUBJECT_CORRELATION", "ATTRIBUTE_OWNERSHIP_AND_MAPPING", "OFFBOARDING_AND_ACCESS_REVOCATION", "FAILURE_RECOVERY_AND_RECONCILIATION"];
+  const cases = { SCIM_PUSH: [...common, "SCIM_CLIENT_SERVER_DIRECTION", "SCIM_USER_OPERATIONS"], JIT_LOGIN: [...common, "JIT_TRUSTED_LOGIN_AND_LINKING"],
+    SCIM_AND_JIT: [...common, "SCIM_CLIENT_SERVER_DIRECTION", "SCIM_USER_OPERATIONS", "JIT_TRUSTED_LOGIN_AND_LINKING", "SCIM_JIT_COLLISION_POLICY"] };
+  for (const [patternId, ids] of Object.entries(cases)) {
+    const request = { expectedVersion: 0, patternId, declarations: {} }; assert.equal(validate(request), true, validationMessage(validate));
+    for (const value of ["SATISFIED", "NOT_SATISFIED", "UNKNOWN"]) assert.equal(validate({ ...request, declarations: Object.fromEntries(ids.map(id => [id, value])) }), true);
+    for (const invalid of [{ ...request, expectedVersion: -1 }, { ...request, expectedVersion: "0" }, { ...request, expectedVersion: 9007199254740992 },
+      { ...request, declarations: null }, { ...request, declarations: { MADE_UP: "SATISFIED" } }, { ...request, declarations: { [ids[0]]: "VERIFIED" } },
+      { ...request, requirements: { scim: "NOT_REQUIRED" } }, { ...request, evaluatedAt: "2026-10-05T00:00:00Z" }]) assert.equal(validate(invalid), false);
+  }
+  assert.equal(validate({ expectedVersion: 0, patternId: "SCIM_PUSH", declarations: { JIT_TRUSTED_LOGIN_AND_LINKING: "SATISFIED" } }), false);
+});
+
+test("provisioning analysis preserves group unknowns, exact condition inventory and failure precedence", async () => {
+  const schema = await readJson(path.join(schemasRoot, "provisioning-lifecycle-preview.v1.schema.json"));
+  // Resolve local references in the root contract context.
+  const rootValidate = ajv.getSchema(`${schema.$id}#/properties/analysis`);
+  assert.ok(rootValidate);
+  const ids = ["TENANT_AND_SUBJECT_CORRELATION", "ATTRIBUTE_OWNERSHIP_AND_MAPPING", "OFFBOARDING_AND_ACCESS_REVOCATION", "FAILURE_RECOVERY_AND_RECONCILIATION", "SCIM_CLIENT_SERVER_DIRECTION", "SCIM_USER_OPERATIONS"];
+  const value = { patternId: "SCIM_PUSH", requirements: { scim: "REQUIRED", justInTimeProvisioning: "NOT_REQUIRED", groupSynchronization: "REQUIRED" }, declarations: Object.fromEntries(ids.map(id => [id, "SATISFIED"])),
+    requirementChecks: [{ profilePath: "provisioning.scim", criticality: "REQUIRED", outcome: "CONDITIONALLY_SATISFIED", reasonCode: "REQUIRED_MECHANISM_PLANNED" },
+      { profilePath: "provisioning.justInTimeProvisioning", criticality: "NOT_REQUIRED", outcome: "NOT_APPLIED", reasonCode: "NO_REQUIREMENT" },
+      { profilePath: "provisioning.groupSynchronization", criticality: "REQUIRED", outcome: "UNKNOWN", reasonCode: "GROUP_LIFECYCLE_UNASSESSED" }],
+    conditionChecks: ids.map(conditionId => ({ conditionId, outcome: "CONDITIONALLY_SATISFIED", reasonCode: "DECLARED_CONDITION_SATISFIED" })), status: "NEEDS_INFORMATION" };
+  assert.equal(rootValidate(value), true, validationMessage(rootValidate));
+  const failure = structuredClone(value); failure.conditionChecks[0].outcome = "CONDITIONALLY_NOT_SATISFIED"; failure.conditionChecks[0].reasonCode = "DECLARED_CONDITION_NOT_SATISFIED";
+  failure.status = "CONDITIONALLY_DOES_NOT_MATCH"; assert.equal(rootValidate(failure), true, validationMessage(rootValidate));
+  for (const invalid of [{ ...value, status: "CONDITIONALLY_MATCHES" }, { ...failure, status: "NEEDS_INFORMATION" },
+    { ...value, conditionChecks: value.conditionChecks.slice(1) }, { ...value, requirementChecks: [value.requirementChecks[0], value.requirementChecks[0], value.requirementChecks[2]] },
+    { ...value, conditionChecks: [...value.conditionChecks.slice(0, -1), value.conditionChecks[0]] }, { ...value, providerId: "example" }]) assert.equal(rootValidate(invalid), false);
+  const promoted = structuredClone(value); promoted.requirementChecks[2].outcome = "CONDITIONALLY_SATISFIED"; promoted.requirementChecks[2].reasonCode = "REQUIRED_MECHANISM_PLANNED";
+  assert.equal(rootValidate(promoted), false);
+});
+
+test("provisioning lifecycle preview cannot assert real configuration or publication authority", async () => {
+  const schema = await readJson(path.join(schemasRoot, "provisioning-lifecycle-preview.v1.schema.json")); assert.ok(ajv.getSchema(schema.$id));
+  for (const flag of ["configurationVerified", "providerCompatibilityVerified", "lifecycleVerified", "groupSynchronizationVerified", "accessRevocationVerified", "writesPerformed", "publicationReady", "recommendationReady"]) assert.equal(schema.properties[flag].const, false);
+  assert.equal(schema.properties.policyVersion.const, "provisioning-lifecycle-design-1");
+  assert.equal(schema.properties.patterns.minItems, 3); assert.equal(schema.properties.conditionDefinitions.minItems, 8);
+  assert.equal(schema.properties.deferredBoundaries.const.length, 5);
+});
+
 test("auditability proposed facts use a separate exact-draft contract without caller-supplied trust", async () => {
   const draft = await readJson(path.join(fixturesRoot, "catalog-auditability-draft.valid.json"));
   const base = await readJson(path.join(fixturesRoot, "provider-catalog-draft.valid.json"));

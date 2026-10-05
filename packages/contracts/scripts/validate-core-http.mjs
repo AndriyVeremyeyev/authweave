@@ -34,6 +34,54 @@ let auditabilityImpactSamples = 0;
 let auditabilityCoverageSamples = 0;
 let combinedConstraintSamples = 0;
 let combinedConsumerSamples = 0;
+let lifecycleSamples = 0;
+const lifecycleRequests = new Map(samples.filter(s => s.schema === "provisioning-lifecycle-request" && s.valid)
+  .map(s => [s.name.slice(0, -"-request".length), s.payload]));
+const savedProvisioning = new Map(samples.filter(s => /^assessment-response(?:\.v[0-9]+)?$/.test(s.schema) && s.valid)
+  .map(s => [JSON.stringify([s.payload.workspaceId, s.payload.id, s.payload.version]), s.payload.profile.provisioning]));
+const lifecycleCommon = ["TENANT_AND_SUBJECT_CORRELATION", "ATTRIBUTE_OWNERSHIP_AND_MAPPING", "OFFBOARDING_AND_ACCESS_REVOCATION", "FAILURE_RECOVERY_AND_RECONCILIATION"];
+const lifecycleConditions = { SCIM_PUSH: [...lifecycleCommon, "SCIM_CLIENT_SERVER_DIRECTION", "SCIM_USER_OPERATIONS"],
+  JIT_LOGIN: [...lifecycleCommon, "JIT_TRUSTED_LOGIN_AND_LINKING"],
+  SCIM_AND_JIT: [...lifecycleCommon, "SCIM_CLIENT_SERVER_DIRECTION", "SCIM_USER_OPERATIONS", "JIT_TRUSTED_LOGIN_AND_LINKING", "SCIM_JIT_COLLISION_POLICY"] };
+
+function validateLifecycle(payload, name) {
+  const input = lifecycleRequests.get(name), analysis = payload.analysis;
+  assert.ok(input, `${name}: exact original preview request is required`);
+  assert.equal(payload.assessmentVersion, input.expectedVersion);
+  assert.equal(analysis.patternId, input.patternId); assert.deepEqual(analysis.declarations, input.declarations);
+  const requirements = savedProvisioning.get(JSON.stringify([payload.workspaceId, payload.assessmentId, payload.assessmentVersion]));
+  assert.ok(requirements, `${name}: exact stored workspace/assessment/version is required`);
+  assert.deepEqual(analysis.requirements, requirements, "Temporary declarations cannot replace saved criticalities.");
+  const satisfies = ["REQUIRED_MECHANISM_PLANNED", "FORBIDDEN_MECHANISM_ABSENT", "DECLARED_CONDITION_SATISFIED"];
+  const violates = ["REQUIRED_MECHANISM_ABSENT", "FORBIDDEN_MECHANISM_PLANNED", "DECLARED_CONDITION_NOT_SATISFIED"];
+  const outcome = reason => satisfies.includes(reason) ? "CONDITIONALLY_SATISFIED" : violates.includes(reason) ? "CONDITIONALLY_NOT_SATISFIED"
+    : ["NO_REQUIREMENT", "PREFERENCE_NOT_SCORED"].includes(reason) ? "NOT_APPLIED" : "UNKNOWN";
+  const checks = Object.entries(requirements).map(([key, criticality]) => {
+    const planned = key === "scim" ? input.patternId !== "JIT_LOGIN" : input.patternId !== "SCIM_PUSH";
+    const reasonCode = criticality === "UNKNOWN" ? "REQUIREMENT_UNKNOWN" : criticality === "NOT_REQUIRED" ? "NO_REQUIREMENT"
+      : criticality === "PREFERRED" ? "PREFERENCE_NOT_SCORED" : key === "groupSynchronization"
+        ? criticality === "REQUIRED" ? "GROUP_LIFECYCLE_UNASSESSED" : "GROUP_PROHIBITION_UNASSESSED"
+        : criticality === "REQUIRED" ? planned ? "REQUIRED_MECHANISM_PLANNED" : "REQUIRED_MECHANISM_ABSENT"
+          : planned ? "FORBIDDEN_MECHANISM_PLANNED" : "FORBIDDEN_MECHANISM_ABSENT";
+    return { profilePath: `provisioning.${key}`, criticality, reasonCode, outcome: outcome(reasonCode) };
+  });
+  const orderedChecks = ["scim", "justInTimeProvisioning", "groupSynchronization"].map(key => checks.find(c => c.profilePath === `provisioning.${key}`));
+  assert.deepEqual(analysis.requirementChecks, orderedChecks, "Exact saved hard-requirement checks; no JIT-for-SCIM substitution or group promotion.");
+  const conditionChecks = lifecycleConditions[input.patternId].map(conditionId => {
+    const declared = input.declarations[conditionId] ?? "UNKNOWN";
+    const reasonCode = declared === "SATISFIED" ? "DECLARED_CONDITION_SATISFIED" : declared === "NOT_SATISFIED" ? "DECLARED_CONDITION_NOT_SATISFIED" : "CONDITION_UNKNOWN";
+    return { conditionId, reasonCode, outcome: outcome(reasonCode) };
+  });
+  assert.deepEqual(analysis.conditionChecks, conditionChecks, "Exact scoped declaration inventory, including omissions.");
+  const all = [...orderedChecks, ...conditionChecks].map(c => c.outcome);
+  assert.equal(analysis.status, all.includes("CONDITIONALLY_NOT_SATISFIED") ? "CONDITIONALLY_DOES_NOT_MATCH" : all.includes("UNKNOWN") ? "NEEDS_INFORMATION" : "CONDITIONALLY_MATCHES");
+  assert.deepEqual(payload.patterns.map(p => p.patternId), Object.keys(lifecycleConditions));
+  for (const pattern of payload.patterns) {
+    assert.deepEqual(pattern.conditions, lifecycleConditions[pattern.patternId]);
+    assert.equal(pattern.scimPlanned, pattern.patternId !== "JIT_LOGIN"); assert.equal(pattern.jitPlanned, pattern.patternId !== "SCIM_PUSH");
+  }
+  assert.deepEqual(payload.conditionDefinitions.map(c => c.conditionId), lifecycleConditions.SCIM_AND_JIT);
+}
 const constraintKey = value => JSON.stringify([value.workspaceId, value.assessmentId, value.assessmentVersion,
   value.catalogVersion, value.catalogKind, value.evaluatedAt]);
 const legacyConstraints = new Map(samples.filter(s => s.schema === "hard-constraint-preflight" && s.valid)
@@ -238,6 +286,21 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "provisioning-lifecycle-preview" && valid) {
+    validateLifecycle(payload, name);
+    const forged = structuredClone(payload); forged.assessmentVersion++;
+    assert.equal(validate(forged), true, "A foreign version can retain valid shape.");
+    assert.throws(() => validateLifecycle(forged, name), undefined, "Reject a foreign assessment version.");
+    const altered = structuredClone(payload);
+    altered.analysis.requirements.scim = altered.analysis.requirements.scim === "REQUIRED" ? "NOT_REQUIRED" : "REQUIRED";
+    assert.equal(validate(altered), true, "Altered saved criticalities can retain valid shape.");
+    assert.throws(() => validateLifecycle(altered, name), undefined, "Caller-selected criticalities cannot replace the saved profile.");
+    const rewritten = structuredClone(payload);
+    rewritten.analysis.declarations.TENANT_AND_SUBJECT_CORRELATION = rewritten.analysis.declarations.TENANT_AND_SUBJECT_CORRELATION === "SATISFIED" ? "UNKNOWN" : "SATISFIED";
+    assert.equal(validate(rewritten), true, "Altered declared conditions can retain valid shape.");
+    assert.throws(() => validateLifecycle(rewritten, name), undefined, "Bind exact request declarations, not substituted answers.");
+    lifecycleSamples++;
+  }
   if (["hard-constraint-preflight.v2", "synthetic-comparison.v2", "weighted-comparison-preview.v2", "weight-sensitivity-preview.v2"].includes(schema) && valid) {
     validateCombinedConstraints(payload);
     // Schema-valid but semantically foreign evidence must not pass the independent binding guard.
@@ -320,6 +383,7 @@ for (const { name, schema, valid, payload } of samples) {
   }
 }
 for (const required of ["assessment-response:true", "core-problem:true",
+  "provisioning-lifecycle-request:true", "provisioning-lifecycle-request:false", "provisioning-lifecycle-preview:true", "provisioning-lifecycle-preview:false",
   "catalog-bootstrap-review-request:true", "catalog-bootstrap-review-request:false",
   "catalog-bootstrap-review:true", "catalog-bootstrap-review:false",
   "catalog-fact-review-request:true", "catalog-fact-review-request:false",
@@ -397,3 +461,5 @@ assert.ok(auditabilityImpactSamples > 0, "Actual conditional auditability compar
 console.log(`Verified ${auditabilityImpactSamples} conditional auditability impact reports with independent scenario, source, outcome and hash checks.`);
 assert.ok(auditabilityCoverageSamples > 0, "Actual candidate coverage reports must reach independent binding, dependency, matrix and gap checks.");
 console.log(`Verified ${auditabilityCoverageSamples} candidate auditability coverage reports with independent impact, selected-input and gap guards.`);
+assert.ok(lifecycleSamples > 0, "Actual provisioning previews must reach independent saved-requirement, version and condition guards.");
+console.log(`Verified ${lifecycleSamples} provisioning lifecycle previews with independent saved-profile, scoped-condition and hard-requirement guards.`);
