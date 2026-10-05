@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/weight-sensitivity-preview.v2.schema.json",
+  "title": "Synthetic weight sensitivity with auditability constraints v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comparison",
+    "scoringPolicyVersion",
+    "sensitivityPolicyVersion",
+    "baseline",
+    "alternative",
+    "deltas",
+    "rankingPerformed",
+    "recommendationReady"
+  ],
+  "properties": {
+    "comparison": {
+      "$ref": "./synthetic-comparison.v2.schema.json"
+    },
+    "scoringPolicyVersion": {
+      "$ref": "./weight-sensitivity-preview.v1.schema.json#/properties/scoringPolicyVersion"
+    },
+    "sensitivityPolicyVersion": {
+      "$ref": "./weight-sensitivity-preview.v1.schema.json#/properties/sensitivityPolicyVersion"
+    },
+    "baseline": {
+      "$ref": "./weight-sensitivity-preview.v1.schema.json#/properties/baseline"
+    },
+    "alternative": {
+      "$ref": "./weight-sensitivity-preview.v1.schema.json#/properties/alternative"
+    },
+    "deltas": {
+      "$ref": "./weight-sensitivity-preview.v1.schema.json#/properties/deltas"
+    },
+    "rankingPerformed": {
+      "$ref": "./weight-sensitivity-preview.v1.schema.json#/properties/rankingPerformed"
+    },
+    "recommendationReady": {
+      "$ref": "./weight-sensitivity-preview.v1.schema.json#/properties/recommendationReady"
+    }
+  }
+}

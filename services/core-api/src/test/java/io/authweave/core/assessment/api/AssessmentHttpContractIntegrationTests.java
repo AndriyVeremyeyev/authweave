@@ -3063,6 +3063,94 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
 
     @ParameterizedTest
     @org.junit.jupiter.params.provider.EnumSource(io.authweave.core.assessment.domain.profile.RequirementCriticality.class)
+    void v6CombinedConstraintsBindAuditabilityAndWithholdScoresWithoutChangingLegacyOrState(
+            io.authweave.core.assessment.domain.profile.RequirementCriticality criticality) throws Exception {
+        var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");
+        var initial = versionedSample("combined-initial", "assessment-response.v6", mvc.perform(get(path)).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile"));
+        // A fully explicit checked scope lets auditability alone change the complete option's verdict.
+        try (var input = new ClassPathResource("seed/assessments.v1.json").getInputStream()) {
+            var seed = mapper.readTree(input).get(0).get("profile");
+            ((ObjectNode) update.get("profile")).set("application", seed.get("application"));
+            ((ObjectNode) update.get("profile")).set("audience", seed.get("audience"));
+        }
+        ((ObjectNode) update.at("/profile/protocols")).put("socialLogin", "PREFERRED");
+        ((ObjectNode) update.at("/profile/protocols/federation")).put("SAML", "PREFERRED");
+        ((ObjectNode) update.at("/profile/protocols/federation")).put("OIDC", "NOT_REQUIRED");
+        for (String field : List.of("oauth2ProtectedApis", "enterpriseSingleSignOn"))
+            ((ObjectNode) update.at("/profile/protocols")).put(field, "NOT_REQUIRED");
+        for (String field : List.of("scim", "justInTimeProvisioning", "groupSynchronization"))
+            ((ObjectNode) update.at("/profile/provisioning")).put(field, "NOT_REQUIRED");
+        var security = (ObjectNode) update.at("/profile/security"); security.put("auditability", criticality.name());
+        for (String field : List.of("multiFactorAuthentication", "dataResidency")) security.put(field, "NOT_REQUIRED");
+        security.put("complianceScopeStatus", "NONE_IDENTIFIED");
+        for (String field : List.of("phishingResistance", "nonExportableKeys", "stepUpAuthentication"))
+            ((ObjectNode) security.get("authenticationControls")).put(field, "NOT_REQUIRED");
+        var requirements = (ObjectNode) security.get("auditabilityRequirements");
+        var selected = requirements.putArray("selectedCriteria");
+        for (var criterion : io.authweave.core.assessment.domain.profile.AuditabilityRequirements.Criterion.values()) selected.add(criterion.name());
+        requirements.put("minimumRetentionDays", 30);
+        var saved = saveV6("combined-saved", path, update);
+        var history = versionedSample("combined-history-before", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn());
+        var events = historyResponse("combined-events-before", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        var legacy = versionedSample("combined-legacy-hard", "hard-constraint-preflight",
+                mvc.perform(get(path.replace("/api/v6/", "/api/v5/") + "/hard-constraint-preflight")).andExpect(status().isOk()).andReturn());
+        var hard = versionedSample("combined-hard-" + criticality, "hard-constraint-preflight.v2",
+                mvc.perform(get(path + "/hard-constraint-preflight")).andExpect(status().isOk())
+                        .andExpect(header().string("Cache-Control", "no-store"))
+                        .andExpect(jsonPath("$.policyVersion").value("hard-constraint-preflight-2")).andReturn());
+        var audit = versionedSample("combined-separate-audit", "auditability-capability-preflight",
+                mvc.perform(get(path + "/auditability-capability-preflight")).andExpect(status().isOk()).andReturn());
+        assertEquals(audit, hard.get("auditability"));
+        assertEquals("PASSES_CHECKED_REQUIREMENTS", legacy.at("/candidates/0/verdict").asText());
+        assertEquals(criticality == io.authweave.core.assessment.domain.profile.RequirementCriticality.UNKNOWN
+                || criticality == io.authweave.core.assessment.domain.profile.RequirementCriticality.FORBIDDEN
+                ? "UNRESOLVED" : "PASSES_CHECKED_REQUIREMENTS", hard.at("/candidates/0/verdict").asText());
+        var comparison = versionedSample("combined-comparison-" + criticality, "synthetic-comparison.v2",
+                mvc.perform(get(path + "/comparison-preflight")).andExpect(status().isOk())
+                        .andExpect(header().string("Cache-Control", "no-store"))
+                        .andExpect(jsonPath("$.policyVersion").value("synthetic-comparison-2")).andReturn());
+        assertEquals(audit, comparison.get("auditability"));
+        for (int i = 0; i < hard.get("candidates").size(); i++) {
+            assertEquals(hard.get("candidates").get(i).get("verdict"), comparison.get("candidates").get(i).get("hardVerdict"));
+            assertEquals(hard.get("candidates").get(i).get("exclusionReasons"), comparison.get("candidates").get(i).get("exclusionReasons"));
+            assertEquals(hard.get("candidates").get(i).get("informationGaps"), comparison.get("candidates").get(i).get("informationGaps"));
+        }
+        if (criticality == io.authweave.core.assessment.domain.profile.RequirementCriticality.REQUIRED) {
+            assertEquals("EXCLUDED", hard.at("/candidates/1/verdict").asText());
+            org.junit.jupiter.api.Assertions.assertTrue(hard.at("/candidates/1/exclusionReasons").toString().contains("RETENTION_BELOW_MINIMUM"));
+            org.junit.jupiter.api.Assertions.assertTrue(hard.at("/candidates/1/informationGaps").toString().contains("EVIDENCE_MISSING"));
+        }
+        String weights = "{\"SAML\":40,\"SOCIAL_LOGIN\":60}";
+        var weighted = versionedSample("combined-weighted-" + criticality, "weighted-comparison-preview.v2",
+                mvc.perform(post(path + "/weighted-comparison-preview").contentType(MediaType.APPLICATION_JSON).content("{\"weights\":" + weights + "}"))
+                        .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andReturn());
+        assertEquals(comparison, weighted.get("comparison"));
+        var sensitivity = versionedSample("combined-sensitivity-" + criticality, "weight-sensitivity-preview.v2",
+                mvc.perform(post(path + "/weight-sensitivity-preview").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"baselineWeights\":" + weights + ",\"alternativeWeights\":{\"SAML\":70,\"SOCIAL_LOGIN\":30}}"))
+                        .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andReturn());
+        assertEquals(comparison, sensitivity.get("comparison"));
+        assertEquals(legacy, versionedSample("combined-legacy-hard-unchanged", "hard-constraint-preflight",
+                mvc.perform(get(path.replace("/api/v6/", "/api/v5/") + "/hard-constraint-preflight")).andReturn()));
+        assertEquals(hard, versionedSample("combined-hard-repeat", "hard-constraint-preflight.v2", mvc.perform(get(path + "/hard-constraint-preflight")).andReturn()));
+        assertEquals(saved, versionedSample("combined-profile-unchanged", "assessment-response.v6", mvc.perform(get(path)).andReturn()));
+        assertEquals(history, versionedSample("combined-history-unchanged", "assessment-revision-page.v6", mvc.perform(get(path + "/revisions")).andReturn()));
+        assertEquals(events, historyResponse("combined-events-unchanged", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+        for (String endpoint : List.of("hard-constraint-preflight", "comparison-preflight")) {
+            var schema = endpoint.equals("hard-constraint-preflight") ? "hard-constraint-preflight.v2" : "synthetic-comparison.v2";
+            var value = endpoint.equals("hard-constraint-preflight") ? hard : comparison;
+            var missing = (ObjectNode) value.deepCopy(); missing.remove("auditability"); sample("combined-missing-audit", schema, false, missing);
+            var forged = (ObjectNode) value.deepCopy(); forged.put("recommendationReady", true); sample("combined-no-recommendation", schema, false, forged);
+            response("combined-foreign-workspace", mvc.perform(get(path.replace(assessment.workspaceId().value().toString(), UUID.randomUUID().toString()) + "/" + endpoint))
+                    .andExpect(status().isNotFound()).andReturn());
+        }
+        response("combined-invalid-weights", mvc.perform(post(path + "/weighted-comparison-preview").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"weights\":{\"SAML\":1}}" )).andExpect(status().isBadRequest()).andReturn());
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(io.authweave.core.assessment.domain.profile.RequirementCriticality.class)
     void scopedAuditabilityPreviewBindsSavedInputsEvidenceAndVersionWithoutWrites(
             io.authweave.core.assessment.domain.profile.RequirementCriticality criticality) throws Exception {
         var assessment = create(); var path = assessment.path().replace("/api/v1/", "/api/v6/");

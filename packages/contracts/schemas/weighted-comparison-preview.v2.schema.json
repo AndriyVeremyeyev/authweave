@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/weighted-comparison-preview.v2.schema.json",
+  "title": "Explicit synthetic weights with auditability constraints v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "comparison",
+    "scoringPolicyVersion",
+    "weights",
+    "rankingPerformed",
+    "recommendationReady",
+    "scores"
+  ],
+  "properties": {
+    "comparison": {
+      "$ref": "./synthetic-comparison.v2.schema.json"
+    },
+    "scoringPolicyVersion": {
+      "$ref": "./weighted-comparison-preview.v1.schema.json#/properties/scoringPolicyVersion"
+    },
+    "weights": {
+      "$ref": "./weighted-comparison-preview.v1.schema.json#/properties/weights"
+    },
+    "rankingPerformed": {
+      "$ref": "./weighted-comparison-preview.v1.schema.json#/properties/rankingPerformed"
+    },
+    "recommendationReady": {
+      "$ref": "./weighted-comparison-preview.v1.schema.json#/properties/recommendationReady"
+    },
+    "scores": {
+      "$ref": "./weighted-comparison-preview.v1.schema.json#/properties/scores"
+    }
+  }
+}

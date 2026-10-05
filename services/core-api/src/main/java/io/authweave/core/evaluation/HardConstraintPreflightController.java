@@ -1,6 +1,8 @@
 package io.authweave.core.evaluation;
 
 import java.util.UUID;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,5 +23,11 @@ public class HardConstraintPreflightController {
     public HardConstraintPreflight preview(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId) {
         return HardConstraintPreflight.from(eligibility.previewWithComplianceScope(
                 new WorkspaceId(workspaceId), new AssessmentId(assessmentId)));
+    }
+
+    @GetMapping("/api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/hard-constraint-preflight")
+    public ResponseEntity<HardConstraintPreflight> previewWithAuditability(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(HardConstraintPreflight.from(
+                eligibility.previewWithAuditability(new WorkspaceId(workspaceId), new AssessmentId(assessmentId))));
     }
 }

@@ -1,11 +1,13 @@
 package io.authweave.core.evaluation;
 
 import java.time.Clock;
+import java.time.Instant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import io.authweave.core.assessment.application.AssessmentApplicationService;
 import io.authweave.core.assessment.domain.AssessmentId;
 import io.authweave.core.assessment.domain.WorkspaceId;
+import io.authweave.core.assessment.persistence.PersistedAssessment;
 import io.authweave.core.catalog.AuditabilityCatalog;
 import io.authweave.core.catalog.ProviderCatalog;
 
@@ -23,13 +25,18 @@ public class AuditabilityCapabilityPreflightService {
     @Transactional(readOnly = true)
     public AuditabilityCapabilityPreflight preview(WorkspaceId workspaceId, AssessmentId assessmentId) {
         var assessment = assessments.getAssessment(workspaceId, assessmentId);
-        var security = assessment.assessment().profile().security(); var at = clock.instant();
+        return evaluate(assessment, base, evidence, clock.instant());
+    }
+    static AuditabilityCapabilityPreflight evaluate(PersistedAssessment assessment, ProviderCatalog base,
+            AuditabilityCatalog evidence, Instant at) {
+        evidence.validateBase(base);
+        var security = assessment.assessment().profile().security();
         var candidates = evidence.options().stream().map(option -> {
             var displayName = base.options().stream().filter(candidate -> candidate.id().equals(option.scope().optionId())).findFirst().orElseThrow().displayName();
             var analysis = AuditabilityEvaluator.evaluate(security.auditability(), security.auditabilityRequirements(), option.scope(), option.facts(), at);
             return new AuditabilityCapabilityPreflight.Candidate(displayName, analysis, option.facts());
         }).toList();
-        return new AuditabilityCapabilityPreflight(workspaceId.value(), assessmentId.value(), assessment.version(),
+        return new AuditabilityCapabilityPreflight(assessment.assessment().workspaceId().value(), assessment.assessment().id().value(), assessment.version(),
                 base.catalogVersion(), evidence.evidenceVersion(), base.kind(), at, security.auditability(),
                 security.auditabilityRequirements(), candidates);
     }

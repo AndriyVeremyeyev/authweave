@@ -30,6 +30,84 @@ let auditabilityConsumerSamples = 0;
 let auditabilityDraftSamples = 0;
 let auditabilityReviewSamples = 0;
 let auditabilityImpactSamples = 0;
+let combinedConstraintSamples = 0;
+const constraintKey = value => JSON.stringify([value.workspaceId, value.assessmentId, value.assessmentVersion,
+  value.catalogVersion, value.catalogKind, value.evaluatedAt]);
+const legacyConstraints = new Map(samples.filter(s => s.schema === "hard-constraint-preflight" && s.valid)
+  .map(s => [constraintKey(s.payload), s.payload]));
+
+function validateCombinedConstraints(payload) {
+  const comparison = payload.comparison ?? payload;
+  const legacy = legacyConstraints.get(constraintKey(comparison));
+  assert.ok(legacy, "Combined constraints require an exact legacy HTTP baseline, not a caller-selected verdict.");
+  const rawAudit = comparison.auditability;
+  const audit = auditabilityPreviewFromCore(rawAudit, { workspaceId: comparison.workspaceId,
+    assessmentId: comparison.assessmentId, expectedVersion: comparison.assessmentVersion,
+    values: { criticality: rawAudit.criticality, selectedCriteria: rawAudit.requirements.selectedCriteria,
+      minimumRetentionDays: rawAudit.requirements.minimumRetentionDays } });
+  assert.equal(audit.baseCatalogVersion, comparison.catalogVersion, "Combined base catalog binding");
+  assert.equal(audit.evaluatedAt, comparison.evaluatedAt, "Combined evaluation instant binding");
+  assert.equal(audit.candidates.length, comparison.candidates.length, "Combined option inventory");
+  const ids = new Set();
+  for (const [index, candidate] of comparison.candidates.entries()) {
+    const base = legacy.candidates[index];
+    assert.ok(base, "Preserve the legacy Core option order.");
+    for (const key of ["optionId", "displayName", "plan", "region"]) assert.equal(candidate[key], base[key]);
+    assert.ok(!ids.has(candidate.optionId), "Unique combined option IDs"); ids.add(candidate.optionId);
+    const bound = audit.candidates.filter(c => c.scope.optionId === candidate.optionId);
+    assert.equal(bound.length, 1, "One unambiguous audit configuration per base option");
+    const scoped = bound[0];
+    assert.equal(scoped.scope.plan, candidate.plan); assert.equal(scoped.scope.region, candidate.region);
+    assert.equal(scoped.displayName, candidate.displayName);
+    const expectedExcluded = [...base.exclusionReasons];
+    const expectedGaps = base.informationGaps.filter(f => !(scoped.checks.some(c => c.outcome === "PASS") &&
+      f.dimension === "COVERAGE" && f.reasonCode === "NO_AFFIRMATIVE_CHECKS"));
+    for (const check of scoped.checks) {
+      if (!["FAIL", "UNKNOWN"].includes(check.outcome)) continue;
+      const expected = check.outcome === "FAIL" ? expectedExcluded : expectedGaps;
+      const actual = (check.outcome === "FAIL" ? candidate.exclusionReasons : candidate.informationGaps)[expected.length];
+      assert.ok(actual, "Each audit failure/unknown must produce a finding.");
+      assert.equal(actual.dimension, "AUDITABILITY"); assert.equal(actual.reasonCode, check.reasonCode);
+      assert.equal(actual.profilePath, ["REQUIREMENT_UNKNOWN", "AUDIT_INTENT_UNCLEAR"].includes(check.reasonCode)
+        ? "security.auditability" : "security.auditabilityRequirements");
+      assert.ok(actual.explanation.startsWith(`${check.criterion}: `), "Name the exact audit criterion.");
+      if (check.reasonCode === "RETENTION_BELOW_MINIMUM") {
+        assert.ok(actual.explanation.includes(`retention of ${check.documentedMinimumRetentionDays} days`));
+        assert.ok(actual.explanation.includes(`requested ${audit.values.minimumRetentionDays} days`));
+      }
+      expected.push(actual);
+    }
+    assert.deepEqual(candidate.exclusionReasons, expectedExcluded, "Do not hide failures or invent exclusions.");
+    assert.deepEqual(candidate.informationGaps, expectedGaps, "Do not hide unknown evidence or invent gaps.");
+    const verdict = expectedExcluded.length ? "EXCLUDED" : expectedGaps.length ? "UNRESOLVED" : "PASSES_CHECKED_REQUIREMENTS";
+    assert.equal(candidate.hardVerdict ?? candidate.verdict, verdict, "Hard failure precedence and auditability aggregate");
+  }
+  function scoresFor(weights) {
+    return comparison.candidates.map(candidate => {
+      const status = candidate.hardVerdict === "EXCLUDED" ? "EXCLUDED" : candidate.hardVerdict === "UNRESOLVED"
+        ? "UNRESOLVED_HARD_CONSTRAINTS" : candidate.capabilityPreferences.some(p => p.outcome === "UNKNOWN")
+          ? "UNKNOWN_PREFERENCE_EVIDENCE" : "SCORED";
+      const contributions = status !== "SCORED" ? [] : Object.entries(weights).map(([capability, weight]) => {
+        const preference = candidate.capabilityPreferences.find(p => p.capability === capability);
+        assert.ok(preference, "Weights bind explicit preferences.");
+        return { capability, weight, outcome: preference.outcome, earnedPoints: preference.outcome === "AVAILABLE" ? weight : 0 };
+      });
+      return { optionId: candidate.optionId, status, score: status === "SCORED" ? contributions.reduce((n, c) => n + c.earnedPoints, 0) : null, contributions };
+    });
+  }
+  if (payload.scores) assert.deepEqual(payload.scores, scoresFor(payload.weights), "Auditability exclusions/unknowns withhold scores.");
+  if (payload.deltas) {
+    const baseline = scoresFor(payload.baseline.weights), alternative = scoresFor(payload.alternative.weights);
+    assert.deepEqual(payload.baseline.scores, baseline); assert.deepEqual(payload.alternative.scores, alternative);
+    const deltas = baseline.map((before, index) => {
+      const after = alternative[index];
+      return { optionId: before.optionId, status: before.status, scoreDelta: before.status === "SCORED" ? after.score - before.score : null,
+        capabilityDeltas: before.contributions.map((c, i) => ({ capability: c.capability, baselineWeight: c.weight,
+          alternativeWeight: after.contributions[i].weight, outcome: c.outcome, pointChange: after.contributions[i].earnedPoints - c.earnedPoints })) };
+    });
+    assert.deepEqual(payload.deltas, deltas, "No sensitivity delta for excluded or unresolved options.");
+  }
+}
 // Independent implementation of the documented unordered-collection canonicalization.
 const ordered = value => Array.isArray(value) ? value.map(ordered).sort((a, b) => JSON.stringify(a) < JSON.stringify(b) ? -1 : JSON.stringify(a) > JSON.stringify(b) ? 1 : 0) :
   value && typeof value === "object" ? Object.fromEntries(Object.keys(value).sort().map(key => [key, ordered(value[key])])) : value;
@@ -84,6 +162,14 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (["hard-constraint-preflight.v2", "synthetic-comparison.v2", "weighted-comparison-preview.v2", "weight-sensitivity-preview.v2"].includes(schema) && valid) {
+    validateCombinedConstraints(payload);
+    // Schema-valid but semantically foreign evidence must not pass the independent binding guard.
+    const forged = structuredClone(payload), comparison = forged.comparison ?? forged;
+    comparison.auditability.assessmentVersion++;
+    assert.throws(() => validateCombinedConstraints(forged), undefined, `${name}: reject foreign audit version`);
+    combinedConstraintSamples++;
+  }
   if (schema === "catalog-auditability-impact" && valid) {
     const before = reviewRequests.get(payload.beforeReview.reviewSha256), after = reviewRequests.get(payload.afterReview.reviewSha256);
     assert.ok(before && after, `${name}: both exact historical review requests must be supplied`);
@@ -213,6 +299,9 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "assessment-context-list-page:true", "assessment-context-list-page:false",
   "hard-constraint-preflight:true",
   "synthetic-comparison:true",
+  "hard-constraint-preflight.v2:true", "hard-constraint-preflight.v2:false",
+  "synthetic-comparison.v2:true", "synthetic-comparison.v2:false",
+  "weighted-comparison-preview.v2:true", "weight-sensitivity-preview.v2:true",
   "weighted-comparison-request:true", "weighted-comparison-preview:true",
   "weight-sensitivity-request:true", "weight-sensitivity-preview:true",
   "update-assessment-profile-request.v5:true", "update-assessment-profile-request.v5:false",
@@ -225,6 +314,8 @@ for (const required of ["assessment-response:true", "core-problem:true",
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.ok(combinedConstraintSamples > 0, "Combined v6 HTTP responses must reach independent auditability/aggregate/scoring checks.");
+console.log(`Verified ${combinedConstraintSamples} combined constraint responses with independent auditability, binding and score guards.`);
 assert.ok(auditabilityConsumerSamples > 0, "Actual auditability HTTP samples must reach the strict BFF consumer.");
 console.log(`Validated ${auditabilityConsumerSamples} actual auditability HTTP responses with the BFF evidence-policy guard.`);
 assert.ok(auditabilityDraftSamples > 0, "Actual auditability draft responses must reach independent digest checks.");

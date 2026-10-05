@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/synthetic-comparison.v2.schema.json",
+  "title": "Unranked synthetic comparison with auditability v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "catalogVersion",
+    "catalogKind",
+    "policyVersion",
+    "hardConstraintPolicyVersion",
+    "preferencePolicyVersion",
+    "evaluatedAt",
+    "scope",
+    "recommendationReady",
+    "rankingPerformed",
+    "deferredPaths",
+    "candidates",
+    "auditability"
+  ],
+  "properties": {
+    "workspaceId": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/workspaceId"
+    },
+    "assessmentId": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/assessmentId"
+    },
+    "assessmentVersion": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/assessmentVersion"
+    },
+    "catalogVersion": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/catalogVersion"
+    },
+    "catalogKind": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/catalogKind"
+    },
+    "preferencePolicyVersion": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/preferencePolicyVersion"
+    },
+    "evaluatedAt": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/evaluatedAt"
+    },
+    "scope": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/scope"
+    },
+    "recommendationReady": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/recommendationReady"
+    },
+    "rankingPerformed": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/rankingPerformed"
+    },
+    "deferredPaths": {
+      "$ref": "./synthetic-comparison.v1.schema.json#/properties/deferredPaths"
+    },
+    "policyVersion": {
+      "const": "synthetic-comparison-2"
+    },
+    "hardConstraintPolicyVersion": {
+      "const": "hard-constraint-preflight-2"
+    },
+    "auditability": {
+      "$ref": "./auditability-capability-preflight.v1.schema.json"
+    },
+    "candidates": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/candidate"
+      }
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionId",
+        "displayName",
+        "plan",
+        "region",
+        "hardVerdict",
+        "exclusionReasons",
+        "informationGaps",
+        "capabilityPreferences"
+      ],
+      "properties": {
+        "optionId": {
+          "$ref": "./synthetic-comparison.v1.schema.json#/$defs/candidate/properties/optionId"
+        },
+        "displayName": {
+          "$ref": "./synthetic-comparison.v1.schema.json#/$defs/candidate/properties/displayName"
+        },
+        "plan": {
+          "$ref": "./synthetic-comparison.v1.schema.json#/$defs/candidate/properties/plan"
+        },
+        "region": {
+          "$ref": "./synthetic-comparison.v1.schema.json#/$defs/candidate/properties/region"
+        },
+        "hardVerdict": {
+          "$ref": "./hard-constraint-preflight.v2.schema.json#/$defs/candidate/properties/verdict"
+        },
+        "exclusionReasons": {
+          "$ref": "./hard-constraint-preflight.v2.schema.json#/$defs/candidate/properties/exclusionReasons"
+        },
+        "informationGaps": {
+          "$ref": "./hard-constraint-preflight.v2.schema.json#/$defs/candidate/properties/informationGaps"
+        },
+        "capabilityPreferences": {
+          "$ref": "./synthetic-comparison.v1.schema.json#/$defs/candidate/properties/capabilityPreferences"
+        }
+      }
+    }
+  },
+  "description": "Capabilities marked PREFERRED remain separate from auditability hard constraints. Excluded or unresolved options receive no weighted score or sensitivity delta. No ranking or recommendation. Legacy v1 and historical reports are unchanged."
+}

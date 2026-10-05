@@ -11,7 +11,7 @@ import io.authweave.core.assessment.domain.profile.RequirementCriticality;
 import io.authweave.core.catalog.AuditabilityFacts.Fact;
 import io.authweave.core.catalog.ProviderCatalog;
 
-/** Separate partial capability preview; never merged eligibility, logging verification or publication evidence. */
+/** Partial capability preview, also bound into v6 constraints; never logging verification or publication evidence. */
 public record AuditabilityCapabilityPreflight(UUID workspaceId, UUID assessmentId, long assessmentVersion,
         String baseCatalogVersion, String evidenceVersion, ProviderCatalog.Kind catalogKind, Instant evaluatedAt,
         RequirementCriticality criticality, AuditabilityRequirements requirements, List<Candidate> candidates) {

@@ -22,9 +22,14 @@ class InternalServiceCredentialFilterTests {
         org.mockito.Mockito.when(workspaces.owns("http://localhost:8081", "owner", id)).thenReturn(true);
         for (String suffix : java.util.List.of("", "/context-index", "/80000000-0000-4000-8000-000000000001",
                 "/80000000-0000-4000-8000-000000000001/profile", "/80000000-0000-4000-8000-000000000001/revisions",
-                "/80000000-0000-4000-8000-000000000001/auditability-capability-preflight")) {
+                "/80000000-0000-4000-8000-000000000001/auditability-capability-preflight",
+                "/80000000-0000-4000-8000-000000000001/hard-constraint-preflight",
+                "/80000000-0000-4000-8000-000000000001/comparison-preflight",
+                "/80000000-0000-4000-8000-000000000001/weighted-comparison-preview",
+                "/80000000-0000-4000-8000-000000000001/weight-sensitivity-preview")) {
             for (String subject : java.util.List.of("", "other-owner", "owner")) {
-                var request = new MockHttpServletRequest(suffix.equals("/context-index") ? "GET" : "PUT", "/api/v6/workspaces/" + id + "/assessments" + suffix);
+                String method = suffix.endsWith("-preview") ? "POST" : suffix.endsWith("/profile") ? "PUT" : "GET";
+                var request = new MockHttpServletRequest(method, "/api/v6/workspaces/" + id + "/assessments" + suffix);
                 request.addHeader("Authorization", "Bearer " + TOKEN);
                 request.addHeader("X-AuthWeave-Oidc-Issuer", "http://localhost:8081");
                 if (!subject.isEmpty()) request.addHeader("X-AuthWeave-Oidc-Subject", subject);

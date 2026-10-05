@@ -2180,6 +2180,143 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/hard-constraint-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Summarize checked synthetic hard constraints with reason codes
+      description: >-
+        Read-only, workspace-scoped summary combining v4 eligibility and exact scoped synthetic auditability checks at one assessment version and instant.
+        EXCLUDED includes every failed checked constraint; UNRESOLVED includes missing,
+        stale or unreviewed evidence and unknown assessment inputs. A failed constraint
+        takes precedence without hiding remaining information gaps. A passing verdict
+        means only that checked requirements pass; deferred dimensions, real provider
+        evidence, scores and a final recommendation are not supplied. The synthetic
+        fixture is not a published provider catalog. This call changes no assessment.
+      operationId: getAssessmentHardConstraintPreflightWithAuditability
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Reason-coded synthetic preflight, not a provider recommendation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/hard-constraint-preflight.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/comparison-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Compare synthetic hard-constraint results and explicit capability preferences
+      description: >-
+        Read-only, workspace-scoped comparison using the same checked hard constraints
+        as the v6 hard-constraint preflight, including auditability capabilities. Only capabilities marked PREFERRED receive
+        separate availability checks. Missing, stale, future or unreviewed facts remain
+        UNKNOWN. An unavailable preference never excludes an option; a supported
+        preference never rescues one excluded by a hard constraint. Preference evidence
+        is from the fictional catalog. No weights, score, rank, winner or final
+        recommendation are produced. Other preference dimensions remain deferred.
+      operationId: getAssessmentSyntheticComparisonWithAuditability
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Unranked synthetic comparison with explicit uncertainty.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/synthetic-comparison.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/weighted-comparison-preview:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    post:
+      tags: [Assessments]
+      summary: Preview explicitly weighted synthetic capability preferences
+      description: >-
+        Read-only calculation; POST carries caller-provided weights and changes no state.
+        Provide exactly one positive integer weight for each capability marked PREFERRED
+        in this assessment, no other capabilities, and a total of 100. There are no
+        default weights. A score is withheld if a hard requirement excludes the option,
+        a checked hard requirement (including auditability) is unresolved, or any preferred capability has
+        unknown or unusable evidence. Scores measure only these explicit capability
+        preferences, not provider suitability. The fictional catalog and deferred
+        dimensions cannot support a rank, winner, or final recommendation.
+      operationId: previewAssessmentWeightedComparisonWithAuditability
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/weighted-comparison-request.v1.schema.json
+      responses:
+        "200":
+          description: Diagnostic score preview without ranking or recommendation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/weighted-comparison-preview.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/weight-sensitivity-preview:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    post:
+      tags: [Assessments]
+      summary: Show point changes between two explicit synthetic preference weight sets
+      description: >-
+        Read-only what-if preview over one assessment and catalog evidence snapshot.
+        Both baseline and alternative must independently supply positive integer
+        weights totaling 100 for exactly the capabilities marked PREFERRED. Neither
+        set is a default. The response shows both diagnostic scores and per-capability
+        point changes. Hard exclusions (including auditability), unresolved checks and unknown preference
+        evidence continue to withhold scores and deltas. It neither ranks nor chooses
+        options, and it does not evaluate deferred dimensions or real provider facts.
+      operationId: previewAssessmentWeightSensitivityWithAuditability
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/weight-sensitivity-request.v1.schema.json
+      responses:
+        "200":
+          description: Paired synthetic scores and point changes without ranking.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/weight-sensitivity-preview.v2.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
   /api/v6/workspaces/{workspaceId}/assessments:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"

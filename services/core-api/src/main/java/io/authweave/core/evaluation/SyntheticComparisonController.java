@@ -1,6 +1,8 @@
 package io.authweave.core.evaluation;
 
 import java.util.UUID;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ResponseEntity;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -39,5 +41,29 @@ public class SyntheticComparisonController {
         var comparison = SyntheticComparison.from(eligibility.previewWithComplianceScope(
                 new WorkspaceId(workspaceId), new AssessmentId(assessmentId)));
         return WeightedSensitivityPreview.from(comparison, request);
+    }
+
+    private SyntheticComparison comparisonWithAuditability(UUID workspaceId, UUID assessmentId) {
+        return SyntheticComparison.from(eligibility.previewWithAuditability(
+                new WorkspaceId(workspaceId), new AssessmentId(assessmentId)));
+    }
+
+    @GetMapping("/api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/comparison-preflight")
+    public ResponseEntity<SyntheticComparison> previewWithAuditability(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(comparisonWithAuditability(workspaceId, assessmentId));
+    }
+
+    @PostMapping("/api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/weighted-comparison-preview")
+    public ResponseEntity<WeightedComparisonPreview> weightedWithAuditability(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId,
+            @RequestBody WeightedComparisonRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
+                WeightedComparisonPreview.from(comparisonWithAuditability(workspaceId, assessmentId), request));
+    }
+
+    @PostMapping("/api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/weight-sensitivity-preview")
+    public ResponseEntity<WeightedSensitivityPreview> sensitivityWithAuditability(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId,
+            @RequestBody WeightedSensitivityRequest request) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
+                WeightedSensitivityPreview.from(comparisonWithAuditability(workspaceId, assessmentId), request));
     }
 }

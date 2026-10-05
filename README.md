@@ -554,8 +554,9 @@ selected capability checks pass. Configuration/compliance/recommendation readine
 The evaluator remains a pure rule kernel with synthetic facts, not a live provider
 integration. Profile v6 can record its requirement inputs as described below, but
 catalog v4 does not carry the corresponding scoped facts;
-existing preflights, source profiles, impact coverage and historical receipts are unchanged.
-Auditability remains deferred in those existing reports until explicitly integrated.
+legacy preflights, source profiles, impact coverage and historical receipts are unchanged.
+Auditability remains deferred in those legacy reports; the new v6 constraint integration
+below does not reinterpret their results.
 AuthWeave's own append-only decision/audit history is a separate responsibility.
 
 ### Scoped synthetic auditability evidence and private Core preview
@@ -584,8 +585,8 @@ an unavailable export capability, a missing provisioning-event fact and unreview
 claims. These are not facts about ZITADEL or any real vendor. Source URLs are not
 fetched. Passing selected criteria establishes only a synthetic capability match;
 configuration, compliance, source verification and recommendation readiness stay false.
-Existing comparison/impact policies, frozen source profiles, receipts and publication
-gates remain unchanged. This separate preview is not merged provider eligibility,
+Legacy comparison/impact policies, frozen source profiles, receipts and publication
+gates remain unchanged. This standalone endpoint is not itself merged provider eligibility,
 ranking or a complete auditability assessment.
 
 The personal assessment page now reads this separate preview through the existing
@@ -604,6 +605,36 @@ never fetched or made into navigation links. Preferred is not scored; forbidden 
 needs clarification and does not advise disabling logs. A stale, malformed or unavailable
 preview produces a sanitized unavailable section without blocking the assessment or
 other independent previews. Reads do not edit inputs or refresh evidence dates.
+
+### Auditability in combined Core constraints
+
+The v6 `hard-constraint-preflight`, `comparison-preflight`,
+`weighted-comparison-preview` and `weight-sensitivity-preview` assessment endpoints
+now combine the existing eligibility checks with the scoped auditability kernel.
+Their [hard-constraint v2](packages/contracts/schemas/hard-constraint-preflight.v2.schema.json)
+and [comparison v2](packages/contracts/schemas/synthetic-comparison.v2.schema.json)
+responses include the exact synthetic auditability evidence and requirements. One
+assessment read and one evaluation instant bind both analyses; foreign versions,
+catalogs, plans/regions, option identities and ambiguous configurations are rejected.
+
+A required unsupported audit criterion or insufficient documented minimum retention
+excludes the option without hiding other information gaps. Unknown intent, missing
+criteria and missing/unreviewed/future/stale evidence remain unresolved. A preference
+or an audit capability pass cannot reverse another hard failure. Explicitly preferred
+or not-required auditability does not become a hard constraint or a scored preference.
+An affirmative audit check can establish a checked match when the only previous gap
+was the absence of any affirmative check. An empty or unapplied scope cannot do so.
+
+Excluded or unresolved options receive neither weighted scores nor sensitivity deltas.
+Independent HTTP checks replay the embedded audit evidence, exact legacy baseline,
+merged findings, verdicts, scores and deltas. Reads change no profile, revisions,
+events or evidence dates. Full audit verification, catalog publication and final
+recommendations remain unavailable; the auditability deferred path still denotes
+unchecked deployed logging/compliance boundaries, not ignored capability inputs.
+
+The v5 endpoints and historical policies/receipts are unchanged. The personal Web
+comparison still uses v5; switching its strict BFF consumer and visible findings to
+the new v6 result is the next step, not a completed UI change in this slice.
 
 ### Scoped synthetic auditability regression
 

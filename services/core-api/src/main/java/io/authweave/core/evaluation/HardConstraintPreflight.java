@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 import io.authweave.core.catalog.ProviderCatalog;
 
@@ -13,9 +14,18 @@ import static io.authweave.core.evaluation.CapabilityPreflight.Outcome.UNKNOWN;
 /** A reason-coded summary of existing checks, never a score or final recommendation. */
 public record HardConstraintPreflight(UUID workspaceId, UUID assessmentId, long assessmentVersion,
         String catalogVersion, ProviderCatalog.Kind catalogKind, String policyVersion, Instant evaluatedAt,
-        String scope, boolean recommendationReady, List<String> deferredPaths, List<Candidate> candidates) {
+        String scope, boolean recommendationReady, List<String> deferredPaths, List<Candidate> candidates,
+        @JsonInclude(JsonInclude.Include.NON_NULL) AuditabilityCapabilityPreflight auditability) {
 
     public static final String POLICY_VERSION = "hard-constraint-preflight-1";
+    public static final String AUDITABILITY_POLICY_VERSION = "hard-constraint-preflight-2";
+
+    public HardConstraintPreflight(UUID workspaceId, UUID assessmentId, long assessmentVersion,
+            String catalogVersion, ProviderCatalog.Kind catalogKind, String policyVersion, Instant evaluatedAt,
+            String scope, boolean recommendationReady, List<String> deferredPaths, List<Candidate> candidates) {
+        this(workspaceId, assessmentId, assessmentVersion, catalogVersion, catalogKind, policyVersion, evaluatedAt,
+                scope, recommendationReady, deferredPaths, candidates, null);
+    }
 
     public HardConstraintPreflight {
         deferredPaths = List.copyOf(deferredPaths);
@@ -23,7 +33,7 @@ public record HardConstraintPreflight(UUID workspaceId, UUID assessmentId, long 
     }
 
     public enum Verdict { EXCLUDED, UNRESOLVED, PASSES_CHECKED_REQUIREMENTS }
-    public enum Dimension { CAPABILITY, CONTEXT, RESIDENCY, AUTHENTICATION_CONTROL, COMPLIANCE_SCOPE, COVERAGE }
+    public enum Dimension { CAPABILITY, CONTEXT, RESIDENCY, AUTHENTICATION_CONTROL, COMPLIANCE_SCOPE, COVERAGE, AUDITABILITY }
 
     public record Finding(Dimension dimension, String profilePath, String reasonCode, String explanation) { }
 
@@ -40,6 +50,52 @@ public record HardConstraintPreflight(UUID workspaceId, UUID assessmentId, long 
         return new HardConstraintPreflight(source.workspaceId(), source.assessmentId(), source.assessmentVersion(),
                 source.catalogVersion(), source.catalogKind(), POLICY_VERSION, source.evaluatedAt(),
                 "SYNTHETIC_HARD_CONSTRAINT_PREFLIGHT", false, source.deferredPaths(), candidates);
+    }
+
+    public static HardConstraintPreflight from(AuditabilityConstraintSnapshot snapshot) {
+        var source = snapshot.eligibility();
+        var audit = snapshot.auditability();
+        var candidates = from(source).candidates().stream().map(candidate -> {
+            var analysis = audit.candidates().stream()
+                    .filter(c -> c.analysis().optionScope().optionId().equals(candidate.optionId())).findFirst().orElseThrow().analysis();
+            var excluded = new ArrayList<>(candidate.exclusionReasons());
+            var gaps = new ArrayList<>(candidate.informationGaps());
+            if (analysis.checks().stream().anyMatch(c -> c.outcome() == CapabilityPreflight.Outcome.PASS))
+                gaps.removeIf(f -> f.dimension() == Dimension.COVERAGE && f.reasonCode().equals("NO_AFFIRMATIVE_CHECKS"));
+            for (var check : analysis.checks()) {
+                String path = switch (check.reasonCode()) {
+                    case REQUIREMENT_UNKNOWN, AUDIT_INTENT_UNCLEAR -> "security.auditability";
+                    default -> "security.auditabilityRequirements";
+                };
+                add(excluded, gaps, check.outcome(), new Finding(Dimension.AUDITABILITY, path,
+                        check.reasonCode().name(), auditExplanation(check, analysis.requirements().minimumRetentionDays())));
+            }
+            var verdict = !excluded.isEmpty() ? Verdict.EXCLUDED : !gaps.isEmpty() ? Verdict.UNRESOLVED : Verdict.PASSES_CHECKED_REQUIREMENTS;
+            return new Candidate(candidate.optionId(), candidate.displayName(), candidate.plan(), candidate.region(), verdict, excluded, gaps);
+        }).toList();
+        // The capability checks are now active; deployed logging and compliance remain deferred.
+        return new HardConstraintPreflight(source.workspaceId(), source.assessmentId(), source.assessmentVersion(),
+                source.catalogVersion(), source.catalogKind(), AUDITABILITY_POLICY_VERSION, source.evaluatedAt(),
+                "SYNTHETIC_HARD_CONSTRAINT_PREFLIGHT", false, source.deferredPaths(), candidates, audit);
+    }
+
+    private static String auditExplanation(AuditabilityEvaluator.Check check, Integer requestedDays) {
+        String explanation = switch (check.reasonCode()) {
+            case REQUIREMENT_UNKNOWN -> "Decide whether auditability is required before interpreting provider capabilities.";
+            case AUDIT_INTENT_UNCLEAR -> "Clarify the forbidden auditability intent; disabling logs is not inferred.";
+            case AUDIT_SCOPE_UNKNOWN -> "Auditability is required, but no criteria are selected. Empty scope is not an exemption.";
+            case EVIDENCE_MISSING -> "No fact is recorded for this exact option scope; missing does not mean unsupported.";
+            case EVIDENCE_UNREVIEWED -> "The synthetic fact is unreviewed and cannot establish support or incompatibility.";
+            case EVIDENCE_FROM_FUTURE -> "The synthetic fact is dated after evaluation and cannot be used.";
+            case EVIDENCE_STALE -> "The synthetic fact is more than 90 days old and cannot establish support or incompatibility.";
+            case CAPABILITY_UNKNOWN -> "The usable synthetic fact records unknown capability support.";
+            case CAPABILITY_UNAVAILABLE -> "The usable synthetic fact records unsupported capability in this exact option scope.";
+            case RETENTION_DURATION_UNKNOWN -> "Retention is supported, but no documented minimum duration is recorded.";
+            case RETENTION_BELOW_MINIMUM -> "Documented minimum retention of " + check.documentedMinimumRetentionDays()
+                    + " days is below the requested " + requestedDays + " days; deployed retention is not verified.";
+            default -> "No hard-constraint finding is produced for this criterion.";
+        };
+        return scoped(check.criterion().name(), explanation);
     }
 
     private static Candidate summarize(EligibilityPreflightV3.Candidate candidate, ComplianceScopeCheck compliance) {

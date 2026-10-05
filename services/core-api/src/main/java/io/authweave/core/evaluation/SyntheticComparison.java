@@ -8,15 +8,28 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import io.authweave.core.catalog.ProviderCatalog;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
 /** An unranked, read-only comparison of checked constraints and capability preferences. */
 public record SyntheticComparison(UUID workspaceId, UUID assessmentId, long assessmentVersion,
         String catalogVersion, ProviderCatalog.Kind catalogKind, String policyVersion,
         String hardConstraintPolicyVersion, String preferencePolicyVersion, Instant evaluatedAt,
         String scope, boolean recommendationReady, boolean rankingPerformed,
-        List<String> deferredPaths, List<Candidate> candidates) {
+        List<String> deferredPaths, List<Candidate> candidates,
+        @JsonInclude(JsonInclude.Include.NON_NULL) AuditabilityCapabilityPreflight auditability) {
 
     public static final String POLICY_VERSION = "synthetic-comparison-1";
+    public static final String AUDITABILITY_POLICY_VERSION = "synthetic-comparison-2";
+
+    public SyntheticComparison(UUID workspaceId, UUID assessmentId, long assessmentVersion,
+            String catalogVersion, ProviderCatalog.Kind catalogKind, String policyVersion,
+            String hardConstraintPolicyVersion, String preferencePolicyVersion, Instant evaluatedAt,
+            String scope, boolean recommendationReady, boolean rankingPerformed,
+            List<String> deferredPaths, List<Candidate> candidates) {
+        this(workspaceId, assessmentId, assessmentVersion, catalogVersion, catalogKind, policyVersion,
+                hardConstraintPolicyVersion, preferencePolicyVersion, evaluatedAt, scope, recommendationReady,
+                rankingPerformed, deferredPaths, candidates, null);
+    }
 
     public SyntheticComparison {
         deferredPaths = List.copyOf(deferredPaths);
@@ -36,7 +49,14 @@ public record SyntheticComparison(UUID workspaceId, UUID assessmentId, long asse
     }
 
     public static SyntheticComparison from(EligibilityPreflightV4 eligibility) {
-        var hard = HardConstraintPreflight.from(eligibility);
+        return from(eligibility, HardConstraintPreflight.from(eligibility), POLICY_VERSION);
+    }
+
+    public static SyntheticComparison from(AuditabilityConstraintSnapshot snapshot) {
+        return from(snapshot.eligibility(), HardConstraintPreflight.from(snapshot), AUDITABILITY_POLICY_VERSION);
+    }
+
+    private static SyntheticComparison from(EligibilityPreflightV4 eligibility, HardConstraintPreflight hard, String policy) {
         Map<String, EligibilityPreflightV3.Candidate> sourceById = eligibility.candidates().stream()
                 .collect(Collectors.toMap(EligibilityPreflightV3.Candidate::optionId, Function.identity()));
         var candidates = hard.candidates().stream().map(candidate -> {
@@ -47,8 +67,8 @@ public record SyntheticComparison(UUID workspaceId, UUID assessmentId, long asse
                     CapabilityPreferenceEvaluator.evaluate(source.capabilityChecks(), eligibility.evaluatedAt()));
         }).toList();
         return new SyntheticComparison(eligibility.workspaceId(), eligibility.assessmentId(), eligibility.assessmentVersion(),
-                eligibility.catalogVersion(), eligibility.catalogKind(), POLICY_VERSION, HardConstraintPreflight.POLICY_VERSION,
+                eligibility.catalogVersion(), eligibility.catalogKind(), policy, hard.policyVersion(),
                 CapabilityPreferenceEvaluator.POLICY_VERSION, eligibility.evaluatedAt(),
-                "SYNTHETIC_UNRANKED_COMPARISON", false, false, eligibility.deferredPaths(), candidates);
+                "SYNTHETIC_UNRANKED_COMPARISON", false, false, eligibility.deferredPaths(), candidates, hard.auditability());
     }
 }
