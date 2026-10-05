@@ -280,8 +280,9 @@ The small client form wrapper receives server-rendered controls and keeps the sa
 POST route and payload. The server still validates every submission independently;
 client feedback is not a security check, a successful-save receipt or input readiness.
 
-Within the guided workspace, Usage opts into a small same-origin JSON acknowledgement
-on the existing POST route. The response binds only the assessment ID, submitted
+Within the guided workspace, Context, Requirements, Audit and Usage share one form
+save boundary and opt into a small same-origin JSON acknowledgement on their existing
+POST routes. The response binds only the assessment ID, submitted
 version and outcome; ownership, origin, form and optimistic-write checks still run
 on the server. A version conflict keeps the form and edits in the current tab,
 without merging, overwriting or automatically retrying. Loading the current saved
@@ -291,7 +292,11 @@ version. Pending requests freeze controls and step navigation. Lost, timed-out o
 malformed replies are uncertain: the write may have committed, so the user must
 inspect the current saved version before resubmitting. Only a checked save
 acknowledgement automatically reloads saved inputs. Native submissions without the
-JSON opt-in keep their existing redirects; the other editors are unchanged.
+JSON opt-in keep their existing redirects. Existing section payloads, partial
+selection rules and Audit retention/explicit-clear behavior are unchanged. Form
+feedback is scoped to its assessment, section and loaded version; it does not carry
+over to another editor after navigation. The unsaved-navigation dialog asks the user
+to review the section's save feedback, not to retry a refused write.
 
 The protected `/assessments` list identifies saved drafts by application type, users
 and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown

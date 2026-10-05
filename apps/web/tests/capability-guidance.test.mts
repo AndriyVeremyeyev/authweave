@@ -39,7 +39,8 @@ test("real editor preserves every saved selection and the exact existing form bi
   assert.equal([...html.matchAll(/<select\b/g)].length, 9);
   assert.equal([...html.matchAll(/<option\b/g)].length, 45);
   assert.equal([...html.matchAll(/<input\b/g)].length, 1);
-  assert.equal([...html.matchAll(/<button\b/g)].length, 1);
+  assert.equal([...html.matchAll(/<button\b[^>]*type="submit"/g)].length, 1);
+  assert.equal([...html.matchAll(/<button\b[^>]*type="button"/g)].length, 2);
   assert.equal([...html.matchAll(/selected=""/g)].length, 9);
   for (const field of capabilityFields) {
     const select = html.match(new RegExp(`<select[^>]*name="${field.capability}"[^>]*>(.*?)</select>`))![1];

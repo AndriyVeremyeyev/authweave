@@ -71,6 +71,8 @@ test("workflow renders one labelled panel, seven keyboard buttons and honest sav
     assert.ok(html.includes("There is no autosave"));
     assert.ok(html.includes("Step numbers show your location, not completion"));
     assert.ok(html.includes('aria-labelledby="discard-edits-heading"'));
+    assert.ok(html.includes("Stay and review"));
+    assert.equal(html.includes("Stay and save"), false);
     assert.equal(html.includes("100% complete"), false);
     if (step.id === "review") {
       assert.ok(html.includes("Only saved answers are shown here"));

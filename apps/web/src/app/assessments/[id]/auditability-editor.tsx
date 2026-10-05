@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AssessmentSectionForm } from "./assessment-section-form";
 import { auditCriteria, maximumRetentionDays, type AuditabilityValues } from "@/lib/assessment/auditability";
 import { auditConceptReferences, auditCriticalityGuidance, auditGuidance, auditRetentionGuidance } from "@/lib/assessment/audit-guidance";
 import { criticalities } from "@/lib/assessment/capabilities";
@@ -15,7 +16,7 @@ export function AuditabilityEditor({ assessmentId, version, values }: {
       <h2 id="auditability-heading" className="text-2xl font-semibold">Identity auditability requirements</h2>
       <p className="mt-3 text-sm leading-6 text-slate-300">Choose which identity-provider logging capabilities matter to this application. The criticality applies to every selected criterion. No selection means unresolved scope, not a logging exemption.</p>
       <p className="mt-2 text-sm leading-6 text-slate-400">These are requested capabilities, not verified logs, configuration or compliance. They are not AuthWeave&apos;s own change history. Current provider previews still defer auditability; saving these inputs does not expand their coverage or produce a recommendation.</p>
-      <form action={`/api/assessments/${assessmentId}/auditability`} method="post" className="mt-6 space-y-6">
+      <AssessmentSectionForm key={`auditability:${assessmentId}:${version}`} section="auditability" action={`/api/assessments/${assessmentId}/auditability`}>
         <input type="hidden" name="expectedVersion" value={version} />
         <section aria-labelledby="audit-level-heading" className="rounded-xl border border-white/10 p-4 sm:p-5">
           <h3 id="audit-level-heading" className="text-lg font-semibold">Choose the shared requirement level</h3>
@@ -90,8 +91,7 @@ export function AuditabilityEditor({ assessmentId, version, values }: {
           <p className="mt-3 text-xs text-slate-400">References explain logging concepts. They do not establish a provider&apos;s capability, plan, configuration or approved evidence.</p>
         </details>
         <p className="text-sm leading-6 text-slate-400">To clear the recorded scope, uncheck all six criteria and save. Other profile fields remain unchanged. Opening explanations does not save anything.</p>
-        <button type="submit" className="rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Save auditability requirements</button>
-      </form>
+      </AssessmentSectionForm>
     </section>
   );
 }

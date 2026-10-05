@@ -58,7 +58,8 @@ test("real editor round-trips the exact saved form values for all three scenario
     assert.deepEqual(parseEvaluationContextForm(formData(html)), { expectedVersion: 5, values });
     assert.equal([...html.matchAll(/<select\b/g)].length, 9);
     assert.equal([...html.matchAll(/<input\b/g)].length, 21);
-    assert.equal([...html.matchAll(/<button\b/g)].length, 1);
+    assert.equal([...html.matchAll(/<button\b[^>]*type="submit"/g)].length, 1);
+    assert.equal([...html.matchAll(/<button\b[^>]*type="button"/g)].length, 2);
     assert.deepEqual(profile, before);
   }
 });

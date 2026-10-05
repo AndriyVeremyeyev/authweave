@@ -1,4 +1,5 @@
 import { capabilityFields, criticalities, type CapabilityValues } from "@/lib/assessment/capabilities";
+import { AssessmentSectionForm } from "./assessment-section-form";
 import { capabilityGuidance, criticalityGuidance } from "@/lib/assessment/capability-guidance";
 
 export function CapabilityEditor({ assessmentId, version, values }: {
@@ -19,7 +20,7 @@ export function CapabilityEditor({ assessmentId, version, values }: {
         </dl>
         <p className="mt-4 text-xs leading-5 text-slate-400">Required and Forbidden are hard constraints. Preferences cannot reverse an exclusion. The current comparison uses fictional options, not verified real-provider facts.</p>
       </details>
-      <form action={`/api/assessments/${assessmentId}/capabilities`} method="post" className="mt-6">
+      <AssessmentSectionForm key={`capabilities:${assessmentId}:${version}`} section="capabilities" action={`/api/assessments/${assessmentId}/capabilities`}>
         <input type="hidden" name="expectedVersion" value={version} />
         <div className="grid items-start gap-4 sm:grid-cols-2">
           {capabilityFields.map(field => {
@@ -48,8 +49,7 @@ export function CapabilityEditor({ assessmentId, version, values }: {
             );
           })}
         </div>
-        <button type="submit" className="mt-6 rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Save capability requirements</button>
-      </form>
+      </AssessmentSectionForm>
     </section>
   );
 }

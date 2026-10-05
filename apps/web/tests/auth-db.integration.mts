@@ -28,6 +28,7 @@ import { savedRequirementGroups } from "../src/lib/assessment/saved-requirements
 import { relatedComparisonInput } from "../src/lib/assessment/comparison-presentation.ts";
 import { savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { guidedScenarios } from "./fixtures/guided-scenarios.mts";
+import { profileFormFixture, profileSectionAction, profileSaveFixtureId } from "./fixtures/profile-save.mts";
 import { authDatabase, beginLogin, beginReauthentication, consumeLogin, createSession,
   revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
@@ -35,6 +36,97 @@ import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
+
+for (const [section, route] of [["context",evaluationContextRoute],["capabilities",updateCapabilitiesRoute],
+  ["auditability",auditabilityRoute]] as const) test(`${section} JSON saves keep live session guards, checked receipts and native fallback`,async()=>{
+  const names=["AUTHWEAVE_OIDC_ISSUER","AUTHWEAVE_OIDC_CLIENT_ID","AUTHWEAVE_PUBLIC_ORIGIN","AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const saved=Object.fromEntries(names.map(name=>[name,process.env[name]])), previousFetch=globalThis.fetch;
+  Object.assign(process.env,{AUTHWEAVE_OIDC_ISSUER:"http://localhost:8081",AUTHWEAVE_OIDC_CLIENT_ID:"synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN:"http://localhost:3000",AUTHWEAVE_CORE_SERVICE_TOKEN:"synthetic-section-save-token-000000000000000"});
+  const workspaceId="70000000-0000-4000-8000-000000000001", id=profileSaveFixtureId;
+  const identity={workspaceId,issuer:"http://localhost:8081",subject:`synthetic-${section}-json-owner`,
+    email:null,displayName:null,authenticatedAt:new Date()};
+  const sessionId=await createSession(identity,undefined);
+  let profile:Record<string,unknown>=savedRequirementsFixture(), version=0, status="DRAFT", writeStatus=200, readStatus=200, wrongOwner=false;
+  const calls:string[]=[];
+  const params=profileFormFixture(section); if(section==="capabilities")params.set("SCIM","FORBIDDEN");
+  const request=(body=params.toString(),accept:string|null="application/json",cookie:string|null=sessionId,
+    origin="http://localhost:3000",contentType="application/x-www-form-urlencoded")=>new NextRequest(`http://localhost:3000${profileSectionAction(section)}`,{
+      method:"POST",headers:{Origin:origin,"Content-Type":contentType,...(accept?{Accept:accept}:{}),
+        ...(cookie?{Cookie:`${sessionCookieName(false)}=${cookie}`}:{})},body});
+  const context={params:Promise.resolve({id})};
+  // Only the session store is live. Core is an explicit stateful, scoped test double.
+  globalThis.fetch=async(input,init)=>{
+    calls.push(String(init?.method));
+    assert.equal(String(input),`http://127.0.0.1:8080/api/v6/workspaces/${workspaceId}/assessments/${id}${init?.method==="PUT"?"/profile":""}`);
+    assert.equal((init?.headers as Record<string,string>)["X-AuthWeave-Oidc-Subject"],identity.subject);
+    assert.equal(init?.redirect,"error"); assert.equal(init?.cache,"no-store");
+    if(init?.method==="GET")return readStatus===200?Response.json({id,workspaceId:wrongOwner?"70000000-0000-4000-8000-000000000002":workspaceId,
+      status,version,profileSchemaVersion:6,profile}):new Response("Private upstream read detail",{status:readStatus});
+    assert.equal(init?.method,"PUT");
+    const update=JSON.parse(String(init?.body)); assert.equal(update.expectedVersion,version);
+    assert.deepEqual(update.profile.operations,profile.operations);
+    if(section!=="context") {assert.deepEqual(update.profile.application,profile.application);assert.deepEqual(update.profile.audience,profile.audience);}
+    if(section!=="capabilities") {assert.deepEqual(update.profile.protocols,profile.protocols);assert.deepEqual(update.profile.provisioning,profile.provisioning);}
+    if(section!=="auditability")assert.deepEqual(update.profile.security.auditabilityRequirements,(profile.security as Record<string,unknown>).auditabilityRequirements);
+    if(writeStatus!==200)return new Response("Private upstream write detail",{status:writeStatus});
+    profile=update.profile; version++;
+    return Response.json({id,workspaceId,status,version,profileSchemaVersion:6,profile});
+  };
+  const receipt=async(response:Response,code:number,expectedVersion:number,outcome:string)=>{
+    assert.equal(response.status,code);assert.equal(response.headers.get("cache-control"),"no-store");
+    assert.equal(response.headers.get("referrer-policy"),"no-referrer");assert.equal(response.headers.get("vary"),"Accept");
+    assert.equal(response.headers.get("location"),null);
+    assert.deepEqual(await response.json(),{assessmentId:id,expectedVersion,outcome});
+  };
+  try {
+    const forged=new URLSearchParams(params);forged.append("workspaceId","forged");
+    for(const [req,code] of [[request(params.toString(),"application/json",null),401],
+      [request(params.toString(),"application/json",sessionId,"https://other.example.test"),403],
+      [request(forged.toString()),400],[request(params.toString(),"application/json",sessionId,"http://localhost:3000","application/json"),415]] as const) {
+      const response=await route(req,context);assert.equal(response.status,code);assert.equal(response.headers.get("cache-control"),"no-store");
+    }
+    assert.deepEqual(calls,[]);
+    await receipt(await route(request(),context),200,0,"saved");assert.deepEqual(calls,["GET","PUT"]);assert.equal(version,1);
+    const before=structuredClone(profile);calls.length=0;
+    await receipt(await route(request(),context),409,0,"conflict");assert.deepEqual(calls,["GET"]);assert.deepEqual(profile,before);assert.equal(version,1);
+    params.set("expectedVersion","1");
+    for(const [code,outcome] of [[409,"conflict"],[400,"invalid"],[422,"invalid"]] as const) {
+      calls.length=0;writeStatus=code;await receipt(await route(request(),context),code===400?422:code,1,outcome);
+      assert.deepEqual(calls,["GET","PUT"]);assert.deepEqual(profile,before);assert.equal(version,1);
+    }
+    status="ARCHIVED";calls.length=0;
+    await receipt(await route(request(),context),423,1,"locked");assert.deepEqual(calls,["GET"]);
+    status="DRAFT";writeStatus=200;readStatus=404;calls.length=0;
+    assert.equal((await route(request(),context)).status,404);assert.deepEqual(calls,["GET"]);
+    readStatus=200;wrongOwner=true;
+    let denied=await route(request(),context);assert.equal(denied.status,503);assert.equal(await denied.text(),"Assessment update is temporarily unavailable.");
+    wrongOwner=false;
+    for(const [read,write] of [[500,200],[200,500]]) {
+      readStatus=read;writeStatus=write;denied=await route(request(),context);
+      assert.equal(denied.status,503);assert.equal(denied.headers.get("cache-control"),"no-store");
+      assert.equal(await denied.text(),"Assessment update is temporarily unavailable.");
+      assert.deepEqual(profile,before);assert.equal(version,1);
+    }
+    readStatus=200;writeStatus=200;
+    for(const accept of ["application/json, text/html",null]) {
+      params.set("expectedVersion",String(version));
+      const native=await route(request(params.toString(),accept),context);
+      assert.equal(native.status,303);assert.equal(native.headers.get("location"),`http://localhost:3000/assessments/${id}?step=${section}`);
+    }
+    if(section==="auditability") {
+      const clear=new URLSearchParams({expectedVersion:String(version),criticality:"PREFERRED"});
+      const submittedVersion=version;
+      await receipt(await route(request(clear.toString()),context),200,submittedVersion,"saved");
+      assert.deepEqual((profile.security as Record<string,unknown>).auditabilityRequirements,{selectedCriteria:[],minimumRetentionDays:null});
+    }
+    await revokeSession(sessionId);calls.length=0;
+    assert.equal((await route(request(),context)).status,401);assert.deepEqual(calls,[]);
+  } finally {
+    await revokeSession(sessionId);globalThis.fetch=previousFetch;
+    for(const name of names)if(saved[name]===undefined)delete process.env[name];else process.env[name]=saved[name];
+  }
+});
 
 for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves preserve sections and feed versioned Review/Comparison inputs`, async () => {
   const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];

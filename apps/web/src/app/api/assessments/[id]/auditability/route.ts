@@ -5,6 +5,7 @@ import { authConfiguration, sameOriginMutation } from "../../../../../lib/auth/c
 import { updatePersonalAuditability } from "../../../../../lib/auth/core-client.ts";
 import { sessionCookieName } from "../../../../../lib/auth/session-policy.ts";
 import { touchSession } from "../../../../../lib/auth/store.ts";
+import { profileWriteResponse } from "../../../../../lib/assessment/profile-save.ts";
 
 export const runtime = "nodejs";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -30,6 +31,9 @@ export async function POST(request: NextRequest,
     const input = parseAuditabilityForm(new URLSearchParams(body));
     const result = await updatePersonalAuditability(session, id, input.expectedVersion, input.values);
     if (result === "not-found") return noStore(404);
+    if (request.headers.get("accept") === "application/json") {
+      return profileWriteResponse(id, input.expectedVersion, result === "not-editable" ? "locked" : result);
+    }
     const target = new URL(`/assessments/${id}`, config.origin);
     target.searchParams.set("step", "auditability");
     if (result !== "saved") target.searchParams.set("auditError",

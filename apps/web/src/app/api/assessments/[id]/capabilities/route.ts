@@ -5,6 +5,7 @@ import { authConfiguration, sameOriginMutation } from "../../../../../lib/auth/c
 import { updatePersonalCapabilities } from "../../../../../lib/auth/core-client.ts";
 import { sessionCookieName } from "../../../../../lib/auth/session-policy.ts";
 import { touchSession } from "../../../../../lib/auth/store.ts";
+import { profileWriteResponse } from "../../../../../lib/assessment/profile-save.ts";
 
 export const runtime = "nodejs";
 
@@ -48,6 +49,9 @@ export async function POST(
     const { expectedVersion, values } = parseCapabilityForm(new URLSearchParams(body));
     const result = await updatePersonalCapabilities(session, id, expectedVersion, values);
     if (result === "not-found") return noStore(404);
+    if (request.headers.get("accept") === "application/json") {
+      return profileWriteResponse(id, expectedVersion, result === "not-editable" ? "locked" : result);
+    }
     if (result === "conflict") return returnToAssessment(config.origin, id, "stale");
     if (result === "invalid") return returnToAssessment(config.origin, id, "invalid");
     if (result === "not-editable") return returnToAssessment(config.origin, id, "locked");

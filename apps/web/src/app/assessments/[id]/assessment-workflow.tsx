@@ -111,7 +111,7 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
             className="mt-3 rounded text-3xl font-semibold tracking-tight focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">{step.title}</h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">{step.description}</p>
           <p role="status" className={`mt-4 text-xs ${state.dirty ? "text-amber-200" : "text-slate-400"}`}>
-            {savePending ? "Saving this section. Wait for the response before moving on." : state.dirty ? "Unsaved changes in this section. Use its Save button to keep them." : !editable && step.input
+            {savePending ? "Saving this section. Wait for the response before moving on." : state.dirty ? "Unsaved changes in this section. Follow its save feedback before moving on." : !editable && step.input
               ? "Showing a read-only saved assessment. No editing is available."
               : step.input
               ? "Showing saved inputs. Changes are saved only when you submit this section."
@@ -151,9 +151,9 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
         onCancel={event => { event.preventDefault(); cancel(); }}
         className="m-auto w-[min(32rem,calc(100%_-_2rem))] rounded-2xl border border-slate-600 bg-slate-900 p-6 text-slate-100 shadow-2xl backdrop:bg-black/70">
         <h2 id="discard-edits-heading" className="text-xl font-semibold">Keep your unsaved changes?</h2>
-        <p id="discard-edits-description" className="mt-3 text-sm leading-6 text-slate-300">Moving to another step will discard the edits in this section. Stay here and save them, or continue with the previously saved version.</p>
+        <p id="discard-edits-description" className="mt-3 text-sm leading-6 text-slate-300">Moving to another step will discard the edits in this section. Stay here to review them and any save feedback, or continue with the previously saved version.</p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" onClick={cancel} className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Stay and save</button>
+          <button type="button" onClick={cancel} className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Stay and review</button>
           <button type="button" onClick={() => { dirty.current = false; dispatch({ type: "discard" }); }}
             className="rounded-lg border border-slate-500 px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Discard and continue</button>
         </div>

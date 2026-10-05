@@ -65,6 +65,10 @@ export async function assessmentUiComponents() {
     .replaceAll('"next/navigation"', JSON.stringify(router))
     .replaceAll('"@/lib/assessment/workflow"', JSON.stringify(new URL("../../src/lib/assessment/workflow.ts", import.meta.url).href)));
   const workflow = await import(workflowUrl);
+  const sectionFormUrl = moduleUrl((await compile("../../src/app/assessments/[id]/assessment-section-form.tsx"))
+    .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
+    .replaceAll('"@/lib/assessment/profile-save"', JSON.stringify(new URL("../../src/lib/assessment/profile-save.ts", import.meta.url).href)));
+  const sectionForm = await import(sectionFormUrl);
   const overview = await import(moduleUrl((await compile("../../src/app/assessments/[id]/saved-requirements-overview.tsx"))
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/saved-requirements"', JSON.stringify(new URL("../../src/lib/assessment/saved-requirements.ts", import.meta.url).href))));
@@ -90,24 +94,25 @@ export async function assessmentUiComponents() {
   const requirementsExport = await import(moduleUrl((await compile("../../src/app/assessments/[id]/saved-requirements-export.tsx"))
     .replaceAll('"@/lib/assessment/requirements-brief"', JSON.stringify(new URL("../../src/lib/assessment/requirements-brief.ts", import.meta.url).href))));
   const capabilities = await import(moduleUrl((await compile("../../src/app/assessments/[id]/capability-editor.tsx"))
+    .replaceAll('"./assessment-section-form"', JSON.stringify(sectionFormUrl))
     .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/capability-guidance"', JSON.stringify(new URL("../../src/lib/assessment/capability-guidance.ts", import.meta.url).href))));
   const contextEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/evaluation-context-editor.tsx"))
+    .replaceAll('"./assessment-section-form"', JSON.stringify(sectionFormUrl))
     .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/context-guidance"', JSON.stringify(new URL("../../src/lib/assessment/context-guidance.ts", import.meta.url).href))));
   const auditEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/auditability-editor.tsx"))
+    .replaceAll('"./assessment-section-form"', JSON.stringify(sectionFormUrl))
     .replaceAll('"@/lib/assessment/auditability"', JSON.stringify(new URL("../../src/lib/assessment/auditability.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/audit-guidance"', JSON.stringify(new URL("../../src/lib/assessment/audit-guidance.ts", import.meta.url).href))));
   const usageFormUrl = moduleUrl((await compile("../../src/app/assessments/[id]/usage-planning-form.tsx"))
-    .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
-    .replaceAll('"@/lib/assessment/usage-save"', JSON.stringify(new URL("../../src/lib/assessment/usage-save.ts", import.meta.url).href))
-    .replaceAll('"@/lib/assessment/usage-form-validation"', JSON.stringify(new URL("../../src/lib/assessment/usage-form-validation.ts", import.meta.url).href)));
+    .replaceAll('"./assessment-section-form"', JSON.stringify(sectionFormUrl)));
   const usageForm = await import(usageFormUrl);
   const usageEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/usage-planning-editor.tsx"))
     .replaceAll('"./usage-planning-form"', JSON.stringify(usageFormUrl))
     .replaceAll('"@/lib/assessment/usage-planning"', JSON.stringify(new URL("../../src/lib/assessment/usage-planning.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/usage-guidance"', JSON.stringify(new URL("../../src/lib/assessment/usage-guidance.ts", import.meta.url).href))));
-  return { ...workflow, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm };
+  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...context, ...prerequisites, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm };
 }

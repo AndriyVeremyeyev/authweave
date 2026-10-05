@@ -1,4 +1,5 @@
 import { criticalities } from "@/lib/assessment/capabilities";
+import { AssessmentSectionForm } from "./assessment-section-form";
 import { complianceScopeGuidance, complianceTargetGuidance, contextSecurityGuidance,
   securityLevelGuidance, type ContextGuidance } from "@/lib/assessment/context-guidance";
 import { applicationTypes, clientTypes, complianceScopeStatuses, complianceTargets, dataCategories, membershipModels,
@@ -12,7 +13,7 @@ export function EvaluationContextEditor({ assessmentId, version, values }: {
       <h2 id="context-heading" className="text-2xl font-semibold">Application context and checked security scope</h2>
       <p className="mt-3 text-sm leading-6 text-slate-300">Record facts about the application before relying on a comparison. Unknown is safer than guessing. These fields are checked separately from the nine capabilities in the Requirements step.</p>
       <p className="mt-2 text-sm leading-6 text-slate-400">These are requirements for the application you are evaluating, not changes to AuthWeave&apos;s own sign-in. Explanations do not select answers or verify provider support.</p>
-      <form action={`/api/assessments/${assessmentId}/evaluation-context`} method="post" className="mt-6 space-y-6">
+      <AssessmentSectionForm key={`context:${assessmentId}:${version}`} section="context" action={`/api/assessments/${assessmentId}/evaluation-context`}>
         <input type="hidden" name="expectedVersion" value={version} />
         <section aria-labelledby="context-application-heading" className="rounded-xl border border-white/10 p-4 sm:p-5">
           <h3 id="context-application-heading" className="text-lg font-semibold">Application and audience</h3>
@@ -106,10 +107,7 @@ export function EvaluationContextEditor({ assessmentId, version, values }: {
           </div>
         </section>
         <p className="text-sm leading-6 text-slate-400">Save only when you want to record your choices. Opening explanations does not save anything. Other profile details are preserved.</p>
-        <button type="submit" className="rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">
-          Save application context
-        </button>
-      </form>
+      </AssessmentSectionForm>
     </section>
   );
 }

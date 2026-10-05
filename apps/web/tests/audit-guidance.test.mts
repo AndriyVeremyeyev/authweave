@@ -53,7 +53,8 @@ test("every criterion subset and criticality round-trips through the actual scop
     assert.deepEqual(parseAuditabilityForm(formData(html)), { expectedVersion: 5, values });
     assert.equal([...html.matchAll(/<input\b/g)].length, 8);
     assert.equal([...html.matchAll(/<select\b/g)].length, 1);
-    assert.equal([...html.matchAll(/<button\b/g)].length, 1);
+    assert.equal([...html.matchAll(/<button\b[^>]*type="submit"/g)].length, 1);
+    assert.equal([...html.matchAll(/<button\b[^>]*type="button"/g)].length, 2);
     assert.deepEqual(values, before);
   }
 });

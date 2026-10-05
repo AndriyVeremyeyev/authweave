@@ -117,7 +117,7 @@ test("blocked form submissions do not clear the workflow dirty guard or introduc
   const source = await readFile(new URL("../src/app/assessments/[id]/assessment-workflow.tsx", import.meta.url), "utf8");
   assert.ok(source.includes('onSubmit={event => {\n          if (!step.input || event.defaultPrevented) return;'));
   assert.equal(source.includes("onSubmitCapture="), false);
-  const formSource = await readFile(new URL("../src/app/assessments/[id]/usage-planning-form.tsx", import.meta.url), "utf8");
+  const formSource = await readFile(new URL("../src/app/assessments/[id]/assessment-section-form.tsx", import.meta.url), "utf8");
   assert.ok(formSource.includes("event.preventDefault()")); assert.ok(formSource.includes("summary.current?.focus()"));
   assert.ok(formSource.includes("details.open = true"));
   for (const unsupported of ["localStorage", "sessionStorage", "setCustomValidity", ".submit(", ".requestSubmit("])
