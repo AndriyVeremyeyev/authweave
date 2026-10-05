@@ -1155,6 +1155,36 @@ recommendation. Existing synthetic evidence, review receipts, publication polici
 and profile-coverage consumers remain unchanged and cannot infer new readiness.
 No browser form, accounts, paid calls or new dependencies are added.
 
+### Candidate auditability coverage preview
+
+`POST /internal/v1/catalog-curator/auditability-impact/coverage-preview` accepts the
+same [review references](packages/contracts/schemas/catalog-auditability-impact-request.v1.schema.json)
+and scoped curator assertions as the impact preview. It replays both stored reviews
+in one repeatable-read snapshot, then binds conditional candidate impact and fresh
+structural profile-v6 coverage at one evaluation instant. It never accepts supplied
+facts, coverage claims or evaluation time, and returns a `no-store`
+[coverage report](packages/contracts/schemas/catalog-auditability-impact-coverage.v1.schema.json).
+
+Policy `catalog-auditability-impact-coverage-1` binds both analyses, their hashes,
+exact scenario/profile and option scopes, and the three auditability input paths.
+Each of the four explicit synthetic profiles gets three rows per candidate option:
+criticality, selected criteria and minimum retention. Rows show only selected
+criteria's before/after conditional outcomes and change counts. Unselected retention
+is a zero-count scope guard, never a successful check. Criteria can occur in several
+dependent rows, so their counts must not be summed as unique facts.
+
+The other 124 scenario/input rows remain structural-only; all 40 verification gaps
+remain visible. Independent HTTP checks replay the original candidate requests,
+derive the exact selected-input matrix and recompute all hashes. Even altered counts
+with a recomputed digest are rejected by this semantic check.
+
+`candidateAuditabilityChangesEvaluated: true` describes this bound conditional
+analysis only. Status stays `INCOMPLETE`: full coverage, source/configuration/compliance
+verification, durable impact recording, approval, publication and recommendation
+readiness remain false. Original evidence dates are preserved. Historical coverage
+responses retain their false candidate-impact flag, and existing publication gates
+are unchanged. There is no browser form or new write path.
+
 ### Provider catalog drafts: validation before review
 
 `POST /api/v1/catalog-drafts/validate` accepts a separate, versioned

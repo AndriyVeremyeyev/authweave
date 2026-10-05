@@ -45,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class CatalogAuditabilityReviewIntegrationTests extends PostgresIntegrationTest {
     private static final String BASE = "/internal/v1/catalog-curator/auditability-reviews";
     private static final String IMPACT = "/internal/v1/catalog-curator/auditability-impact/preview";
+    private static final String COVERAGE = "/internal/v1/catalog-curator/auditability-impact/coverage-preview";
     private static final String TOKEN = "Bearer synthetic-auditability-service-token-00000000000000";
     private static final Path SAMPLES = Path.of("target", "auditability-review-http-contract-samples.json");
     private final List<Sample> samples = new ArrayList<>();
@@ -67,7 +68,7 @@ class CatalogAuditabilityReviewIntegrationTests extends PostgresIntegrationTest 
             mvc.perform(auth(post(path).contentType("application/json").content(mapper.writeValueAsString(request)), guard)).andExpect(status().is(expected));
             mvc.perform(auth(get(path + "/" + request.reviewId()).param("expectedSha256", "0".repeat(64)), guard)).andExpect(status().is(expected));
         }
-        for (String path : List.of(IMPACT, IMPACT.replace("/v1/", "/v2/")))
+        for (String path : List.of(IMPACT, IMPACT.replace("/v1/", "/v2/"), COVERAGE, COVERAGE.replace("/v1/", "/v2/")))
             mvc.perform(auth(post(path).contentType("application/json").content("{}"), guard)).andExpect(status().is(expected));
         assertEquals(before, counts(request.reviewId()));
     }
@@ -85,35 +86,52 @@ class CatalogAuditabilityReviewIntegrationTests extends PostgresIntegrationTest 
                 .andExpect(jsonPath("$.checkedCases").value(4)).andExpect(jsonPath("$.checkedCriteria").value(24))
                 .andExpect(jsonPath("$.changedFacts").value(1)).andExpect(jsonPath("$.changedChecks").value(3)).andReturn();
         var report = payload(response); sample("auditability-impact-conditional", "catalog-auditability-impact", true, report);
+        var coverageResponse = mvc.perform(auth(post(COVERAGE).contentType("application/json").content(mapper.writeValueAsString(input)), "ok"))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.checkedAuditabilityDimensions").value(12)).andExpect(jsonPath("$.structuralOnlyDimensions.length()").value(124))
+                .andExpect(jsonPath("$.candidateAuditabilityChangesEvaluated").value(true)).andExpect(jsonPath("$.coverageComplete").value(false)).andReturn();
+        var coverage = payload(coverageResponse); sample("auditability-impact-coverage", "catalog-auditability-impact-coverage", true, coverage);
         assertEquals(unrelated, unrelatedCounts()); assertEquals(List.of(1, 1), counts(b.reviewId())); assertEquals(List.of(1, 1), counts(a.reviewId()));
         for (String flag : List.of("coverageComplete", "baselineVerified", "sourceVerificationPerformed", "factTrustChanged", "configurationVerified",
                 "complianceVerified", "storedReportVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady")) {
             assertFalse(report.get(flag).asBoolean()); var forged = (ObjectNode) report.deepCopy(); forged.put(flag, true);
             sample("auditability-impact-no-" + flag, "catalog-auditability-impact", false, forged);
+            var forgedCoverage = (ObjectNode) coverage.deepCopy(); forgedCoverage.put(flag, true);
+            sample("auditability-coverage-no-" + flag, "catalog-auditability-impact-coverage", false, forgedCoverage);
         }
         for (String key : List.of("actorSubject", "candidate", "sourceUrl")) {
             var disclosed = (ObjectNode) report.deepCopy(); disclosed.put(key, "private"); sample("auditability-impact-no-" + key, "catalog-auditability-impact", false, disclosed);
             assertFalse(report.toString().contains("\"" + key + "\":"));
+            var disclosedCoverage = (ObjectNode) coverage.deepCopy(); disclosedCoverage.put(key, "private");
+            sample("auditability-coverage-no-" + key, "catalog-auditability-impact-coverage", false, disclosedCoverage);
+            assertFalse(coverage.toString().contains("\"" + key + "\":"));
         }
-        mvc.perform(auth(post(IMPACT).queryParam("extra", "1").contentType("application/json").content(mapper.writeValueAsString(input)), "ok"))
+        var missingDimension = (ObjectNode) coverage.deepCopy(); ((tools.jackson.databind.node.ArrayNode) missingDimension.get("dimensions")).remove(0);
+        sample("auditability-coverage-missing-dimension", "catalog-auditability-impact-coverage", false, missingDimension);
+        var wrongManifest = (ObjectNode) coverage.deepCopy(); wrongManifest.put("manifestSha256", "0".repeat(64));
+        sample("auditability-coverage-foreign-manifest", "catalog-auditability-impact-coverage", false, wrongManifest);
+        for (String path : List.of(IMPACT, COVERAGE)) mvc.perform(auth(post(path).queryParam("extra", "1").contentType("application/json").content(mapper.writeValueAsString(input)), "ok"))
                 .andExpect(status().isBadRequest());
         for (String side : List.of("before", "after")) {
             var wrong = side.equals("before") ? with(input, "expectedBeforeReviewSha256", "0".repeat(64)) : with(input, "expectedAfterReviewSha256", "0".repeat(64));
-            mvc.perform(auth(post(IMPACT).contentType("application/json").content(mapper.writeValueAsString(wrong)), "ok"))
+            for (String path : List.of(IMPACT, COVERAGE)) mvc.perform(auth(post(path).contentType("application/json").content(mapper.writeValueAsString(wrong)), "ok"))
                     .andExpect(status().isConflict()).andExpect(header().string("Cache-Control", "no-store"));
             var missing = side.equals("before") ? with(input, "beforeReviewId", UUID.randomUUID()) : with(input, "afterReviewId", UUID.randomUUID());
-            mvc.perform(auth(post(IMPACT).contentType("application/json").content(mapper.writeValueAsString(missing)), "ok"))
+            for (String path : List.of(IMPACT, COVERAGE)) mvc.perform(auth(post(path).contentType("application/json").content(mapper.writeValueAsString(missing)), "ok"))
                     .andExpect(status().isNotFound());
         }
         var same = with(with(input, "afterReviewId", b.reviewId()), "expectedAfterReviewSha256", b.reviewSha256());
         var identity = mvc.perform(auth(post(IMPACT).contentType("application/json").content(mapper.writeValueAsString(same)), "ok"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.changedFacts").value(0)).andExpect(jsonPath("$.changedChecks").value(0)).andReturn();
         sample("auditability-impact-identical", "catalog-auditability-impact", true, payload(identity));
+        var identicalCoverage = mvc.perform(auth(post(COVERAGE).contentType("application/json").content(mapper.writeValueAsString(same)), "ok"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.candidateImpact.changedChecks").value(0)).andReturn();
+        sample("auditability-impact-coverage-identical", "catalog-auditability-impact-coverage", true, payload(identicalCoverage));
         var changedBase = with(after.candidate().baseDraft(), "catalogVersion", "different-impact-base");
         var supplement = with(with(after.candidate().auditabilityDraft(), "baseCatalogVersion", changedBase.catalogVersion()), "baseContentSha256", CatalogDraftCanonicalizer.sha256(changedBase));
         var other = service.record(bind(new CatalogAuditabilityDraftValidator.Request(changedBase, supplement), drafts), actor()).review();
         var mixed = with(with(input, "afterReviewId", other.reviewId()), "expectedAfterReviewSha256", other.reviewSha256());
-        mvc.perform(auth(post(IMPACT).contentType("application/json").content(mapper.writeValueAsString(mixed)), "ok")).andExpect(status().isConflict());
+        for (String path : List.of(IMPACT, COVERAGE)) mvc.perform(auth(post(path).contentType("application/json").content(mapper.writeValueAsString(mixed)), "ok")).andExpect(status().isConflict());
     }
 
     @ParameterizedTest @ValueSource(strings = {"version", "version-text", "missing", "digest", "uuid", "candidate", "clock", "approval", "duplicate-json", "trailing-json"})
@@ -130,7 +148,7 @@ class CatalogAuditabilityReviewIntegrationTests extends PostgresIntegrationTest 
         if (variant.equals("duplicate-json")) body = body.substring(0, body.length() - 1) + ",\"schemaVersion\":1}";
         else if (variant.equals("trailing-json")) body += "{}";
         else sample("auditability-impact-malformed-" + variant, "catalog-auditability-impact-request", false, input);
-        mvc.perform(auth(post(IMPACT).contentType("application/json").content(body), "ok")).andExpect(status().isBadRequest());
+        for (String path : List.of(IMPACT, COVERAGE)) mvc.perform(auth(post(path).contentType("application/json").content(body), "ok")).andExpect(status().isBadRequest());
     }
 
     private CatalogAuditabilityReviewRequest impactCandidate(int retention) throws Exception {
@@ -320,7 +338,7 @@ class CatalogAuditabilityReviewIntegrationTests extends PostgresIntegrationTest 
                         .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("catalog-auditability-review-unavailable")).andReturn();
                 sample("auditability-review-corrupt", "catalog-auditability-review-problem", true, payload(denied));
                 var impact = new CatalogAuditabilityImpactService.Request(1, receipt.reviewId(), receipt.reviewSha256(), receipt.reviewId(), receipt.reviewSha256());
-                mvc.perform(auth(post(IMPACT).contentType("application/json").content(mapper.writeValueAsString(impact)), "ok"))
+                for (String path : List.of(IMPACT, COVERAGE)) mvc.perform(auth(post(path).contentType("application/json").content(mapper.writeValueAsString(impact)), "ok"))
                         .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("catalog-auditability-review-unavailable"));
                 assertEquals(CatalogAuditabilityReviewException.Reason.READ_UNAVAILABLE,
                         assertThrows(CatalogAuditabilityReviewException.class, () -> service.record(request, actor())).reason());

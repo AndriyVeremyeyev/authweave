@@ -31,6 +31,7 @@ let auditabilityConsumerSamples = 0;
 let auditabilityDraftSamples = 0;
 let auditabilityReviewSamples = 0;
 let auditabilityImpactSamples = 0;
+let auditabilityCoverageSamples = 0;
 let combinedConstraintSamples = 0;
 let combinedConsumerSamples = 0;
 const constraintKey = value => JSON.stringify([value.workspaceId, value.assessmentId, value.assessmentVersion,
@@ -156,6 +157,79 @@ function expectedImpactSide(request, optionId, criterion, requirements, at) {
     sourceVerdict: observation?.verdict ?? null, observedAt: fact?.evidence.observedAt ?? null, freshness,
     conditionsRecorded: Boolean(fact?.conditions.length), documentedMinimumRetentionDays: duration };
 }
+function validateAuditabilityImpact(payload, name) {
+  const before = reviewRequests.get(payload.beforeReview.reviewSha256), after = reviewRequests.get(payload.afterReview.reviewSha256);
+  assert.ok(before && after, `${name}: both exact historical review requests must be supplied`);
+  assert.equal(payload.beforeReview.reviewId, before.reviewId); assert.equal(payload.afterReview.reviewId, after.reviewId);
+  assert.equal(digest(before.candidate.baseDraft), digest(after.candidate.baseDraft), `${name}: unchanged base scope`);
+  assert.equal(payload.scenarioSetSha256, digest([payload.scenarioSetVersion, payload.profileSchemaVersion,
+    payload.profileSchemaSha256, digest(impactBase), impactSuite, impactDefinitions]), `${name}: independent full scenario binding`);
+  const criteria = ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-draft.v1.schema.json").schema.$defs.criterion.enum;
+  const inventory = new Set(), changedFacts = new Set(); let changedChecks = 0;
+  for (const row of payload.scenarios) {
+    const definition = impactDefinitions.find(d => d.scenarioId === row.scenarioId); assert.ok(definition);
+    assert.equal(row.profileSha256, definition.profileSha256); assert.deepEqual(ordered(row.requirements), ordered(definition.requirements));
+    const option = before.candidate.auditabilityDraft.options.find(o => o.scope.optionId === row.optionScope.optionId);
+    assert.deepEqual(row.optionScope, option?.scope); const key = `${row.scenarioId}:${row.optionScope.optionId}`;
+    assert.ok(!inventory.has(key), `${name}: no duplicated scenario scopes`); inventory.add(key);
+    assert.deepEqual(row.checks.map(c => c.criterion), criteria, `${name}: full canonical criterion inventory`);
+    for (const check of row.checks) {
+      assert.deepEqual(check.before, expectedImpactSide(before, row.optionScope.optionId, check.criterion, row.requirements, payload.evaluatedAt));
+      assert.deepEqual(check.after, expectedImpactSide(after, row.optionScope.optionId, check.criterion, row.requirements, payload.evaluatedAt));
+      assert.equal(check.factChanged, check.before.factSha256 !== check.after.factSha256);
+      assert.equal(check.conditionalResultChanged, check.before.conditionalOutcome !== check.after.conditionalOutcome ||
+        check.before.reason !== check.after.reason || check.before.documentedMinimumRetentionDays !== check.after.documentedMinimumRetentionDays);
+      if (check.factChanged) changedFacts.add(`${row.optionScope.optionId}:${check.criterion}`);
+      if (check.conditionalResultChanged) changedChecks++;
+    }
+  }
+  assert.deepEqual(inventory, new Set(impactDefinitions.flatMap(d => before.candidate.auditabilityDraft.options.map(o => `${d.scenarioId}:${o.scope.optionId}`))));
+  assert.equal(payload.checkedCases, inventory.size); assert.equal(payload.checkedCriteria, inventory.size * criteria.length);
+  assert.equal(payload.changedFacts, changedFacts.size); assert.equal(payload.changedChecks, changedChecks);
+  assert.equal(payload.analysisSha256, digest([payload.policyVersion, payload.evaluatedAt, payload.scenarioSetVersion, payload.scenarioSetSha256,
+    payload.profileSchemaVersion, payload.profileSchemaSha256, payload.beforeReview, payload.afterReview, payload.scenarios]), `${name}: independent complete analysis digest`);
+}
+function validateAuditabilityCoverage(payload, name) {
+  const structural = payload.profileCoverage, impact = payload.candidateImpact;
+  validateAuditabilityImpact(impact, name);
+  assert.equal(structural.status, "INCOMPLETE");
+  assert.equal(payload.evaluatedAt, structural.evaluatedAt); assert.equal(payload.evaluatedAt, impact.evaluatedAt);
+  assert.equal(structural.scenarioSetSha256, impact.scenarioSetSha256);
+  assert.equal(structural.auditabilityRegression.evaluatedAt, payload.evaluatedAt);
+  assert.equal(structural.dimensions.length, 136);
+  assert.equal(structural.candidateAuditabilityChangesEvaluated, false, "Historical structural semantics stay unchanged.");
+  const gaps = impactDefinitions.flatMap(d => [
+    { scenarioId: d.scenarioId, profilePath: "security.browserTokenExposureMinimization", boundary: "ARCHITECTURE_CONFIGURATION" },
+    { scenarioId: d.scenarioId, profilePath: "provisioning", boundary: "PROVISIONING_LIFECYCLE" },
+    { scenarioId: d.scenarioId, profilePath: "security.authenticationControls", boundary: "CONFIGURED_AUTHENTICATION_FLOW" },
+    ...impact.deferredBoundaries.map(boundary => ({ scenarioId: d.scenarioId, profilePath: "security.auditability", boundary })),
+  ]);
+  assert.deepEqual(ordered(structural.verificationGaps), ordered(gaps), "Do not hide verification boundaries.");
+  const expected = impact.scenarios.flatMap(scenario => structural.dimensions.filter(d => d.scenarioId === scenario.scenarioId && d.boundary === "AUDITABILITY").map(d => {
+    const checks = scenario.checks.filter(c => d.evidenceCriteria.includes(c.criterion));
+    const selected = scenario.checks.filter(c => scenario.requirements.selectedCriteria.includes(c.criterion) &&
+      (!d.profilePath.endsWith("minimumRetentionDays") || c.criterion === "AUDIT_LOG_RETENTION")).map(c => c.criterion);
+    assert.deepEqual(d.evidenceCriteria, selected, "Candidate inputs bind exact structural dependencies.");
+    const outcomes = side => ({ wouldSatisfy: checks.filter(c => c[side].conditionalOutcome === "WOULD_SATISFY").length,
+      wouldViolate: checks.filter(c => c[side].conditionalOutcome === "WOULD_VIOLATE").length,
+      indeterminate: checks.filter(c => c[side].conditionalOutcome === "INDETERMINATE").length });
+    return { scenarioId: scenario.scenarioId, profileSha256: scenario.profileSha256, optionScope: scenario.optionScope, profilePath: d.profilePath,
+      evidenceCriteria: selected, before: outcomes("before"), after: outcomes("after"), changedFacts: checks.filter(c => c.factChanged).length,
+      changedChecks: checks.filter(c => c.conditionalResultChanged).length,
+      state: selected.length ? "CONDITIONAL_CANDIDATE_CHECKS_PRESENT" : "SCOPE_GUARD_ONLY" };
+  }));
+  assert.equal(expected.length, impact.checkedCases * 3);
+  assert.deepEqual(payload.dimensions, expected, "Exact candidate scope/input matrix, selected counts and change attribution.");
+  assert.equal(payload.checkedAuditabilityDimensions, expected.length);
+  assert.deepEqual(payload.structuralOnlyDimensions, structural.dimensions.filter(d => d.boundary !== "AUDITABILITY"));
+  assert.equal(payload.structuralOnlyDimensions.length, 124);
+  const manifest = digest([payload.policyVersion, structural.manifestSha256, impact.policyVersion, impact.profileSchemaSha256,
+    ["security.auditability", "security.auditabilityRequirements.selectedCriteria", "security.auditabilityRequirements.minimumRetentionDays"]]);
+  assert.equal(payload.manifestSha256, manifest);
+  assert.equal(payload.profileCoverageSha256, digest(structural)); assert.equal(payload.candidateImpactSha256, impact.analysisSha256);
+  assert.equal(payload.analysisSha256, digest([payload.policyVersion, payload.evaluatedAt, manifest,
+    digest(structural), impact.analysisSha256, payload.dimensions, payload.structuralOnlyDimensions]));
+}
 for (const { name, schema, valid, payload } of samples) {
   assert.equal(typeof valid, "boolean", `${name}: expected validity is required`);
   const versionedName = /\.v[0-9]+$/.test(schema) ? schema : `${schema}.v1`;
@@ -184,37 +258,18 @@ for (const { name, schema, valid, payload } of samples) {
     }
   }
   if (schema === "catalog-auditability-impact" && valid) {
-    const before = reviewRequests.get(payload.beforeReview.reviewSha256), after = reviewRequests.get(payload.afterReview.reviewSha256);
-    assert.ok(before && after, `${name}: both exact historical review requests must be supplied`);
-    assert.equal(payload.beforeReview.reviewId, before.reviewId); assert.equal(payload.afterReview.reviewId, after.reviewId);
-    assert.equal(digest(before.candidate.baseDraft), digest(after.candidate.baseDraft), `${name}: unchanged base scope`);
-    assert.equal(payload.scenarioSetSha256, digest([payload.scenarioSetVersion, payload.profileSchemaVersion,
-      payload.profileSchemaSha256, digest(impactBase), impactSuite, impactDefinitions]), `${name}: independent full scenario binding`);
-    const criteria = ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-draft.v1.schema.json").schema.$defs.criterion.enum;
-    const inventory = new Set(), changedFacts = new Set(); let changedChecks = 0;
-    for (const row of payload.scenarios) {
-      const definition = impactDefinitions.find(d => d.scenarioId === row.scenarioId); assert.ok(definition);
-      assert.equal(row.profileSha256, definition.profileSha256); assert.deepEqual(ordered(row.requirements), ordered(definition.requirements));
-      const option = before.candidate.auditabilityDraft.options.find(o => o.scope.optionId === row.optionScope.optionId);
-      assert.deepEqual(row.optionScope, option?.scope); const key = `${row.scenarioId}:${row.optionScope.optionId}`;
-      assert.ok(!inventory.has(key), `${name}: no duplicated scenario scopes`); inventory.add(key);
-      assert.deepEqual(row.checks.map(c => c.criterion), criteria, `${name}: full canonical criterion inventory`);
-      for (const check of row.checks) {
-        assert.deepEqual(check.before, expectedImpactSide(before, row.optionScope.optionId, check.criterion, row.requirements, payload.evaluatedAt));
-        assert.deepEqual(check.after, expectedImpactSide(after, row.optionScope.optionId, check.criterion, row.requirements, payload.evaluatedAt));
-        assert.equal(check.factChanged, check.before.factSha256 !== check.after.factSha256);
-        assert.equal(check.conditionalResultChanged, check.before.conditionalOutcome !== check.after.conditionalOutcome ||
-          check.before.reason !== check.after.reason || check.before.documentedMinimumRetentionDays !== check.after.documentedMinimumRetentionDays);
-        if (check.factChanged) changedFacts.add(`${row.optionScope.optionId}:${check.criterion}`);
-        if (check.conditionalResultChanged) changedChecks++;
-      }
-    }
-    assert.deepEqual(inventory, new Set(impactDefinitions.flatMap(d => before.candidate.auditabilityDraft.options.map(o => `${d.scenarioId}:${o.scope.optionId}`))));
-    assert.equal(payload.checkedCases, inventory.size); assert.equal(payload.checkedCriteria, inventory.size * criteria.length);
-    assert.equal(payload.changedFacts, changedFacts.size); assert.equal(payload.changedChecks, changedChecks);
-    assert.equal(payload.analysisSha256, digest([payload.policyVersion, payload.evaluatedAt, payload.scenarioSetVersion, payload.scenarioSetSha256,
-      payload.profileSchemaVersion, payload.profileSchemaSha256, payload.beforeReview, payload.afterReview, payload.scenarios]), `${name}: independent complete analysis digest`);
+    validateAuditabilityImpact(payload, name);
     auditabilityImpactSamples++;
+  }
+  if (schema === "catalog-auditability-impact-coverage" && valid) {
+    validateAuditabilityCoverage(payload, name);
+    const forged = structuredClone(payload);
+    forged.dimensions[0].after.wouldSatisfy++; forged.dimensions[0].after.indeterminate--;
+    forged.analysisSha256 = digest([forged.policyVersion, forged.evaluatedAt, forged.manifestSha256,
+      forged.profileCoverageSha256, forged.candidateImpactSha256, forged.dimensions, forged.structuralOnlyDimensions]);
+    assert.equal(validate(forged), true, `${name}: altered counts retain valid shape and a recomputed digest`);
+    assert.throws(() => validateAuditabilityCoverage(forged, name), undefined, "Correct hashes cannot disguise wrong candidate counts.");
+    auditabilityCoverageSamples++;
   }
   if (schema === "catalog-auditability-review" && valid) {
     const request = reviewRequests.get(payload.reviewSha256);
@@ -281,6 +336,7 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-auditability-review-problem:true", "catalog-auditability-review-problem:false",
   "catalog-auditability-impact-request:true", "catalog-auditability-impact-request:false",
   "catalog-auditability-impact:true", "catalog-auditability-impact:false",
+  "catalog-auditability-impact-coverage:true", "catalog-auditability-impact-coverage:false",
   "catalog-draft-validation:true", "catalog-draft-validation:false",
   "catalog-change-preview-request:true", "catalog-change-preview-request:false",
   "catalog-change-preview:true", "catalog-change-preview:false",
@@ -339,3 +395,5 @@ assert.ok(auditabilityReviewSamples > 0, "Actual immutable auditability reviews 
 console.log(`Verified ${auditabilityReviewSamples} actual auditability review receipts with independent request and target binding checks.`);
 assert.ok(auditabilityImpactSamples > 0, "Actual conditional auditability comparisons must reach independent source/scenario/outcome checks.");
 console.log(`Verified ${auditabilityImpactSamples} conditional auditability impact reports with independent scenario, source, outcome and hash checks.`);
+assert.ok(auditabilityCoverageSamples > 0, "Actual candidate coverage reports must reach independent binding, dependency, matrix and gap checks.");
+console.log(`Verified ${auditabilityCoverageSamples} candidate auditability coverage reports with independent impact, selected-input and gap guards.`);

@@ -174,6 +174,36 @@ test("conditional auditability sides bind missing evidence, reasons and retentio
   assert.equal(schema.properties.storedReviewsVerified.const, true); assert.equal(schema.properties.candidateChangesEvaluated.const, true);
 });
 
+test("candidate auditability coverage graph keeps structural-only inputs and all readiness gates closed", async () => {
+  const schema = await readJson(path.join(schemasRoot, "catalog-auditability-impact-coverage.v1.schema.json"));
+  assert.ok(ajv.getSchema(schema.$id));
+  for (const flag of ["coverageComplete", "configurationVerified", "complianceVerified", "storedReportVerified", "sourceVerificationPerformed",
+    "factTrustChanged", "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"]) assert.equal(schema.properties[flag].const, false);
+  assert.equal(schema.properties.candidateAuditabilityChangesEvaluated.const, true);
+  assert.equal(schema.properties.profileCoverage.properties.status.const, "INCOMPLETE");
+  assert.equal(schema.properties.structuralOnlyDimensions.minItems, 124);
+  assert.equal(schema.properties.structuralOnlyDimensions.items.properties.boundary.not.const, "AUDITABILITY");
+  assert.equal(schema.properties.dimensions.maxItems, 1200);
+});
+
+test("candidate coverage dimensions reject scope promotion, extra claims and invalid retention dependencies", () => {
+  const validate = ajv.getSchema("https://authweave.dev/contracts/catalog-auditability-impact-coverage.v1.schema.json#/$defs/dimension");
+  const row = { scenarioId: "partner-portal-scoped", profileSha256: "1".repeat(64),
+    optionScope: { optionId: "example-managed-eu", plan: "Example Enterprise", region: "EU", configuration: "Primary pilot configuration" },
+    profilePath: "security.auditabilityRequirements.minimumRetentionDays", evidenceCriteria: [],
+    before: { wouldSatisfy: 0, wouldViolate: 0, indeterminate: 0 }, after: { wouldSatisfy: 0, wouldViolate: 0, indeterminate: 0 },
+    changedFacts: 0, changedChecks: 0, state: "SCOPE_GUARD_ONLY" };
+  assert.equal(validate(row), true, validationMessage(validate));
+  const selected = { ...row, evidenceCriteria: ["AUDIT_LOG_RETENTION"], before: { wouldSatisfy: 1, wouldViolate: 0, indeterminate: 0 },
+    after: { wouldSatisfy: 0, wouldViolate: 0, indeterminate: 1 }, changedFacts: 1, changedChecks: 1, state: "CONDITIONAL_CANDIDATE_CHECKS_PRESENT" };
+  assert.equal(validate(selected), true, validationMessage(validate));
+  for (const invalid of [{ ...row, state: "CONDITIONAL_CANDIDATE_CHECKS_PRESENT" }, { ...row, before: selected.before },
+    { ...row, changedChecks: 1 }, { ...selected, evidenceCriteria: ["AUDIT_LOG_EXPORT"] }, { ...selected, state: "VERIFIED" },
+    { ...selected, sourceUrl: "https://example.invalid/private" }, { ...selected, profilePath: "security.assurance" },
+    { ...selected, changedFacts: 7 }, { ...selected, after: { ...selected.after, indeterminate: -1 } },
+    { ...selected, optionScope: { ...selected.optionScope, actorSubject: "private" } }]) assert.equal(validate(invalid), false);
+});
+
 test("profile v6 coverage contract inventories every semantic input and rejects readiness promotion or mixed unperformed state", async () => {
   const schema = await readJson(path.join(schemasRoot, "catalog-profile-impact-coverage.v1.schema.json"));
   const validate = ajv.getSchema(schema.$id), paths = new Set();

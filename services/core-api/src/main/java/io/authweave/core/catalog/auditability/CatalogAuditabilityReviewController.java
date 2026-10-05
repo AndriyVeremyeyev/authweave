@@ -15,9 +15,18 @@ public final class CatalogAuditabilityReviewController {
     private final InternalServiceCredentialFilter credentials;
     private final CatalogAuditabilityReviewService reviews;
     private final CatalogAuditabilityImpactService impacts;
+    private final CatalogAuditabilityImpactCoverageService coverage;
     public CatalogAuditabilityReviewController(InternalServiceCredentialFilter credentials, CatalogAuditabilityReviewService reviews,
-            CatalogAuditabilityImpactService impacts) {
-        this.credentials = credentials; this.reviews = reviews; this.impacts = impacts;
+            CatalogAuditabilityImpactService impacts, CatalogAuditabilityImpactCoverageService coverage) {
+        this.credentials = credentials; this.reviews = reviews; this.impacts = impacts; this.coverage = coverage;
+    }
+    @PostMapping("/internal/v1/catalog-curator/auditability-impact/coverage-preview")
+    public ResponseEntity<CatalogAuditabilityImpactCoverageService.Check> coverage(@RequestBody CatalogAuditabilityImpactService.Request body,
+            HttpServletRequest request) {
+        int status = credentials.curatorStatus(request);
+        if (status != 204) return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).build();
+        if (request.getQueryString() != null) return ResponseEntity.badRequest().cacheControl(CacheControl.noStore()).build();
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(coverage.preview(body));
     }
     @PostMapping("/internal/v1/catalog-curator/auditability-impact/preview")
     public ResponseEntity<CatalogAuditabilityImpactService.Impact> impact(@RequestBody CatalogAuditabilityImpactService.Request body,

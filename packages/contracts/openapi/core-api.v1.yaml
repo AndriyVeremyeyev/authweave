@@ -26,6 +26,62 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /internal/v1/catalog-curator/auditability-impact/coverage-preview:
+    post:
+      operationId: previewAuditabilityImpactCoverage
+      summary: Bind exact candidate auditability impact to fresh structural profile coverage
+      description: >-
+        Current fresh scoped curator assertions are mandatory. Accepts only the same
+        exact stored-review references as the conditional impact preview, never drafts,
+        evaluatedAt or completeness claims. One repeatable-read snapshot and evaluation
+        instant bind both analyses. Only selected auditability dimensions are candidate
+        checks; other dimensions remain structural-only and verification gaps remain.
+        Returns no source or actor bodies. No durable impact write, evidence promotion,
+        publication authority or recommendation; historical preflight contracts remain unchanged.
+      tags: [Catalog drafts]
+      security:
+        - BffServiceToken: []
+      parameters:
+        - $ref: '#/components/parameters/OidcIssuer'
+        - $ref: '#/components/parameters/OidcSubject'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-auditability-impact-request.v1.schema.json
+      responses:
+        '200':
+          description: Fresh incomplete coverage over exact stored candidate reviews; no writes
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-impact-coverage.v1.schema.json
+        '400':
+          description: Malformed references, supplied fields or query parameters
+        '401':
+          description: Missing or invalid service credential or singular identity assertions
+        '403':
+          description: Missing role, wrong project or organization, stale or future authentication
+        '404':
+          description: Referenced stored review does not exist
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-review-problem.v1.schema.json
+        '409':
+          description: Foreign hash/base, corrupt review replay or inconsistent coverage binding
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-auditability-review-problem.v1.schema.json
+        '503':
+          description: Core service credential or curator scope is not configured
   /internal/v1/catalog-curator/auditability-impact/preview:
     post:
       tags: [Catalog drafts]

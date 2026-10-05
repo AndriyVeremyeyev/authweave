@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-auditability-impact-coverage.v1.schema.json",
+  "title": "Conditional candidate auditability and structural profile coverage v1",
+  "description": "One fresh evaluation instant binds exact stored-review candidate impact to structural profile v6 coverage. Candidate audit dimensions are independently replayed; other inputs remain structural-only and all verification gaps remain open. Not full coverage, a stored impact receipt, source truth or publication authority.",
+  "type": "object", "additionalProperties": false,
+  "required": ["evaluatedAt", "profileCoverage", "candidateImpact", "dimensions", "status", "scope", "analysisBasis", "policyVersion", "manifestSha256", "profileCoverageSha256", "candidateImpactSha256", "analysisSha256", "checkedAuditabilityDimensions", "structuralOnlyDimensions", "candidateAuditabilityChangesEvaluated", "storedReviewsVerified", "coverageComplete", "configurationVerified", "complianceVerified", "storedReportVerified", "sourceVerificationPerformed", "factTrustChanged", "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady"],
+  "properties": {
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "profileCoverage": { "$ref": "./catalog-profile-impact-coverage.v1.schema.json", "type": "object", "properties": { "status": { "const": "INCOMPLETE" } } },
+    "candidateImpact": { "$ref": "./catalog-auditability-impact.v1.schema.json" },
+    "dimensions": { "type": "array", "minItems": 12, "maxItems": 1200, "uniqueItems": true, "items": { "$ref": "#/$defs/dimension" } },
+    "status": { "const": "INCOMPLETE" },
+    "scope": { "const": "CONDITIONAL_AUDITABILITY_PROFILE_IMPACT_COVERAGE" },
+    "analysisBasis": { "const": "STRUCTURAL_PROFILE_RULES_AND_BOUND_CONDITIONAL_AUDITABILITY_IMPACT" },
+    "policyVersion": { "const": "catalog-auditability-impact-coverage-1" },
+    "manifestSha256": { "const": "53cf742af80c1e86e6a19ade9986efec53dea8dc9b5b8b8a629520279b96e1de" },
+    "profileCoverageSha256": { "$ref": "#/$defs/digest" },
+    "candidateImpactSha256": { "$ref": "#/$defs/digest" },
+    "analysisSha256": { "$ref": "#/$defs/digest" },
+    "checkedAuditabilityDimensions": { "type": "integer", "minimum": 12, "maximum": 1200 },
+    "structuralOnlyDimensions": { "type": "array", "minItems": 124, "maxItems": 124, "uniqueItems": true, "items": { "$ref": "./catalog-profile-impact-coverage.v1.schema.json#/$defs/dimension", "type": "object", "properties": { "boundary": { "not": { "const": "AUDITABILITY" } } } } },
+    "candidateAuditabilityChangesEvaluated": { "const": true }, "storedReviewsVerified": { "const": true },
+    "coverageComplete": { "const": false }, "configurationVerified": { "const": false },
+    "complianceVerified": { "const": false }, "storedReportVerified": { "const": false },
+    "sourceVerificationPerformed": { "const": false }, "factTrustChanged": { "const": false },
+    "baselineVerified": { "const": false }, "approvalGranted": { "const": false },
+    "writesPerformed": { "const": false }, "publicationReady": { "const": false },
+    "evaluationReady": { "const": false }, "recommendationReady": { "const": false }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "outcomes": {
+      "type": "object", "additionalProperties": false,
+      "required": ["wouldSatisfy", "wouldViolate", "indeterminate"],
+      "properties": {
+        "wouldSatisfy": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "wouldViolate": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "indeterminate": { "type": "integer", "minimum": 0, "maximum": 6 }
+      }
+    },
+    "dimension": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scenarioId", "profileSha256", "optionScope", "profilePath", "evidenceCriteria", "before", "after", "changedFacts", "changedChecks", "state"],
+      "properties": {
+        "scenarioId": { "enum": ["b2b-saas-scoped", "partner-portal-scoped", "public-sector-scoped", "internal-workforce-scoped"] },
+        "profileSha256": { "$ref": "#/$defs/digest" },
+        "optionScope": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/scope" },
+        "profilePath": { "enum": ["security.auditability", "security.auditabilityRequirements.selectedCriteria", "security.auditabilityRequirements.minimumRetentionDays"] },
+        "evidenceCriteria": { "type": "array", "maxItems": 6, "uniqueItems": true, "items": { "$ref": "./catalog-auditability-draft.v1.schema.json#/$defs/criterion" } },
+        "before": { "$ref": "#/$defs/outcomes" }, "after": { "$ref": "#/$defs/outcomes" },
+        "changedFacts": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "changedChecks": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "state": { "enum": ["SCOPE_GUARD_ONLY", "CONDITIONAL_CANDIDATE_CHECKS_PRESENT"] }
+      },
+      "allOf": [
+        { "if": { "properties": { "profilePath": { "const": "security.auditabilityRequirements.minimumRetentionDays" } } },
+          "then": { "properties": { "evidenceCriteria": { "type": "array", "maxItems": 1, "items": { "const": "AUDIT_LOG_RETENTION" } } } }
+        },
+        { "if": { "properties": { "evidenceCriteria": { "type": "array", "maxItems": 0 } } },
+          "then": { "properties": { "state": { "const": "SCOPE_GUARD_ONLY" }, "changedFacts": { "const": 0 }, "changedChecks": { "const": 0 }, "before": { "const": { "wouldSatisfy": 0, "wouldViolate": 0, "indeterminate": 0 } }, "after": { "const": { "wouldSatisfy": 0, "wouldViolate": 0, "indeterminate": 0 } } } },
+          "else": { "properties": { "state": { "const": "CONDITIONAL_CANDIDATE_CHECKS_PRESENT" } } }
+        }
+      ]
+    }
+  }
+}
