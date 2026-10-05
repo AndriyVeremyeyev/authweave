@@ -1,0 +1,2125 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "preflight",
+    "analysis",
+    "settingDefinitions",
+    "deferredBoundaries"
+  ],
+  "properties": {
+    "preflight": {
+      "$ref": "./architecture-pattern-preflight.v1.schema.json"
+    },
+    "analysis": {
+      "$ref": "#/$defs/analysis"
+    },
+    "settingDefinitions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/definition"
+      }
+    },
+    "deferredBoundaries": {
+      "const": [
+        "Observed client registration and actual issuer/redirect values",
+        "Runtime protocol validation, token storage and session defenses",
+        "API authorization, scopes, audience and grant permissions",
+        "Provider interoperability, browser CORS and native redirect ownership",
+        "Provisioning, offboarding, assurance, compliance and operations",
+        "Independent assessment of additional resource-access paths"
+      ]
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/architecture-configuration-preview.v1.schema.json",
+  "title": "Unverified proposed architecture configuration preview v1",
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "settingId",
+        "outcome",
+        "reasonCode"
+      ],
+      "properties": {
+        "settingId": {
+          "type": "string",
+          "enum": [
+            "OAUTH_FLOW",
+            "OAUTH_CLIENT_TYPE",
+            "CLIENT_AUTHENTICATION",
+            "TOKEN_LOCATION",
+            "PKCE_METHOD",
+            "REDIRECT_MATCHING",
+            "SESSION_COOKIE_SECURE",
+            "SESSION_COOKIE_HTTP_ONLY",
+            "SESSION_CSRF_DEFENSE",
+            "RESOURCE_ACCESS",
+            "BROWSER_TOKEN_ENDPOINT_ACCESS",
+            "NATIVE_USER_AGENT",
+            "WORKLOAD_AUTHORIZATION"
+          ]
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "CONDITIONALLY_SATISFIED",
+            "CONDITIONALLY_NOT_SATISFIED",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "EXPECTED_SETTING_DECLARED",
+            "INCOMPATIBLE_SETTING_DECLARED",
+            "SETTING_UNKNOWN",
+            "CLIENT_SCOPE_UNKNOWN",
+            "PATTERN_NOT_APPLICABLE"
+          ]
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "reasonCode": {
+              "const": "EXPECTED_SETTING_DECLARED"
+            },
+            "outcome": {
+              "const": "CONDITIONALLY_SATISFIED"
+            }
+          }
+        },
+        {
+          "properties": {
+            "reasonCode": {
+              "const": "INCOMPATIBLE_SETTING_DECLARED"
+            },
+            "outcome": {
+              "const": "CONDITIONALLY_NOT_SATISFIED"
+            }
+          }
+        },
+        {
+          "properties": {
+            "reasonCode": {
+              "const": "SETTING_UNKNOWN"
+            },
+            "outcome": {
+              "const": "UNKNOWN"
+            }
+          }
+        },
+        {
+          "properties": {
+            "reasonCode": {
+              "const": "CLIENT_SCOPE_UNKNOWN"
+            },
+            "outcome": {
+              "const": "UNKNOWN"
+            }
+          }
+        },
+        {
+          "properties": {
+            "reasonCode": {
+              "const": "PATTERN_NOT_APPLICABLE"
+            },
+            "outcome": {
+              "const": "NOT_APPLICABLE"
+            }
+          }
+        }
+      ]
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "patternId",
+        "clientScope",
+        "settings",
+        "checks",
+        "status",
+        "policyVersion",
+        "analysisBasis",
+        "configurationObserved",
+        "configurationVerified",
+        "providerCompatibilityVerified",
+        "runtimeFlowVerified",
+        "recommendationReady",
+        "publicationReady",
+        "writesPerformed"
+      ],
+      "properties": {
+        "patternId": {
+          "type": "string",
+          "enum": [
+            "BFF_SESSION",
+            "SERVER_SIDE_SESSION",
+            "SPA_CODE_PKCE",
+            "NATIVE_CODE_PKCE",
+            "M2M_CLIENT_CREDENTIALS"
+          ]
+        },
+        "clientScope": {
+          "type": "string",
+          "enum": [
+            "SELECTED",
+            "NOT_SELECTED",
+            "UNKNOWN"
+          ]
+        },
+        "settings": {
+          "type": "object"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/check"
+          }
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "CONDITIONALLY_MATCHES",
+            "CONDITIONALLY_DOES_NOT_MATCH",
+            "NEEDS_INFORMATION",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "policyVersion": {
+          "const": "architecture-configuration-design-1"
+        },
+        "analysisBasis": {
+          "const": "UNVERIFIED_PROPOSED_CONFIGURATION"
+        },
+        "configurationObserved": {
+          "const": false
+        },
+        "configurationVerified": {
+          "const": false
+        },
+        "providerCompatibilityVerified": {
+          "const": false
+        },
+        "runtimeFlowVerified": {
+          "const": false
+        },
+        "recommendationReady": {
+          "const": false
+        },
+        "publicationReady": {
+          "const": false
+        },
+        "writesPerformed": {
+          "const": false
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "clientScope": {
+                "const": "UNKNOWN"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "NEEDS_INFORMATION"
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reasonCode": {
+                      "const": "CLIENT_SCOPE_UNKNOWN"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "clientScope": {
+                "const": "NOT_SELECTED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "const": "NOT_APPLICABLE"
+              },
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reasonCode": {
+                      "const": "PATTERN_NOT_APPLICABLE"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "clientScope": {
+                "const": "SELECTED"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reasonCode": {
+                      "enum": [
+                        "EXPECTED_SETTING_DECLARED",
+                        "INCOMPATIBLE_SETTING_DECLARED",
+                        "SETTING_UNKNOWN"
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "checks": {
+                      "type": "array",
+                      "contains": {
+                        "type": "object",
+                        "required": [
+                          "outcome"
+                        ],
+                        "properties": {
+                          "outcome": {
+                            "const": "CONDITIONALLY_NOT_SATISFIED"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "status": {
+                      "const": "CONDITIONALLY_DOES_NOT_MATCH"
+                    }
+                  }
+                },
+                "else": {
+                  "if": {
+                    "properties": {
+                      "checks": {
+                        "type": "array",
+                        "contains": {
+                          "type": "object",
+                          "required": [
+                            "outcome"
+                          ],
+                          "properties": {
+                            "outcome": {
+                              "const": "UNKNOWN"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "status": {
+                        "const": "NEEDS_INFORMATION"
+                      }
+                    }
+                  },
+                  "else": {
+                    "properties": {
+                      "status": {
+                        "const": "CONDITIONALLY_MATCHES"
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "definition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "settingId",
+        "description",
+        "allowedValues",
+        "compatibleValues",
+        "references"
+      ],
+      "properties": {
+        "settingId": {
+          "type": "string",
+          "enum": [
+            "OAUTH_FLOW",
+            "OAUTH_CLIENT_TYPE",
+            "CLIENT_AUTHENTICATION",
+            "TOKEN_LOCATION",
+            "PKCE_METHOD",
+            "REDIRECT_MATCHING",
+            "SESSION_COOKIE_SECURE",
+            "SESSION_COOKIE_HTTP_ONLY",
+            "SESSION_CSRF_DEFENSE",
+            "RESOURCE_ACCESS",
+            "BROWSER_TOKEN_ENDPOINT_ACCESS",
+            "NATIVE_USER_AGENT",
+            "WORKLOAD_AUTHORIZATION"
+          ]
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "allowedValues": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "compatibleValues": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string"
+          }
+        },
+        "references": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "BFF_SESSION"
+            },
+            "settings": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 10,
+              "properties": {
+                "OAUTH_FLOW": {
+                  "type": "string",
+                  "enum": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "OAUTH_CLIENT_TYPE": {
+                  "type": "string",
+                  "enum": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "CLIENT_AUTHENTICATION": {
+                  "type": "string",
+                  "enum": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "TOKEN_LOCATION": {
+                  "type": "string",
+                  "enum": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "PKCE_METHOD": {
+                  "type": "string",
+                  "enum": [
+                    "S256",
+                    "PLAIN",
+                    "NONE",
+                    "UNKNOWN"
+                  ]
+                },
+                "REDIRECT_MATCHING": {
+                  "type": "string",
+                  "enum": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION",
+                    "WILDCARD",
+                    "UNKNOWN"
+                  ]
+                },
+                "SESSION_COOKIE_SECURE": {
+                  "type": "string",
+                  "enum": [
+                    "ENABLED",
+                    "DISABLED",
+                    "UNKNOWN"
+                  ]
+                },
+                "SESSION_COOKIE_HTTP_ONLY": {
+                  "type": "string",
+                  "enum": [
+                    "ENABLED",
+                    "DISABLED",
+                    "UNKNOWN"
+                  ]
+                },
+                "SESSION_CSRF_DEFENSE": {
+                  "type": "string",
+                  "enum": [
+                    "DEFENSE_PLANNED",
+                    "ABSENT",
+                    "UNKNOWN"
+                  ]
+                },
+                "RESOURCE_ACCESS": {
+                  "type": "string",
+                  "enum": [
+                    "BFF_PROXY",
+                    "SESSION_BACKEND",
+                    "DIRECT_BROWSER",
+                    "UNKNOWN"
+                  ]
+                }
+              }
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 10,
+              "maxItems": 10,
+              "items": false,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_FLOW"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_CLIENT_TYPE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "CLIENT_AUTHENTICATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "TOKEN_LOCATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "PKCE_METHOD"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "REDIRECT_MATCHING"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "SESSION_COOKIE_SECURE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "SESSION_COOKIE_HTTP_ONLY"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "SESSION_CSRF_DEFENSE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "RESOURCE_ACCESS"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "settingDefinitions": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "items": false,
+          "prefixItems": [
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_FLOW"
+                },
+                "allowedValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_CLIENT_TYPE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "CONFIDENTIAL"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "CLIENT_AUTHENTICATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "SERVER_HELD_CREDENTIAL"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "TOKEN_LOCATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "APPLICATION_SERVER"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "PKCE_METHOD"
+                },
+                "allowedValues": {
+                  "const": [
+                    "S256",
+                    "PLAIN",
+                    "NONE",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "S256"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "REDIRECT_MATCHING"
+                },
+                "allowedValues": {
+                  "const": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION",
+                    "WILDCARD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "EXACT_REGISTERED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "SESSION_COOKIE_SECURE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "ENABLED",
+                    "DISABLED",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "ENABLED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "SESSION_COOKIE_HTTP_ONLY"
+                },
+                "allowedValues": {
+                  "const": [
+                    "ENABLED",
+                    "DISABLED",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "ENABLED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "SESSION_CSRF_DEFENSE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "DEFENSE_PLANNED",
+                    "ABSENT",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "DEFENSE_PLANNED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "RESOURCE_ACCESS"
+                },
+                "allowedValues": {
+                  "const": [
+                    "BFF_PROXY",
+                    "SESSION_BACKEND",
+                    "DIRECT_BROWSER",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "BFF_PROXY"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "SERVER_SIDE_SESSION"
+            },
+            "settings": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 10,
+              "properties": {
+                "OAUTH_FLOW": {
+                  "type": "string",
+                  "enum": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "OAUTH_CLIENT_TYPE": {
+                  "type": "string",
+                  "enum": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "CLIENT_AUTHENTICATION": {
+                  "type": "string",
+                  "enum": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "TOKEN_LOCATION": {
+                  "type": "string",
+                  "enum": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "PKCE_METHOD": {
+                  "type": "string",
+                  "enum": [
+                    "S256",
+                    "PLAIN",
+                    "NONE",
+                    "UNKNOWN"
+                  ]
+                },
+                "REDIRECT_MATCHING": {
+                  "type": "string",
+                  "enum": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION",
+                    "WILDCARD",
+                    "UNKNOWN"
+                  ]
+                },
+                "SESSION_COOKIE_SECURE": {
+                  "type": "string",
+                  "enum": [
+                    "ENABLED",
+                    "DISABLED",
+                    "UNKNOWN"
+                  ]
+                },
+                "SESSION_COOKIE_HTTP_ONLY": {
+                  "type": "string",
+                  "enum": [
+                    "ENABLED",
+                    "DISABLED",
+                    "UNKNOWN"
+                  ]
+                },
+                "SESSION_CSRF_DEFENSE": {
+                  "type": "string",
+                  "enum": [
+                    "DEFENSE_PLANNED",
+                    "ABSENT",
+                    "UNKNOWN"
+                  ]
+                },
+                "RESOURCE_ACCESS": {
+                  "type": "string",
+                  "enum": [
+                    "BFF_PROXY",
+                    "SESSION_BACKEND",
+                    "DIRECT_BROWSER",
+                    "UNKNOWN"
+                  ]
+                }
+              }
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 10,
+              "maxItems": 10,
+              "items": false,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_FLOW"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_CLIENT_TYPE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "CLIENT_AUTHENTICATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "TOKEN_LOCATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "PKCE_METHOD"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "REDIRECT_MATCHING"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "SESSION_COOKIE_SECURE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "SESSION_COOKIE_HTTP_ONLY"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "SESSION_CSRF_DEFENSE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "RESOURCE_ACCESS"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "settingDefinitions": {
+          "type": "array",
+          "minItems": 10,
+          "maxItems": 10,
+          "items": false,
+          "prefixItems": [
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_FLOW"
+                },
+                "allowedValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_CLIENT_TYPE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "CONFIDENTIAL"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "CLIENT_AUTHENTICATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "SERVER_HELD_CREDENTIAL"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "TOKEN_LOCATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "APPLICATION_SERVER"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "PKCE_METHOD"
+                },
+                "allowedValues": {
+                  "const": [
+                    "S256",
+                    "PLAIN",
+                    "NONE",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "S256"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "REDIRECT_MATCHING"
+                },
+                "allowedValues": {
+                  "const": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION",
+                    "WILDCARD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "EXACT_REGISTERED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "SESSION_COOKIE_SECURE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "ENABLED",
+                    "DISABLED",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "ENABLED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "SESSION_COOKIE_HTTP_ONLY"
+                },
+                "allowedValues": {
+                  "const": [
+                    "ENABLED",
+                    "DISABLED",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "ENABLED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "SESSION_CSRF_DEFENSE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "DEFENSE_PLANNED",
+                    "ABSENT",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "DEFENSE_PLANNED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "RESOURCE_ACCESS"
+                },
+                "allowedValues": {
+                  "const": [
+                    "BFF_PROXY",
+                    "SESSION_BACKEND",
+                    "DIRECT_BROWSER",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "SESSION_BACKEND"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "SPA_CODE_PKCE"
+            },
+            "settings": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 8,
+              "properties": {
+                "OAUTH_FLOW": {
+                  "type": "string",
+                  "enum": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "OAUTH_CLIENT_TYPE": {
+                  "type": "string",
+                  "enum": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "CLIENT_AUTHENTICATION": {
+                  "type": "string",
+                  "enum": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "TOKEN_LOCATION": {
+                  "type": "string",
+                  "enum": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "PKCE_METHOD": {
+                  "type": "string",
+                  "enum": [
+                    "S256",
+                    "PLAIN",
+                    "NONE",
+                    "UNKNOWN"
+                  ]
+                },
+                "REDIRECT_MATCHING": {
+                  "type": "string",
+                  "enum": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION",
+                    "WILDCARD",
+                    "UNKNOWN"
+                  ]
+                },
+                "RESOURCE_ACCESS": {
+                  "type": "string",
+                  "enum": [
+                    "BFF_PROXY",
+                    "SESSION_BACKEND",
+                    "DIRECT_BROWSER",
+                    "UNKNOWN"
+                  ]
+                },
+                "BROWSER_TOKEN_ENDPOINT_ACCESS": {
+                  "type": "string",
+                  "enum": [
+                    "REQUIRED_ORIGINS_PLANNED",
+                    "BLOCKED",
+                    "UNKNOWN"
+                  ]
+                }
+              }
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 8,
+              "maxItems": 8,
+              "items": false,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_FLOW"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_CLIENT_TYPE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "CLIENT_AUTHENTICATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "TOKEN_LOCATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "PKCE_METHOD"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "REDIRECT_MATCHING"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "RESOURCE_ACCESS"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "BROWSER_TOKEN_ENDPOINT_ACCESS"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "settingDefinitions": {
+          "type": "array",
+          "minItems": 8,
+          "maxItems": 8,
+          "items": false,
+          "prefixItems": [
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_FLOW"
+                },
+                "allowedValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_CLIENT_TYPE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "PUBLIC"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "CLIENT_AUTHENTICATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "NONE"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "TOKEN_LOCATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "BROWSER"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "PKCE_METHOD"
+                },
+                "allowedValues": {
+                  "const": [
+                    "S256",
+                    "PLAIN",
+                    "NONE",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "S256"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "REDIRECT_MATCHING"
+                },
+                "allowedValues": {
+                  "const": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION",
+                    "WILDCARD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "EXACT_REGISTERED"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "RESOURCE_ACCESS"
+                },
+                "allowedValues": {
+                  "const": [
+                    "BFF_PROXY",
+                    "SESSION_BACKEND",
+                    "DIRECT_BROWSER",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "DIRECT_BROWSER"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "BROWSER_TOKEN_ENDPOINT_ACCESS"
+                },
+                "allowedValues": {
+                  "const": [
+                    "REQUIRED_ORIGINS_PLANNED",
+                    "BLOCKED",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "REQUIRED_ORIGINS_PLANNED"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "NATIVE_CODE_PKCE"
+            },
+            "settings": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 7,
+              "properties": {
+                "OAUTH_FLOW": {
+                  "type": "string",
+                  "enum": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "OAUTH_CLIENT_TYPE": {
+                  "type": "string",
+                  "enum": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "CLIENT_AUTHENTICATION": {
+                  "type": "string",
+                  "enum": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "TOKEN_LOCATION": {
+                  "type": "string",
+                  "enum": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "PKCE_METHOD": {
+                  "type": "string",
+                  "enum": [
+                    "S256",
+                    "PLAIN",
+                    "NONE",
+                    "UNKNOWN"
+                  ]
+                },
+                "REDIRECT_MATCHING": {
+                  "type": "string",
+                  "enum": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION",
+                    "WILDCARD",
+                    "UNKNOWN"
+                  ]
+                },
+                "NATIVE_USER_AGENT": {
+                  "type": "string",
+                  "enum": [
+                    "EXTERNAL_BROWSER",
+                    "EMBEDDED_WEBVIEW",
+                    "UNKNOWN"
+                  ]
+                }
+              }
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 7,
+              "maxItems": 7,
+              "items": false,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_FLOW"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_CLIENT_TYPE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "CLIENT_AUTHENTICATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "TOKEN_LOCATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "PKCE_METHOD"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "REDIRECT_MATCHING"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "NATIVE_USER_AGENT"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "settingDefinitions": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": false,
+          "prefixItems": [
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_FLOW"
+                },
+                "allowedValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_CLIENT_TYPE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "PUBLIC"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "CLIENT_AUTHENTICATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "NONE"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "TOKEN_LOCATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "NATIVE_APP"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "PKCE_METHOD"
+                },
+                "allowedValues": {
+                  "const": [
+                    "S256",
+                    "PLAIN",
+                    "NONE",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "S256"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "REDIRECT_MATCHING"
+                },
+                "allowedValues": {
+                  "const": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION",
+                    "WILDCARD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "EXACT_REGISTERED",
+                    "NATIVE_LOOPBACK_IP_LITERAL_PORT_EXCEPTION"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "NATIVE_USER_AGENT"
+                },
+                "allowedValues": {
+                  "const": [
+                    "EXTERNAL_BROWSER",
+                    "EMBEDDED_WEBVIEW",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "EXTERNAL_BROWSER"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "properties": {
+        "analysis": {
+          "type": "object",
+          "properties": {
+            "patternId": {
+              "const": "M2M_CLIENT_CREDENTIALS"
+            },
+            "settings": {
+              "type": "object",
+              "additionalProperties": false,
+              "maxProperties": 5,
+              "properties": {
+                "OAUTH_FLOW": {
+                  "type": "string",
+                  "enum": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "OAUTH_CLIENT_TYPE": {
+                  "type": "string",
+                  "enum": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "CLIENT_AUTHENTICATION": {
+                  "type": "string",
+                  "enum": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "TOKEN_LOCATION": {
+                  "type": "string",
+                  "enum": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "WORKLOAD_AUTHORIZATION": {
+                  "type": "string",
+                  "enum": [
+                    "WORKLOAD_OWN_OR_PREARRANGED",
+                    "USER_DELEGATION",
+                    "UNKNOWN"
+                  ]
+                }
+              }
+            },
+            "checks": {
+              "type": "array",
+              "minItems": 5,
+              "maxItems": 5,
+              "items": false,
+              "prefixItems": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_FLOW"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "OAUTH_CLIENT_TYPE"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "CLIENT_AUTHENTICATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "TOKEN_LOCATION"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "settingId": {
+                      "const": "WORKLOAD_AUTHORIZATION"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "settingDefinitions": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "items": false,
+          "prefixItems": [
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_FLOW"
+                },
+                "allowedValues": {
+                  "const": [
+                    "AUTHORIZATION_CODE",
+                    "CLIENT_CREDENTIALS",
+                    "IMPLICIT",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "CLIENT_CREDENTIALS"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "OAUTH_CLIENT_TYPE"
+                },
+                "allowedValues": {
+                  "const": [
+                    "CONFIDENTIAL",
+                    "PUBLIC",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "CONFIDENTIAL"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "CLIENT_AUTHENTICATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "SERVER_HELD_CREDENTIAL",
+                    "WORKLOAD_HELD_CREDENTIAL",
+                    "NONE",
+                    "DISTRIBUTED_SHARED_SECRET",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "WORKLOAD_HELD_CREDENTIAL"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "TOKEN_LOCATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "APPLICATION_SERVER",
+                    "BROWSER",
+                    "NATIVE_APP",
+                    "WORKLOAD",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "WORKLOAD"
+                  ]
+                }
+              }
+            },
+            {
+              "type": "object",
+              "properties": {
+                "settingId": {
+                  "const": "WORKLOAD_AUTHORIZATION"
+                },
+                "allowedValues": {
+                  "const": [
+                    "WORKLOAD_OWN_OR_PREARRANGED",
+                    "USER_DELEGATION",
+                    "UNKNOWN"
+                  ]
+                },
+                "compatibleValues": {
+                  "const": [
+                    "WORKLOAD_OWN_OR_PREARRANGED"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

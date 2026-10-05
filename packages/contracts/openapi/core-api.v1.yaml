@@ -1552,6 +1552,51 @@ paths:
           $ref: "#/components/responses/AssessmentNotFound"
         "409":
           $ref: "#/components/responses/VersionConflict"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-configuration-preview:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    post:
+      tags: [Assessments]
+      summary: Check bounded proposed settings for one architecture pattern
+      description: >-
+        Read-only, exact-version what-if preview. Core derives client scope from
+        the saved profile and preserves the separate two-criterion preflight.
+        Missing settings stay UNKNOWN; foreign settings, mismatched value types,
+        extra fields and query strings are rejected. No secrets or actual URLs.
+        AuthWeave's S256 policy for human reference designs is conservative project
+        policy, not a universal normative MUST for confidential OIDC clients.
+        Proposed settings are not observed IdP configuration or verified provider
+        compatibility. No writes, recommendation, publication, runtime verification
+        or paid calls. Existing prerequisite contracts remain unchanged.
+      operationId: previewArchitectureConfigurationV1
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/architecture-configuration-request.v1.schema.json
+      responses:
+        "200":
+          description: Conditional design checks only; response is not cacheable.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/architecture-configuration-preview.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          description: Service credential or verified session identity is missing or invalid.
+        "403":
+          description: The verified identity does not own the requested workspace.
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "409":
+          $ref: "#/components/responses/VersionConflict"
   /api/v2/workspaces/{workspaceId}/assessments:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"

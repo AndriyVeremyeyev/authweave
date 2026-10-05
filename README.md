@@ -523,6 +523,47 @@ cannot override the separate client/token-exposure preflight, verify configurati
 provider compatibility, or establish recommendation/approval/deployment readiness.
 The existing GET response and historical impact receipts remain unchanged.
 
+### Proposed architecture settings (Core-only)
+
+The separate Core POST
+`/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-configuration-preview`
+checks concrete proposed settings, rather than only declaring a prerequisite met.
+The exact request contains `expectedVersion`, one of the five `patternId` values and
+a sparse typed `settings` map. Thirteen setting IDs cover the primary flow, public/
+confidential client, credential custody, token location, PKCE, redirect matching,
+session cookie/CSRF policy, resource path, browser endpoint access, native user agent
+and workload authorization. Each pattern accepts only its own settings and each
+setting only its own enum values. Missing or explicit `UNKNOWN` answers stay unknown.
+No secret, actual URL, evidence, client-scope assertion, extra field or query is accepted.
+
+Core checks the exact saved version, derives client scope from the stored profile
+and returns the unchanged independent client/token preflight alongside ordered
+conditional setting checks, source-owned definitions and deferred boundaries.
+Unknown scope cannot match; an unselected client is not applicable; an incompatible
+setting takes precedence without hiding other unknown settings. A proposed match
+cannot resolve the SPA's separately unknown acceptable browser-token exposure.
+The endpoint is protected by service credentials and personal-workspace ownership;
+stale versions return 409. Current v6 profiles are read without downgrade. No profile,
+revision, event, catalog, provider registration or credential is changed.
+
+Policy `architecture-configuration-design-1` conservatively requires S256 for all
+human reference designs. This is AuthWeave project policy, not a universal normative
+MUST for every confidential OIDC client. The redirect port exception applies only to
+native loopback IP-literal redirects, never wildcard hosts or paths. Resource-access
+checks describe the primary reference path; additional direct browser APIs need
+independent assessment. See [OAuth security guidance](https://www.rfc-editor.org/rfc/rfc9700.html#section-2.1),
+[browser patterns](https://www.ietf.org/ietf-ftp/rfc/rfc10017.html),
+[native redirects](https://www.rfc-editor.org/rfc/rfc8252.html#section-7.3) and
+[workload authorization](https://www.rfc-editor.org/rfc/rfc6749.html#section-4.4).
+
+The analysis basis is `UNVERIFIED_PROPOSED_CONFIGURATION`: all observation,
+configuration/provider/runtime verification, recommendation/publication and write
+flags remain false. Actual registration, redirect ownership, protocol defenses,
+API authorization, storage/session security, CORS and remaining lifecycle/security/
+operations requirements are deferred. These settings describe the assessed target
+application, not AuthWeave's own login. This slice is Core-only; personal BFF/UI
+integration and observed configuration verification are separate follow-ups.
+
 ### Provisioning lifecycle design preview
 
 Core POST `/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview`

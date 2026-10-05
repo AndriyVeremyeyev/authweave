@@ -589,6 +589,148 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
 
     @ParameterizedTest
     @ValueSource(strings = { "SELECTED", "NOT_SELECTED", "UNKNOWN" })
+    void architectureConfigurationIsTypedVersionBoundScopedAndReadOnly(String scope) throws Exception {
+        for (var pattern : io.authweave.core.evaluation.ArchitecturePatternEvaluator.evaluate(ApplicationIdentityProfile.unknown())) {
+            var assessment = create(); var update = request();
+            var clients = ((ObjectNode) update.at("/profile/application")).putArray("clients");
+            if (scope.equals("SELECTED")) clients.add(pattern.clientType().name());
+            if (scope.equals("NOT_SELECTED")) clients.add(pattern.clientType().name().equals("BROWSER") ? "NATIVE_MOBILE" : "BROWSER");
+            ((ObjectNode) update.at("/profile/security")).put("browserTokenExposureMinimization", "REQUIRED");
+            var before = response("architecture-config-saved-" + scope + "-" + pattern.patternId(), mvc.perform(put(assessment.path() + "/profile")
+                    .contentType(MediaType.APPLICATION_JSON).content(update.toString())).andExpect(status().isOk()).andReturn());
+            sample("architecture-config-preflight-" + scope + "-" + pattern.patternId(), "architecture-pattern-preflight", true,
+                    mapper.readTree(mvc.perform(get(assessment.path() + "/architecture-pattern-preflight")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+            var history = mvc.perform(get(assessment.path() + "/revisions")).andReturn().getResponse().getContentAsString();
+            var events = mvc.perform(get(assessment.path() + "/events")).andReturn().getResponse().getContentAsString();
+            var definitions = io.authweave.core.evaluation.ArchitectureConfigurationEvaluator.definitions(pattern.patternId());
+            var matching = mapper.createObjectNode(); definitions.forEach(d -> matching.put(d.settingId().name(), d.compatibleValues().getFirst().name()));
+            var variants = new java.util.LinkedHashMap<String, ObjectNode>(); variants.put("matching", matching); variants.put("empty", mapper.createObjectNode());
+            var unknown = mapper.createObjectNode(); definitions.forEach(d -> unknown.put(d.settingId().name(), "UNKNOWN")); variants.put("unknown", unknown);
+            var mixed = mapper.createObjectNode(); mixed.put("OAUTH_FLOW", pattern.patternId().name().equals("M2M_CLIENT_CREDENTIALS") ? "AUTHORIZATION_CODE" : "CLIENT_CREDENTIALS"); variants.put("mixed", mixed);
+            for (var definition : definitions) for (var value : definition.allowedValues()) {
+                var settings = matching.deepCopy(); settings.put(definition.settingId().name(), value.name());
+                variants.put(definition.settingId() + "-" + value, settings);
+            }
+            for (var variant : variants.entrySet()) {
+                String name = "architecture-config-" + scope + "-" + pattern.patternId() + "-" + variant.getKey();
+                var input = mapper.createObjectNode().put("expectedVersion", 1).put("patternId", pattern.patternId().name()); input.set("settings", variant.getValue());
+                var payload = architectureConfigurationSample(name, assessment.path(), input);
+                assertEquals(scope, payload.at("/analysis/clientScope").asText());
+                assertEquals(input.get("settings"), payload.at("/analysis/settings"));
+                assertEquals(1, payload.at("/preflight/assessmentVersion").asLong());
+                assertEquals("2026-09-12T12:00:00Z", payload.at("/preflight/evaluatedAt").asText());
+                if (scope.equals("SELECTED") && pattern.patternId().name().equals("SPA_CODE_PKCE"))
+                    assertEquals("NEEDS_INFORMATION", payload.at("/preflight/patterns/2/status").asText());
+                if (variant.getKey().equals("matching")) {
+                    var repeated = mvc.perform(post(assessment.path() + "/architecture-configuration-preview").contentType(MediaType.APPLICATION_JSON).content(input.toString())).andExpect(status().isOk()).andReturn();
+                    assertEquals(payload, mapper.readTree(repeated.getResponse().getContentAsString()));
+                    for (String flag : List.of("configurationObserved", "configurationVerified", "providerCompatibilityVerified", "runtimeFlowVerified", "recommendationReady", "publicationReady", "writesPerformed", "approvalGranted")) {
+                        var forged = (ObjectNode) payload.deepCopy(); ((ObjectNode) forged.get("analysis")).put(flag, true);
+                        sample("architecture-config-forged-" + flag, "architecture-configuration-preview", false, forged);
+                    }
+                    for (String mutation : List.of("missing-check", "reordered-check", "duplicate-check", "wrong-status", "wrong-reason", "foreign-definition")) {
+                        var forged = (ObjectNode) payload.deepCopy(); var analysis = (ObjectNode) forged.get("analysis"); var checks = analysis.withArray("checks");
+                        switch (mutation) {
+                            case "missing-check" -> checks.remove(0);
+                            case "reordered-check" -> { var first = checks.get(0).deepCopy(); checks.set(0, checks.get(1)); checks.set(1, first); }
+                            case "duplicate-check" -> checks.set(1, checks.get(0).deepCopy());
+                            case "wrong-status" -> analysis.put("status", scope.equals("NOT_SELECTED") ? "CONDITIONALLY_MATCHES" : "NOT_APPLICABLE");
+                            case "wrong-reason" -> ((ObjectNode) checks.get(0)).put("reasonCode", scope.equals("SELECTED") ? "SETTING_UNKNOWN" : "EXPECTED_SETTING_DECLARED");
+                            default -> ((ObjectNode) forged.withArray("settingDefinitions").get(0)).put("settingId", "NATIVE_USER_AGENT");
+                        }
+                        sample("architecture-config-forged-" + mutation, "architecture-configuration-preview", false, forged);
+                    }
+                }
+            }
+            assertEquals(before, response("architecture-config-preserved", mvc.perform(get(assessment.path())).andReturn()));
+            assertEquals(history, mvc.perform(get(assessment.path() + "/revisions")).andReturn().getResponse().getContentAsString());
+            assertEquals(events, mvc.perform(get(assessment.path() + "/events")).andReturn().getResponse().getContentAsString());
+            assertHistorySize(assessment, 2);
+        }
+    }
+
+    private JsonNode architectureConfigurationSample(String name, String assessmentPath, ObjectNode input) throws Exception {
+        sample(name + "-request", "architecture-configuration-request", true, input.deepCopy());
+        var result = mvc.perform(post(assessmentPath + "/architecture-configuration-preview").contentType(MediaType.APPLICATION_JSON).content(input.toString()))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.analysis.configurationObserved").value(false)).andExpect(jsonPath("$.analysis.writesPerformed").value(false)).andReturn();
+        var payload = mapper.readTree(result.getResponse().getContentAsString()); sample(name, "architecture-configuration-preview", true, payload); return payload;
+    }
+
+    @Test void architectureConfigurationRejectsInvalidTypesAuthorityStaleAndForeignRequests() throws Exception {
+        var assessment = create(); String path = assessment.path() + "/architecture-configuration-preview";
+        var input = mapper.createObjectNode().put("expectedVersion", 0).put("patternId", "BFF_SESSION"); input.putObject("settings");
+        sample("architecture-config-saved-empty", "assessment-response", true, assessment.created());
+        sample("architecture-config-preflight-empty", "architecture-pattern-preflight", true,
+                mapper.readTree(mvc.perform(get(assessment.path() + "/architecture-pattern-preflight")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        architectureConfigurationSample("architecture-config-empty", assessment.path(), input);
+        for (String mutation : List.of("missing-version", "negative", "unsafe", "string", "fraction", "boolean", "missing-pattern", "null-pattern", "ordinal-pattern", "foreign-pattern", "missing-settings", "null-settings", "foreign-setting", "mismatched-value", "ordinal-value", "null-value", "object-value", "free-text", "scope", "requirements", "time", "observed", "evidence", "ready", "secret", "url")) {
+            var invalid = input.deepCopy(); var settings = (ObjectNode) invalid.get("settings");
+            switch (mutation) {
+                case "missing-version" -> invalid.remove("expectedVersion");
+                case "negative" -> invalid.put("expectedVersion", -1);
+                case "unsafe" -> invalid.put("expectedVersion", 9007199254740992L);
+                case "string" -> invalid.put("expectedVersion", "0");
+                case "fraction" -> invalid.put("expectedVersion", 0.5);
+                case "boolean" -> invalid.put("expectedVersion", true);
+                case "missing-pattern" -> invalid.remove("patternId");
+                case "null-pattern" -> invalid.putNull("patternId");
+                case "ordinal-pattern" -> invalid.put("patternId", 0);
+                case "foreign-pattern" -> invalid.put("patternId", "OTHER");
+                case "missing-settings" -> invalid.remove("settings");
+                case "null-settings" -> invalid.putNull("settings");
+                case "foreign-setting" -> settings.put("NATIVE_USER_AGENT", "EXTERNAL_BROWSER");
+                case "mismatched-value" -> settings.put("PKCE_METHOD", "AUTHORIZATION_CODE");
+                case "ordinal-value" -> settings.put("PKCE_METHOD", 1);
+                case "null-value" -> settings.putNull("PKCE_METHOD");
+                case "object-value" -> settings.putObject("PKCE_METHOD");
+                case "free-text" -> settings.put("PKCE_METHOD", "synthetic-private-value");
+                case "scope" -> invalid.put("clientScope", "SELECTED");
+                case "requirements" -> invalid.putObject("requirements");
+                case "time" -> invalid.put("evaluatedAt", "2026-10-05T00:00:00Z");
+                case "observed" -> invalid.put("configurationObserved", true);
+                case "evidence" -> invalid.putArray("evidence");
+                case "ready" -> invalid.put("recommendationReady", true);
+                case "secret" -> invalid.put("clientSecret", "synthetic-private-value");
+                default -> invalid.put("issuer", "https://synthetic.example.test");
+            }
+            sample("architecture-config-invalid-" + mutation, "architecture-configuration-request", false, invalid);
+            var result = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(invalid.toString())).andExpect(status().isBadRequest()).andReturn();
+            response("architecture-config-invalid-problem", result); assertFalse(result.getResponse().getContentAsString().contains("synthetic-private-value"));
+        }
+        for (String duplicate : List.of("{\"expectedVersion\":0,\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\",\"settings\":{}}",
+                "{\"expectedVersion\":0,\"patternId\":\"BFF_SESSION\",\"settings\":{\"PKCE_METHOD\":\"S256\",\"PKCE_METHOD\":\"NONE\"}}"))
+            mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(duplicate)).andExpect(status().isBadRequest());
+        mvc.perform(post(path).queryParam("expectedVersion", "0").contentType(MediaType.APPLICATION_JSON).content(input.toString()))
+                .andExpect(status().isBadRequest()).andExpect(header().string("Cache-Control", "no-store"));
+        input.put("expectedVersion", 1); response("architecture-config-stale", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(input.toString())).andExpect(status().isConflict()).andReturn());
+        input.put("expectedVersion", 0); response("architecture-config-foreign", mvc.perform(post("/api/v1/workspaces/" + UUID.randomUUID() + "/assessments/" + assessment.id().value() + "/architecture-configuration-preview")
+                .contentType(MediaType.APPLICATION_JSON).content(input.toString())).andExpect(status().isNotFound()).andReturn());
+        assertEquals(assessment.created(), response("architecture-config-invalid-preserved", mvc.perform(get(assessment.path())).andReturn())); assertHistorySize(assessment, 1);
+    }
+
+    @Test void architectureConfigurationReadsV6WithoutDowngradingOrWriting() throws Exception {
+        var assessment = create(); String v6 = assessment.path().replace("/api/v1/", "/api/v6/");
+        var initial = versionedSample("architecture-config-v6-initial", "assessment-response.v6", mvc.perform(get(v6)).andExpect(status().isOk()).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile").deepCopy());
+        ((ObjectNode) update.at("/profile/application")).putArray("clients").add("BROWSER");
+        ((ObjectNode) update.at("/profile/security")).put("auditability", "REQUIRED").put("browserTokenExposureMinimization", "REQUIRED");
+        ((ObjectNode) update.at("/profile/security/auditabilityRequirements")).putArray("selectedCriteria").add("AUTHENTICATION_SUCCESS_EVENTS");
+        var before = saveV6("architecture-config-saved-v6", v6, update);
+        sample("architecture-config-preflight-v6", "architecture-pattern-preflight", true,
+                mapper.readTree(mvc.perform(get(assessment.path() + "/architecture-pattern-preflight")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        var history = versionedSample("architecture-config-v6-history", "assessment-revision-page.v6", mvc.perform(get(v6 + "/revisions")).andReturn());
+        var events = historyResponse("architecture-config-v6-events", "events", mvc.perform(get(assessment.path() + "/events")).andReturn());
+        var input = mapper.createObjectNode().put("expectedVersion", 1).put("patternId", "SPA_CODE_PKCE"); input.putObject("settings").put("PKCE_METHOD", "S256");
+        architectureConfigurationSample("architecture-config-v6", assessment.path(), input);
+        response("architecture-config-v1-denied", mvc.perform(get(assessment.path())).andExpect(status().isConflict()).andReturn());
+        assertEquals(before, versionedSample("architecture-config-v6-preserved", "assessment-response.v6", mvc.perform(get(v6)).andReturn()));
+        assertEquals(history, versionedSample("architecture-config-v6-history-preserved", "assessment-revision-page.v6", mvc.perform(get(v6 + "/revisions")).andReturn()));
+        assertEquals(events, historyResponse("architecture-config-v6-events-preserved", "events", mvc.perform(get(assessment.path() + "/events")).andReturn()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = { "SELECTED", "NOT_SELECTED", "UNKNOWN" })
     void prerequisitePreviewIsVersionBoundConditionalAndReadOnly(String scope) throws Exception {
         var definitions = io.authweave.core.evaluation.ArchitecturePrerequisiteEvaluator.DEFINITIONS;
         for (var pattern : io.authweave.core.evaluation.ArchitecturePatternEvaluator.evaluate(ApplicationIdentityProfile.unknown())) {

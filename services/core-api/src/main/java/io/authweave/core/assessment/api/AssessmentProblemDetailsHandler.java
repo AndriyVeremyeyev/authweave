@@ -51,6 +51,11 @@ public class AssessmentProblemDetailsHandler {
         return invalidRequest(List.of(new RequestViolation("declarations", exception.getMessage())), request);
     }
 
+    @ExceptionHandler(io.authweave.core.evaluation.InvalidArchitectureConfigurationRequestException.class)
+    ProblemDetail invalidArchitectureConfiguration(RuntimeException exception, HttpServletRequest request) {
+        return invalidRequest(List.of(new RequestViolation("settings", exception.getMessage())), request);
+    }
+
     @ExceptionHandler(io.authweave.core.catalog.publication.CatalogBootstrapReviewException.class)
     ProblemDetail bootstrapReview(io.authweave.core.catalog.publication.CatalogBootstrapReviewException exception, HttpServletRequest request) {
         return switch (exception.reason()) {

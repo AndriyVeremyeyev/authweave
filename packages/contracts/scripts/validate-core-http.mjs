@@ -10,6 +10,7 @@ import { auditabilityPreviewFromCore } from "../../../apps/web/src/lib/assessmen
 import { comparisonFromCore } from "../../../apps/web/src/lib/assessment/comparison.ts";
 import { lifecyclePreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle.ts";
 import { lifecycleV2PreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle-v2.ts";
+import { expectedAnalysis, validateArchitectureConfiguration } from "../tests/helpers/architecture-configuration-spec.mjs";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -38,6 +39,21 @@ let combinedConstraintSamples = 0;
 let combinedConsumerSamples = 0;
 let lifecycleSamples = 0;
 let lifecycleV2Samples = 0;
+let architectureConfigurationSamples = 0;
+const architectureConfigurationRequests = new Map(samples.filter(s => s.schema === "architecture-configuration-request" && s.valid)
+  .map(s => [s.name.slice(0, -"-request".length), s.payload]));
+const architectureConfigurationSaved = new Map(samples.filter(s => s.valid && s.name.startsWith("architecture-config-saved-")
+  && /^assessment-response(?:\.v[0-9]+)?$/.test(s.schema)).map(s => [s.name.slice("architecture-config-saved-".length), s.payload]));
+const architectureConfigurationPreflights = new Map(samples.filter(s => s.valid && s.schema === "architecture-pattern-preflight"
+  && s.name.startsWith("architecture-config-preflight-")).map(s => [s.name.slice("architecture-config-preflight-".length), s.payload]));
+function validateArchitectureConfigurationSample(payload, name) {
+  const input = architectureConfigurationRequests.get(name);
+  const binding = name === "architecture-config-empty" ? "empty" : name === "architecture-config-v6" ? "v6"
+    : name.slice("architecture-config-".length).match(/^(SELECTED|NOT_SELECTED|UNKNOWN)-(BFF_SESSION|SERVER_SIDE_SESSION|SPA_CODE_PKCE|NATIVE_CODE_PKCE|M2M_CLIENT_CREDENTIALS)-/)
+      ?.slice(1).join("-");
+  assert.ok(binding, `${name}: original request binding must be explicit`);
+  validateArchitectureConfiguration(payload, input, architectureConfigurationSaved.get(binding), architectureConfigurationPreflights.get(binding));
+}
 const lifecycleV2Requests = new Map(samples.filter(s => s.schema === "provisioning-lifecycle-request.v2" && s.valid)
   .map(s => [s.name.slice(0, -"-request".length), s.payload]));
 const lifecycleV2Saved = new Map(samples.filter(s => s.valid && /^lifecycle-v2-(?:saved-|v6-saved$)/.test(s.name)
@@ -349,6 +365,22 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "architecture-configuration-preview" && valid) {
+    validateArchitectureConfigurationSample(payload, name);
+    const forgeries = [value => { value.preflight.workspaceId = "00000000-0000-4000-8000-000000000001"; },
+      value => { value.preflight.assessmentId = "00000000-0000-4000-8000-000000000002"; },
+      value => { value.preflight.assessmentVersion++; }, value => { value.preflight.evaluatedAt = "2026-10-05T00:00:00Z"; },
+      value => { value.analysis.settings.OAUTH_FLOW = value.analysis.settings.OAUTH_FLOW === "UNKNOWN" ? "IMPLICIT" : "UNKNOWN"; },
+      value => { value.analysis = expectedAnalysis(value.analysis.patternId, value.analysis.clientScope === "SELECTED" ? "UNKNOWN" : "SELECTED", value.analysis.settings); },
+      value => { value.settingDefinitions[0].description = "Synthetic untrusted replacement."; },
+      value => { value.settingDefinitions[0].references = ["https://synthetic.example.test"]; }];
+    for (const mutate of forgeries) {
+      const forged = structuredClone(payload); mutate(forged);
+      assert.equal(validate(forged), true, "A substituted binding or setting can retain valid JSON shape.");
+      assert.throws(() => validateArchitectureConfigurationSample(forged, name), undefined, "Independent replay rejects shape-valid settings or context substitutions.");
+    }
+    architectureConfigurationSamples++;
+  }
   if (schema === "provisioning-lifecycle-preview.v2" && valid) {
     validateLifecycleV2(payload, name);
     const forgeries = [value => { value.workspaceId = "00000000-0000-4000-8000-000000000001"; }, value => { value.assessmentId = "00000000-0000-4000-8000-000000000002"; },
@@ -491,6 +523,8 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "capability-preflight:true", "eligibility-preflight:true", "architecture-pattern-preflight:true",
   "architecture-prerequisite-request:true", "architecture-prerequisite-request:false",
   "architecture-prerequisite-preview:true", "architecture-prerequisite-preview:false",
+  "architecture-configuration-request:true", "architecture-configuration-request:false",
+  "architecture-configuration-preview:true", "architecture-configuration-preview:false",
   "eligibility-preflight.v2:true", "eligibility-preflight.v2:false",
   "assessment-revision-page:true", "assessment-event-page:true",
   "assessment-response.v2:true", "assessment-revision-page.v2:true",
@@ -523,6 +557,8 @@ for (const required of ["assessment-response:true", "core-problem:true",
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.ok(architectureConfigurationSamples > 0, "Actual architecture settings must reach independent request, saved-scope and conditional outcome checks.");
+console.log(`Verified ${architectureConfigurationSamples} proposed architecture configurations with independent version, scope, settings, metadata and preflight guards.`);
 assert.ok(combinedConstraintSamples > 0, "Combined v6 HTTP responses must reach independent auditability/aggregate/scoring checks.");
 console.log(`Verified ${combinedConstraintSamples} combined constraint responses with independent auditability, binding and score guards.`);
 assert.ok(combinedConsumerSamples > 0, "Actual v6 comparison/weighted/sensitivity HTTP responses must reach the BFF consumer guard.");
