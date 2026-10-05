@@ -894,6 +894,15 @@ capability preferences. Such facts cannot establish support or exclusion, and an
 affected diagnostic score is withheld. Merely changing an observation date does not
 verify its source. This warning does not refresh or approve catalog evidence.
 
+The optional weighted and alternative-weight controls use only explicit weights
+totaling 100. They share one in-flight calculation: both sets of inputs are locked,
+with an explicit Cancel calculation action and a ten-second request deadline.
+Changing weights clears the affected result; changing the baseline also invalidates
+the alternative. Leaving Comparison cancels its request, and late canceled replies
+cannot restore results or unlock a newer request. Refusals preserve the entered
+weights for a manual retry. These are temporary, read-only fictional diagnostics,
+not saved preferences, provider rankings or recommendations.
+
 A fixed-clock Phase 3 regression suite reuses the three frozen B2B, public-sector and
 workforce profiles with the synthetic catalog. It pins reason-coded verdicts and
 preference outcomes. A test-only B2B variant makes explicit choices and supplies

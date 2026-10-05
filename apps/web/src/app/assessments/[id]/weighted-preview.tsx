@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import type { CapabilityWeights, SensitivityPreview, WeightedPreview } from "@/lib/assessment/weights";
 import type { Capability } from "@/lib/assessment/capabilities";
@@ -23,9 +23,47 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
   const [sensitivityError, setSensitivityError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [sensitivityPending, setSensitivityPending] = useState(false);
+  const activeRequest = useRef<{ controller: AbortController; kind: "baseline" | "alternative" } | null>(null);
+  const baseline = useRef<CapabilityWeights | null>(null);
+  const busy = pending || sensitivityPending;
+
+  useEffect(() => () => {
+    activeRequest.current?.controller.abort();
+    activeRequest.current = null;
+    baseline.current = null;
+  }, []);
+
+  function cancelCalculation() {
+    const request = activeRequest.current;
+    if (!request) return;
+    request.controller.abort();
+    activeRequest.current = null;
+    setPending(false);
+    setSensitivityPending(false);
+    const message = "Calculation canceled. Your weights are still here; submit again when ready.";
+    if (request.kind === "baseline") setError(message);
+    else setSensitivityError(message);
+  }
+
+  function changeWeights(alternative: boolean) {
+    activeRequest.current?.controller.abort();
+    activeRequest.current = null;
+    setPending(false);
+    setSensitivityPending(false);
+    setSensitivity(null);
+    setSensitivityError(null);
+    if (!alternative) {
+      baseline.current = null;
+      setPreview(null);
+      setBaselineWeights(null);
+      setError(null);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (activeRequest.current) return;
+    baseline.current = null;
     setPreview(null);
     setBaselineWeights(null);
     setSensitivity(null);
@@ -49,12 +87,18 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
       setError(`Weights must total exactly 100; the current total is ${total}.`);
       return;
     }
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+    activeRequest.current = { controller, kind: "baseline" };
     setPending(true);
     try {
       const response = await fetch(`/api/assessments/${assessmentId}/weighted-preview`, {
         method: "POST", credentials: "same-origin", cache: "no-store", redirect: "error",
         headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params,
+        signal,
       });
+      if (controller.signal.aborted) return;
+      signal.throwIfAborted();
       if (!response.ok) {
         setError({
           400: "These weights no longer match the draft's preferred capabilities. Reload and try again.",
@@ -65,20 +109,30 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
         }[response.status] ?? "The preview is temporarily unavailable. Try again later.");
         return;
       }
-      setPreview(await response.json() as WeightedPreview);
+      const result = await response.json() as WeightedPreview;
+      if (controller.signal.aborted) return;
+      signal.throwIfAborted();
+      if (result.assessmentVersion !== version) throw new Error("Invalid preview version");
+      setPreview(result);
+      baseline.current = weights;
       setBaselineWeights(weights);
     } catch {
-      setError("The preview is temporarily unavailable. Try again later.");
+      if (!controller.signal.aborted) setError("The preview is temporarily unavailable. Try again later.");
     } finally {
-      setPending(false);
+      if (activeRequest.current?.controller === controller) {
+        activeRequest.current = null;
+        setPending(false);
+      }
     }
   }
 
   async function compare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (activeRequest.current) return;
+    const currentBaseline = baseline.current;
     setSensitivity(null);
     setSensitivityError(null);
-    if (!baselineWeights) return;
+    if (!currentBaseline) return;
     const form = new FormData(event.currentTarget);
     const params = new URLSearchParams({ expectedVersion: String(version) });
     let total = 0;
@@ -89,19 +143,25 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
         return;
       }
       total += Number(raw);
-      params.set(`baseline_${field.capability}`, String(baselineWeights[field.capability]));
+      params.set(`baseline_${field.capability}`, String(currentBaseline[field.capability]));
       params.set(`alternative_${field.capability}`, raw);
     }
     if (total !== 100) {
       setSensitivityError(`Alternative weights must total exactly 100; the current total is ${total}.`);
       return;
     }
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+    activeRequest.current = { controller, kind: "alternative" };
     setSensitivityPending(true);
     try {
       const response = await fetch(`/api/assessments/${assessmentId}/weight-sensitivity`, {
         method: "POST", credentials: "same-origin", cache: "no-store", redirect: "error",
         headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: params,
+        signal,
       });
+      if (controller.signal.aborted) return;
+      signal.throwIfAborted();
       if (!response.ok) {
         setSensitivityError({
           400: "These weights no longer match the draft's preferred capabilities. Reload and try again.",
@@ -112,11 +172,18 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
         }[response.status] ?? "The sensitivity preview is temporarily unavailable. Try again later.");
         return;
       }
-      setSensitivity(await response.json() as SensitivityPreview);
+      const result = await response.json() as SensitivityPreview;
+      if (controller.signal.aborted) return;
+      signal.throwIfAborted();
+      if (result.assessmentVersion !== version) throw new Error("Invalid preview version");
+      setSensitivity(result);
     } catch {
-      setSensitivityError("The sensitivity preview is temporarily unavailable. Try again later.");
+      if (!controller.signal.aborted) setSensitivityError("The sensitivity preview is temporarily unavailable. Try again later.");
     } finally {
-      setSensitivityPending(false);
+      if (activeRequest.current?.controller === controller) {
+        activeRequest.current = null;
+        setSensitivityPending(false);
+      }
     }
   }
 
@@ -126,8 +193,7 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
       <p className="mt-2 text-slate-300">Assign your own positive whole-number weights to every Preferred capability. They must total 100. No weights are supplied by AuthWeave.</p>
       <p className="mt-2 text-sm text-slate-400">This is a temporary, read-only calculation over fictional options. Core withholds points when a checked hard requirement or preferred evidence remains unresolved. It does not rank providers or make a recommendation.</p>
       <form action={`/api/assessments/${assessmentId}/weighted-preview`} method="post" onSubmit={submit}
-        onChange={() => { setPreview(null); setBaselineWeights(null); setSensitivity(null);
-          setError(null); setSensitivityError(null); }} className="mt-5">
+        onChange={() => changeWeights(false)} aria-busy={pending} className="mt-5">
         <input type="hidden" name="expectedVersion" value={version} />
         <div className="grid gap-4 sm:grid-cols-2">
           {preferred.map(field => (
@@ -136,17 +202,22 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
                 {field.label} weight
               </label>
               <input id={`weight-${field.capability}`} name={field.capability} type="number"
-                min="1" max="100" step="1" required disabled={pending}
+                min="1" max="100" step="1" required disabled={busy}
                 placeholder={preferred.length === 1 ? "100" : "1–100"}
                 className="w-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-slate-100" />
             </div>
           ))}
         </div>
-        <button type="submit" disabled={pending}
+        <button type="submit" disabled={busy}
           className="mt-5 rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200 disabled:opacity-50">
           {pending ? "Calculating…" : "Preview points"}
         </button>
       </form>
+      {busy && <div className="mt-4 flex flex-wrap items-center gap-3">
+        <p role="status" className="text-sm text-slate-300">Calculating temporary weights. Inputs are locked until this finishes or you cancel.</p>
+        <button type="button" onClick={cancelCalculation}
+          className="rounded-lg border border-slate-500 px-4 py-2 text-sm hover:bg-slate-800">Cancel calculation</button>
+      </div>}
       {error && <p role="alert" className="mt-5 rounded-lg border border-amber-700 p-4 text-amber-100">{error}</p>}
       {preview && (
         <div className="mt-7" aria-live="polite">
@@ -182,7 +253,7 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
           <h4 id="sensitivity-heading" className="text-lg font-semibold">What if the weights change?</h4>
           <p className="mt-2 text-sm text-slate-300">Keep the first weights as the baseline and enter a complete alternative totaling 100. Core compares both on one evidence snapshot. Neither set is saved.</p>
           <form action={`/api/assessments/${assessmentId}/weight-sensitivity`} method="post"
-            onSubmit={compare} onChange={() => { setSensitivity(null); setSensitivityError(null); }} className="mt-5">
+            onSubmit={compare} onChange={() => changeWeights(true)} aria-busy={sensitivityPending} className="mt-5">
             <input type="hidden" name="expectedVersion" value={version} />
             {preferred.map(field => <input key={`baseline-${field.capability}`} type="hidden"
               name={`baseline_${field.capability}`} value={baselineWeights[field.capability]} />)}
@@ -193,13 +264,13 @@ export function WeightedPreviewForm({ assessmentId, version, preferred }: {
                     {field.label}: alternative weight
                   </label>
                   <input id={`alternative-${field.capability}`} name={`alternative_${field.capability}`}
-                    type="number" min="1" max="100" step="1" required disabled={sensitivityPending}
+                    type="number" min="1" max="100" step="1" required disabled={busy}
                     placeholder="1–100"
                     className="w-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2 text-slate-100" />
                 </div>
               ))}
             </div>
-            <button type="submit" disabled={sensitivityPending}
+            <button type="submit" disabled={busy}
               className="mt-5 rounded-lg border border-cyan-300 px-5 py-2 font-semibold text-cyan-200 hover:bg-slate-800 disabled:opacity-50">
               {sensitivityPending ? "Comparing…" : "Compare weight changes"}
             </button>
