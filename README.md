@@ -498,6 +498,15 @@ Unknown or unselected client scope has an explicit notice before declarations ar
 entered. Changing a declaration clears the current result and requires another
 preview; leaving the step or reloading discards these temporary inputs and results.
 
+Each form has one in-flight preview, an explicit Cancel preview action and a
+ten-second request deadline. Canceling keeps the entered declarations and unlocks
+that form for a manual retry. Changing a declaration or leaving Architecture cancels
+pending work; late replies cannot restore an obsolete result or unlock a newer
+request. Session, stale-version and other failures use fixed feedback, never raw
+network, parser or response text. Replies still require the loaded assessment version
+and exact pattern, client scope and declaration/result checks. This UI recovery does
+not verify a design, save declarations or change the independent preflight verdict.
+
 The same-origin BFF POST `/api/assessments/{id}/architecture-prerequisites` requires a
 live database-backed session. It calls the separate Core POST
 `/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-prerequisite-preview`

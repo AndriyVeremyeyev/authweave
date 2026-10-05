@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { parsePrerequisiteForm, prerequisiteAnalysis, prerequisiteIds,
-  type ArchitecturePatternId, type PrerequisiteAnalysis, type PrerequisitePreview } from "@/lib/assessment/architecture-prerequisites";
+  type ArchitecturePatternId, type PrerequisiteAnalysis, type PrerequisiteInput, type PrerequisitePreview } from "@/lib/assessment/architecture-prerequisites";
 
 const statusText: Record<PrerequisiteAnalysis["status"], string> = {
   CONDITIONALLY_MATCHES: "Conditions met in your proposed design only",
@@ -25,44 +25,78 @@ export function ArchitecturePrerequisites({ assessmentId, version, patternId, de
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const active = useRef<AbortController | null>(null);
-  useEffect(() => () => active.current?.abort(), []);
+  useEffect(() => () => {
+    active.current?.abort();
+    active.current = null;
+  }, []);
   const ids = prerequisiteIds[patternId];
+
+  function cancelPreview() {
+    if (!active.current) return;
+    active.current.abort();
+    active.current = null;
+    setPending(false);
+    setError("Preview canceled. Your declarations are still here; preview again when ready.");
+  }
+
+  function changeDeclaration() {
+    active.current?.abort();
+    active.current = null;
+    setPending(false);
+    setPreview(null);
+    setError(null);
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (active.current) return;
-    const controller = new AbortController();
-    active.current = controller;
-    setPending(true); setPreview(null); setError(null);
+    setPreview(null); setError(null);
+    const params = new URLSearchParams();
+    let input: PrerequisiteInput;
     try {
-      const params = new URLSearchParams();
       for (const [key, value] of new FormData(event.currentTarget)) {
         if (typeof value !== "string") throw new Error();
         params.append(key, value);
       }
-      const input = parsePrerequisiteForm(params);
+      input = parsePrerequisiteForm(params);
+      if (input.expectedVersion !== version || input.patternId !== patternId) throw new Error();
+    } catch {
+      setError("Choose valid declarations for this pattern.");
+      return;
+    }
+    const controller = new AbortController();
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+    active.current = controller;
+    setPending(true);
+    let failureMessage = "The preview is temporarily unavailable. Try again.";
+    try {
       const response = await fetch(`/api/assessments/${assessmentId}/architecture-prerequisites`, {
         method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: params.toString(), cache: "no-store", redirect: "error",
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
+        body: params.toString(), credentials: "same-origin", cache: "no-store", redirect: "error", signal,
       });
+      if (controller.signal.aborted) return;
+      signal.throwIfAborted();
       if (response.status !== 200) {
         const messages: Record<number, string> = {
           401: "Your session expired. Sign in again.", 403: "This request is not allowed.",
           404: "This assessment is unavailable.", 409: "The assessment changed. Reload before previewing again.",
           400: "Choose valid declarations for this pattern.",
         };
-        throw new Error(messages[response.status] ?? "The preview is temporarily unavailable. Try again.");
+        setError(messages[response.status] ?? failureMessage);
+        return;
       }
+      failureMessage = "The preview could not be read safely. Try again.";
       const body = await response.json();
+      if (controller.signal.aborted) return;
+      signal.throwIfAborted();
       if (!body || Object.keys(body).length !== 2 || body.assessmentVersion !== version) throw new Error();
       const analysis = prerequisiteAnalysis(body.analysis, input, clientScope);
-      if (!controller.signal.aborted) setPreview({ assessmentVersion: version, analysis });
-    } catch (error) {
-      if (!controller.signal.aborted) setError(error instanceof Error && error.message ? error.message :
-        "The preview could not be read safely. Try again.");
+      setPreview({ assessmentVersion: version, analysis });
+    } catch {
+      if (!controller.signal.aborted) setError(signal.aborted ?
+        "The preview took too long. Your declarations are still here; try again." : failureMessage);
     } finally {
-      if (!controller.signal.aborted) { active.current = null; setPending(false); }
+      if (active.current === controller) { active.current = null; setPending(false); }
     }
   }
 
@@ -73,7 +107,7 @@ export function ArchitecturePrerequisites({ assessmentId, version, patternId, de
       {clientScope === "UNKNOWN" ? "Client types are not recorded. These declarations cannot establish a match; select and save clients in Context first."
         : "This client type is not selected. These declarations cannot make the pattern applicable; review saved Context first."}
     </p>}
-    <form className="mt-4 space-y-4" onSubmit={submit} onChange={() => { setPreview(null); setError(null); }}>
+    <form className="mt-4 space-y-4" onSubmit={submit} onChange={changeDeclaration} aria-busy={pending}>
       <input type="hidden" name="expectedVersion" value={version} />
       <input type="hidden" name="patternId" value={patternId} />
       <fieldset disabled={pending} className="space-y-4">
@@ -88,10 +122,15 @@ export function ArchitecturePrerequisites({ assessmentId, version, patternId, de
         </div>)}
         <button type="submit" className="rounded-lg border border-cyan-700 px-4 py-2 text-cyan-100 disabled:opacity-50">{pending ? "Previewing…" : "Preview conditions"}</button>
       </fieldset>
+      {pending && <div className="flex flex-wrap items-center gap-3">
+        <p role="status">Previewing temporary conditions. Inputs are locked until this finishes or you cancel.</p>
+        <button type="button" onClick={cancelPreview}
+          className="rounded-lg border border-slate-500 px-4 py-2 hover:bg-slate-800">Cancel preview</button>
+      </div>}
     </form>
     <div aria-live="polite" aria-atomic="true" className="mt-4">
       {!preview && !error && !pending && <p className="text-xs text-slate-400">No current what-if result. Choose declarations and preview them; changing an answer clears the result. Nothing is saved.</p>}
-      {error && <p className="text-amber-100">{error}</p>}
+      {error && <p role="alert" className="text-amber-100">{error}</p>}
       {preview && <div className="rounded-lg border border-slate-600 p-4">
         <p className="font-medium text-cyan-200">{statusText[preview.analysis.status]}</p>
         <ul className="mt-3 space-y-3">{preview.analysis.checks.map((check, index) => <li key={check.prerequisiteId}>
