@@ -56,6 +56,20 @@ test("submitting clears only local navigation guard state and preview edits cann
   }
 });
 
+test("leaving a dirty input requests explicit discard without turning the list into a workflow step", () => {
+  for (const step of assessmentSteps) {
+    const initial: WorkflowState = { step: step.id, dirty: false, pending: null };
+    assert.equal(workflowTransition(initial, { type: "leave" }), initial);
+    if (!step.input) continue;
+    const edited = workflowTransition(initial, { type: "edit" });
+    const leaving = workflowTransition(edited, { type: "leave" });
+    assert.deepEqual(leaving, { step: step.id, dirty: true, pending: "assessments" });
+    assert.deepEqual(workflowTransition(leaving, { type: "cancel" }), edited);
+    assert.deepEqual(workflowTransition(leaving, { type: "discard" }), initial);
+    assert.deepEqual(workflowTransition(leaving, { type: "submit" }), initial);
+  }
+});
+
 test("workflow renders one labelled panel, seven keyboard buttons and honest saved/read-only status", async () => {
   const component = await assessmentUiComponents();
   const panels = Object.fromEntries(assessmentSteps.map(step => [step.id,

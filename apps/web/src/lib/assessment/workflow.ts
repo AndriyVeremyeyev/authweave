@@ -16,8 +16,8 @@ export const assessmentSteps = [
 ] as const;
 
 export type AssessmentStep = typeof assessmentSteps[number]["id"];
-export type WorkflowState = { step: AssessmentStep; dirty: boolean; pending: AssessmentStep | null };
-export type WorkflowEvent = { type: "edit" | "cancel" | "discard" | "submit" }
+export type WorkflowState = { step: AssessmentStep; dirty: boolean; pending: AssessmentStep | "assessments" | null };
+export type WorkflowEvent = { type: "edit" | "cancel" | "discard" | "submit" | "leave" }
   | { type: "navigate"; step: AssessmentStep };
 
 export function assessmentStepFromQuery(query: Record<string, string | string[] | undefined>): AssessmentStep {
@@ -35,8 +35,9 @@ export function workflowTransition(state: WorkflowState, event: WorkflowEvent): 
     case "navigate":
       if (event.step === state.step) return state;
       return state.dirty ? { ...state, pending: event.step } : { step: event.step, dirty: false, pending: null };
+    case "leave": return state.dirty ? { ...state, pending: "assessments" } : state;
     case "cancel": return { ...state, pending: null };
-    case "discard": return state.pending ? { step: state.pending, dirty: false, pending: null } : state;
+    case "discard": return state.pending ? { step: state.pending === "assessments" ? state.step : state.pending, dirty: false, pending: null } : state;
     case "submit": return { ...state, dirty: false, pending: null };
   }
 }

@@ -64,18 +64,28 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
     dispatch({ type: "navigate", step: target });
   }
   function cancel() {
+    dialog.current?.close();
     dispatch({ type: "cancel" });
     requestAnimationFrame(() => sourceButton.current?.focus());
+  }
+  function discard() {
+    // Closed dialogs and pending saves cannot authorize discarding inputs.
+    if (!state.pending || !dialog.current?.open || saving.current) return;
+    const destination = state.pending;
+    dialog.current.close();
+    dirty.current = false;
+    dispatch({ type: "discard" });
+    if (destination === "assessments") router.push("/assessments");
   }
 
   return (
     <div className="mt-8 grid items-start gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
       <aside className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 lg:sticky lg:top-6">
-        <button type="button" disabled={savePending} onClick={() => {
+        <button type="button" disabled={savePending} onClick={event => {
           if (saving.current) return;
-          if (dirty.current && !window.confirm("Leave this assessment? Unsaved changes in this section will be discarded.")) return;
-          dirty.current = false;
-          router.push("/assessments");
+          sourceButton.current = event.currentTarget;
+          if (dirty.current) dispatch({ type: "leave" });
+          else router.push("/assessments");
         }}
           className="mb-5 text-sm text-cyan-200 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">
           ← Your assessments
@@ -151,11 +161,13 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
         onCancel={event => { event.preventDefault(); cancel(); }}
         className="m-auto w-[min(32rem,calc(100%_-_2rem))] rounded-2xl border border-slate-600 bg-slate-900 p-6 text-slate-100 shadow-2xl backdrop:bg-black/70">
         <h2 id="discard-edits-heading" className="text-xl font-semibold">Keep your unsaved changes?</h2>
-        <p id="discard-edits-description" className="mt-3 text-sm leading-6 text-slate-300">Moving to another step will discard the edits in this section. Stay here to review them and any save feedback, or continue with the previously saved version.</p>
+        <p id="discard-edits-description" className="mt-3 text-sm leading-6 text-slate-300">{state.pending === "assessments"
+          ? "Leaving this assessment will discard the edits in this section. Stay here to review them and any save feedback, or return to your assessment list without saving these changes."
+          : "Moving to another step will discard the edits in this section. Stay here to review them and any save feedback, or continue with the previously saved version."}</p>
         <div className="mt-6 flex flex-wrap gap-3">
           <button type="button" onClick={cancel} className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Stay and review</button>
-          <button type="button" onClick={() => { dirty.current = false; dispatch({ type: "discard" }); }}
-            className="rounded-lg border border-slate-500 px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">Discard and continue</button>
+          <button type="button" onClick={discard}
+            className="rounded-lg border border-slate-500 px-4 py-2 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">{state.pending === "assessments" ? "Discard and leave" : "Discard and continue"}</button>
         </div>
       </dialog>
     </div>

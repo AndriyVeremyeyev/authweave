@@ -233,7 +233,10 @@ the existing editors and previews into seven steps: Context, Requirements, Audit
 Usage, Review, Comparison and Architecture. Only one section is shown at a time, with
 responsive navigation and keyboard focus on the selected heading. Draft inputs
 require an explicit Save; switching steps with unsaved edits offers stay/discard,
-and leaving through the workspace's back button or reloading warns about them.
+and leaving through the workspace's back button uses the same in-page dialog.
+Stay or Escape preserves the inputs and returns focus to the navigation button;
+only **Discard and leave** returns to the list without saving. Navigation and exit
+are blocked during a section save. Browser reload/close keeps its native warning.
 Successful saves and known validation/version conflicts return to the relevant
 step. The step URL remembers location, not unsaved answers or completion.
 
