@@ -11,6 +11,7 @@ import { comparisonFromCore } from "../../../apps/web/src/lib/assessment/compari
 import { lifecyclePreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle.ts";
 import { lifecycleV2PreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle-v2.ts";
 import { expectedAnalysis, validateArchitectureConfiguration } from "../tests/helpers/architecture-configuration-spec.mjs";
+import { architectureConfigurationFromCore } from "../../../apps/web/src/lib/assessment/architecture-configuration.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -52,7 +53,13 @@ function validateArchitectureConfigurationSample(payload, name) {
     : name.slice("architecture-config-".length).match(/^(SELECTED|NOT_SELECTED|UNKNOWN)-(BFF_SESSION|SERVER_SIDE_SESSION|SPA_CODE_PKCE|NATIVE_CODE_PKCE|M2M_CLIENT_CREDENTIALS)-/)
       ?.slice(1).join("-");
   assert.ok(binding, `${name}: original request binding must be explicit`);
-  validateArchitectureConfiguration(payload, input, architectureConfigurationSaved.get(binding), architectureConfigurationPreflights.get(binding));
+  const saved = architectureConfigurationSaved.get(binding);
+  validateArchitectureConfiguration(payload, input, saved, architectureConfigurationPreflights.get(binding));
+  const consumerBinding = { workspaceId: saved.workspaceId, assessmentId: saved.id, input,
+    context: { clients: saved.profile.application.clients, browserTokenExposureMinimization: saved.profile.security.browserTokenExposureMinimization } };
+  const consumer = architectureConfigurationFromCore(payload, consumerBinding);
+  assert.deepEqual(consumer.analysis, payload.analysis, "Actual Core settings must pass the strict personal BFF consumer too.");
+  return consumerBinding;
 }
 const lifecycleV2Requests = new Map(samples.filter(s => s.schema === "provisioning-lifecycle-request.v2" && s.valid)
   .map(s => [s.name.slice(0, -"-request".length), s.payload]));
@@ -366,7 +373,7 @@ for (const { name, schema, valid, payload } of samples) {
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
   if (schema === "architecture-configuration-preview" && valid) {
-    validateArchitectureConfigurationSample(payload, name);
+    const binding = validateArchitectureConfigurationSample(payload, name);
     const forgeries = [value => { value.preflight.workspaceId = "00000000-0000-4000-8000-000000000001"; },
       value => { value.preflight.assessmentId = "00000000-0000-4000-8000-000000000002"; },
       value => { value.preflight.assessmentVersion++; }, value => { value.preflight.evaluatedAt = "2026-10-05T00:00:00Z"; },
@@ -378,6 +385,9 @@ for (const { name, schema, valid, payload } of samples) {
       const forged = structuredClone(payload); mutate(forged);
       assert.equal(validate(forged), true, "A substituted binding or setting can retain valid JSON shape.");
       assert.throws(() => validateArchitectureConfigurationSample(forged, name), undefined, "Independent replay rejects shape-valid settings or context substitutions.");
+      // The BFF checks timestamp format, not equality with an earlier independently fetched preflight.
+      if (forged.preflight.evaluatedAt === payload.preflight.evaluatedAt)
+        assert.throws(() => architectureConfigurationFromCore(forged, binding), undefined, "The actual BFF consumer also rejects shape-valid binding and settings substitutions.");
     }
     architectureConfigurationSamples++;
   }

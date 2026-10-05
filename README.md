@@ -523,7 +523,7 @@ cannot override the separate client/token-exposure preflight, verify configurati
 provider compatibility, or establish recommendation/approval/deployment readiness.
 The existing GET response and historical impact receipts remain unchanged.
 
-### Proposed architecture settings (Core-only)
+### Proposed architecture settings
 
 The separate Core POST
 `/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-configuration-preview`
@@ -561,8 +561,26 @@ configuration/provider/runtime verification, recommendation/publication and writ
 flags remain false. Actual registration, redirect ownership, protocol defenses,
 API authorization, storage/session security, CORS and remaining lifecycle/security/
 operations requirements are deferred. These settings describe the assessed target
-application, not AuthWeave's own login. This slice is Core-only; personal BFF/UI
-integration and observed configuration verification are separate follow-ups.
+application, not AuthWeave's own login. Observed configuration verification remains
+a separate follow-up.
+
+The personal Architecture step now has a collapsed **Try concrete settings** form
+on each pattern card. Forty scoped controls across the five designs start Unknown;
+each choice has an explanation and a readable selected-value label. Results show
+the proposed and reference values separately. Choices are temporary: editing clears
+the result, cancel preserves choices for a manual retry, and leaving the step or
+reloading resets them. No setting is recommended, saved or applied to an IdP.
+
+Same-origin, live-session BFF POST `/api/assessments/{id}/architecture-configuration`
+accepts only the version, pattern and scoped setting enums in a bounded form. It
+reads the canonical v6 saved profile, uses server-held workspace/identity credentials,
+and independently replays the bounded Core response: exact version/client scope,
+saved-input preflight, ordered settings, definitions and false verification/readiness
+flags. It returns only the checked analysis and assessment version, never credentials
+or upstream identity/details. Invalid, stale, unavailable or malformed replies have
+fixed feedback. Inputs lock during a request; cancellation, step changes and the
+ten-second deadline suppress late results without automatic retries. Existing
+design-condition forms and the separate saved-input checks remain unchanged.
 
 ### Provisioning lifecycle design preview
 

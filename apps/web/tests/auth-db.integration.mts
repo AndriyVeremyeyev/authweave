@@ -7,6 +7,9 @@ import { POST as reauthenticateRoute } from "../src/app/api/auth/reauth/route.ts
 import { POST as updateCapabilitiesRoute } from "../src/app/api/assessments/[id]/capabilities/route.ts";
 import { POST as weightedPreviewRoute } from "../src/app/api/assessments/[id]/weighted-preview/route.ts";
 import { POST as prerequisitePreviewRoute } from "../src/app/api/assessments/[id]/architecture-prerequisites/route.ts";
+import { POST as configurationPreviewRoute } from "../src/app/api/assessments/[id]/architecture-configuration/route.ts";
+import { configurationFixture, configurationMatching, configurationPatterns } from "./fixtures/architecture-configuration.mts";
+import { parseArchitectureConfigurationForm } from "../src/lib/assessment/architecture-configuration.ts";
 import { prerequisiteAssessmentId, prerequisiteWorkspaceId, prerequisiteFixture, prerequisiteInput,
   prerequisiteProfile } from "./fixtures/architecture-prerequisites.mts";
 import { POST as lifecyclePreviewRoute } from "../src/app/api/assessments/[id]/provisioning-lifecycle/route.ts";
@@ -630,6 +633,72 @@ test("v2 provisioning BFF binds real DB sessions, saved requirements and scoped 
     oversized = true; assert.equal((await lifecycleV2PreviewRoute(request(), context)).status, 503); oversized = false;
     version = 3; const beforeVersion = calls; assert.equal((await lifecycleV2PreviewRoute(request(), context)).status, 409); assert.equal(calls, beforeVersion + 1);
     await revokeSession(sessionId); const beforeRevoked = calls; assert.equal((await lifecycleV2PreviewRoute(request(), context)).status, 401); assert.equal(calls, beforeRevoked);
+  } finally { await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; }
+});
+
+test("concrete architecture BFF binds live sessions and saved context, rejects authority and keeps previews read-only", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const saved = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-configuration-token-000000000000000" });
+  const identity = { workspaceId: prerequisiteWorkspaceId, issuer: "http://localhost:8081", subject: "synthetic-configuration-owner", email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined), context = { params: Promise.resolve({ id: prerequisiteAssessmentId }) };
+  const form = "expectedVersion=2&patternId=BFF_SESSION";
+  const request = (body = form, cookie: string | null = sessionId, origin = "http://localhost:3000", query = "", contentType = "application/x-www-form-urlencoded") =>
+    new NextRequest(`http://localhost:3000/api/assessments/${prerequisiteAssessmentId}/architecture-configuration${query}`, { method: "POST",
+      headers: { Origin: origin, "Content-Type": contentType, "X-AuthWeave-Oidc-Subject": "browser-spoof", ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}) }, body });
+  let calls = 0, version = 2, status = 200, forged = false, oversized = false, invalidJson = false;
+  let clients = ["BROWSER"] as ("BROWSER" | "NATIVE_MOBILE" | "MACHINE_TO_MACHINE")[];
+  const requirement = "REQUIRED" as const;
+  // Session persistence is real; Core is an explicit scoped test double, not a live IdP test.
+  globalThis.fetch = async (url, init) => {
+    calls++; const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject); assert.equal(headers["X-AuthWeave-Oidc-Issuer"], identity.issuer);
+    assert.equal(headers.Authorization, `Bearer ${process.env.AUTHWEAVE_CORE_SERVICE_TOKEN}`);
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error"); assert.ok(init?.signal instanceof AbortSignal);
+    if (init?.method === "GET") {
+      assert.equal(url, `http://127.0.0.1:8080/api/v6/workspaces/${identity.workspaceId}/assessments/${prerequisiteAssessmentId}`);
+      return Response.json({ id: prerequisiteAssessmentId, workspaceId: identity.workspaceId, status: "DRAFT", version, profileSchemaVersion: 6,
+        profile: { ...prerequisiteProfile, application: { ...prerequisiteProfile.application, clients }, security: { ...prerequisiteProfile.security, browserTokenExposureMinimization: requirement } } });
+    }
+    assert.equal(init?.method, "POST");
+    assert.equal(url, `http://127.0.0.1:8080/api/v1/workspaces/${identity.workspaceId}/assessments/${prerequisiteAssessmentId}/architecture-configuration-preview`);
+    const input = JSON.parse(String(init?.body)); assert.deepEqual(Object.keys(input).sort(), ["expectedVersion", "patternId", "settings"]);
+    const raw = configurationFixture(input, { clients, browserTokenExposureMinimization: requirement });
+    if (forged) raw.analysis.configurationObserved = true;
+    return oversized ? new Response("private".repeat(6000)) : invalidJson ? new Response("private invalid JSON")
+      : status === 200 ? Response.json(raw) : new Response("private details", { status });
+  };
+  try {
+    for (const [req, code] of [[request(form, null), 401], [request(form, sessionId, "https://other.example.invalid"), 403],
+      [request(form, sessionId, "http://localhost:3000", "?workspaceId=spoof"), 400], [request(form + "&workspaceId=spoof"), 400],
+      [request(form + "&clientScope=SELECTED"), 400], [request(form + "&evidenceId=spoof"), 400], [request(form + "&secret=private"), 400],
+      [request(form + "&expectedVersion=2"), 400], [request(form.replace("=2", "=02")), 400],
+      [request(form + "&OAUTH_FLOW=AUTHORIZATION_CODE&OAUTH_FLOW=IMPLICIT"), 400], [request(form + "&PKCE_METHOD=CONFIDENTIAL"), 400],
+      [request(form + "&NATIVE_USER_AGENT=EXTERNAL_BROWSER"), 400], [request("x".repeat(2049)), 413],
+      [request(form, sessionId, "http://localhost:3000", "", "application/json"), 415]] as const) {
+      const result = await configurationPreviewRoute(req, context); assert.equal(result.status, code); assert.equal(result.headers.get("cache-control"), "no-store");
+    }
+    assert.equal((await configurationPreviewRoute(request(), { params: Promise.resolve({ id: "invalid" }) })).status, 404); assert.equal(calls, 0);
+    for (const selected of [[], ["BROWSER"], ["NATIVE_MOBILE"], ["MACHINE_TO_MACHINE"]] as typeof clients[]) {
+      clients = selected;
+      for (const patternId of configurationPatterns) for (const matching of [false, true]) {
+        const params = new URLSearchParams({ expectedVersion: "2", patternId });
+        if (matching) for (const [key, value] of Object.entries(configurationMatching[patternId])) params.set(key, value);
+        const response = await configurationPreviewRoute(request(params.toString()), context); assert.equal(response.status, 200); assert.equal(response.headers.get("cache-control"), "no-store");
+        const preview = await response.json(), expected = configurationFixture(parseArchitectureConfigurationForm(params), { clients, browserTokenExposureMinimization: requirement });
+        assert.deepEqual(preview, { assessmentVersion: 2, analysis: expected.analysis });
+        for (const privateValue of [identity.subject, identity.workspaceId, identity.issuer, process.env.AUTHWEAVE_CORE_SERVICE_TOKEN!]) assert.equal(JSON.stringify(preview).includes(privateValue), false);
+      }
+    }
+    for (const upstream of [400, 404, 409, 403, 503]) { status = upstream; const result = await configurationPreviewRoute(request(), context);
+      assert.equal(result.status, [400, 404, 409].includes(upstream) ? upstream : 503); assert.equal((await result.text()).includes("private"), false); }
+    status = 200; forged = true; assert.equal((await configurationPreviewRoute(request(), context)).status, 503); forged = false;
+    oversized = true; assert.equal((await configurationPreviewRoute(request(), context)).status, 503); oversized = false;
+    invalidJson = true; assert.equal((await configurationPreviewRoute(request(), context)).status, 503); invalidJson = false;
+    version = 3; const beforeVersion = calls; assert.equal((await configurationPreviewRoute(request(), context)).status, 409); assert.equal(calls, beforeVersion + 1);
+    await revokeSession(sessionId); const beforeRevoked = calls; assert.equal((await configurationPreviewRoute(request(), context)).status, 401); assert.equal(calls, beforeRevoked);
   } finally { await revokeSession(sessionId); globalThis.fetch = previousFetch;
     for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name]; }
 });

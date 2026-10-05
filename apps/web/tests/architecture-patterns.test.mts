@@ -15,8 +15,9 @@ test("architecture cards explain saved inputs, preserve all five alternatives an
     "Application server", "Browser code", "Native app", "Workload", "Advantages", "Trade-offs", "Prerequisites to verify",
     "No current what-if result", "Technical check details", "not an architecture recommendation"]) assert.ok(html.includes(text), text);
   assert.equal((html.match(/<h3 /g) ?? []).length, 5);
-  assert.equal((html.match(/<select /g) ?? []).length, 11);
-  assert.equal((html.match(/value="UNKNOWN" selected=""/g) ?? []).length, 11);
+  assert.equal((html.match(/<select /g) ?? []).length, 51);
+  assert.equal((html.match(/value="UNKNOWN" selected=""/g) ?? []).length, 51);
+  assert.equal((html.match(/Try concrete settings/g) ?? []).length, 5);
   for (const pattern of preview.patterns) {
     assert.ok(html.includes(pattern.displayName));
     for (const check of pattern.checks) {

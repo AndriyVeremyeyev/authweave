@@ -2,6 +2,7 @@ import type { ArchitecturePatternPreflightSummary, ArchitecturePatternSummary } 
 import { evaluationContextLabels as labels } from "@/lib/assessment/evaluation-context";
 import { AssessmentStepButton } from "./assessment-workflow";
 import { ArchitecturePrerequisites } from "./architecture-prerequisites";
+import { ArchitectureConfiguration } from "./architecture-configuration";
 
 const statusText: Record<ArchitecturePatternSummary["status"], string> = {
   MATCHES_CHECKED_REQUIREMENTS: "Matches the applied checks only",
@@ -41,7 +42,7 @@ export function ArchitecturePatterns({ preview, assessmentId }: { preview: Archi
       <ol aria-label="How to explore architecture patterns" className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
         <li className="rounded-xl border border-white/10 p-4"><p className="font-medium">1. Read the saved-input checks</p><p className="mt-2 text-xs leading-5 text-slate-400">A partial match is not a complete design. Not applied is not a passed check.</p></li>
         <li className="rounded-xl border border-white/10 p-4"><p className="font-medium">2. Compare pros and trade-offs</p><p className="mt-2 text-xs leading-5 text-slate-400">Read each pattern’s advantages and conditions. Several alternatives can remain open.</p></li>
-        <li className="rounded-xl border border-white/10 p-4"><p className="font-medium">3. Try design conditions</p><p className="mt-2 text-xs leading-5 text-slate-400">Temporary declarations explore a proposed design. They do not verify configuration or select a provider.</p></li>
+        <li className="rounded-xl border border-white/10 p-4"><p className="font-medium">3. Try conditions and concrete settings</p><p className="mt-2 text-xs leading-5 text-slate-400">Temporary choices explore a proposed design. They do not verify configuration or select a provider.</p></li>
       </ol>
       {preview.selectedClients.length === 0 && <p className="mt-4 rounded-lg border border-amber-700 p-4 text-amber-100">
         Select at least one client type in the Context step and save to assess applicability.
@@ -78,6 +79,9 @@ export function ArchitecturePatterns({ preview, assessmentId }: { preview: Archi
             version={preview.assessmentVersion} patternId={pattern.patternId} descriptions={pattern.prerequisites}
             clientScope={preview.selectedClients.length === 0 ? "UNKNOWN" :
               preview.selectedClients.includes(pattern.clientType) ? "SELECTED" : "NOT_SELECTED"} />
+          <ArchitectureConfiguration key={`settings-${assessmentId}-${preview.assessmentVersion}-${pattern.patternId}`} assessmentId={assessmentId}
+            version={preview.assessmentVersion} patternId={pattern.patternId}
+            clientScope={preview.selectedClients.length === 0 ? "UNKNOWN" : preview.selectedClients.includes(pattern.clientType) ? "SELECTED" : "NOT_SELECTED"} />
         </li>)}
       </ul>
       <details className="mt-5 rounded-xl border border-slate-700 p-5 text-sm text-slate-300">

@@ -28,6 +28,8 @@ import { validateLifecycleInput, lifecycleByteLimit, lifecyclePreviewFromCore, p
   type LifecycleInput, type LifecyclePreview } from "../assessment/provisioning-lifecycle.ts";
 import { validateLifecycleV2Input, lifecycleV2ByteLimit, lifecycleV2PreviewFromCore,
   type LifecycleV2Input, type LifecycleV2Preview } from "../assessment/provisioning-lifecycle-v2.ts";
+import { architectureConfigurationByteLimit, architectureConfigurationFromCore, validateArchitectureConfigurationInput,
+  type ArchitectureConfigurationInput, type ArchitectureConfigurationPreview } from "../assessment/architecture-configuration.ts";
 import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
   type UsageMetric, type UsagePlanningValues } from "../assessment/usage-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
@@ -811,6 +813,27 @@ export async function previewPersonalProvisioningLifecycleV2(session: BrowserSes
   if (response.status !== 200) throw new Error("Core group and offboarding preview failed");
   return { kind: "preview", preview: lifecycleV2PreviewFromCore(JSON.parse(await boundedPrerequisiteText(response, lifecycleV2ByteLimit)),
     { workspaceId: session.workspaceId, assessmentId: id, input, requirements }) };
+}
+
+export async function previewPersonalArchitectureConfiguration(session: BrowserSession, id: string,
+  input: ArchitectureConfigurationInput): Promise<{ kind: "preview"; preview: ArchitectureConfigurationPreview } | { kind: "not-found" | "conflict" | "invalid" }> {
+  if (!UUID.test(id)) throw new Error("Invalid architecture settings request");
+  validateArchitectureConfigurationInput(input);
+  const assessment = await readPersonalAssessment(session, id);
+  if (!assessment) return { kind: "not-found" };
+  if (assessment.version !== input.expectedVersion) return { kind: "conflict" };
+  const context = evaluationContextValues(assessment.profile);
+  if (!context) throw new Error("Core profile cannot be read safely");
+  const response = await fetch(`${CORE_ORIGIN}/api/v1/workspaces/${session.workspaceId}/assessments/${id}/architecture-configuration-preview`, {
+    method: "POST", headers: { ...assessmentHeaders(session), "Content-Type": "application/json" }, body: JSON.stringify(input),
+    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status === 404) return { kind: "not-found" };
+  if (response.status === 409) return { kind: "conflict" };
+  if (response.status === 400) return { kind: "invalid" };
+  if (response.status !== 200) throw new Error("Core architecture settings preview failed");
+  return { kind: "preview", preview: architectureConfigurationFromCore(JSON.parse(await boundedPrerequisiteText(response, architectureConfigurationByteLimit)),
+    { workspaceId: session.workspaceId, assessmentId: id, input, context }) };
 }
 
 export async function previewPersonalArchitecturePrerequisites(session: BrowserSession, id: string,
