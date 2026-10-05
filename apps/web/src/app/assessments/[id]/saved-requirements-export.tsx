@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { requestSavedRequirementsBrief, RequirementsBriefDownloadError } from "@/lib/assessment/requirements-brief";
 
 const errors = {
@@ -14,27 +14,32 @@ export function SavedRequirementsExport({ assessmentId, version }: { assessmentI
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const active = useRef<AbortController | null>(null);
+  useEffect(() => () => active.current?.abort(), []);
 
   async function download() {
-    if (busy) return;
+    if (active.current) return;
+    const controller = new AbortController();
+    active.current = controller;
     setBusy(true); setError(null); setMessage(null);
     let objectUrl: string | null = null;
     let link: HTMLAnchorElement | null = null;
     try {
-      const result = await requestSavedRequirementsBrief(assessmentId, version);
+      const result = await requestSavedRequirementsBrief(assessmentId, version, controller.signal);
+      if (controller.signal.aborted) return;
       objectUrl = URL.createObjectURL(new Blob([result.markdown], { type: "text/markdown;charset=utf-8" }));
       link = document.createElement("a"); link.href = objectUrl; link.download = result.filename;
       document.body.appendChild(link); link.click();
       setMessage(`Download requested for saved version ${version}. Check your browser's downloads.`);
     } catch (error) {
-      setError(errors[error instanceof RequirementsBriefDownloadError ? error.kind : "unavailable"]);
+      if (!controller.signal.aborted) setError(errors[error instanceof RequirementsBriefDownloadError ? error.kind : "unavailable"]);
     } finally {
       link?.remove();
       if (objectUrl) {
         const downloadedUrl = objectUrl;
         window.setTimeout(() => URL.revokeObjectURL(downloadedUrl), 30_000);
       }
-      setBusy(false);
+      if (!controller.signal.aborted) { active.current = null; setBusy(false); }
     }
   }
 

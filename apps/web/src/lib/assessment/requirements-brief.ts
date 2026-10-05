@@ -80,12 +80,14 @@ export function savedRequirementsMarkdown(assessment: PersonalAssessment): strin
   return markdown;
 }
 
-export async function requestSavedRequirementsBrief(id: string, version: number): Promise<{ filename: string; markdown: string }> {
+export async function requestSavedRequirementsBrief(id: string, version: number, signal?: AbortSignal): Promise<{ filename: string; markdown: string }> {
   const filename = requirementsBriefFilename(id, version);
+  signal?.throwIfAborted();
   const response = await fetch(`/api/assessments/${id}/requirements-brief`, {
     method: "POST", credentials: "same-origin", cache: "no-store", redirect: "error",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ expectedVersion: String(version) }).toString(), signal: AbortSignal.timeout(10_000),
+    body: new URLSearchParams({ expectedVersion: String(version) }).toString(),
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(10_000)]) : AbortSignal.timeout(10_000),
   });
   if (response.status !== 200) throw new RequirementsBriefDownloadError(response.status === 401 ? "session" :
     response.status === 404 ? "not-found" : response.status === 409 ? "stale" : "unavailable");

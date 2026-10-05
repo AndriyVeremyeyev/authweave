@@ -69,10 +69,13 @@ that owns that workspace. Signed-in users can create a private assessment draft,
 selected fields through the BFF, and browse a bounded list of their assessments.
 Catalog-curator permissions are not enabled yet. The public browser-only preview is
 unchanged. Ordinary local B2B, citizen-portal and workforce paths through the saved
-editors, Review and fictional Comparison have been manually checked with synthetic
-inputs supported by the current editors. B2B also covered a stale-tab conflict,
-sign-out and a second user's denied read. This is not automated browser coverage,
-a hosted security assessment or a complete golden-profile architecture/export flow.
+editors, Review, fictional Comparison, Architecture and downloaded saved briefs have
+been manually checked with synthetic inputs supported by the current editors.
+All 32 exported rows per scenario matched Review. Temporary BFF and workload
+conditions stayed separate from saved requirements and reset on step navigation.
+B2B also covered a stale-tab conflict, sign-out and a second user's denied read.
+This is not automated browser coverage, a hosted security assessment, complete
+golden-profile evaluation, a final architecture recommendation or ADR export.
 
 The separate `authweave-identity` Compose project contains ZITADEL API/Login v4.17.3,
 PostgreSQL 17.10 and Traefik 3.7.7, pinned by tag and multi-platform digest. It owns separate
@@ -347,6 +350,8 @@ Markdown export of those five saved input sections and their display gaps. The
 same-origin, session-scoped BFF re-reads the assessment and rejects a stale page
 version before downloading; it does not write the assessment or store an export.
 Free text remains literal, output is bounded and responses are not cached. This
+download blocks duplicate requests while pending and is cancelled when Review is
+unmounted; a late response cannot trigger a download after leaving that step. This
 is not a full-profile backup, evaluation snapshot, final ADR or provider
 recommendation; temporary what-if answers and comparison results are excluded.
 Review the file for private details before sharing it.

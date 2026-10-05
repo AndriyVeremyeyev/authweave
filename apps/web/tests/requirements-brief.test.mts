@@ -138,3 +138,20 @@ test("actual Review export panel explains saved-only scope without credentials o
   assert.equal(html.includes("<form"), false); assert.equal(html.includes("workspaceId"), false);
   assert.ok(html.indexOf("Take your saved requirements with you") < html.indexOf("Application and audience"));
 });
+
+test("brief reader forwards Review cancellation and does not send an already-cancelled request", async () => {
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  const controller = new AbortController();
+  globalThis.fetch = async (_url, init) => {
+    calls++; const signal = init?.signal; assert.ok(signal instanceof AbortSignal);
+    assert.equal(signal.aborted, false);
+    return new Promise<Response>((_resolve, reject) => signal.addEventListener("abort", () => reject(signal.reason), { once: true }));
+  };
+  try {
+    const request = requestSavedRequirementsBrief(id, 7, controller.signal);
+    controller.abort(); await assert.rejects(request, error => error instanceof DOMException && error.name === "AbortError");
+    assert.equal(calls, 1);
+    await assert.rejects(requestSavedRequirementsBrief(id, 7, controller.signal)); assert.equal(calls, 1);
+  } finally { globalThis.fetch = previousFetch; }
+});
