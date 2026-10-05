@@ -1,0 +1,267 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/provisioning-lifecycle-request.v2.schema.json",
+  "title": "Temporary provisioning, group delivery and offboarding design request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["expectedVersion","patternId","groupStrategy","declarations"],
+  "properties": {
+    "expectedVersion": {"type":"integer","minimum":0,"maximum":9007199254740991},
+    "patternId": {"enum":["SCIM_PUSH","JIT_LOGIN","SCIM_AND_JIT"]},
+    "groupStrategy": {"enum":["UNKNOWN","NONE","SCIM_GROUPS","APPLICATION_BRIDGE"]},
+    "declarations": {
+      "type": "object",
+      "maxProperties": 15,
+      "propertyNames": {
+        "enum": [
+          "TENANT_AND_SUBJECT_CORRELATION",
+          "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+          "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+          "APPLICATION_SESSION_INVALIDATION",
+          "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+          "FAILURE_RECOVERY_AND_RECONCILIATION",
+          "SCIM_CLIENT_SERVER_DIRECTION",
+          "SCIM_USER_OPERATIONS",
+          "JIT_TRUSTED_LOGIN_AND_LINKING",
+          "SCIM_JIT_COLLISION_POLICY",
+          "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+          "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+          "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+          "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+          "SCIM_GROUP_OPERATIONS",
+          "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+        ]
+      },
+      "additionalProperties": {"enum":["SATISFIED","NOT_SATISFIED","UNKNOWN"]}
+    }
+  },
+  "allOf": [{"$ref":"#/$defs/selection"}],
+  "$defs": {
+    "selection": {
+      "type": "object",
+      "required": ["patternId","groupStrategy","declarations"],
+      "properties": {
+        "patternId": {"enum":["SCIM_PUSH","JIT_LOGIN","SCIM_AND_JIT"]},
+        "groupStrategy": {"enum":["UNKNOWN","NONE","SCIM_GROUPS","APPLICATION_BRIDGE"]},
+        "declarations": {
+          "type": "object",
+          "maxProperties": 15,
+          "propertyNames": {
+            "enum": [
+              "TENANT_AND_SUBJECT_CORRELATION",
+              "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+              "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+              "APPLICATION_SESSION_INVALIDATION",
+              "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+              "FAILURE_RECOVERY_AND_RECONCILIATION",
+              "SCIM_CLIENT_SERVER_DIRECTION",
+              "SCIM_USER_OPERATIONS",
+              "JIT_TRUSTED_LOGIN_AND_LINKING",
+              "SCIM_JIT_COLLISION_POLICY",
+              "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+              "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+              "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+              "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+              "SCIM_GROUP_OPERATIONS",
+              "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+            ]
+          },
+          "additionalProperties": {"enum":["SATISFIED","NOT_SATISFIED","UNKNOWN"]}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_PUSH"}}},
+          "then": {
+            "properties": {
+              "declarations": {
+                "type": "object",
+                "propertyNames": {
+                  "enum": [
+                    "TENANT_AND_SUBJECT_CORRELATION",
+                    "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                    "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+                    "APPLICATION_SESSION_INVALIDATION",
+                    "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+                    "FAILURE_RECOVERY_AND_RECONCILIATION",
+                    "SCIM_CLIENT_SERVER_DIRECTION",
+                    "SCIM_USER_OPERATIONS",
+                    "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+                    "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+                    "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+                    "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+                    "SCIM_GROUP_OPERATIONS",
+                    "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"JIT_LOGIN"}}},
+          "then": {
+            "properties": {
+              "declarations": {
+                "type": "object",
+                "propertyNames": {
+                  "enum": [
+                    "TENANT_AND_SUBJECT_CORRELATION",
+                    "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                    "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+                    "APPLICATION_SESSION_INVALIDATION",
+                    "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+                    "FAILURE_RECOVERY_AND_RECONCILIATION",
+                    "JIT_TRUSTED_LOGIN_AND_LINKING",
+                    "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+                    "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+                    "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+                    "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+                    "SCIM_GROUP_OPERATIONS",
+                    "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_AND_JIT"}}},
+          "then": {
+            "properties": {
+              "declarations": {
+                "type": "object",
+                "propertyNames": {
+                  "enum": [
+                    "TENANT_AND_SUBJECT_CORRELATION",
+                    "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                    "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+                    "APPLICATION_SESSION_INVALIDATION",
+                    "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+                    "FAILURE_RECOVERY_AND_RECONCILIATION",
+                    "SCIM_CLIENT_SERVER_DIRECTION",
+                    "SCIM_USER_OPERATIONS",
+                    "JIT_TRUSTED_LOGIN_AND_LINKING",
+                    "SCIM_JIT_COLLISION_POLICY",
+                    "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+                    "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+                    "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+                    "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+                    "SCIM_GROUP_OPERATIONS",
+                    "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"groupStrategy":{"const":"UNKNOWN"}}},
+          "then": {
+            "properties": {
+              "declarations": {
+                "type": "object",
+                "propertyNames": {
+                  "enum": [
+                    "TENANT_AND_SUBJECT_CORRELATION",
+                    "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                    "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+                    "APPLICATION_SESSION_INVALIDATION",
+                    "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+                    "FAILURE_RECOVERY_AND_RECONCILIATION",
+                    "SCIM_CLIENT_SERVER_DIRECTION",
+                    "SCIM_USER_OPERATIONS",
+                    "JIT_TRUSTED_LOGIN_AND_LINKING",
+                    "SCIM_JIT_COLLISION_POLICY"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"groupStrategy":{"const":"NONE"}}},
+          "then": {
+            "properties": {
+              "declarations": {
+                "type": "object",
+                "propertyNames": {
+                  "enum": [
+                    "TENANT_AND_SUBJECT_CORRELATION",
+                    "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                    "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+                    "APPLICATION_SESSION_INVALIDATION",
+                    "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+                    "FAILURE_RECOVERY_AND_RECONCILIATION",
+                    "SCIM_CLIENT_SERVER_DIRECTION",
+                    "SCIM_USER_OPERATIONS",
+                    "JIT_TRUSTED_LOGIN_AND_LINKING",
+                    "SCIM_JIT_COLLISION_POLICY"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"groupStrategy":{"const":"SCIM_GROUPS"}}},
+          "then": {
+            "properties": {
+              "declarations": {
+                "type": "object",
+                "propertyNames": {
+                  "enum": [
+                    "TENANT_AND_SUBJECT_CORRELATION",
+                    "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                    "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+                    "APPLICATION_SESSION_INVALIDATION",
+                    "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+                    "FAILURE_RECOVERY_AND_RECONCILIATION",
+                    "SCIM_CLIENT_SERVER_DIRECTION",
+                    "SCIM_USER_OPERATIONS",
+                    "JIT_TRUSTED_LOGIN_AND_LINKING",
+                    "SCIM_JIT_COLLISION_POLICY",
+                    "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+                    "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+                    "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+                    "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+                    "SCIM_GROUP_OPERATIONS"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"groupStrategy":{"const":"APPLICATION_BRIDGE"}}},
+          "then": {
+            "properties": {
+              "declarations": {
+                "type": "object",
+                "propertyNames": {
+                  "enum": [
+                    "TENANT_AND_SUBJECT_CORRELATION",
+                    "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+                    "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+                    "APPLICATION_SESSION_INVALIDATION",
+                    "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+                    "FAILURE_RECOVERY_AND_RECONCILIATION",
+                    "SCIM_CLIENT_SERVER_DIRECTION",
+                    "SCIM_USER_OPERATIONS",
+                    "JIT_TRUSTED_LOGIN_AND_LINKING",
+                    "SCIM_JIT_COLLISION_POLICY",
+                    "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+                    "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+                    "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+                    "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+                    "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

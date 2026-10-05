@@ -1,0 +1,790 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/provisioning-lifecycle-preview.v2.schema.json",
+  "title": "Conditional group delivery and offboarding design preview, not verification",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "workspaceId",
+    "assessmentId",
+    "assessmentVersion",
+    "evaluatedAt",
+    "analysis",
+    "policyVersion",
+    "scope",
+    "analysisBasis",
+    "groupStrategies",
+    "conditionDefinitions",
+    "offboardingReferences",
+    "checkedProfilePaths",
+    "deferredBoundaries",
+    "configurationVerified",
+    "providerCompatibilityVerified",
+    "lifecycleVerified",
+    "groupSynchronizationVerified",
+    "accessRevocationVerified",
+    "writesPerformed",
+    "publicationReady",
+    "recommendationReady"
+  ],
+  "properties": {
+    "workspaceId": {"type":"string","format":"uuid"},
+    "assessmentId": {"type":"string","format":"uuid"},
+    "assessmentVersion": {"type":"integer","minimum":0,"maximum":9007199254740991},
+    "evaluatedAt": {"type":"string","format":"date-time"},
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patternId","groupStrategy","requirements","declarations","requirementChecks","designChecks","conditionChecks","status"],
+      "properties": {
+        "patternId": {"enum":["SCIM_PUSH","JIT_LOGIN","SCIM_AND_JIT"]},
+        "groupStrategy": {"enum":["UNKNOWN","NONE","SCIM_GROUPS","APPLICATION_BRIDGE"]},
+        "declarations": {
+          "type": "object",
+          "maxProperties": 15,
+          "propertyNames": {
+            "enum": [
+              "TENANT_AND_SUBJECT_CORRELATION",
+              "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+              "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+              "APPLICATION_SESSION_INVALIDATION",
+              "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+              "FAILURE_RECOVERY_AND_RECONCILIATION",
+              "SCIM_CLIENT_SERVER_DIRECTION",
+              "SCIM_USER_OPERATIONS",
+              "JIT_TRUSTED_LOGIN_AND_LINKING",
+              "SCIM_JIT_COLLISION_POLICY",
+              "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+              "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+              "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+              "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+              "SCIM_GROUP_OPERATIONS",
+              "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+            ]
+          },
+          "additionalProperties": {"enum":["SATISFIED","NOT_SATISFIED","UNKNOWN"]}
+        },
+        "requirements": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["scim","justInTimeProvisioning","groupSynchronization"],
+          "properties": {
+            "scim": {"enum":["UNKNOWN","REQUIRED","PREFERRED","NOT_REQUIRED","FORBIDDEN"]},
+            "justInTimeProvisioning": {"enum":["UNKNOWN","REQUIRED","PREFERRED","NOT_REQUIRED","FORBIDDEN"]},
+            "groupSynchronization": {"enum":["UNKNOWN","REQUIRED","PREFERRED","NOT_REQUIRED","FORBIDDEN"]}
+          }
+        },
+        "requirementChecks": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "prefixItems": [
+            {"allOf":[{"$ref":"#/$defs/requirementCheck"},{"type":"object","properties":{"profilePath":{"const":"provisioning.scim"}}}]},
+            {
+              "allOf": [
+                {"$ref":"#/$defs/requirementCheck"},
+                {"type":"object","properties":{"profilePath":{"const":"provisioning.justInTimeProvisioning"}}}
+              ]
+            },
+            {
+              "allOf": [
+                {"$ref":"#/$defs/requirementCheck"},
+                {"type":"object","properties":{"profilePath":{"const":"provisioning.groupSynchronization"}}}
+              ]
+            }
+          ],
+          "items": false
+        },
+        "designChecks": {"type":"array","minItems":1,"maxItems":1,"items":{"$ref":"#/$defs/designCheck"}},
+        "conditionChecks": {"type":"array","minItems":7,"maxItems":15,"items":{"$ref":"#/$defs/conditionCheck"}},
+        "status": {"enum":["CONDITIONALLY_MATCHES","CONDITIONALLY_DOES_NOT_MATCH","NEEDS_INFORMATION"]}
+      },
+      "allOf": [
+        {"$ref":"./provisioning-lifecycle-request.v2.schema.json#/$defs/selection"},
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_PUSH"},"groupStrategy":{"const":"UNKNOWN"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 8,
+                "maxItems": 8,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_PUSH"},"groupStrategy":{"const":"NONE"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 8,
+                "maxItems": 8,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_PUSH"},"groupStrategy":{"const":"SCIM_GROUPS"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 13,
+                "maxItems": 13,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_SOURCE_AND_MEMBERSHIP_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_CHANGE_DELIVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_REMOVAL_AND_ACCESS_RECHECK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_GROUP_OPERATIONS"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_PUSH"},"groupStrategy":{"const":"APPLICATION_BRIDGE"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 13,
+                "maxItems": 13,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_SOURCE_AND_MEMBERSHIP_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_CHANGE_DELIVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_REMOVAL_AND_ACCESS_RECHECK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"JIT_LOGIN"},"groupStrategy":{"const":"UNKNOWN"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 7,
+                "maxItems": 7,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"JIT_LOGIN"},"groupStrategy":{"const":"NONE"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 7,
+                "maxItems": 7,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"JIT_LOGIN"},"groupStrategy":{"const":"SCIM_GROUPS"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 12,
+                "maxItems": 12,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_SOURCE_AND_MEMBERSHIP_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_CHANGE_DELIVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_REMOVAL_AND_ACCESS_RECHECK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_GROUP_OPERATIONS"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"JIT_LOGIN"},"groupStrategy":{"const":"APPLICATION_BRIDGE"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 12,
+                "maxItems": 12,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_SOURCE_AND_MEMBERSHIP_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_CHANGE_DELIVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_REMOVAL_AND_ACCESS_RECHECK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_AND_JIT"},"groupStrategy":{"const":"UNKNOWN"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 10,
+                "maxItems": 10,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_JIT_COLLISION_POLICY"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_AND_JIT"},"groupStrategy":{"const":"NONE"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 10,
+                "maxItems": 10,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_JIT_COLLISION_POLICY"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_AND_JIT"},"groupStrategy":{"const":"SCIM_GROUPS"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 15,
+                "maxItems": 15,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_JIT_COLLISION_POLICY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_SOURCE_AND_MEMBERSHIP_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_CHANGE_DELIVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_REMOVAL_AND_ACCESS_RECHECK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_GROUP_OPERATIONS"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {"properties":{"patternId":{"const":"SCIM_AND_JIT"},"groupStrategy":{"const":"APPLICATION_BRIDGE"}}},
+          "then": {
+            "properties": {
+              "conditionChecks": {
+                "type": "array",
+                "minItems": 15,
+                "maxItems": 15,
+                "prefixItems": [
+                  {"type":"object","properties":{"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_USER_OPERATIONS"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"SCIM_JIT_COLLISION_POLICY"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_SOURCE_AND_MEMBERSHIP_MAPPING"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_CHANGE_DELIVERY_AND_RECONCILIATION"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"GROUP_REMOVAL_AND_ACCESS_RECHECK"}}},
+                  {"type":"object","properties":{"conditionId":{"const":"APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"}}}
+                ],
+                "items": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {
+                  "requirementChecks": {
+                    "type": "array",
+                    "contains": {"type":"object","required":["outcome"],"properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}}}
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "designChecks": {
+                    "type": "array",
+                    "contains": {"type":"object","required":["outcome"],"properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}}}
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "conditionChecks": {
+                    "type": "array",
+                    "contains": {"type":"object","required":["outcome"],"properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}}}
+                  }
+                }
+              }
+            ]
+          },
+          "then": {"properties":{"status":{"const":"CONDITIONALLY_DOES_NOT_MATCH"}}},
+          "else": {
+            "if": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "requirementChecks": {"type":"array","contains":{"type":"object","required":["outcome"],"properties":{"outcome":{"const":"UNKNOWN"}}}}
+                  }
+                },
+                {
+                  "properties": {
+                    "designChecks": {"type":"array","contains":{"type":"object","required":["outcome"],"properties":{"outcome":{"const":"UNKNOWN"}}}}
+                  }
+                },
+                {
+                  "properties": {
+                    "conditionChecks": {"type":"array","contains":{"type":"object","required":["outcome"],"properties":{"outcome":{"const":"UNKNOWN"}}}}
+                  }
+                }
+              ]
+            },
+            "then": {"properties":{"status":{"const":"NEEDS_INFORMATION"}}},
+            "else": {"properties":{"status":{"const":"CONDITIONALLY_MATCHES"}}}
+          }
+        }
+      ]
+    },
+    "policyVersion": {"const":"provisioning-lifecycle-design-2"},
+    "scope": {"const":"PROVISIONING_LIFECYCLE_DESIGN_PREVIEW"},
+    "analysisBasis": {"const":"SAVED_REQUIREMENTS_AND_UNVERIFIED_DESIGN_DECLARATIONS"},
+    "groupStrategies": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        {"allOf":[{"$ref":"#/$defs/groupDefinition"},{"type":"object","properties":{"groupStrategy":{"const":"UNKNOWN"}}}]},
+        {"allOf":[{"$ref":"#/$defs/groupDefinition"},{"type":"object","properties":{"groupStrategy":{"const":"NONE"}}}]},
+        {"allOf":[{"$ref":"#/$defs/groupDefinition"},{"type":"object","properties":{"groupStrategy":{"const":"SCIM_GROUPS"}}}]},
+        {"allOf":[{"$ref":"#/$defs/groupDefinition"},{"type":"object","properties":{"groupStrategy":{"const":"APPLICATION_BRIDGE"}}}]}
+      ],
+      "items": false
+    },
+    "conditionDefinitions": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"TENANT_AND_SUBJECT_CORRELATION"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"ATTRIBUTE_OWNERSHIP_AND_MAPPING"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"ACCOUNT_DISABLE_AND_LOGIN_BLOCK"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"APPLICATION_SESSION_INVALIDATION"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"FAILURE_RECOVERY_AND_RECONCILIATION"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"SCIM_CLIENT_SERVER_DIRECTION"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"SCIM_USER_OPERATIONS"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"JIT_TRUSTED_LOGIN_AND_LINKING"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"SCIM_JIT_COLLISION_POLICY"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"GROUP_SOURCE_AND_MEMBERSHIP_MAPPING"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"GROUP_CHANGE_DELIVERY_AND_RECONCILIATION"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"GROUP_REMOVAL_AND_ACCESS_RECHECK"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {"conditionId":{"const":"SCIM_GROUP_OPERATIONS"},"description":{"type":"string","minLength":1,"maxLength":512}}
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["conditionId","description"],
+          "properties": {
+            "conditionId": {"const":"APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"},
+            "description": {"type":"string","minLength":1,"maxLength":512}
+          }
+        }
+      ],
+      "items": false
+    },
+    "offboardingReferences": {"const":["https://www.rfc-editor.org/rfc/rfc7643.html#section-4.1.1","https://www.rfc-editor.org/rfc/rfc7009.html#section-3"]},
+    "checkedProfilePaths": {"const":["provisioning.scim","provisioning.justInTimeProvisioning","provisioning.groupSynchronization"]},
+    "deferredBoundaries": {
+      "const": [
+        "providerOperationsAndEntitlements",
+        "observedProvisioningDelivery",
+        "groupMembershipAndAuthorization",
+        "sessionAndTokenRevocation",
+        "reconciliationAndFailureRecovery"
+      ]
+    },
+    "configurationVerified": {"const":false},
+    "providerCompatibilityVerified": {"const":false},
+    "lifecycleVerified": {"const":false},
+    "groupSynchronizationVerified": {"const":false},
+    "accessRevocationVerified": {"const":false},
+    "writesPerformed": {"const":false},
+    "publicationReady": {"const":false},
+    "recommendationReady": {"const":false}
+  },
+  "$defs": {
+    "requirementCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profilePath","outcome","reasonCode","criticality"],
+      "properties": {
+        "profilePath": {"enum":["provisioning.scim","provisioning.justInTimeProvisioning","provisioning.groupSynchronization"]},
+        "outcome": {"enum":["CONDITIONALLY_SATISFIED","CONDITIONALLY_NOT_SATISFIED","UNKNOWN","NOT_APPLIED"]},
+        "reasonCode": {
+          "enum": [
+            "REQUIRED_MECHANISM_PLANNED",
+            "REQUIRED_MECHANISM_ABSENT",
+            "FORBIDDEN_MECHANISM_PLANNED",
+            "FORBIDDEN_MECHANISM_ABSENT",
+            "REQUIREMENT_UNKNOWN",
+            "PREFERENCE_NOT_SCORED",
+            "NO_REQUIREMENT",
+            "GROUP_STRATEGY_UNKNOWN"
+          ]
+        },
+        "criticality": {"enum":["UNKNOWN","REQUIRED","PREFERRED","NOT_REQUIRED","FORBIDDEN"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties":{"reasonCode":{"const":"REQUIRED_MECHANISM_PLANNED"}}},
+          "then": {"properties":{"outcome":{"const":"CONDITIONALLY_SATISFIED"}}}
+        },
+        {
+          "if": {"properties":{"reasonCode":{"const":"REQUIRED_MECHANISM_ABSENT"}}},
+          "then": {"properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}}}
+        },
+        {
+          "if": {"properties":{"reasonCode":{"const":"FORBIDDEN_MECHANISM_PLANNED"}}},
+          "then": {"properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}}}
+        },
+        {
+          "if": {"properties":{"reasonCode":{"const":"FORBIDDEN_MECHANISM_ABSENT"}}},
+          "then": {"properties":{"outcome":{"const":"CONDITIONALLY_SATISFIED"}}}
+        },
+        {"if":{"properties":{"reasonCode":{"const":"REQUIREMENT_UNKNOWN"}}},"then":{"properties":{"outcome":{"const":"UNKNOWN"}}}},
+        {"if":{"properties":{"reasonCode":{"const":"PREFERENCE_NOT_SCORED"}}},"then":{"properties":{"outcome":{"const":"NOT_APPLIED"}}}},
+        {"if":{"properties":{"reasonCode":{"const":"NO_REQUIREMENT"}}},"then":{"properties":{"outcome":{"const":"NOT_APPLIED"}}}},
+        {"if":{"properties":{"reasonCode":{"const":"GROUP_STRATEGY_UNKNOWN"}}},"then":{"properties":{"outcome":{"const":"UNKNOWN"}}}}
+      ]
+    },
+    "designCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["boundary","outcome","reasonCode"],
+      "properties": {
+        "boundary": {"enum":["groupTransport"]},
+        "outcome": {"enum":["CONDITIONALLY_SATISFIED","CONDITIONALLY_NOT_SATISFIED","UNKNOWN","NOT_APPLIED"]},
+        "reasonCode": {"enum":["GROUP_STRATEGY_UNKNOWN","GROUP_TRANSPORT_PLANNED","NO_GROUP_TRANSPORT_PLANNED","SCIM_GROUPS_REQUIRE_SCIM_PATTERN"]}
+      },
+      "allOf": [
+        {"if":{"properties":{"reasonCode":{"const":"GROUP_STRATEGY_UNKNOWN"}}},"then":{"properties":{"outcome":{"const":"UNKNOWN"}}}},
+        {
+          "if": {"properties":{"reasonCode":{"const":"GROUP_TRANSPORT_PLANNED"}}},
+          "then": {"properties":{"outcome":{"const":"CONDITIONALLY_SATISFIED"}}}
+        },
+        {
+          "if": {"properties":{"reasonCode":{"const":"NO_GROUP_TRANSPORT_PLANNED"}}},
+          "then": {"properties":{"outcome":{"const":"NOT_APPLIED"}}}
+        },
+        {
+          "if": {"properties":{"reasonCode":{"const":"SCIM_GROUPS_REQUIRE_SCIM_PATTERN"}}},
+          "then": {"properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}}}
+        }
+      ]
+    },
+    "conditionCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["conditionId","outcome","reasonCode"],
+      "properties": {
+        "conditionId": {
+          "enum": [
+            "TENANT_AND_SUBJECT_CORRELATION",
+            "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+            "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+            "APPLICATION_SESSION_INVALIDATION",
+            "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+            "FAILURE_RECOVERY_AND_RECONCILIATION",
+            "SCIM_CLIENT_SERVER_DIRECTION",
+            "SCIM_USER_OPERATIONS",
+            "JIT_TRUSTED_LOGIN_AND_LINKING",
+            "SCIM_JIT_COLLISION_POLICY",
+            "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+            "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+            "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+            "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+            "SCIM_GROUP_OPERATIONS",
+            "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+          ]
+        },
+        "outcome": {"enum":["CONDITIONALLY_SATISFIED","CONDITIONALLY_NOT_SATISFIED","UNKNOWN","NOT_APPLIED"]},
+        "reasonCode": {"enum":["DECLARED_CONDITION_SATISFIED","DECLARED_CONDITION_NOT_SATISFIED","CONDITION_UNKNOWN"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties":{"reasonCode":{"const":"DECLARED_CONDITION_SATISFIED"}}},
+          "then": {"properties":{"outcome":{"const":"CONDITIONALLY_SATISFIED"}}}
+        },
+        {
+          "if": {"properties":{"reasonCode":{"const":"DECLARED_CONDITION_NOT_SATISFIED"}}},
+          "then": {"properties":{"outcome":{"const":"CONDITIONALLY_NOT_SATISFIED"}}}
+        },
+        {"if":{"properties":{"reasonCode":{"const":"CONDITION_UNKNOWN"}}},"then":{"properties":{"outcome":{"const":"UNKNOWN"}}}}
+      ]
+    },
+    "groupDefinition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["groupStrategy","displayName","advantages","tradeoffs","conditions","references"],
+      "properties": {
+        "groupStrategy": {"enum":["UNKNOWN","NONE","SCIM_GROUPS","APPLICATION_BRIDGE"]},
+        "displayName": {"type":"string","minLength":1,"maxLength":160},
+        "advantages": {"type":"array","maxItems":4,"items":{"type":"string","minLength":1,"maxLength":512}},
+        "tradeoffs": {"type":"array","minItems":1,"maxItems":4,"items":{"type":"string","minLength":1,"maxLength":512}},
+        "conditions": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "enum": [
+              "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+              "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+              "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+              "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+              "SCIM_GROUP_OPERATIONS",
+              "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+            ]
+          }
+        },
+        "references": {"type":"array","maxItems":2,"items":{"type":"string","format":"uri","pattern":"^https://"}}
+      },
+      "allOf": [
+        {
+          "if": {"properties":{"groupStrategy":{"const":"UNKNOWN"}}},
+          "then": {"properties":{"conditions":{"const":[]},"references":{"const":[]}}}
+        },
+        {"if":{"properties":{"groupStrategy":{"const":"NONE"}}},"then":{"properties":{"conditions":{"const":[]},"references":{"const":[]}}}},
+        {
+          "if": {"properties":{"groupStrategy":{"const":"SCIM_GROUPS"}}},
+          "then": {
+            "properties": {
+              "conditions": {
+                "const": [
+                  "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+                  "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+                  "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+                  "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+                  "SCIM_GROUP_OPERATIONS"
+                ]
+              },
+              "references": {"const":["https://www.rfc-editor.org/rfc/rfc7643.html#section-4.2","https://www.rfc-editor.org/rfc/rfc7644.html"]}
+            }
+          }
+        },
+        {
+          "if": {"properties":{"groupStrategy":{"const":"APPLICATION_BRIDGE"}}},
+          "then": {
+            "properties": {
+              "conditions": {
+                "const": [
+                  "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+                  "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+                  "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+                  "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+                  "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+                ]
+              },
+              "references": {"const":[]}
+            }
+          }
+        }
+      ]
+    }
+  }
+}

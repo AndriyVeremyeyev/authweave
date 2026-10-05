@@ -549,6 +549,25 @@ or lifecycle verification. Assessment state, revisions, events, existing eligibi
 coverage and publication gates are unchanged. No declarations or result are saved,
 and no IdP configuration, accounts, dependencies or paid calls are added.
 
+Core additionally exposes a separate [v2 design request](packages/contracts/schemas/provisioning-lifecycle-request.v2.schema.json)
+at POST `/api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview`.
+It requires an explicit `groupStrategy`: `UNKNOWN`, `NONE`, `SCIM_GROUPS` or
+`APPLICATION_BRIDGE`. No group plan cannot satisfy required group synchronization;
+an active plan cannot bypass forbidden groups. An application bridge cannot replace
+required SCIM user provisioning. This model's SCIM Group option uses a selected SCIM
+user-lifecycle pattern; JIT-only with that option produces a conditional mismatch.
+
+The [v2 preview](packages/contracts/schemas/provisioning-lifecycle-preview.v2.schema.json)
+separates account disablement/new-login blocking, application-session invalidation
+and token revocation or bounded expiry. Active group plans additionally require
+source/member mapping, out-of-band delivery/reconciliation, application role
+enforcement, removal/access rechecks and transport-specific operations. All omitted
+conditions remain unknown, hard failures retain every gap, and even all-met answers
+are only a conditional design hypothesis. Every verification, write and readiness
+flag stays false. V1, saved profiles, history, eligibility and publication gates are
+unchanged; the existing personal BFF/UI still uses v1. V2 does not inspect an IdP or
+execute a provisioning, group, logout or revocation operation.
+
 The personal assessment's Architecture step now shows all three alternatives with
 advantages, trade-offs, saved SCIM/JIT/group requirements and temporary condition
 forms. All answers start unknown; no architecture or provider is selected or saved.
@@ -575,6 +594,10 @@ Concept sources are [SCIM operations](https://www.rfc-editor.org/rfc/rfc7644.htm
 [login-time creation/update example](https://zitadel.com/docs/guides/integrate/identity-providers/introduction).
 The last reference illustrates an implementation, not any plan's entitlement or a
 verified provider catalog fact. Evaluation never fetches these references.
+Group and offboarding concepts also reference the
+[SCIM Group schema](https://www.rfc-editor.org/rfc/rfc7643.html#section-4.2) and
+[OAuth token-revocation implementation notes](https://www.rfc-editor.org/rfc/rfc7009.html#section-3);
+these are protocol context, not evidence of a vendor or application's enforcement.
 
 ### Auditability capability rule kernel
 

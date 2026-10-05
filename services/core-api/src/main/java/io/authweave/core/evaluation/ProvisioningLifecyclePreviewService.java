@@ -22,4 +22,12 @@ public class ProvisioningLifecyclePreviewService {
         var analysis = ProvisioningLifecycleEvaluator.evaluate(saved.assessment().profile().provisioning(), request.patternId(), request.declarations());
         return new ProvisioningLifecyclePreview(workspaceId.value(), assessmentId.value(), saved.version(), clock.instant(), analysis);
     }
+
+    @Transactional(readOnly = true)
+    public ProvisioningLifecycleV2Preview previewV2(WorkspaceId workspaceId, AssessmentId assessmentId, ProvisioningLifecycleV2Request request) {
+        var saved = assessments.getAssessment(workspaceId, assessmentId);
+        if (saved.version() != request.expectedVersion()) throw new AssessmentVersionConflictException(workspaceId, assessmentId, request.expectedVersion(), saved.version());
+        var analysis = ProvisioningLifecycleV2Evaluator.evaluate(saved.assessment().profile().provisioning(), request.patternId(), request.groupStrategy(), request.declarations());
+        return new ProvisioningLifecycleV2Preview(workspaceId.value(), assessmentId.value(), saved.version(), clock.instant(), analysis);
+    }
 }

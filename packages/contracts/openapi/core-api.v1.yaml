@@ -26,6 +26,55 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+    post:
+      tags: [Assessments]
+      operationId: previewProvisioningLifecycleV2
+      summary: Check explicit group delivery and separate offboarding design conditions
+      description: >-
+        Read-only personal preview against one exact saved assessment version. Explicit
+        UNKNOWN, NONE, SCIM_GROUPS or APPLICATION_BRIDGE group strategy; scoped temporary
+        declarations only. SCIM Groups requires a SCIM user-lifecycle pattern in this
+        design model. A group bridge cannot replace required SCIM. Separate account
+        disablement, application-session invalidation and token revocation or bounded
+        expiry conditions do not verify actual enforcement. Hard failures retain all
+        unknown checks. No query parameters, writes, ranking, vendor facts or readiness
+        claims. V1 and existing eligibility, coverage and publication gates are unchanged.
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/provisioning-lifecycle-request.v2.schema.json
+      responses:
+        '200':
+          description: Conditional design checks only; all verification and readiness flags are false
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/provisioning-lifecycle-preview.v2.schema.json
+        '400':
+          description: Malformed version, design, declaration scope, supplied fields or query
+        '401':
+          description: Service credential or singular identity assertions missing or invalid
+        '403':
+          description: Identity does not own the requested workspace
+        '404':
+          $ref: '#/components/responses/AssessmentNotFound'
+        '409':
+          $ref: '#/components/responses/VersionConflict'
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'

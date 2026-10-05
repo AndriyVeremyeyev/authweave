@@ -3394,6 +3394,106 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertHistorySize(assessment, 1);
     }
 
+    @ParameterizedTest @ValueSource(strings = {"SCIM_REQUIRED", "JIT_REQUIRED", "BOTH_REQUIRED", "GROUP_REQUIRED", "GROUP_FORBIDDEN", "UNKNOWN"})
+    void lifecycleV2BindsGroupStrategyAndSeparateOffboardingWithoutWrites(String scenario) throws Exception {
+        var assessment = create(); var update = request(); var provisioning = (ObjectNode) update.at("/profile/provisioning");
+        provisioning.put("scim", scenario.equals("UNKNOWN") ? "UNKNOWN" : scenario.equals("JIT_REQUIRED") ? "FORBIDDEN" : "REQUIRED");
+        provisioning.put("justInTimeProvisioning", scenario.equals("UNKNOWN") ? "UNKNOWN" : List.of("JIT_REQUIRED", "BOTH_REQUIRED").contains(scenario) ? "REQUIRED" : "NOT_REQUIRED");
+        provisioning.put("groupSynchronization", scenario.equals("UNKNOWN") ? "UNKNOWN" : scenario.equals("GROUP_REQUIRED") ? "REQUIRED" : scenario.equals("GROUP_FORBIDDEN") ? "FORBIDDEN" : "NOT_REQUIRED");
+        var before = response("lifecycle-v2-saved-" + scenario, mvc.perform(put(assessment.path() + "/profile").contentType(MediaType.APPLICATION_JSON).content(update.toString())).andExpect(status().isOk()).andReturn());
+        String path = assessment.path().replace("/api/v1/", "/api/v2/") + "/provisioning-lifecycle-preview";
+        String history = mvc.perform(get(assessment.path() + "/revisions")).andReturn().getResponse().getContentAsString();
+        String events = mvc.perform(get(assessment.path() + "/events")).andReturn().getResponse().getContentAsString();
+        for (var pattern : io.authweave.core.evaluation.ProvisioningLifecycleEvaluator.PatternId.values())
+            for (var groups : io.authweave.core.evaluation.ProvisioningLifecycleV2Evaluator.GroupStrategy.values())
+                for (String declaration : List.of("EMPTY", "SATISFIED", "NOT_SATISFIED", "UNKNOWN")) {
+                    String name = "lifecycle-v2-" + scenario + "-" + pattern + "-" + groups + "-" + declaration;
+                    var input = mapper.createObjectNode().put("expectedVersion", before.get("version").asLong()).put("patternId", pattern.name()).put("groupStrategy", groups.name());
+                    var values = input.putObject("declarations");
+                    if (!declaration.equals("EMPTY")) io.authweave.core.evaluation.ProvisioningLifecycleV2Evaluator.conditions(pattern, groups).forEach(id -> values.put(id.name(), declaration));
+                    sample(name + "-request", "provisioning-lifecycle-request.v2", true, input);
+                    var result = mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(input.toString())).andExpect(status().isOk())
+                            .andExpect(header().string("Cache-Control", "no-store")).andExpect(jsonPath("$.analysis.designChecks.length()").value(1))
+                            .andExpect(jsonPath("$.assessmentVersion").value(before.get("version").asLong())).andReturn();
+                    var payload = mapper.readTree(result.getResponse().getContentAsString()); sample(name, "provisioning-lifecycle-preview.v2", true, payload);
+                    assertEquals(provisioning, payload.at("/analysis/requirements")); assertEquals(values, payload.at("/analysis/declarations"));
+                    assertEquals(groups.name(), payload.at("/analysis/groupStrategy").asText());
+                    if (declaration.equals("SATISFIED")) {
+                        for (String flag : List.of("configurationVerified", "providerCompatibilityVerified", "lifecycleVerified", "groupSynchronizationVerified", "accessRevocationVerified", "writesPerformed", "publicationReady", "recommendationReady")) {
+                            assertFalse(payload.get(flag).asBoolean()); var invalid = (ObjectNode) payload.deepCopy(); invalid.put(flag, true);
+                            sample(name + "-no-" + flag, "provisioning-lifecycle-preview.v2", false, invalid);
+                        }
+                        var incomplete = (ObjectNode) payload.deepCopy(); ((tools.jackson.databind.node.ArrayNode) incomplete.at("/analysis/conditionChecks")).remove(0);
+                        sample(name + "-condition-gap", "provisioning-lifecycle-preview.v2", false, incomplete);
+                        var duplicate = (ObjectNode) payload.deepCopy(); ((tools.jackson.databind.node.ArrayNode) duplicate.at("/analysis/conditionChecks")).set(1, duplicate.at("/analysis/conditionChecks/0").deepCopy());
+                        sample(name + "-condition-duplicate", "provisioning-lifecycle-preview.v2", false, duplicate);
+                    }
+                }
+        assertEquals(before, response("lifecycle-v2-unchanged", mvc.perform(get(assessment.path())).andReturn()));
+        assertEquals(history, mvc.perform(get(assessment.path() + "/revisions")).andReturn().getResponse().getContentAsString());
+        assertEquals(events, mvc.perform(get(assessment.path() + "/events")).andReturn().getResponse().getContentAsString());
+    }
+
+    @Test void lifecycleV2ReadsV6AndRetainsAllAuditInputsAndHistoricalV1Behavior() throws Exception {
+        var assessment = create(); String v6 = assessment.path().replace("/api/v1/", "/api/v6/");
+        var initial = versionedSample("lifecycle-v2-v6-initial", "assessment-response.v6", mvc.perform(get(v6)).andExpect(status().isOk()).andReturn());
+        var update = mapper.createObjectNode().put("expectedVersion", 0); update.set("profile", initial.get("profile").deepCopy());
+        ((ObjectNode) update.at("/profile/provisioning")).put("scim", "REQUIRED").put("justInTimeProvisioning", "NOT_REQUIRED").put("groupSynchronization", "REQUIRED");
+        ((ObjectNode) update.at("/profile/security")).put("auditability", "REQUIRED");
+        ((ObjectNode) update.at("/profile/security/auditabilityRequirements")).putArray("selectedCriteria").add("PROVISIONING_CHANGE_EVENTS");
+        var before = saveV6("lifecycle-v2-v6-saved", v6, update);
+        String history = mvc.perform(get(v6 + "/revisions")).andReturn().getResponse().getContentAsString();
+        String events = mvc.perform(get(assessment.path() + "/events")).andReturn().getResponse().getContentAsString();
+        var input = mapper.createObjectNode().put("expectedVersion", before.get("version").asLong()).put("patternId", "SCIM_PUSH").put("groupStrategy", "SCIM_GROUPS");
+        var declarations = input.putObject("declarations");
+        io.authweave.core.evaluation.ProvisioningLifecycleV2Evaluator.conditions(io.authweave.core.evaluation.ProvisioningLifecycleEvaluator.PatternId.SCIM_PUSH,
+                io.authweave.core.evaluation.ProvisioningLifecycleV2Evaluator.GroupStrategy.SCIM_GROUPS).forEach(id -> declarations.put(id.name(), "SATISFIED"));
+        sample("lifecycle-v2-v6-current-request", "provisioning-lifecycle-request.v2", true, input);
+        var result = mvc.perform(post(assessment.path().replace("/api/v1/", "/api/v2/") + "/provisioning-lifecycle-preview").contentType(MediaType.APPLICATION_JSON).content(input.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.analysis.status").value("CONDITIONALLY_MATCHES")).andReturn();
+        sample("lifecycle-v2-v6-current", "provisioning-lifecycle-preview.v2", true, mapper.readTree(result.getResponse().getContentAsString()));
+        var legacy = mapper.createObjectNode().put("expectedVersion", before.get("version").asLong()).put("patternId", "SCIM_PUSH"); var legacyValues = legacy.putObject("declarations");
+        io.authweave.core.evaluation.ProvisioningLifecycleEvaluator.definition(io.authweave.core.evaluation.ProvisioningLifecycleEvaluator.PatternId.SCIM_PUSH).conditions().forEach(id -> legacyValues.put(id.name(), "SATISFIED"));
+        mvc.perform(post(assessment.path() + "/provisioning-lifecycle-preview").contentType(MediaType.APPLICATION_JSON).content(legacy.toString()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.policyVersion").value("provisioning-lifecycle-design-1"))
+                .andExpect(jsonPath("$.analysis.requirementChecks[2].reasonCode").value("GROUP_LIFECYCLE_UNASSESSED"));
+        assertEquals(before, versionedSample("lifecycle-v2-v6-preserved", "assessment-response.v6", mvc.perform(get(v6)).andReturn()));
+        assertEquals(history, mvc.perform(get(v6 + "/revisions")).andReturn().getResponse().getContentAsString());
+        assertEquals(events, mvc.perform(get(assessment.path() + "/events")).andReturn().getResponse().getContentAsString());
+    }
+
+    @Test void lifecycleV2RejectsForeignConditionsAuthorityStalenessAndMalformedInput() throws Exception {
+        var assessment = create(); String path = assessment.path().replace("/api/v1/", "/api/v2/") + "/provisioning-lifecycle-preview";
+        var valid = mapper.createObjectNode().put("expectedVersion", 0).put("patternId", "SCIM_PUSH").put("groupStrategy", "NONE"); valid.putObject("declarations");
+        for (String mutation : List.of("missing-version", "negative-version", "unsafe-version", "string-version", "fraction-version", "boolean-version", "missing-pattern", "unknown-pattern", "missing-groups", "null-groups", "unknown-groups", "missing-declarations", "null-declarations", "foreign-pattern", "foreign-group", "legacy-condition", "unknown-declaration", "null-declaration", "requirements", "verified", "time", "provider")) {
+            var input = valid.deepCopy(); var declarations = (ObjectNode) input.get("declarations");
+            switch (mutation) {
+                case "missing-version" -> input.remove("expectedVersion"); case "negative-version" -> input.put("expectedVersion", -1);
+                case "unsafe-version" -> input.put("expectedVersion", 9007199254740992L); case "string-version" -> input.put("expectedVersion", "0");
+                case "fraction-version" -> input.put("expectedVersion", 0.1); case "boolean-version" -> input.put("expectedVersion", true);
+                case "missing-pattern" -> input.remove("patternId"); case "unknown-pattern" -> input.put("patternId", "MANUAL");
+                case "missing-groups" -> input.remove("groupStrategy"); case "null-groups" -> input.putNull("groupStrategy"); case "unknown-groups" -> input.put("groupStrategy", "LOGIN_CLAIMS");
+                case "missing-declarations" -> input.remove("declarations"); case "null-declarations" -> input.putNull("declarations");
+                case "foreign-pattern" -> declarations.put("JIT_TRUSTED_LOGIN_AND_LINKING", "SATISFIED"); case "foreign-group" -> declarations.put("GROUP_REMOVAL_AND_ACCESS_RECHECK", "SATISFIED");
+                case "legacy-condition" -> declarations.put("OFFBOARDING_AND_ACCESS_REVOCATION", "SATISFIED");
+                case "unknown-declaration" -> declarations.put("APPLICATION_SESSION_INVALIDATION", "VERIFIED"); case "null-declaration" -> declarations.putNull("SCIM_USER_OPERATIONS");
+                case "requirements" -> input.putObject("requirements").put("scim", "NOT_REQUIRED"); case "verified" -> input.put("accessRevocationVerified", true);
+                case "time" -> input.put("evaluatedAt", "2026-10-05T00:00:00Z"); case "provider" -> input.put("providerId", "synthetic");
+            }
+            sample("lifecycle-v2-invalid-" + mutation, "provisioning-lifecycle-request.v2", false, input);
+            response("lifecycle-v2-invalid-problem", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(input.toString())).andExpect(status().isBadRequest()).andReturn());
+        }
+        for (String malformed : List.of(valid.toString() + "{}", valid.toString().replace("\"groupStrategy\":\"NONE\"", "\"groupStrategy\":\"NONE\",\"groupStrategy\":\"NONE\""), "{\"expectedVersion\":0,\"patternId\":\"SCIM_PUSH\",\"groupStrategy\":\"NONE\",\"declarations\":{\"SCIM_USER_OPERATIONS\":\"UNKNOWN\",\"SCIM_USER_OPERATIONS\":\"SATISFIED\"}}"))
+            mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(malformed)).andExpect(status().isBadRequest());
+        mvc.perform(post(path).queryParam("override", "true").contentType(MediaType.APPLICATION_JSON).content(valid.toString())).andExpect(status().isBadRequest());
+        mvc.perform(get(path)).andExpect(status().isMethodNotAllowed());
+        var stale = valid.deepCopy(); stale.put("expectedVersion", 1);
+        response("lifecycle-v2-stale", mvc.perform(post(path).contentType(MediaType.APPLICATION_JSON).content(stale.toString())).andExpect(status().isConflict()).andReturn());
+        response("lifecycle-v2-other-workspace", mvc.perform(post(path.replace(assessment.workspaceId().value().toString(), UUID.randomUUID().toString())).contentType(MediaType.APPLICATION_JSON).content(valid.toString())).andExpect(status().isNotFound()).andReturn());
+        response("lifecycle-v2-missing", mvc.perform(post(path.replace(assessment.id().value().toString(), UUID.randomUUID().toString())).contentType(MediaType.APPLICATION_JSON).content(valid.toString())).andExpect(status().isNotFound()).andReturn());
+        assertEquals(assessment.created(), response("lifecycle-v2-malformed-preserved", mvc.perform(get(assessment.path())).andReturn())); assertHistorySize(assessment, 1);
+    }
+
     private ObjectNode request() {
         ObjectNode request = mapper.createObjectNode().put("expectedVersion", 0);
         request.set("profile", mapper.valueToTree(ApplicationIdentityProfile.unknown()));

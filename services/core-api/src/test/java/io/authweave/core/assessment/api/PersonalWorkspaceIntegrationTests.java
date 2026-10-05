@@ -29,6 +29,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = "AUTHWEAVE_CORE_SERVICE_TOKEN=synthetic-internal-token-000000000000000000000")
@@ -249,7 +250,7 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
                 .andExpect(status().isCreated()).andReturn();
         String path = "/api/v1/workspaces/" + workspace + "/assessments/" + mapper.readTree(created.getResponse().getContentAsString()).get("id").asText() + "/provisioning-lifecycle-preview";
         String body = "{\"expectedVersion\":0,\"patternId\":\"SCIM_PUSH\",\"declarations\":{}}";
-        for (String target : List.of(path, path.replace("/v1/", "/v2/"))) {
+        for (String target : List.of(path, path.replace("/v1/", "/v2/"), path.replace("/v1/", "/v3/"))) {
             mvc.perform(post(target).contentType(MediaType.APPLICATION_JSON).content("not-json")).andExpect(status().isUnauthorized());
             mvc.perform(post(target).header("Authorization", "wrong").contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
             mvc.perform(post(target).header("Authorization", TOKEN, TOKEN).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isUnauthorized());
@@ -260,6 +261,12 @@ class PersonalWorkspaceIntegrationTests extends PostgresIntegrationTest {
         }
         mvc.perform(post(path).header("Authorization", TOKEN).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", alice).contentType(MediaType.APPLICATION_JSON).content(body))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.analysis.status").value("NEEDS_INFORMATION"));
+        String v2Body = body.replace("\"patternId\":\"SCIM_PUSH\"", "\"patternId\":\"SCIM_PUSH\",\"groupStrategy\":\"UNKNOWN\"");
+        mvc.perform(post(path.replace("/v1/", "/v2/")).header("Authorization", TOKEN).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", alice).contentType(MediaType.APPLICATION_JSON).content(v2Body))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.policyVersion").value("provisioning-lifecycle-design-2"))
+                .andExpect(jsonPath("$.analysis.groupStrategy").value("UNKNOWN"))
+                .andExpect(jsonPath("$.analysis.status").value("NEEDS_INFORMATION"));
     }
 
     @Test
