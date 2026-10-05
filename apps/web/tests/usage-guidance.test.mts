@@ -61,7 +61,10 @@ test("all 625 unknown, assumed and observed zero/nonzero combinations round-trip
     assert.equal([...html.matchAll(/<input\b/g)].length, 5);
     assert.equal([...html.matchAll(/<select\b/g)].length, 4);
     assert.equal([...html.matchAll(/<textarea\b/g)].length, 11);
-    assert.equal([...html.matchAll(/<button\b/g)].length, 1);
+    assert.equal([...html.matchAll(/<button\b[^>]*type="submit"/g)].length, 1);
+    assert.equal([...html.matchAll(/<button\b[^>]*type="button"/g)].length, 2);
+    assert.ok(html.includes('aria-labelledby="usage-reload-heading"'));
+    assert.equal(/<dialog\b[^>]*\bopen[\s=>]/.test(html), false);
     assert.deepEqual(values, before);
   }
 });

@@ -107,8 +107,7 @@ test("form enhancement keeps the native POST and server children without additio
   const { UsagePlanningForm } = await assessmentUiComponents();
   const action = "/api/assessments/4640bbac-c20f-476a-a4dc-23efad5ff14f/usage-planning";
   const html = renderToStaticMarkup(createElement(UsagePlanningForm, { action },
-    createElement("input", { name: "expectedVersion", type: "hidden", value: "5" }),
-    createElement("button", { type: "submit" }, "Save usage inputs")));
+    createElement("input", { name: "expectedVersion", type: "hidden", value: "5" })));
   assert.ok(html.includes(`action="${action}" method="post"`));
   assert.equal((html.match(/<input\b/g) ?? []).length, 1);
   assert.equal(html.includes('role="alert"'), false); assert.equal(html.includes("<script"), false);
@@ -121,6 +120,6 @@ test("blocked form submissions do not clear the workflow dirty guard or introduc
   const formSource = await readFile(new URL("../src/app/assessments/[id]/usage-planning-form.tsx", import.meta.url), "utf8");
   assert.ok(formSource.includes("event.preventDefault()")); assert.ok(formSource.includes("summary.current?.focus()"));
   assert.ok(formSource.includes("details.open = true"));
-  for (const unsupported of ["fetch(", "localStorage", "sessionStorage", "setCustomValidity", ".submit(", ".requestSubmit("])
+  for (const unsupported of ["localStorage", "sessionStorage", "setCustomValidity", ".submit(", ".requestSubmit("])
     assert.equal(formSource.includes(unsupported), false);
 });

@@ -101,6 +101,8 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/audit-guidance"', JSON.stringify(new URL("../../src/lib/assessment/audit-guidance.ts", import.meta.url).href))));
   const usageFormUrl = moduleUrl((await compile("../../src/app/assessments/[id]/usage-planning-form.tsx"))
+    .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
+    .replaceAll('"@/lib/assessment/usage-save"', JSON.stringify(new URL("../../src/lib/assessment/usage-save.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/usage-form-validation"', JSON.stringify(new URL("../../src/lib/assessment/usage-form-validation.ts", import.meta.url).href)));
   const usageForm = await import(usageFormUrl);
   const usageEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/usage-planning-editor.tsx"))

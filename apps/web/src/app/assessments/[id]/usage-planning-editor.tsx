@@ -103,9 +103,6 @@ export function UsagePlanningEditor({ assessmentId, version, values }: {
           <p className="mt-3 text-slate-400">These are AuthWeave planning definitions, not a universal vendor counting standard. Missing quantities remain unknown; they do not mean zero cost.</p>
         </details>
         <p className="text-sm leading-6 text-slate-400">“Observed” is your statement, not independently verified evidence. Other assessment fields are preserved. Opening explanations does not save anything.</p>
-        <button type="submit" className="rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">
-          Save usage inputs
-        </button>
       </UsagePlanningForm>
     </section>
   );

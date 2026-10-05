@@ -272,13 +272,26 @@ saves. These definitions are not provider billing units, verified measurements,
 capacity results or a cost estimate. The existing four pairs, ten assumption fields,
 explicit Save and saved-version input check remain unchanged.
 
-Usage also checks the existing form rules before a JavaScript-enabled native POST.
+Usage also checks the existing form rules before submitting the same form payload.
 An Unknown/value mismatch, a missing Assumed/Observed number or an invalid assumption
 stays on the same page with fixed feedback and links to the affected fields. Nothing
 is sent or automatically corrected; edits and the unsaved-navigation guard remain.
 The small client form wrapper receives server-rendered controls and keeps the same
 POST route and payload. The server still validates every submission independently;
 client feedback is not a security check, a successful-save receipt or input readiness.
+
+Within the guided workspace, Usage opts into a small same-origin JSON acknowledgement
+on the existing POST route. The response binds only the assessment ID, submitted
+version and outcome; ownership, origin, form and optimistic-write checks still run
+on the server. A version conflict keeps the form and edits in the current tab,
+without merging, overwriting or automatically retrying. Loading the current saved
+version requires explicit confirmation that local edits will be discarded. Until
+then, summaries belong to the version originally loaded, not the current server
+version. Pending requests freeze controls and step navigation. Lost, timed-out or
+malformed replies are uncertain: the write may have committed, so the user must
+inspect the current saved version before resubmitting. Only a checked save
+acknowledgement automatically reloads saved inputs. Native submissions without the
+JSON opt-in keep their existing redirects; the other editors are unchanged.
 
 The protected `/assessments` list identifies saved drafts by application type, users
 and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown

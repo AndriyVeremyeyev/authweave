@@ -1367,18 +1367,21 @@ test("usage planning route preserves the personal session and writes only scoped
   form.set("basis_MONTHLY_ACTIVE_USERS", "ASSUMED");
   form.set("value_MONTHLY_ACTIVE_USERS", "500");
   const context = { params: Promise.resolve({ id: assessmentId }) };
-  const request = (origin: string, cookie: string | null, body = form.toString()) => new NextRequest(
+  const request = (origin: string, cookie: string | null, body = form.toString(), accept?: string) => new NextRequest(
     `http://localhost:3000/api/assessments/${assessmentId}/usage-planning`, {
       method: "POST", headers: { Origin: origin, "Content-Type": "application/x-www-form-urlencoded",
+        ...(accept ? { Accept: accept } : {}),
         ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}) }, body,
     },
   );
   const calls: string[] = [];
+  let coreStatus: "DRAFT" | "ARCHIVED" = "DRAFT";
+  let writeStatus = 200;
   globalThis.fetch = async (input, init) => {
     calls.push(`${init?.method} ${input}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
     if (init?.method === "GET") return Response.json({ id: assessmentId, workspaceId,
-      status: "DRAFT", version: 2, profileSchemaVersion: 6, profile });
+      status: coreStatus, version: 2, profileSchemaVersion: 6, profile });
     const update = JSON.parse(String(init?.body));
     assert.equal(update.expectedVersion, 2);
     assert.deepEqual(update.profile.operations.usagePlanning, {
@@ -1387,6 +1390,7 @@ test("usage planning route preserves the personal session and writes only scoped
     });
     assert.equal(update.profile.operations.hosting, "UNKNOWN");
     assert.deepEqual(update.profile.security, profile.security);
+    if (writeStatus !== 200) return new Response("Private upstream write details", { status: writeStatus });
     return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
       profileSchemaVersion: 6, profile: update.profile });
   };
@@ -1429,6 +1433,46 @@ test("usage planning route preserves the personal session and writes only scoped
     assert.equal(conflict.headers.get("location"),
       `http://localhost:3000/assessments/${assessmentId}?step=usage&usageError=stale`);
     assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT", "GET"]);
+    // JSON is opt-in; native navigation and all ownership/version guards remain intact.
+    calls.length = 0;
+    const jsonRequest = (body = form.toString(), origin = "http://localhost:3000", cookie: string | null = sessionId) =>
+      request(origin, cookie, body, "application/json");
+    assert.equal((await usagePlanningRoute(jsonRequest(form.toString(), "https://other.example.test"), context)).status, 403);
+    assert.equal((await usagePlanningRoute(jsonRequest(form.toString(), "http://localhost:3000", null), context)).status, 401);
+    assert.equal((await usagePlanningRoute(jsonRequest(forged.toString()), context)).status, 400);
+    assert.equal(calls.length, 0);
+    const jsonSaved = await usagePlanningRoute(jsonRequest(), context);
+    assert.equal(jsonSaved.status, 200);
+    assert.deepEqual(await jsonSaved.json(), { assessmentId, expectedVersion: 2, outcome: "saved" });
+    assert.equal(jsonSaved.headers.get("cache-control"), "no-store");
+    assert.equal(jsonSaved.headers.get("referrer-policy"), "no-referrer");
+    assert.equal(jsonSaved.headers.get("vary"), "Accept"); assert.equal(jsonSaved.headers.get("location"), null);
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT"]);
+    calls.length = 0;
+    const jsonStale = await usagePlanningRoute(jsonRequest(stale.toString()), context);
+    assert.equal(jsonStale.status, 409);
+    assert.deepEqual(await jsonStale.json(), { assessmentId, expectedVersion: 1, outcome: "conflict" });
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET"]);
+    for (const [status, outcome] of [[409, "conflict"], [422, "invalid"]] as const) {
+      calls.length = 0; writeStatus = status;
+      const response = await usagePlanningRoute(jsonRequest(), context);
+      assert.equal(response.status, status);
+      assert.deepEqual(await response.json(), { assessmentId, expectedVersion: 2, outcome });
+      assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET", "PUT"]);
+    }
+    calls.length = 0; coreStatus = "ARCHIVED";
+    const jsonLocked = await usagePlanningRoute(jsonRequest(), context);
+    assert.equal(jsonLocked.status, 423);
+    assert.deepEqual(await jsonLocked.json(), { assessmentId, expectedVersion: 2, outcome: "locked" });
+    assert.deepEqual(calls.map(call => call.split(" ")[0]), ["GET"]);
+    coreStatus = "DRAFT"; writeStatus = 500;
+    const unavailable = await usagePlanningRoute(jsonRequest(), context);
+    assert.equal(unavailable.status, 503); assert.equal(unavailable.headers.get("cache-control"), "no-store");
+    assert.equal(await unavailable.text(), "Assessment update is temporarily unavailable.");
+    writeStatus = 200;
+    const native = await usagePlanningRoute(request("http://localhost:3000", sessionId, form.toString(), "application/json, text/html"), context);
+    assert.equal(native.status, 303);
+    assert.equal(native.headers.get("location"), `http://localhost:3000/assessments/${assessmentId}?step=usage`);
   } finally {
     await revokeSession(sessionId);
     globalThis.fetch = previous.fetch;
