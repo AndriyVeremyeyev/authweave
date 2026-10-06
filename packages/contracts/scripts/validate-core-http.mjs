@@ -13,6 +13,7 @@ import { lifecycleV2PreviewFromCore } from "../../../apps/web/src/lib/assessment
 import { expectedAnalysis, validateArchitectureConfiguration } from "../tests/helpers/architecture-configuration-spec.mjs";
 import { architectureConfigurationFromCore } from "../../../apps/web/src/lib/assessment/architecture-configuration.ts";
 import { validateConfigurationRegression } from "../tests/helpers/architecture-configuration-regression-spec.mjs";
+import { validateOperationsPlanning } from "../tests/helpers/operations-planning-spec.mjs";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -42,6 +43,9 @@ let combinedConsumerSamples = 0;
 let lifecycleSamples = 0;
 let lifecycleV2Samples = 0;
 let architectureConfigurationSamples = 0;
+let operationsPlanningSamples = 0;
+const operationsSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("operations-saved-"))
+  .map(s => [s.name.slice("operations-saved-".length), s.payload]));
 const architectureConfigurationRequests = new Map(samples.filter(s => s.schema === "architecture-configuration-request" && s.valid)
   .map(s => [s.name.slice(0, -"-request".length), s.payload]));
 const architectureConfigurationSaved = new Map(samples.filter(s => s.valid && s.name.startsWith("architecture-config-saved-")
@@ -373,6 +377,19 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "operations-planning-preflight" && valid) {
+    const saved = operationsSaved.get(name.slice("operations-planning-".length));
+    validateOperationsPlanning(payload, saved, "2026-09-12T12:00:00Z"); operationsPlanningSamples++;
+    for (const mutate of [r => r.assessmentVersion++, r => r.status = r.status === "INPUTS_RECORDED" ? "NEEDS_INFORMATION" : "INPUTS_RECORDED",
+      r => r.inputs.deploymentTarget = r.inputs.deploymentTarget === "AZURE" ? "AWS" : "AZURE",
+      r => r.options[0].hostingAlignment = r.options[0].hostingAlignment === "PREFERENCE_ALIGNED" ? "PREFERENCE_DIFFERS" : "PREFERENCE_ALIGNED",
+      r => r.options[1].supportPlanning = r.options[1].supportPlanning === "RESPONSIBILITY_PLAN_NEEDED" ? "SUPPORT_CAPACITY_UNDEFINED" : "RESPONSIBILITY_PLAN_NEEDED",
+      r => r.options[0].budgetPlanning = r.options[0].budgetPlanning === "COST_MODEL_NEEDED" ? "BUDGET_SCOPE_UNDEFINED" : "COST_MODEL_NEEDED",
+      r => r.options[0].tradeoffs[0] = "No operational cost or responsibility remains"]) {
+      const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true);
+      assert.throws(() => validateOperationsPlanning(forged, saved, "2026-09-12T12:00:00Z"), undefined, "Shape-valid operations substitutions cannot replace exact saved inputs and generic scope.");
+    }
+  }
   if (schema === "catalog-architecture-configuration-regression-check" && valid) {
     validateConfigurationRegression(payload);
     for (const mutate of [r => { r.outcomes.conditionallySatisfied--; r.outcomes.conditionallyNotSatisfied++; },
@@ -542,6 +559,7 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-impact-report-page:true", "catalog-impact-report-page:false",
   "catalog-impact-report-event:true", "catalog-impact-report-event:false",
   "capability-preflight:true", "eligibility-preflight:true", "architecture-pattern-preflight:true",
+  "operations-planning-preflight:true", "operations-planning-preflight:false",
   "architecture-prerequisite-request:true", "architecture-prerequisite-request:false",
   "architecture-prerequisite-preview:true", "architecture-prerequisite-preview:false",
   "architecture-configuration-request:true", "architecture-configuration-request:false",
@@ -579,6 +597,8 @@ for (const required of ["assessment-response:true", "core-problem:true",
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.equal(operationsPlanningSamples, 17, "Unknown and all sixteen hosting/expertise saved contexts must reach independent operations replay.");
+console.log(`Verified ${operationsPlanningSamples} operations planning responses against exact saved inputs and generic responsibility boundaries.`);
 assert.ok(architectureConfigurationSamples > 0, "Actual architecture settings must reach independent request, saved-scope and conditional outcome checks.");
 console.log(`Verified ${architectureConfigurationSamples} proposed architecture configurations with independent version, scope, settings, metadata and preflight guards.`);
 assert.ok(combinedConstraintSamples > 0, "Combined v6 HTTP responses must reach independent auditability/aggregate/scoring checks.");

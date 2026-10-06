@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/operations-planning-preflight.v1.schema.json",
+  "title": "Unverified operations planning preflight",
+  "description": "Saved owner preferences and generic managed/self-hosted responsibilities. Not provider eligibility, supported deployment, observed expertise, verified usage, a free tier, budget fit or a cost estimate. Semantic binding is independently replayed against the saved assessment.",
+  "type": "object", "additionalProperties": false,
+  "required": ["workspaceId", "assessmentId", "assessmentVersion", "evaluatedAt", "inputs", "usageInputs", "options", "policyVersion", "scope", "analysisBasis", "status", "missingPaths", "checkedPaths", "sharedResponsibilities", "deferredBoundaries", "references", "hostingExplanation", "deploymentExplanation", "budgetExplanation", "providerEligibilityEvaluated", "deploymentCompatibilityVerified", "operationalReadinessVerified", "pricingEvaluated", "costModelEvaluated", "budgetFitVerified", "configurationVerified", "recommendationReady", "publicationReady", "writesPerformed"],
+  "properties": {
+    "workspaceId": { "type": "string", "format": "uuid" }, "assessmentId": { "type": "string", "format": "uuid" },
+    "assessmentVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }, "evaluatedAt": { "type": "string", "format": "date-time" },
+    "inputs": { "type": "object", "additionalProperties": false, "required": ["hosting", "deploymentTarget", "identityExpertise", "budgetSensitivity"], "properties": {
+      "hosting": { "enum": ["MANAGED", "SELF_HOSTED", "NO_PREFERENCE", "UNKNOWN"] },
+      "deploymentTarget": { "enum": ["AZURE", "AWS", "GOOGLE_CLOUD", "ON_PREMISES", "MULTI_CLOUD", "UNDECIDED"] },
+      "identityExpertise": { "enum": ["LIMITED", "MODERATE", "ADVANCED", "UNKNOWN"] }, "budgetSensitivity": { "enum": ["HIGH", "MODERATE", "LOW", "UNKNOWN"] } } },
+    "usageInputs": { "type": "object", "additionalProperties": false, "required": ["status", "recordedMetrics", "missingPaths"], "properties": {
+      "status": { "$ref": "#/$defs/status" }, "recordedMetrics": { "type": "array", "maxItems": 4, "uniqueItems": true, "items": { "enum": ["MONTHLY_ACTIVE_USERS", "ENTERPRISE_SSO_CONNECTIONS", "MONTHLY_M2M_TOKEN_ISSUANCES", "PEAK_HUMAN_LOGINS_PER_SECOND"] } },
+      "missingPaths": { "type": "array", "maxItems": 6, "uniqueItems": true, "items": { "enum": ["operations.usagePlanning.scopeDescription", "operations.usagePlanning.assumptions", "operations.usagePlanning.volumes.MONTHLY_ACTIVE_USERS", "operations.usagePlanning.volumes.ENTERPRISE_SSO_CONNECTIONS", "operations.usagePlanning.volumes.MONTHLY_M2M_TOKEN_ISSUANCES", "operations.usagePlanning.volumes.PEAK_HUMAN_LOGINS_PER_SECOND"] } } } },
+    "options": { "type": "array", "minItems": 2, "maxItems": 2, "items": false, "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/option" }, { "type": "object", "properties": { "optionId": { "const": "MANAGED_IDENTITY_SERVICE" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/option" }, { "type": "object", "properties": { "optionId": { "const": "SELF_HOSTED_IDENTITY_SERVICE" } } }] } ] },
+    "policyVersion": { "const": "operations-planning-preflight-1" }, "scope": { "const": "UNVERIFIED_OPERATIONS_PLANNING" }, "analysisBasis": { "const": "SAVED_OWNER_INPUTS_AND_GENERIC_RESPONSIBILITIES" },
+    "status": { "$ref": "#/$defs/status" }, "missingPaths": { "type": "array", "maxItems": 10, "uniqueItems": true, "items": { "type": "string", "maxLength": 100 } },
+    "checkedPaths": { "const": ["operations.hosting", "operations.deploymentTarget", "operations.identityExpertise", "operations.budgetSensitivity", "operations.usagePlanning.scopeDescription", "operations.usagePlanning.assumptions", "operations.usagePlanning.volumes"] },
+    "sharedResponsibilities": { "const": ["Own application integration, tenant/client configuration and application authorization.", "Assign lifecycle, incident response and evidence-review owners; document escalation and recovery responsibilities.", "Verify the operator contract, limits and responsibility split for the exact deployment."] },
+    "deferredBoundaries": { "const": ["Exact provider, plan, region and application-to-identity deployment compatibility", "Observed operator capacity, responsibilities, support and recovery exercises", "Dated prices, billing-unit mapping, paid features and additional environments", "Infrastructure, support, migration and team operational costs", "Protocol, lifecycle, auditability, assurance and compliance verification", "Provider eligibility, scoring, ranking and final recommendation"] },
+    "references": { "const": ["https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility", "https://www.keycloak.org/server/configuration-production"] },
+    "hostingExplanation": { "const": "Hosting alignment is a preference comparison, not provider eligibility or a hard requirement." },
+    "deploymentExplanation": { "const": "The saved deployment target describes the assessed application, not a verified identity-service location or supported hosting combination." },
+    "budgetExplanation": { "const": "Budget sensitivity is a preference, not a spending cap. Recorded usage, including zero, cannot establish a free tier or total cost." },
+    "providerEligibilityEvaluated": { "const": false }, "deploymentCompatibilityVerified": { "const": false }, "operationalReadinessVerified": { "const": false }, "pricingEvaluated": { "const": false }, "costModelEvaluated": { "const": false }, "budgetFitVerified": { "const": false }, "configurationVerified": { "const": false }, "recommendationReady": { "const": false }, "publicationReady": { "const": false }, "writesPerformed": { "const": false }
+  },
+  "$defs": {
+    "status": { "enum": ["NEEDS_INFORMATION", "INPUTS_RECORDED"] },
+    "option": { "type": "object", "additionalProperties": false, "required": ["optionId", "hostingAlignment", "supportPlanning", "budgetPlanning", "advantages", "tradeoffs", "responsibilities"], "properties": {
+      "optionId": { "enum": ["MANAGED_IDENTITY_SERVICE", "SELF_HOSTED_IDENTITY_SERVICE"] },
+      "hostingAlignment": { "enum": ["PREFERENCE_ALIGNED", "PREFERENCE_DIFFERS", "NO_PREFERENCE", "PREFERENCE_UNKNOWN"] },
+      "supportPlanning": { "enum": ["INTEGRATION_SUPPORT_PLAN_NEEDED", "OPERATOR_SUPPORT_PLAN_NEEDED", "RESPONSIBILITY_PLAN_NEEDED", "SUPPORT_CAPACITY_UNDEFINED"] },
+      "budgetPlanning": { "enum": ["COST_MODEL_NEEDED", "BUDGET_SCOPE_UNDEFINED"] },
+      "advantages": { "type": "array", "minItems": 1, "maxItems": 1, "items": { "type": "string", "minLength": 1, "maxLength": 250 } },
+      "tradeoffs": { "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 250 } },
+      "responsibilities": { "type": "array", "minItems": 2, "maxItems": 2, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 250 } } } }
+  }
+}

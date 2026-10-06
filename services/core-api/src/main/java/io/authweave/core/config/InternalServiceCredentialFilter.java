@@ -93,14 +93,9 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
                 response.sendError(HttpServletResponse.SC_BAD_REQUEST);
                 return;
             }
-            String issuer = singleHeader(request, "X-AuthWeave-Oidc-Issuer", 2048);
-            String subject = singleHeader(request, "X-AuthWeave-Oidc-Subject", 256);
-            if (issuer == null || subject == null) {
-                response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
-                return;
-            }
-            if (!workspaces.owns(issuer, subject, workspaceId)) {
-                response.sendError(HttpServletResponse.SC_FORBIDDEN);
+            int workspaceStatus = personalWorkspaceStatus(request, workspaceId);
+            if (workspaceStatus != HttpServletResponse.SC_OK) {
+                response.sendError(workspaceStatus);
                 return;
             }
         }
@@ -141,6 +136,16 @@ public final class InternalServiceCredentialFilter extends OncePerRequestFilter 
 
     /** Controller-level defense for internal read-only diagnostics; no curator assertion or workspace is implied. */
     public int serviceCredentialStatus(HttpServletRequest request) { return credentialStatus(request); }
+
+    /** Reusable routed-workspace guard for controllers as well as the URI-based filter. */
+    public int personalWorkspaceStatus(HttpServletRequest request, UUID workspaceId) {
+        int credential = credentialStatus(request);
+        if (credential != HttpServletResponse.SC_OK) return credential;
+        String issuer = singleHeader(request, "X-AuthWeave-Oidc-Issuer", 2048);
+        String subject = singleHeader(request, "X-AuthWeave-Oidc-Subject", 256);
+        if (issuer == null || subject == null) return HttpServletResponse.SC_UNAUTHORIZED;
+        return workspaces.owns(issuer, subject, workspaceId) ? HttpServletResponse.SC_OK : HttpServletResponse.SC_FORBIDDEN;
+    }
 
     private int credentialStatus(HttpServletRequest request) {
         if (token.length() < 32) return HttpServletResponse.SC_SERVICE_UNAVAILABLE;

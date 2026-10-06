@@ -82,6 +82,79 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @Test
+    void operationsPlanningReadsBoundOwnerInputsWithoutExclusionPricingOrHistoryWrites() throws Exception {
+        String issuer = "http://localhost:8081", subject = "synthetic-operations-owner-" + UUID.randomUUID();
+        UUID workspaceId = applicationContext.getBean(io.authweave.core.assessment.application.PersonalWorkspaceService.class).provision(issuer, subject);
+        String root = "/api/v6/workspaces/" + workspaceId + "/assessments";
+        var saved = versionedSample("operations-saved-0", "assessment-response.v6", mvc.perform(post(root)).andExpect(status().isCreated()).andReturn());
+        String v6 = root + "/" + saved.get("id").asText(), endpoint = v6.replace("/api/v6/", "/api/v1/") + "/operations-planning-preflight";
+        String eventPath = v6.replace("/api/v6/", "/api/v1/") + "/events";
+        operationsSample("0", endpoint, issuer, subject);
+        var hosting = io.authweave.core.assessment.domain.profile.OperationalConstraints.HostingPreference.values();
+        var expertise = io.authweave.core.assessment.domain.profile.OperationalConstraints.IdentityExpertise.values();
+        var budgets = io.authweave.core.assessment.domain.profile.OperationalConstraints.BudgetSensitivity.values();
+        var targets = io.authweave.core.assessment.domain.profile.OperationalConstraints.DeploymentTarget.values();
+        int index = 0;
+        for (var host : hosting) for (var expert : expertise) {
+            index++;
+            var update = mapper.createObjectNode().put("expectedVersion", saved.get("version").asLong()); update.set("profile", saved.get("profile").deepCopy());
+            var security = (ObjectNode) update.at("/profile/security"); security.put("auditability", "REQUIRED");
+            var audit = (ObjectNode) security.get("auditabilityRequirements"); audit.putArray("selectedCriteria").add("AUTHENTICATION_SUCCESS_EVENTS"); audit.putNull("minimumRetentionDays");
+            var ops = (ObjectNode) update.at("/profile/operations"); ops.put("hosting", host.name()).put("identityExpertise", expert.name())
+                    .put("deploymentTarget", targets[index % targets.length].name()).put("budgetSensitivity", budgets[index % budgets.length].name());
+            var planning = ops.putObject("usagePlanning"); planning.put("scopeDescription", index % 3 == 0 ? " " : "Synthetic pilot; one environment");
+            var assumptions = planning.putArray("assumptions"); if (index % 3 != 1) assumptions.add("Synthetic test assumption");
+            var volumes = planning.putObject("volumes"); int metricIndex = 0;
+            for (var metric : io.authweave.core.assessment.domain.profile.UsagePlanning.Metric.values()) {
+                if (index % 4 == 2 || index % 4 == 1 && metricIndex++ > 0) continue;
+                volumes.putObject(metric.name()).put("basis", index % 4 == 3 ? "OBSERVED" : "ASSUMED").put("value", 0);
+            }
+            sample("operations-save-request-" + index, "update-assessment-profile-request.v6", true, update.deepCopy());
+            saved = versionedSample("operations-saved-" + index, "assessment-response.v6", mvc.perform(put(v6 + "/profile").contentType(MediaType.APPLICATION_JSON)
+                    .content(update.toString())).andExpect(status().isOk()).andReturn());
+            var history = mvc.perform(get(v6 + "/revisions")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            var events = mvc.perform(get(eventPath)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            var result = operationsSample(Integer.toString(index), endpoint, issuer, subject);
+            assertEquals(saved.get("version").asLong(), result.get("assessmentVersion").asLong()); assertEquals(2, result.get("options").size());
+            assertFalse(result.toString().contains("Synthetic pilot")); assertFalse(result.toString().contains("Synthetic test assumption"));
+            assertEquals(saved, mapper.readTree(mvc.perform(get(v6)).andReturn().getResponse().getContentAsString()));
+            assertEquals(history, mvc.perform(get(v6 + "/revisions")).andReturn().getResponse().getContentAsString());
+            assertEquals(events, mvc.perform(get(eventPath)).andReturn().getResponse().getContentAsString());
+            assertEquals("AUTHENTICATION_SUCCESS_EVENTS", saved.at("/profile/security/auditabilityRequirements/selectedCriteria/0").asText());
+        }
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        mvc.perform(get(endpoint)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token, token)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", "wrong").header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer, issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", "other-owner")).andExpect(status().isForbidden());
+        mvc.perform(get(endpoint.replace(workspaceId.toString(), UUID.randomUUID().toString())).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isForbidden());
+        mvc.perform(get(endpoint.replace(saved.get("id").asText(), UUID.randomUUID().toString())).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isNotFound());
+        for (var request : List.of(get(endpoint).queryParam("hosting", "MANAGED"), get(endpoint).content("{}"), get(endpoint).header("Transfer-Encoding", "chunked")))
+            mvc.perform(request.header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isBadRequest());
+        mvc.perform(post(endpoint).header("Authorization", token)).andExpect(status().isMethodNotAllowed());
+        assertEquals(saved, mapper.readTree(mvc.perform(get(v6)).andReturn().getResponse().getContentAsString()));
+    }
+
+    private JsonNode operationsSample(String id, String endpoint, String issuer, String subject) throws Exception {
+        var result = versionedSample("operations-planning-" + id, "operations-planning-preflight", mvc.perform(get(endpoint)
+                .header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                .header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andReturn());
+        if (id.equals("0")) {
+            for (String flag : List.of("providerEligibilityEvaluated", "deploymentCompatibilityVerified", "operationalReadinessVerified", "pricingEvaluated", "costModelEvaluated", "budgetFitVerified", "configurationVerified", "recommendationReady", "publicationReady", "writesPerformed")) {
+                var forged = (ObjectNode) result.deepCopy(); forged.put(flag, true); sample("operations-no-" + flag, "operations-planning-preflight", false, forged);
+            }
+            for (String field : List.of("winner", "score", "estimatedCost", "budgetLimit", "scopeDescription", "eligible")) {
+                var forged = (ObjectNode) result.deepCopy(); forged.put(field, "forged"); sample("operations-no-" + field, "operations-planning-preflight", false, forged);
+            }
+            var partial = (ObjectNode) result.deepCopy(); partial.withArray("options").remove(1); sample("operations-both-alternatives", "operations-planning-preflight", false, partial);
+        }
+        return result;
+    }
+
+    @Test
     void configurationRegressionIsInputFreeCredentialProtectedBodyFreeAndReadOnly() throws Exception {
         String path = "/internal/v1/catalog-architecture-configuration/regression-preflight";
         String token = "Bearer synthetic-internal-token-000000000000000000000";

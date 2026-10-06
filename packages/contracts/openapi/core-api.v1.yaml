@@ -1506,6 +1506,49 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/operations-planning-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Compare generic managed and self-hosted operational responsibilities
+      operationId: getOperationsPlanningPreflight
+      description: >-
+        Personal-workspace, service-credential protected read of the exact saved
+        assessment. Accepts no query or body. Compares hosting preferences without
+        excluding either alternative; declared expertise does not verify operator
+        capacity. Deployment target describes the application, not an inferred IdP
+        location. Includes only usage input presence and missing paths, not owner
+        free text or quantities. Zero or small usage never implies a free tier.
+        No provider eligibility, deployment compatibility, SLA, cost estimate,
+        budget fit, readiness, scoring, recommendation or writes. Reads v6 profiles
+        without downgrade; existing coverage gates and usage endpoint are unchanged.
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Unverified owner inputs and two generic alternatives; all readiness flags false.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+              description: Saved-input planning results must not be cached.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/operations-planning-preflight.v1.schema.json
+        "400":
+          description: A query or body was supplied to the input-free read.
+        "401":
+          description: Missing, duplicate or invalid service credential or identity headers.
+        "403":
+          description: The asserted identity does not own the routed personal workspace.
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "503":
+          description: The server service credential is not configured.
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-pattern-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"

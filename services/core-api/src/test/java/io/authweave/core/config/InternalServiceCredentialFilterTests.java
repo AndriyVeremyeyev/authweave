@@ -16,6 +16,31 @@ class InternalServiceCredentialFilterTests {
     private static final String ORGANIZATION = "987654321098765432";
 
     @Test
+    void operationsControllerBindsRoutedWorkspaceEvenWhenUriEncodingBypassesTheFilter() throws Exception {
+        var id = java.util.UUID.fromString("60000000-0000-4000-8000-000000000001");
+        var assessment = java.util.UUID.fromString("80000000-0000-4000-8000-000000000001");
+        var workspaces = org.mockito.Mockito.mock(io.authweave.core.assessment.application.PersonalWorkspaceService.class);
+        org.mockito.Mockito.when(workspaces.owns("http://localhost:8081", "owner", id)).thenReturn(true);
+        var service = org.mockito.Mockito.mock(io.authweave.core.evaluation.OperationsPlanningPreflightService.class);
+        var filter = new InternalServiceCredentialFilter(TOKEN, workspaces, "", "");
+        var controller = new io.authweave.core.evaluation.OperationsPlanningPreflightController(service, filter);
+        String path = "/%61pi/v1/workspaces/" + id + "/assessments/" + assessment + "/operations-planning-preflight";
+        for (String subject : java.util.List.of("", "other-owner", "owner")) {
+            var request = new MockHttpServletRequest("GET", path); request.addHeader("Authorization", "Bearer " + TOKEN); request.addHeader("X-AuthWeave-Oidc-Issuer", "http://localhost:8081");
+            if (!subject.isEmpty()) request.addHeader("X-AuthWeave-Oidc-Subject", subject);
+            if (subject.equals("owner")) request.setQueryString("");
+            assertEquals(subject.isEmpty() ? 401 : subject.equals("owner") ? 400 : 403, controller.preview(id, assessment, request).getStatusCode().value());
+        }
+        var request = new MockHttpServletRequest("GET", path);
+        assertEquals(401, controller.preview(id, assessment, request).getStatusCode().value());
+        assertEquals(503, new InternalServiceCredentialFilter("", workspaces, "", "").personalWorkspaceStatus(request, id));
+        org.mockito.Mockito.verifyNoInteractions(service);
+        request.addHeader("Authorization", "Bearer " + TOKEN); request.addHeader("X-AuthWeave-Oidc-Issuer", "http://localhost:8081"); request.addHeader("X-AuthWeave-Oidc-Subject", "owner");
+        assertEquals(200, filter.personalWorkspaceStatus(request, id));
+        assertEquals(403, filter.personalWorkspaceStatus(request, java.util.UUID.randomUUID()));
+    }
+
+    @Test
     void configurationRegressionRequiresOneConfiguredServiceCredentialAndControllerRechecksEncodedRouting() throws Exception {
         String path = "/internal/v1/catalog-architecture-configuration/regression-preflight";
         for (var configured : java.util.List.of("", TOKEN)) for (var supplied : java.util.List.of("", "wrong", TOKEN, "duplicate")) {

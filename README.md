@@ -1191,6 +1191,35 @@ V1/v2/v3/v4 eligibility endpoints, policies and synthetic catalog v4 remain unch
 there is no v5 eligibility endpoint. The separate browser-only `/preview` remains v1
 without a usage-input editor; the private authenticated draft page has one.
 
+### Operations planning: managed and self-hosted alternatives
+
+Credential- and personal-workspace-protected GET
+`/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/operations-planning-preflight`
+compares two generic identity-service operating models against the exact saved
+assessment version. It accepts no query or body and returns no-store results.
+Hosting alignment is only a preference comparison: both alternatives remain visible.
+Limited declared identity expertise prompts separate integration/operator support
+planning; advanced expertise is not evidence of operational readiness. Deployment
+target describes the assessed application, not a verified IdP location or compatibility.
+
+Results include shared and model-specific responsibilities, advantages, tradeoffs,
+typed support/cost-model follow-ups and missing inputs. Usage output contains only
+recorded metric IDs and missing paths, never quantities, scope text or assumptions.
+An explicit zero is recorded, not unknown. `INPUTS_RECORDED` means the operational
+preferences and existing usage-input requirements are filled in, not verified.
+Budget sensitivity is not a spending cap; even zero usage cannot establish a free
+tier or total cost. Provider eligibility, deployment compatibility, pricing, cost
+model, budget fit, configuration, readiness, recommendation and write flags stay false.
+
+The generic responsibility model is informed by
+[shared responsibility guidance](https://learn.microsoft.com/en-us/azure/security/fundamentals/shared-responsibility)
+and [self-operated identity production concerns](https://www.keycloak.org/server/configuration-production),
+not verified vendor-plan facts. This assesses the target application's identity design,
+not AuthWeave's own hosting or budget. V6 profiles are read without downgrade;
+assessment state/history, catalogs, coverage gates and the existing usage check are
+unchanged. The personal BFF/UI connection is a separate follow-up. No dependencies,
+accounts, subscriptions, price lookups or provider calls are added.
+
 ### Proposed auditability supplement: exact binding before source review
 
 `POST /internal/v1/catalog-auditability/drafts/validate` accepts a
