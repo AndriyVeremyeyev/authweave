@@ -389,6 +389,42 @@ paths:
           description: Missing, duplicate or invalid server service credential.
         '503':
           description: Server service credential is not configured.
+  /internal/v1/catalog-architecture-configuration/regression-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Inspect source-controlled proposed architecture settings regression
+      operationId: getSyntheticArchitectureConfigurationRegressionCheck
+      description: >-
+        Internal local-only read requiring the server service credential. Accepts
+        no query, body, caller profiles or completeness assertions. Checks 252
+        explicit synthetic designs across four unchanged frozen v5 profiles, five
+        patterns and three client-context variants. Independently verifies expected
+        outcomes for missing, unknown, reference, mismatched and native-loopback
+        settings without hiding the separate saved-input preflight. Returns only
+        no-store metadata, digests, counts and deferred boundaries, not fixture
+        bodies or identity. Does not inspect IdP configuration, compare proposed
+        catalogs, store receipts or change legacy coverage/publication gates.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: Body-free synthetic design regression; verification and authority remain false.
+          headers:
+            Cache-Control:
+              description: Diagnostic results must not be cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-architecture-configuration-regression-check.v1.schema.json
+        '400':
+          description: A body or query was supplied to this input-free read.
+        '401':
+          description: Missing, duplicate or invalid service credential.
+        '503':
+          description: Server service credential is not configured.
   /internal/v1/catalog-auditability/regression-preflight:
     get:
       tags: [Catalog drafts]

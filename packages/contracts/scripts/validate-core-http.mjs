@@ -12,6 +12,7 @@ import { lifecyclePreviewFromCore } from "../../../apps/web/src/lib/assessment/p
 import { lifecycleV2PreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle-v2.ts";
 import { expectedAnalysis, validateArchitectureConfiguration } from "../tests/helpers/architecture-configuration-spec.mjs";
 import { architectureConfigurationFromCore } from "../../../apps/web/src/lib/assessment/architecture-configuration.ts";
+import { validateConfigurationRegression } from "../tests/helpers/architecture-configuration-regression-spec.mjs";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -372,6 +373,16 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "catalog-architecture-configuration-regression-check" && valid) {
+    validateConfigurationRegression(payload);
+    for (const mutate of [r => { r.outcomes.conditionallySatisfied--; r.outcomes.conditionallyNotSatisfied++; },
+      r => { r.results.conditionallyMatches--; r.results.needsInformation++; }, r => { r.selectedCases--; r.unknownClientCases++; },
+      r => { r.reasons[0].checks--; r.reasons[1].checks++; }, r => r.savedInputNeedsInformation--,
+      r => r.scenarioSetSha256 = "0".repeat(64), r => r.definitionsSha256 = "0".repeat(64), r => r.analysisSha256 = "0".repeat(64), r => r.evaluatedAt = "2026-09-12T12:00:01Z"]) {
+      const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true);
+      assert.throws(() => validateConfigurationRegression(forged), undefined, "Shape-valid balanced counts or binding substitutions cannot pass independent fixed-clock replay.");
+    }
+  }
   if (schema === "architecture-configuration-preview" && valid) {
     const binding = validateArchitectureConfigurationSample(payload, name);
     const forgeries = [value => { value.preflight.workspaceId = "00000000-0000-4000-8000-000000000001"; },
@@ -561,6 +572,7 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "usage-planning-preflight:true", "usage-planning-preflight:false",
   "auditability-capability-preflight:true", "auditability-capability-preflight:false",
   "catalog-auditability-regression-check:true", "catalog-auditability-regression-check:false",
+  "catalog-architecture-configuration-regression-check:true", "catalog-architecture-configuration-regression-check:false",
   "catalog-profile-impact-coverage:true", "catalog-profile-impact-coverage:false",
   "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",
   "update-assessment-profile-request:true", "update-assessment-profile-request:false"]) {

@@ -82,6 +82,49 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @Test
+    void configurationRegressionIsInputFreeCredentialProtectedBodyFreeAndReadOnly() throws Exception {
+        String path = "/internal/v1/catalog-architecture-configuration/regression-preflight";
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", "wrong-token")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", token, token)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", token).queryParam("settings", "caller-design")).andExpect(status().isBadRequest());
+        mvc.perform(get(path).header("Authorization", token).content("{}")).andExpect(status().isBadRequest());
+        mvc.perform(get(path).header("Authorization", token).header("Transfer-Encoding", "chunked")).andExpect(status().isBadRequest());
+        mvc.perform(post(path).header("Authorization", token).content("{}")).andExpect(status().isMethodNotAllowed());
+        var tables = List.of("core.assessments", "core.assessment_revisions", "audit.assessment_events", "core.catalog_proposals", "core.catalog_impact_reports",
+                "core.catalog_fact_path_reports", "core.catalog_bootstrap_impact_reports", "core.catalog_published_snapshots", "core.catalog_publication_decisions", "audit.catalog_publication_events");
+        var before = tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList();
+        var result = mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.checkedCases").value(252)).andExpect(jsonPath("$.checkedSettings").value(2004))
+                .andExpect(jsonPath("$.outcomes.conditionallySatisfied").value(292)).andExpect(jsonPath("$.results.needsInformation").value(120))
+                .andExpect(jsonPath("$.savedInputNeedsInformation").value(96)).andExpect(jsonPath("$.coverageComplete").value(false)).andReturn();
+        var json = mapper.readTree(result.getResponse().getContentAsString());
+        sample("architecture-configuration-regression", "catalog-architecture-configuration-regression-check", true, json);
+        assertEquals(json, mapper.readTree(mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        assertEquals(before, tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList());
+        var service = applicationContext.getBean(io.authweave.core.catalog.impact.CatalogArchitectureConfigurationRegressionService.class);
+        var expected = service.inspectAt(Instant.parse("2026-09-12T12:00:00Z")); assertEquals(mapper.valueToTree(expected), json);
+        var components = mapper.createObjectNode();
+        for (var component : io.authweave.core.catalog.impact.CatalogArchitectureConfigurationRegressionService.Check.class.getRecordComponents()) components.set(component.getName(), json.get(component.getName()));
+        assertEquals(expected, mapper.treeToValue(components, io.authweave.core.catalog.impact.CatalogArchitectureConfigurationRegressionService.Check.class));
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(components.deepCopy().put("selectedCases", 1),
+                io.authweave.core.catalog.impact.CatalogArchitectureConfigurationRegressionService.Check.class));
+        for (String flag : List.of("candidateChangesEvaluated", "coverageComplete", "configurationObserved", "configurationVerified", "providerCompatibilityVerified", "runtimeFlowVerified", "sourceVerificationPerformed", "storedReportVerified",
+                "baselineVerified", "approvalGranted", "writesPerformed", "publicationReady", "evaluationReady", "recommendationReady")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(flag, true); sample("configuration-regression-no-" + flag, "catalog-architecture-configuration-regression-check", false, forged);
+        }
+        for (String field : List.of("profile", "settings", "actor", "sourceUrl", "rows", "workspaceId")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(field, "private"); sample("configuration-regression-no-" + field, "catalog-architecture-configuration-regression-check", false, forged);
+        }
+        for (String field : List.of("reasons", "exercisedSettings", "checkedPaths", "deferredBoundaries")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.withArray(field).remove(0); sample("configuration-regression-complete-" + field, "catalog-architecture-configuration-regression-check", false, forged);
+        }
+        var forged = (ObjectNode) json.deepCopy(); ((ObjectNode) forged.get("outcomes")).put("unknown", -1);
+        sample("configuration-regression-nonnegative-count", "catalog-architecture-configuration-regression-check", false, forged);
+    }
+
+    @Test
     void internalProfileV6CoverageIsInputFreeProtectedAndCannotPromoteFixtureCoverageOrWrite() throws Exception {
         String path = "/internal/v1/catalog-profile-impact/coverage-preflight";
         String token = "Bearer synthetic-internal-token-000000000000000000000";

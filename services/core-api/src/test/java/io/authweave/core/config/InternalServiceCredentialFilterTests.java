@@ -16,6 +16,24 @@ class InternalServiceCredentialFilterTests {
     private static final String ORGANIZATION = "987654321098765432";
 
     @Test
+    void configurationRegressionRequiresOneConfiguredServiceCredentialAndControllerRechecksEncodedRouting() throws Exception {
+        String path = "/internal/v1/catalog-architecture-configuration/regression-preflight";
+        for (var configured : java.util.List.of("", TOKEN)) for (var supplied : java.util.List.of("", "wrong", TOKEN, "duplicate")) {
+            var request = new MockHttpServletRequest("GET", path);
+            if (!supplied.isEmpty()) request.addHeader("Authorization", "Bearer " + (supplied.equals("duplicate") ? TOKEN : supplied));
+            if (supplied.equals("duplicate")) request.addHeader("Authorization", "Bearer " + TOKEN);
+            var response = new MockHttpServletResponse();
+            new InternalServiceCredentialFilter(configured, null, "", "").doFilter(request, response, new MockFilterChain());
+            assertEquals(configured.isEmpty() ? 503 : supplied.equals(TOKEN) ? 200 : 401, response.getStatus());
+        }
+        var controller = new io.authweave.core.catalog.impact.CatalogArchitectureConfigurationRegressionController(null,
+                new InternalServiceCredentialFilter(TOKEN, null, "", ""), java.time.Clock.systemUTC());
+        assertEquals(401, controller.inspect(new MockHttpServletRequest("GET", "/%69nternal/v1/catalog-architecture-configuration/regression-preflight")).getStatusCode().value());
+        var query = new MockHttpServletRequest("GET", path); query.addHeader("Authorization", "Bearer " + TOKEN); query.setQueryString("");
+        assertEquals(400, controller.inspect(query).getStatusCode().value());
+    }
+
+    @Test
     void v6RoutesRequireServiceCredentialAndExactPersonalWorkspaceOwnership() throws Exception {
         var id = java.util.UUID.fromString("60000000-0000-4000-8000-000000000001");
         var workspaces = org.mockito.Mockito.mock(io.authweave.core.assessment.application.PersonalWorkspaceService.class);

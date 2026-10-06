@@ -582,6 +582,28 @@ fixed feedback. Inputs lock during a request; cancellation, step changes and the
 ten-second deadline suppress late results without automatic retries. Existing
 design-condition forms and the separate saved-input checks remain unchanged.
 
+### Proposed architecture settings regression
+
+The source-controlled regression library exercises 252 explicit synthetic cases
+and 2,004 setting checks across four frozen v5 profiles and five patterns. Three
+client-context variants cover the original profile, unknown clients and an excluded
+pattern client. Designs cover missing, explicit unknown, matching reference and
+incompatible settings with an independent remaining gap, plus the native loopback
+redirect exception. These overlays are test inputs, not user defaults or observations.
+
+Credential-protected GET
+`/internal/v1/catalog-architecture-configuration/regression-preflight` accepts no
+query or body and returns only no-store metadata, hashes, counts and deferred
+boundaries. Core checks the complete ordered report against independent fixture
+expectations; the fixed-clock HTTP contract suite independently replays expected
+counts and rejects shape-valid hash, scope and balanced-count substitutions.
+Conditional settings matches cannot remove separate saved-input preflight gaps.
+
+This is a fresh synthetic regression, not candidate-change impact, an IdP inspection
+or a stored receipt. All verification, full-coverage, readiness and write flags stay
+false. Saved assessments, provider configuration, historical receipts and existing
+coverage/publication gates are unchanged. The personal UI is unchanged in this slice.
+
 ### Provisioning lifecycle design preview
 
 Core POST `/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview`

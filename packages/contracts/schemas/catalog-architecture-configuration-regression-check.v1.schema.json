@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-architecture-configuration-regression-check.v1.schema.json",
+  "title": "Body-free synthetic proposed architecture configuration regression",
+  "description": "Fresh fixed-library regression, not candidate-change impact, observed configuration, a stored receipt or publication authority. Core independently checks the complete source-controlled inputs and ordered results; scope, reason and outcome totals are replayed by the HTTP validator.",
+  "type": "object", "additionalProperties": false,
+  "required": ["evaluatedAt", "scenarioSetSha256", "analysisSha256", "outcomes", "results", "reasons", "selectedCases", "unknownClientCases", "unselectedClientCases", "savedInputNeedsInformation", "scope", "policyVersion", "configurationPolicyVersion", "preflightPolicyVersion", "definitionsSha256", "scenarioSetVersion", "baseScenarioSetVersion", "baseScenarioSetSha256", "profileSchemaVersion", "profileSchemaSha256", "analysisBasis", "declaredProfiles", "declaredPatterns", "checkedCases", "checkedSettings", "exercisedSettings", "checkedPaths", "deferredBoundaries", "candidateChangesEvaluated", "coverageComplete", "configurationObserved", "configurationVerified", "providerCompatibilityVerified", "runtimeFlowVerified", "sourceVerificationPerformed", "storedReportVerified", "baselineVerified", "approvalGranted", "publicationReady", "evaluationReady", "recommendationReady", "writesPerformed"],
+  "properties": {
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "scenarioSetSha256": { "$ref": "#/$defs/hash" }, "analysisSha256": { "$ref": "#/$defs/hash" }, "definitionsSha256": { "$ref": "#/$defs/hash" },
+    "outcomes": { "type": "object", "additionalProperties": false, "required": ["conditionallySatisfied", "conditionallyNotSatisfied", "unknown", "notApplicable"],
+      "properties": { "conditionallySatisfied": { "$ref": "#/$defs/checkCount" }, "conditionallyNotSatisfied": { "$ref": "#/$defs/checkCount" }, "unknown": { "$ref": "#/$defs/checkCount" }, "notApplicable": { "$ref": "#/$defs/checkCount" } } },
+    "results": { "type": "object", "additionalProperties": false, "required": ["conditionallyMatches", "conditionallyDoesNotMatch", "needsInformation", "notApplicable"],
+      "properties": { "conditionallyMatches": { "$ref": "#/$defs/caseCount" }, "conditionallyDoesNotMatch": { "$ref": "#/$defs/caseCount" }, "needsInformation": { "$ref": "#/$defs/caseCount" }, "notApplicable": { "$ref": "#/$defs/caseCount" } } },
+    "reasons": { "type": "array", "minItems": 5, "maxItems": 5, "items": false, "prefixItems": [
+      { "allOf": [{ "$ref": "#/$defs/reason" }, { "type": "object", "properties": { "reasonCode": { "const": "EXPECTED_SETTING_DECLARED" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/reason" }, { "type": "object", "properties": { "reasonCode": { "const": "INCOMPATIBLE_SETTING_DECLARED" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/reason" }, { "type": "object", "properties": { "reasonCode": { "const": "SETTING_UNKNOWN" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/reason" }, { "type": "object", "properties": { "reasonCode": { "const": "CLIENT_SCOPE_UNKNOWN" } } }] },
+      { "allOf": [{ "$ref": "#/$defs/reason" }, { "type": "object", "properties": { "reasonCode": { "const": "PATTERN_NOT_APPLICABLE" } } }] }
+    ] },
+    "selectedCases": { "$ref": "#/$defs/caseCount" }, "unknownClientCases": { "$ref": "#/$defs/caseCount" }, "unselectedClientCases": { "$ref": "#/$defs/caseCount" }, "savedInputNeedsInformation": { "$ref": "#/$defs/caseCount" },
+    "scope": { "const": "SYNTHETIC_PROPOSED_ARCHITECTURE_CONFIGURATION_REGRESSION" }, "policyVersion": { "const": "catalog-architecture-configuration-regression-1" },
+    "configurationPolicyVersion": { "const": "architecture-configuration-design-1" }, "preflightPolicyVersion": { "const": "architecture-pattern-preflight-1" },
+    "scenarioSetVersion": { "const": "catalog-architecture-configuration-scenarios-1" }, "baseScenarioSetVersion": { "const": "catalog-scoped-profile-scenarios-1" },
+    "baseScenarioSetSha256": { "const": "ce70ce85cbb2e5b1537f36e2120a5c4add5ef0ce5d64be46397436bbc1993ca1" },
+    "profileSchemaVersion": { "const": 5 }, "profileSchemaSha256": { "const": "c995122fdd206e90bdf8145ee76e0e85f657933bb4b91dfae39a6ef715e30561" },
+    "analysisBasis": { "const": "UNVERIFIED_SYNTHETIC_PROPOSED_CONFIGURATION" }, "declaredProfiles": { "const": 4 }, "declaredPatterns": { "const": 5 },
+    "checkedCases": { "const": 252 }, "checkedSettings": { "const": 2004 },
+    "exercisedSettings": { "const": ["OAUTH_FLOW", "OAUTH_CLIENT_TYPE", "CLIENT_AUTHENTICATION", "TOKEN_LOCATION", "PKCE_METHOD", "REDIRECT_MATCHING", "SESSION_COOKIE_SECURE", "SESSION_COOKIE_HTTP_ONLY", "SESSION_CSRF_DEFENSE", "RESOURCE_ACCESS", "BROWSER_TOKEN_ENDPOINT_ACCESS", "NATIVE_USER_AGENT", "WORKLOAD_AUTHORIZATION"] },
+    "checkedPaths": { "const": ["application.clients", "security.browserTokenExposureMinimization"] },
+    "deferredBoundaries": { "const": ["Observed client registration and actual issuer/redirect values", "Runtime protocol validation, token storage and session defenses", "API authorization, scopes, audience and grant permissions", "Provider interoperability, browser CORS and native redirect ownership", "Provisioning, offboarding, assurance, compliance and operations", "Independent assessment of additional resource-access paths"] },
+    "candidateChangesEvaluated": { "const": false }, "coverageComplete": { "const": false }, "configurationObserved": { "const": false }, "configurationVerified": { "const": false }, "providerCompatibilityVerified": { "const": false }, "runtimeFlowVerified": { "const": false }, "sourceVerificationPerformed": { "const": false }, "storedReportVerified": { "const": false }, "baselineVerified": { "const": false }, "approvalGranted": { "const": false }, "publicationReady": { "const": false }, "evaluationReady": { "const": false }, "recommendationReady": { "const": false }, "writesPerformed": { "const": false }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }, "checkCount": { "type": "integer", "minimum": 0, "maximum": 2004 }, "caseCount": { "type": "integer", "minimum": 0, "maximum": 252 },
+    "reason": { "type": "object", "additionalProperties": false, "required": ["reasonCode", "checks"], "properties": { "reasonCode": { "type": "string" }, "checks": { "$ref": "#/$defs/checkCount" } } }
+  }
+}
