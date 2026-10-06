@@ -389,6 +389,42 @@ paths:
           description: Missing, duplicate or invalid server service credential.
         '503':
           description: Server service credential is not configured.
+  /internal/v1/catalog-operations-planning/regression-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Inspect source-controlled synthetic operations planning regression
+      operationId: getSyntheticOperationsPlanningRegressionCheck
+      description: >-
+        Internal local-only read requiring one server service credential. Accepts
+        no body, query, caller profiles, prices or completeness assertions. Replays
+        140 bounded synthetic v6 scenarios across four unchanged frozen profiles,
+        seven preference contexts and five usage variants. Preserves the explicit
+        auditability supplement and all other requirements. Independently checks
+        unknowns, recorded zero, assumptions, both hosting alternatives and generic
+        support/cost-model boundaries. Returns only no-store digests, inventories
+        and counts, not profile bodies or identity. This is neither candidate-change
+        impact nor full coverage, provider readiness, pricing or publication authority.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: Body-free synthetic regression; verification and authority remain false.
+          headers:
+            Cache-Control:
+              description: Diagnostic results must not be cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-operations-planning-regression-check.v1.schema.json
+        '400':
+          description: Body or query supplied to this input-free read.
+        '401':
+          description: Missing, duplicate or invalid service credential.
+        '503':
+          description: Server service credential is not configured.
   /internal/v1/catalog-architecture-configuration/regression-preflight:
     get:
       tags: [Catalog drafts]

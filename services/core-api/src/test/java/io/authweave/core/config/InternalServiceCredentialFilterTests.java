@@ -41,6 +41,34 @@ class InternalServiceCredentialFilterTests {
     }
 
     @Test
+    void operationsRegressionRequiresOneCredentialAndRejectsCallerInputsAfterEncodedRouting() throws Exception {
+        String path = "/internal/v1/catalog-operations-planning/regression-preflight";
+        for (var configured : java.util.List.of("", TOKEN)) for (var supplied : java.util.List.of("", "wrong", TOKEN, "duplicate")) {
+            var request = new MockHttpServletRequest("GET", path);
+            if (!supplied.isEmpty()) request.addHeader("Authorization", "Bearer " + (supplied.equals("duplicate") ? TOKEN : supplied));
+            if (supplied.equals("duplicate")) request.addHeader("Authorization", "Bearer " + TOKEN);
+            var response = new MockHttpServletResponse();
+            new InternalServiceCredentialFilter(configured, null, "", "").doFilter(request, response, new MockFilterChain());
+            assertEquals(configured.isEmpty() ? 503 : supplied.equals(TOKEN) ? 200 : 401, response.getStatus());
+        }
+        String encoded = "/%69nternal/v1/catalog-operations-planning/regression-preflight";
+        var controller = new io.authweave.core.catalog.impact.CatalogOperationsPlanningRegressionController(null,
+                new InternalServiceCredentialFilter(TOKEN, null, "", ""), java.time.Clock.systemUTC());
+        var refusal = controller.inspect(new MockHttpServletRequest("GET", encoded));
+        assertEquals(401, refusal.getStatusCode().value()); assertEquals("no-store", refusal.getHeaders().getCacheControl());
+        for (String variant : java.util.List.of("query", "body", "chunked")) {
+            var request = new MockHttpServletRequest("GET", encoded); request.addHeader("Authorization", "Bearer " + TOKEN);
+            if (variant.equals("query")) request.setQueryString("");
+            if (variant.equals("body")) request.setContent(new byte[] { 1 });
+            if (variant.equals("chunked")) request.addHeader("Transfer-Encoding", "chunked");
+            assertEquals(400, controller.inspect(request).getStatusCode().value());
+        }
+        var unavailable = new io.authweave.core.catalog.impact.CatalogOperationsPlanningRegressionController(null,
+                new InternalServiceCredentialFilter("", null, "", ""), java.time.Clock.systemUTC());
+        assertEquals(503, unavailable.inspect(new MockHttpServletRequest("GET", encoded)).getStatusCode().value());
+    }
+
+    @Test
     void configurationRegressionRequiresOneConfiguredServiceCredentialAndControllerRechecksEncodedRouting() throws Exception {
         String path = "/internal/v1/catalog-architecture-configuration/regression-preflight";
         for (var configured : java.util.List.of("", TOKEN)) for (var supplied : java.util.List.of("", "wrong", TOKEN, "duplicate")) {

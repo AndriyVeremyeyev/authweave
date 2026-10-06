@@ -155,6 +155,50 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @Test
+    void operationsRegressionIsInputFreeCredentialProtectedBodyFreeAndReadOnly() throws Exception {
+        String path = "/internal/v1/catalog-operations-planning/regression-preflight";
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", "wrong-token")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", token, token)).andExpect(status().isUnauthorized());
+        for (var request : List.of(get(path).queryParam("hosting", "MANAGED"), get(path).content("{}"), get(path).header("Transfer-Encoding", "chunked")))
+            mvc.perform(request.header("Authorization", token)).andExpect(status().isBadRequest());
+        mvc.perform(post(path).header("Authorization", token)).andExpect(status().isMethodNotAllowed());
+        var tables = List.of("core.assessments", "core.assessment_revisions", "audit.assessment_events", "core.catalog_proposals", "core.catalog_impact_reports",
+                "core.catalog_fact_path_reports", "core.catalog_bootstrap_impact_reports", "core.catalog_published_snapshots", "core.catalog_publication_decisions", "audit.catalog_publication_events");
+        var before = tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList();
+        var response = mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.checkedCases").value(140)).andExpect(jsonPath("$.checkedOptions").value(280))
+                .andExpect(jsonPath("$.inputResults.inputsRecorded").value(46)).andExpect(jsonPath("$.usageResults.inputsRecorded").value(56))
+                .andExpect(jsonPath("$.coverageComplete").value(false)).andExpect(jsonPath("$.pricingEvaluated").value(false)).andReturn().getResponse();
+        var json = mapper.readTree(response.getContentAsString());
+        org.junit.jupiter.api.Assertions.assertTrue(response.getContentAsByteArray().length < 16384);
+        org.junit.jupiter.api.Assertions.assertTrue(!response.getContentAsString().contains("Synthetic forecast") && !response.getContentAsString().contains("9007199254740991"));
+        sample("operations-planning-regression", "catalog-operations-planning-regression-check", true, json);
+        assertEquals(json, mapper.readTree(mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        assertEquals(before, tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList());
+        var service = applicationContext.getBean(io.authweave.core.catalog.impact.CatalogOperationsPlanningRegressionService.class);
+        var expected = service.inspectAt(Instant.parse("2026-09-12T12:00:00Z")); assertEquals(mapper.valueToTree(expected), json);
+        var components = mapper.createObjectNode();
+        for (var component : io.authweave.core.catalog.impact.CatalogOperationsPlanningRegressionService.Check.class.getRecordComponents()) components.set(component.getName(), json.get(component.getName()));
+        assertEquals(expected, mapper.treeToValue(components, io.authweave.core.catalog.impact.CatalogOperationsPlanningRegressionService.Check.class));
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(components.deepCopy().put("recordedMetricChecks", -1),
+                io.authweave.core.catalog.impact.CatalogOperationsPlanningRegressionService.Check.class));
+        for (String flag : List.of("candidateChangesEvaluated", "coverageComplete", "providerEligibilityEvaluated", "deploymentCompatibilityVerified", "operationalReadinessVerified", "pricingEvaluated",
+                "costModelEvaluated", "budgetFitVerified", "configurationVerified", "sourceVerificationPerformed", "storedReportVerified", "baselineVerified", "approvalGranted", "publicationReady", "evaluationReady", "recommendationReady", "writesPerformed")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(flag, true); sample("operations-regression-no-" + flag, "catalog-operations-planning-regression-check", false, forged);
+        }
+        for (String field : List.of("profile", "inputs", "usagePlanning", "scopeDescription", "assumptions", "rows", "actor", "sourceUrl", "workspaceId", "estimatedCost")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(field, "private"); sample("operations-regression-no-" + field, "catalog-operations-planning-regression-check", false, forged);
+        }
+        for (String field : List.of("preferenceVariants", "usageVariants", "optionIds", "usageMetrics", "checkedPaths", "deferredBoundaries")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.withArray(field).remove(0); sample("operations-regression-complete-" + field, "catalog-operations-planning-regression-check", false, forged);
+        }
+        var forged = (ObjectNode) json.deepCopy(); ((ObjectNode) forged.get("inputResults")).put("inputsRecorded", -1);
+        sample("operations-regression-nonnegative-count", "catalog-operations-planning-regression-check", false, forged);
+    }
+
+    @Test
     void configurationRegressionIsInputFreeCredentialProtectedBodyFreeAndReadOnly() throws Exception {
         String path = "/internal/v1/catalog-architecture-configuration/regression-preflight";
         String token = "Bearer synthetic-internal-token-000000000000000000000";

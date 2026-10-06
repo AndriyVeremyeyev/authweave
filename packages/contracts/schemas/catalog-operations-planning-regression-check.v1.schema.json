@@ -1,0 +1,361 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-operations-planning-regression-check.v1.schema.json",
+  "title": "Body-free synthetic operations planning regression",
+  "description": "Fresh source-controlled v6 input regression, not candidate-change impact, prices, verified capacity or publication coverage. Exact clock, counts and digests require independent replay beyond structural schema validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evaluatedAt",
+    "scenarioSetSha256",
+    "auditabilityScenarioSetSha256",
+    "analysisSha256",
+    "inputResults",
+    "usageResults",
+    "hosting",
+    "support",
+    "budget",
+    "recordedMetricChecks",
+    "missingInputChecks",
+    "scope",
+    "policyVersion",
+    "operationsPolicyVersion",
+    "definitionsSha256",
+    "scenarioSetVersion",
+    "baseScenarioSetVersion",
+    "baseScenarioSetSha256",
+    "auditabilityScenarioSetVersion",
+    "profileSchemaVersion",
+    "profileSchemaSha256",
+    "analysisBasis",
+    "declaredProfiles",
+    "checkedCases",
+    "checkedOptions",
+    "preferenceVariants",
+    "usageVariants",
+    "optionIds",
+    "usageMetrics",
+    "checkedPaths",
+    "deferredBoundaries",
+    "candidateChangesEvaluated",
+    "coverageComplete",
+    "providerEligibilityEvaluated",
+    "deploymentCompatibilityVerified",
+    "operationalReadinessVerified",
+    "pricingEvaluated",
+    "costModelEvaluated",
+    "budgetFitVerified",
+    "configurationVerified",
+    "sourceVerificationPerformed",
+    "storedReportVerified",
+    "baselineVerified",
+    "approvalGranted",
+    "publicationReady",
+    "evaluationReady",
+    "recommendationReady",
+    "writesPerformed"
+  ],
+  "properties": {
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scenarioSetSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "auditabilityScenarioSetSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "analysisSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "inputResults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputsRecorded",
+        "needsInformation"
+      ],
+      "properties": {
+        "inputsRecorded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 140
+        },
+        "needsInformation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 140
+        }
+      }
+    },
+    "usageResults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputsRecorded",
+        "needsInformation"
+      ],
+      "properties": {
+        "inputsRecorded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 140
+        },
+        "needsInformation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 140
+        }
+      }
+    },
+    "hosting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "preferenceAligned",
+        "preferenceDiffers",
+        "noPreference",
+        "preferenceUnknown"
+      ],
+      "properties": {
+        "preferenceAligned": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        },
+        "preferenceDiffers": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        },
+        "noPreference": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        },
+        "preferenceUnknown": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        }
+      }
+    },
+    "support": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integrationSupportPlanNeeded",
+        "operatorSupportPlanNeeded",
+        "responsibilityPlanNeeded",
+        "supportCapacityUndefined"
+      ],
+      "properties": {
+        "integrationSupportPlanNeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        },
+        "operatorSupportPlanNeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        },
+        "responsibilityPlanNeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        },
+        "supportCapacityUndefined": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "costModelNeeded",
+        "budgetScopeUndefined"
+      ],
+      "properties": {
+        "costModelNeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        },
+        "budgetScopeUndefined": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 280
+        }
+      }
+    },
+    "recordedMetricChecks": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 560
+    },
+    "missingInputChecks": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 1400
+    },
+    "scope": {
+      "const": "SYNTHETIC_OPERATIONS_PLANNING_REGRESSION"
+    },
+    "policyVersion": {
+      "const": "catalog-operations-planning-regression-1"
+    },
+    "operationsPolicyVersion": {
+      "const": "operations-planning-preflight-1"
+    },
+    "definitionsSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "scenarioSetVersion": {
+      "const": "catalog-operations-planning-scenarios-1"
+    },
+    "baseScenarioSetVersion": {
+      "const": "catalog-scoped-profile-scenarios-1"
+    },
+    "baseScenarioSetSha256": {
+      "const": "ce70ce85cbb2e5b1537f36e2120a5c4add5ef0ce5d64be46397436bbc1993ca1"
+    },
+    "auditabilityScenarioSetVersion": {
+      "const": "catalog-scoped-auditability-scenarios-1"
+    },
+    "profileSchemaVersion": {
+      "const": 6
+    },
+    "profileSchemaSha256": {
+      "const": "3d384daf2d98851ebcbe00f90a9c6dabeedbae8361f8a41f58d00b9742c95fbb"
+    },
+    "analysisBasis": {
+      "const": "UNVERIFIED_SYNTHETIC_INPUTS_AND_GENERIC_RESPONSIBILITIES"
+    },
+    "declaredProfiles": {
+      "const": 4
+    },
+    "checkedCases": {
+      "const": 140
+    },
+    "checkedOptions": {
+      "const": 280
+    },
+    "preferenceVariants": {
+      "const": [
+        "BASE_PROFILE",
+        "MANAGED_AZURE",
+        "SELF_HOSTED_ON_PREMISES",
+        "NO_PREFERENCE_AWS",
+        "EXPLICIT_UNKNOWN",
+        "MANAGED_GOOGLE_CLOUD",
+        "SELF_HOSTED_MULTI_CLOUD"
+      ]
+    },
+    "usageVariants": {
+      "const": [
+        "UNRECORDED",
+        "OBSERVED_ZERO",
+        "ASSUMED_WITHOUT_ASSUMPTIONS",
+        "ASSUMED_WITH_ASSUMPTIONS",
+        "SPARSE_OBSERVED"
+      ]
+    },
+    "optionIds": {
+      "const": [
+        "MANAGED_IDENTITY_SERVICE",
+        "SELF_HOSTED_IDENTITY_SERVICE"
+      ]
+    },
+    "usageMetrics": {
+      "const": [
+        "MONTHLY_ACTIVE_USERS",
+        "ENTERPRISE_SSO_CONNECTIONS",
+        "MONTHLY_M2M_TOKEN_ISSUANCES",
+        "PEAK_HUMAN_LOGINS_PER_SECOND"
+      ]
+    },
+    "checkedPaths": {
+      "const": [
+        "operations.hosting",
+        "operations.deploymentTarget",
+        "operations.identityExpertise",
+        "operations.budgetSensitivity",
+        "operations.usagePlanning.scopeDescription",
+        "operations.usagePlanning.assumptions",
+        "operations.usagePlanning.volumes"
+      ]
+    },
+    "deferredBoundaries": {
+      "const": [
+        "Exact provider, plan, region and application-to-identity deployment compatibility",
+        "Observed operator capacity, responsibilities, support and recovery exercises",
+        "Dated prices, billing-unit mapping, paid features and additional environments",
+        "Infrastructure, support, migration and team operational costs",
+        "Protocol, lifecycle, auditability, assurance and compliance verification",
+        "Provider eligibility, scoring, ranking and final recommendation"
+      ]
+    },
+    "candidateChangesEvaluated": {
+      "const": false
+    },
+    "coverageComplete": {
+      "const": false
+    },
+    "providerEligibilityEvaluated": {
+      "const": false
+    },
+    "deploymentCompatibilityVerified": {
+      "const": false
+    },
+    "operationalReadinessVerified": {
+      "const": false
+    },
+    "pricingEvaluated": {
+      "const": false
+    },
+    "costModelEvaluated": {
+      "const": false
+    },
+    "budgetFitVerified": {
+      "const": false
+    },
+    "configurationVerified": {
+      "const": false
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "storedReportVerified": {
+      "const": false
+    },
+    "baselineVerified": {
+      "const": false
+    },
+    "approvalGranted": {
+      "const": false
+    },
+    "publicationReady": {
+      "const": false
+    },
+    "evaluationReady": {
+      "const": false
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "writesPerformed": {
+      "const": false
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}

@@ -14,6 +14,7 @@ import { expectedAnalysis, validateArchitectureConfiguration } from "../tests/he
 import { architectureConfigurationFromCore } from "../../../apps/web/src/lib/assessment/architecture-configuration.ts";
 import { validateConfigurationRegression } from "../tests/helpers/architecture-configuration-regression-spec.mjs";
 import { validateOperationsPlanning } from "../tests/helpers/operations-planning-spec.mjs";
+import { validateOperationsRegression } from "../tests/helpers/operations-planning-regression-spec.mjs";
 import { operationsPlanningValues, operationsPlanningFromCore } from "../../../apps/web/src/lib/assessment/operations-planning.ts";
 
 const samplePaths = process.argv.slice(2);
@@ -45,6 +46,7 @@ let lifecycleSamples = 0;
 let lifecycleV2Samples = 0;
 let architectureConfigurationSamples = 0;
 let operationsPlanningSamples = 0;
+let operationsRegressionSamples = 0;
 const operationsSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("operations-saved-"))
   .map(s => [s.name.slice("operations-saved-".length), s.payload]));
 const architectureConfigurationRequests = new Map(samples.filter(s => s.schema === "architecture-configuration-request" && s.valid)
@@ -397,6 +399,18 @@ for (const { name, schema, valid, payload } of samples) {
       assert.throws(() => operationsPlanningFromCore(forged, binding), undefined, "The personal BFF must refuse these actual HTTP substitutions too.");
     }
   }
+  if (schema === "catalog-operations-planning-regression-check" && valid) {
+    validateOperationsRegression(payload); operationsRegressionSamples++;
+    for (const mutate of [r => { r.inputResults.inputsRecorded--; r.inputResults.needsInformation++; },
+      r => { r.usageResults.inputsRecorded--; r.usageResults.needsInformation++; }, r => { r.hosting.preferenceAligned--; r.hosting.preferenceDiffers++; },
+      r => { r.support.integrationSupportPlanNeeded--; r.support.operatorSupportPlanNeeded++; }, r => { r.budget.costModelNeeded--; r.budget.budgetScopeUndefined++; },
+      r => r.recordedMetricChecks--, r => r.missingInputChecks--,
+      ...["scenarioSetSha256", "auditabilityScenarioSetSha256", "analysisSha256", "definitionsSha256"].map(key => r => r[key] = "0".repeat(64)),
+      r => r.evaluatedAt = "2026-09-12T12:00:01Z"]) {
+      const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true);
+      assert.throws(() => validateOperationsRegression(forged), undefined, "Shape-valid counter, binding or clock substitutions must fail independent operations regression replay.");
+    }
+  }
   if (schema === "catalog-architecture-configuration-regression-check" && valid) {
     validateConfigurationRegression(payload);
     for (const mutate of [r => { r.outcomes.conditionallySatisfied--; r.outcomes.conditionallyNotSatisfied++; },
@@ -598,12 +612,15 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "auditability-capability-preflight:true", "auditability-capability-preflight:false",
   "catalog-auditability-regression-check:true", "catalog-auditability-regression-check:false",
   "catalog-architecture-configuration-regression-check:true", "catalog-architecture-configuration-regression-check:false",
+  "catalog-operations-planning-regression-check:true", "catalog-operations-planning-regression-check:false",
   "catalog-profile-impact-coverage:true", "catalog-profile-impact-coverage:false",
   "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",
   "update-assessment-profile-request:true", "update-assessment-profile-request:false"]) {
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.equal(operationsRegressionSamples, 1, "The protected operations diagnostic must reach independent source-controlled replay.");
+console.log("Verified the bounded 140-case operations planning diagnostic with independent inputs, counts, digests and unverified scope.");
 assert.equal(operationsPlanningSamples, 17, "Unknown and all sixteen hosting/expertise saved contexts must reach independent operations replay.");
 console.log(`Verified ${operationsPlanningSamples} operations planning responses against exact saved inputs and generic responsibility boundaries.`);
 assert.ok(architectureConfigurationSamples > 0, "Actual architecture settings must reach independent request, saved-scope and conditional outcome checks.");

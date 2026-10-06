@@ -1251,6 +1251,29 @@ save does not automatically reload and discard them: explicit discard is require
 The comparison continues to show the originally loaded saved snapshot until reload;
 unsaved selections never recalculate it or become provider/cost recommendations.
 
+### Synthetic operations planning regression
+
+`GET /internal/v1/catalog-operations-planning/regression-preflight` is a protected,
+input-free internal diagnostic, not a public or personal assessment endpoint.
+It replays 140 source-controlled synthetic cases: four unchanged frozen v5 profiles
+with their explicit v6 auditability supplement, seven preference contexts and five
+usage variants. Only operational inputs are overlaid. Every preference enum is
+exercised, but this is a bounded matrix, not all possible combinations or complete
+candidate-change operations/cost coverage. Unknown usage, explicit observed zero,
+assumed quantities with/without assumptions and sparse usage remain distinct.
+Each case retains both managed and self-hosted alternatives; alignment is not
+eligibility, recorded inputs are not verified capacity, and no price is calculated.
+
+The endpoint requires one server-only service credential, refuses body/query input
+and returns `no-store` counts, exact inventories and binding digests only. Profiles,
+free-text usage, identities and individual rows are not returned or persisted.
+Complete ordered reports are replayed before summarization; an independent contract
+check reconstructs inputs, outcomes, counts and digests from the frozen source files,
+not Core output. A fresh clock changes the analysis digest, not evidence freshness
+or prices. All verification, readiness, full-coverage, approval, publication and write
+claims remain false; existing assessment history and coverage gates are unchanged.
+No dependencies, migrations, provider calls, accounts or subscriptions are added.
+
 ### Proposed auditability supplement: exact binding before source review
 
 `POST /internal/v1/catalog-auditability/drafts/validate` accepts a
