@@ -1222,8 +1222,12 @@ are added.
 
 The personal assessment's Usage step shows both operating models side by side on
 desktop and stacked on narrow screens, with saved preferences, input gaps, support
-planning and responsibilities. Operational preferences are currently read-only;
-draft usage inputs remain editable in the existing form. The server-side BFF uses
+planning and responsibilities. Drafts have a separate four-choice operational
+preferences form: identity hosting, application deployment target, declared team
+expertise and qualitative budget sensitivity. Unknown/undecided answers are explicit;
+the form neither selects an IdP location nor records a monetary spending cap.
+Usage quantities and assumptions remain editable in their own form.
+The comparison's server-side BFF uses
 only its live session's workspace and identity, a body-free fixed-origin GET,
 no-store, refused redirects, a timeout and a 32 KiB streamed response limit. It
 independently replays the saved preferences and usage presence, exact assessment
@@ -1231,6 +1235,21 @@ version, ordered alternatives, narratives and all false authority flags. Unknown
 inputs have no invented defaults; stale or malformed responses produce a sanitized
 unavailable section without blocking the saved assessment or inventing a result.
 The browser receives no service credential, workspace identity or raw Core payload.
+
+`POST /api/assessments/{assessmentId}/operational-preferences` accepts only those
+four enums and the exact saved version, from a same-origin live personal session.
+The streamed form body is limited to 1 KiB; duplicates, foreign fields, query
+parameters and noncanonical values are refused before any Core call. The BFF reads
+the session-owned v6 draft and patches only the four choices, preserving all usage,
+audit and other profile values. Core still owns the optimistic write; stale or
+archived drafts cannot be overwritten. A successful Core reply must preserve the
+whole submitted profile, not just look successful. Native forms use a fixed 303
+return to Usage; enhanced forms check a small target/version/outcome receipt.
+Conflict or uncertain saves keep local inputs, without merge or automatic retry.
+Only one form can save at a time. If another form has unsaved edits, a confirmed
+save does not automatically reload and discard them: explicit discard is required.
+The comparison continues to show the originally loaded saved snapshot until reload;
+unsaved selections never recalculate it or become provider/cost recommendations.
 
 ### Proposed auditability supplement: exact binding before source review
 

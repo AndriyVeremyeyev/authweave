@@ -19,7 +19,7 @@ test("step selection accepts only known UI names and known errors take precedenc
     assert.equal(assessmentStepFromQuery({ step: value }), "context");
   }
   for (const [key, step] of [["contextError", "context"], ["editError", "capabilities"],
-    ["auditError", "auditability"], ["usageError", "usage"]]) {
+    ["auditError", "auditability"], ["usageError", "usage"], ["operationsError", "usage"]]) {
     for (const error of ["stale", "invalid", "locked"]) {
       assert.equal(assessmentStepFromQuery({ step: "architecture", [key]: error }), step);
     }

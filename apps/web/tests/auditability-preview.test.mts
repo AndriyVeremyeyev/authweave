@@ -295,6 +295,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
         { workspaceId, assessmentId: id, expectedVersion: version, values });
     },
     OperationsPlanning: overview.OperationsPlanning, OperationsPlanningUnavailable: overview.OperationsPlanningUnavailable,
+    OperationalPreferencesEditor: overview.OperationalPreferencesEditor,
     ...component, SavedRequirementsOverview: overview.SavedRequirementsOverview, ComparisonSection: overview.ComparisonSection,
     SavedContextSummary: overview.SavedContextSummary,
     AssessmentList: overview.AssessmentList,
@@ -323,6 +324,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const WeightedPreviewForm = () => null,
       ArchitecturePatterns = () => null, ProvisioningLifecycle = () => null, UsagePlanningPreflight = () => null;
     export const OperationsPlanning = state.OperationsPlanning, OperationsPlanningUnavailable = state.OperationsPlanningUnavailable;
+    export const OperationalPreferencesEditor = state.OperationalPreferencesEditor;
     export const AssessmentWorkflow = ({ initialStep, panels }) => createElement('section', { 'data-step': initialStep }, panels[initialStep]);
     export const SavedRequirementsOverview = state.SavedRequirementsOverview;
     export const ComparisonSection = state.ComparisonSection;
@@ -341,7 +343,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
   for (const name of ["next/link", "next/headers", "next/navigation", "@/lib/auth/config", "@/lib/auth/core-client",
     "@/lib/auth/session-policy", "@/lib/auth/store", "./weighted-preview", "./evaluation-context-editor", "./architecture-patterns",
-    "./usage-planning-editor", "./usage-planning-preflight", "./operations-planning", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export", "./capability-editor", "./provisioning-lifecycle"]) {
+    "./usage-planning-editor", "./usage-planning-preflight", "./operations-planning", "./operational-preferences-editor", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export", "./capability-editor", "./provisioning-lifecycle"]) {
     compiled = compiled.replaceAll(JSON.stringify(name), JSON.stringify(shim));
   }
   for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "operations-planning", "auditability", "workflow"]) {
@@ -436,11 +438,14 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     const operations = renderToStaticMarkup(await page.default(usageProps));
     assert.ok(operations.includes("Managed identity service")); assert.ok(operations.includes("Self-hosted identity service"));
     assert.ok(operations.includes("Saved assessment version 2")); assert.equal(state.operationsReads, 1);
+    assert.ok(operations.includes(`action="/api/assessments/${id}/operational-preferences"`));
+    assert.ok(operations.includes("Save operational preferences"));
     assert.deepEqual(assessment, operationsBefore); // Reading and rendering never saves an operating model.
     state.operationsFail = true;
     const operationsUnavailable = renderToStaticMarkup(await page.default(usageProps));
     assert.ok(operationsUnavailable.includes("Operations planning comparison unavailable"));
     assert.ok(operationsUnavailable.includes("Save usage inputs")); assert.ok(operationsUnavailable.includes("Saved profile and technical details"));
+    assert.ok(operationsUnavailable.includes("Save operational preferences"));
     assert.ok(!operationsUnavailable.includes("Private operations upstream token"));
     Object.assign(assessment, { status: "ARCHIVED" });
     const readOnlyRequirements = renderToStaticMarkup(await page.default(requirementsProps));
@@ -458,6 +463,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     const readOnlyUsage = renderToStaticMarkup(await page.default(usageProps));
     assert.ok(readOnlyUsage.includes("This assessment is read-only"));
     assert.ok(!readOnlyUsage.includes("Save usage inputs"));
+    assert.ok(!readOnlyUsage.includes("Save operational preferences"));
     assert.ok(!readOnlyUsage.includes("<form"));
     state.live = false; const count = state.reads, operationsCount = state.operationsReads;
     await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count); assert.equal(state.operationsReads, operationsCount);

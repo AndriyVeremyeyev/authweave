@@ -6,7 +6,7 @@ import { assessmentSteps, type AssessmentStep, type WorkflowState } from "../src
 
 type NodeView = { type: unknown; props: Record<string, unknown> };
 type ClickHandler = (event?: { currentTarget: unknown }) => void;
-type SaveLifecycle = { setSaving: (busy: boolean) => void; allowReload: () => void };
+type SaveLifecycle = { setSaving: (busy: boolean) => void; isSaving: () => boolean; allowReload: () => void };
 function clickHandler(node: NodeView) { return node.props.onClick as ClickHandler; }
 function nodes(value: unknown): NodeView[] {
   if (Array.isArray(value)) return value.flatMap(nodes);
@@ -50,7 +50,7 @@ test("workflow exit and navigation handlers preserve edits, restore focus and bl
       effects: [] as { cleanup?: () => void }[], queue: [] as (() => void)[], context: null as unknown,
       router: { push(path: string) { destinations.push(path); } } };
     globals[slot] = memory;
-    const location = { href: "http://localhost:3000/assessments/00000000-0000-0000-0000-000000000001?step=context&contextError=invalid&editError=stale&auditError=locked&usageError=invalid" };
+    const location = { href: "http://localhost:3000/assessments/00000000-0000-0000-0000-000000000001?step=context&contextError=invalid&editError=stale&auditError=locked&usageError=invalid&operationsError=stale" };
     Object.defineProperty(globalThis, "window", { configurable: true, value: {
       location, history: { replaceState(_state: unknown, _title: string, url: URL) { location.href = url.href; urls.push(url.href); } },
       addEventListener(name: string, callback: (event: unknown) => void) { listeners.set(name, callback); },
@@ -107,6 +107,7 @@ test("workflow exit and navigation handlers preserve edits, restore focus and bl
       const exitHandler = clickHandler(fixture.button("← Your assessments"));
       const nextHandler = clickHandler(fixture.button(step === "usage" ? "Next: Review →" : step === "context" ? "Next: Requirements →" : step === "capabilities" ? "Next: Audit →" : "Next: Usage →"));
       fixture.lifecycle().setSaving(true);
+      assert.equal(fixture.lifecycle().isSaving(), true);
       exitHandler({ currentTarget: fixture.sourceButton }); nextHandler({ currentTarget: fixture.sourceButton });
       fixture.render();
       assert.equal(fixture.dialog.open, false); assert.deepEqual(fixture.destinations, []);
@@ -117,6 +118,7 @@ test("workflow exit and navigation handlers preserve edits, restore focus and bl
       AssessmentStepButton({ step: "review", children: "Review shortcut" }).props.onClick({ currentTarget: fixture.sourceButton });
       fixture.render(); assert.equal(fixture.dialog.open, false);
       fixture.lifecycle().setSaving(false); fixture.render();
+      assert.equal(fixture.lifecycle().isSaving(), false);
       assert.equal(fixture.unloadBlocked(), true); // A refused/uncertain save does not release edits.
 
       fixture.click("← Your assessments"); fixture.render();
@@ -137,7 +139,7 @@ test("workflow exit and navigation handlers preserve edits, restore focus and bl
     assert.equal((fixture.memory.states[0] as WorkflowState).step, "capabilities"); assert.equal(fixture.unloadBlocked(), false);
     assert.equal(fixture.focus().headingFocus, 1); assert.deepEqual(fixture.destinations, []);
     const url = new URL(fixture.urls[0]); assert.equal(url.searchParams.get("step"), "capabilities");
-    for (const key of ["contextError", "editError", "auditError", "usageError"]) assert.equal(url.searchParams.has(key), false);
+    for (const key of ["contextError", "editError", "auditError", "usageError", "operationsError"]) assert.equal(url.searchParams.has(key), false);
     fixture.edit(); fixture.render(); fixture.lifecycle().allowReload(); fixture.render();
     assert.equal(fixture.unloadBlocked(), false); fixture.click("← Your assessments");
     assert.deepEqual(fixture.destinations, ["/assessments"]); fixture.unmount();

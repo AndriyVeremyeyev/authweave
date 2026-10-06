@@ -121,5 +121,8 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/usage-guidance"', JSON.stringify(new URL("../../src/lib/assessment/usage-guidance.ts", import.meta.url).href))));
   const operations = await import(moduleUrl((await compile("../../src/app/assessments/[id]/operations-planning.tsx"))
     .replaceAll('"@/lib/assessment/usage-planning"', JSON.stringify(new URL("../../src/lib/assessment/usage-planning.ts", import.meta.url).href))));
-  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations };
+  const operationsEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/operational-preferences-editor.tsx"))
+    .replaceAll('"./assessment-section-form"', JSON.stringify(sectionFormUrl))
+    .replaceAll('"@/lib/assessment/operational-preferences"', JSON.stringify(new URL("../../src/lib/assessment/operational-preferences.ts", import.meta.url).href))));
+  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor };
 }

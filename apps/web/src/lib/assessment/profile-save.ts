@@ -3,6 +3,7 @@ import { parseUsagePlanningForm } from "./usage-planning.ts";
 import { parseEvaluationContextForm } from "./evaluation-context.ts";
 import { parseCapabilityForm } from "./capabilities.ts";
 import { parseAuditabilityForm } from "./auditability.ts";
+import { parseOperationalPreferencesForm, operationalPreferencesFormIssues } from "./operational-preferences.ts";
 import { usagePlanningFormIssues } from "./usage-form-validation.ts";
 import { evaluationContextFormIssues, auditabilityFormIssues, type SectionFormIssue } from "./section-form-validation.ts";
 
@@ -11,12 +12,13 @@ export const profileSaveSections = {
   capabilities: { route: "capabilities", label: "Requirements", save: "Save capability requirements", parse: parseCapabilityForm },
   auditability: { route: "auditability", label: "Audit", save: "Save auditability requirements", parse: parseAuditabilityForm },
   usage: { route: "usage-planning", label: "Usage", save: "Save usage inputs", parse: parseUsagePlanningForm },
+  operations: { route: "operational-preferences", label: "Operational preferences", save: "Save operational preferences", parse: parseOperationalPreferencesForm },
 } as const;
 export type ProfileSection = keyof typeof profileSaveSections;
 export type ProfileWriteOutcome = "saved" | "conflict" | "invalid" | "locked";
 export type ProfileSaveResult = ProfileWriteOutcome | "signed-out" | "forbidden" | "not-found" | "uncertain";
 const statuses = { saved: 200, conflict: 409, invalid: 422, locked: 423 } as const;
-const actionPattern = /^\/api\/assessments\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(evaluation-context|capabilities|auditability|usage-planning)$/;
+const actionPattern = /^\/api\/assessments\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\/(evaluation-context|capabilities|auditability|usage-planning|operational-preferences)$/;
 
 function actionTarget(section: ProfileSection, action: string): string | null {
   const match = actionPattern.exec(action);
@@ -25,11 +27,12 @@ function actionTarget(section: ProfileSection, action: string): string | null {
 
 export function profileReloadPath(section: ProfileSection, action: string): string | null {
   const id = actionTarget(section, action);
-  return id ? `/assessments/${id}?step=${section}` : null;
+  return id ? `/assessments/${id}?step=${section === "operations" ? "usage" : section}` : null;
 }
 
 export function profileFormIssues(section: ProfileSection, params: URLSearchParams): SectionFormIssue[] {
   if (section === "usage") return usagePlanningFormIssues(params);
+  if (section === "operations") return operationalPreferencesFormIssues(params);
   if (section === "context") return evaluationContextFormIssues(params);
   if (section === "auditability") return auditabilityFormIssues(params);
   try { profileSaveSections[section].parse(params); return []; }

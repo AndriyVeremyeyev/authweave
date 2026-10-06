@@ -21,11 +21,12 @@ import type { LifecyclePattern } from "../src/lib/assessment/provisioning-lifecy
 import { POST as weightSensitivityRoute } from "../src/app/api/assessments/[id]/weight-sensitivity/route.ts";
 import { POST as evaluationContextRoute } from "../src/app/api/assessments/[id]/evaluation-context/route.ts";
 import { POST as usagePlanningRoute } from "../src/app/api/assessments/[id]/usage-planning/route.ts";
+import { POST as operationalPreferencesRoute } from "../src/app/api/assessments/[id]/operational-preferences/route.ts";
 import { POST as auditabilityRoute } from "../src/app/api/assessments/[id]/auditability/route.ts";
 import { POST as requirementsBriefRoute } from "../src/app/api/assessments/[id]/requirements-brief/route.ts";
 import { requirementsBriefFilename } from "../src/lib/assessment/requirements-brief.ts";
 import { readPersonalAssessment, readPersonalAuditability, readPersonalOperationsPlanning } from "../src/lib/auth/core-client.ts";
-import { operationsFixture, operationsValues, operationsWorkspaceId, operationsAssessmentId } from "./fixtures/operations-planning.mts";
+import { operationsFixture, operationsValues, operationsProfile, operationsWorkspaceId, operationsAssessmentId } from "./fixtures/operations-planning.mts";
 import { auditabilityFixture, auditabilityInput, auditabilityAssessmentId,
   auditabilityWorkspaceId } from "./fixtures/auditability-preview.mts";
 import { comparisonAuditFixture } from "./fixtures/comparison-auditability.mts";
@@ -1630,6 +1631,102 @@ test("evaluation context route accepts only a scoped form from the personal sess
     ] as const) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
+  }
+});
+
+test("operational preferences route binds a live session, bounds input and preserves the v6 draft on native and checked JSON saves", async () => {
+  const environment = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"] as const;
+  const previous = environment.map(key => process.env[key]), oldFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_OIDC_ISSUER = "http://localhost:8081";
+  process.env.AUTHWEAVE_OIDC_CLIENT_ID = "synthetic-client";
+  process.env.AUTHWEAVE_PUBLIC_ORIGIN = "http://localhost:3000";
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-operations-route-token-000000000000000000";
+  const workspaceId = operationsWorkspaceId, id = operationsAssessmentId;
+  const identity = { workspaceId, issuer: "http://localhost:8081", subject: "synthetic-operations-write-owner",
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined);
+  let profile: Record<string, unknown> = { ...savedRequirementsFixture(), ...operationsProfile() };
+  const initial = structuredClone(profile), calls: string[] = [];
+  let status = "DRAFT", version = 7, writeStatus = 200, readStatus = 200, replyWorkspace = workspaceId, mutateReply = false;
+  const form = profileFormFixture("operations"); form.set("expectedVersion", "7");
+  const selected = { hosting: "UNKNOWN", deploymentTarget: "UNDECIDED", identityExpertise: "UNKNOWN", budgetSensitivity: "UNKNOWN" };
+  const url = `http://localhost:3000/api/assessments/${id}/operational-preferences`;
+  const context = { params: Promise.resolve({ id }) };
+  const request = (body: BodyInit | null = form.toString(), headers: Record<string, string> = {}, target = url, cookie: string | null = sessionId) => new NextRequest(target, {
+    method: "POST", headers: { Origin: "http://localhost:3000", Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded",
+      ...(cookie ? { Cookie: `${sessionCookieName(false)}=${cookie}` } : {}), ...headers }, body, duplex: "half",
+  } as NonNullable<ConstructorParameters<typeof NextRequest>[1]> & { duplex: "half" });
+  globalThis.fetch = async (target, init) => {
+    calls.push(init!.method!);
+    assert.equal(String(target), `http://127.0.0.1:8080/api/v6/workspaces/${workspaceId}/assessments/${id}${init?.method === "PUT" ? "/profile" : ""}`);
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error"); assert.ok(init?.signal instanceof AbortSignal);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    if (init?.method === "GET") return readStatus === 200 ? Response.json({ id, workspaceId: replyWorkspace, status, version, profileSchemaVersion: 6, profile }) : new Response(null, { status: readStatus });
+    const update = JSON.parse(String(init?.body));
+    const savedOperations = (update.profile as Record<string, unknown>).operations as Record<string, unknown>;
+    assert.deepEqual(update, { expectedVersion: 7, profile: { ...initial, operations: { ...initial.operations as Record<string, unknown>, ...selected } } });
+    if (writeStatus !== 200) return new Response("Private upstream token and write details", { status: writeStatus });
+    if (mutateReply) (savedOperations.usagePlanning as { assumptions: string[] }).assumptions = [];
+    return Response.json({ id, workspaceId, status: "DRAFT", version: 8, profileSchemaVersion: 6, profile: update.profile });
+  };
+  const check = async (response: Response, expected: number) => {
+    assert.equal(response.status, expected); assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("referrer-policy"), "no-referrer");
+  };
+  try {
+    for (const [value, expected] of [[request(undefined, { Origin: "https://other.example.test" }), 403],
+      [request(undefined, {}, url, null), 401], [request(undefined, { "Content-Type": "application/json" }), 415],
+      [request(undefined, {}, `${url}?workspaceId=foreign`), 400],
+      [request(undefined, { "Content-Length": "1025" }), 413], [request("x".repeat(1025)), 413],
+      [request(new Uint8Array([0xff])), 400], [request(null), 400]] as const) {
+      await check(await operationalPreferencesRoute(value, context), expected); assert.equal(calls.length, 0);
+    }
+    await check(await operationalPreferencesRoute(request(), { params: Promise.resolve({ id: id.toUpperCase() + "x" }) }), 404);
+    for (const modify of [(p: URLSearchParams) => p.append("workspaceId", "foreign"),
+      (p: URLSearchParams) => p.append("hosting", "MANAGED"), (p: URLSearchParams) => p.set("hosting", "SELF-HOSTED"),
+      (p: URLSearchParams) => p.set("expectedVersion", "07"), (p: URLSearchParams) => p.delete("budgetSensitivity")]) {
+      const forged = new URLSearchParams(form); modify(forged);
+      await check(await operationalPreferencesRoute(request(forged.toString()), context), 400); assert.equal(calls.length, 0);
+    }
+    let cancelled = false;
+    const stream = new ReadableStream({ start(controller) { controller.enqueue(new Uint8Array(1025)); }, cancel() { cancelled = true; } });
+    await check(await operationalPreferencesRoute(request(stream), context), 413); assert.equal(cancelled, true); assert.equal(calls.length, 0);
+    const saved = await operationalPreferencesRoute(request(), context); await check(saved, 200);
+    assert.deepEqual(await saved.json(), { assessmentId: id, expectedVersion: 7, outcome: "saved" });
+    assert.equal(saved.headers.get("vary"), "Accept"); assert.equal(saved.headers.get("location"), null);
+    assert.deepEqual(calls.splice(0), ["GET", "PUT"]); assert.deepEqual(profile, initial);
+    const native = await operationalPreferencesRoute(request(undefined, { Accept: "text/html" }), context); await check(native, 303);
+    assert.equal(native.headers.get("location"), `http://localhost:3000/assessments/${id}?step=usage`); assert.deepEqual(calls.splice(0), ["GET", "PUT"]);
+    version = 8;
+    const stale = await operationalPreferencesRoute(request(), context); await check(stale, 409);
+    assert.deepEqual(await stale.json(), { assessmentId: id, expectedVersion: 7, outcome: "conflict" }); assert.deepEqual(calls.splice(0), ["GET"]);
+    const nativeStale = await operationalPreferencesRoute(request(undefined, { Accept: "text/html" }), context);
+    assert.equal(nativeStale.headers.get("location"), `http://localhost:3000/assessments/${id}?step=usage&operationsError=stale`); assert.deepEqual(calls.splice(0), ["GET"]);
+    version = 7; status = "ARCHIVED";
+    const locked = await operationalPreferencesRoute(request(), context); await check(locked, 423);
+    assert.deepEqual(await locked.json(), { assessmentId: id, expectedVersion: 7, outcome: "locked" }); assert.deepEqual(calls.splice(0), ["GET"]);
+    status = "DRAFT";
+    for (const [code, outcome] of [[409, "conflict"], [422, "invalid"]] as const) {
+      writeStatus = code;
+      const refused = await operationalPreferencesRoute(request(), context); await check(refused, code);
+      assert.deepEqual(await refused.json(), { assessmentId: id, expectedVersion: 7, outcome }); assert.deepEqual(calls.splice(0), ["GET", "PUT"]);
+    }
+    writeStatus = 500;
+    const unavailable = await operationalPreferencesRoute(request(), context); await check(unavailable, 503);
+    assert.equal(await unavailable.text(), "Assessment update is temporarily unavailable."); assert.deepEqual(calls.splice(0), ["GET", "PUT"]);
+    writeStatus = 200; mutateReply = true;
+    await check(await operationalPreferencesRoute(request(), context), 503); assert.deepEqual(calls.splice(0), ["GET", "PUT"]);
+    mutateReply = false; replyWorkspace = "70000000-0000-4000-8000-000000000002";
+    await check(await operationalPreferencesRoute(request(), context), 503); assert.deepEqual(calls.splice(0), ["GET"]);
+    replyWorkspace = workspaceId; readStatus = 404;
+    await check(await operationalPreferencesRoute(request(), context), 404); assert.deepEqual(calls.splice(0), ["GET"]);
+    readStatus = 200; profile = { ...initial, operations: { hosting: "UNKNOWN" } };
+    await check(await operationalPreferencesRoute(request(), context), 503); assert.deepEqual(calls.splice(0), ["GET"]);
+    await revokeSession(sessionId);
+    await check(await operationalPreferencesRoute(request(), context), 401); assert.equal(calls.length, 0);
+  } finally {
+    await revokeSession(sessionId); globalThis.fetch = oldFetch;
+    environment.forEach((key, index) => { if (previous[index] === undefined) delete process.env[key]; else process.env[key] = previous[index]; });
   }
 });
 

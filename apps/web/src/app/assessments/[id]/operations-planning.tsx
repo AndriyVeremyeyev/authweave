@@ -49,7 +49,7 @@ export function OperationsPlanning({ preview }: { preview: OperationsPlanningPre
       <div><dt className="text-slate-400">Declared identity expertise — not verified</dt><dd>{labels[preview.inputs.identityExpertise]}</dd></div>
       <div><dt className="text-slate-400">Budget sensitivity — not a spending cap</dt><dd>{labels[preview.inputs.budgetSensitivity]}</dd></div>
     </dl>
-    <p className="mt-3 text-sm text-slate-400">These operational preferences are currently read-only. Usage inputs can be edited above for a draft.</p>
+    <p className="mt-3 text-sm text-slate-400">This comparison uses saved preferences and usage inputs, not unsaved form selections.</p>
     <p className="mt-4 font-medium text-cyan-200">{preview.status === "INPUTS_RECORDED"
       ? "Planning inputs recorded — responsibilities and costs still need validation" : "More planning information is needed"}</p>
     {preview.missingPaths.length > 0 && <div className="mt-3 rounded-lg bg-slate-800/60 p-4">

@@ -6,7 +6,7 @@ export const assessmentSteps = [
   { id: "auditability", title: "Audit and evidence", short: "Audit", input: true,
     description: "Record the events and retention your application needs, without assuming a provider meets them." },
   { id: "usage", title: "Usage and budget inputs", short: "Usage", input: true,
-    description: "Capture expected usage and its assumptions. Missing information is not treated as zero cost." },
+    description: "Record operational preferences, expected usage and its assumptions. Missing information is not treated as zero cost." },
   { id: "review", title: "Review saved requirements", short: "Review", input: false,
     description: "See what is actually saved and return to the relevant section to clarify your inputs." },
   { id: "comparison", title: "Compare options", short: "Comparison", input: false,
@@ -22,7 +22,7 @@ export type WorkflowEvent = { type: "edit" | "cancel" | "discard" | "submit" | "
 
 export function assessmentStepFromQuery(query: Record<string, string | string[] | undefined>): AssessmentStep {
   for (const [key, step] of [["contextError", "context"], ["editError", "capabilities"],
-    ["auditError", "auditability"], ["usageError", "usage"]] as const) {
+    ["auditError", "auditability"], ["usageError", "usage"], ["operationsError", "usage"]] as const) {
     if (typeof query[key] === "string" && ["stale", "invalid", "locked"].includes(query[key])) return step;
   }
   return assessmentSteps.find(step => step.id === query.step)?.id ?? "context";

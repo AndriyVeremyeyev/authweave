@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { assessmentSteps, workflowTransition, type AssessmentStep } from "@/lib/assessment/workflow";
 
 const AssessmentNavigation = createContext<((step: AssessmentStep, button: HTMLButtonElement) => void) | null>(null);
-const AssessmentSave = createContext<{ setSaving: (busy: boolean) => void; allowReload: () => void } | null>(null);
+const AssessmentSave = createContext<{ setSaving: (busy: boolean) => void; isSaving: () => boolean; allowReload: () => void } | null>(null);
 export function useAssessmentSave() { return useContext(AssessmentSave); }
 
 // Server-rendered cards use the same in-memory navigation and dirty guard as the sidebar.
@@ -53,7 +53,7 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
     previousStep.current = state.step;
     const url = new URL(window.location.href);
     url.searchParams.set("step", state.step);
-    for (const key of ["contextError", "editError", "auditError", "usageError"]) url.searchParams.delete(key);
+    for (const key of ["contextError", "editError", "auditError", "usageError", "operationsError"]) url.searchParams.delete(key);
     window.history.replaceState(null, "", url);
     heading.current?.focus();
   }, [state.step]);
@@ -142,6 +142,7 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
         }}>
           <AssessmentSave.Provider value={{
             setSaving: busy => { saving.current = busy; setSavePending(busy); },
+            isSaving: () => saving.current,
             // Release only for a checked acknowledgement or explicit discard-and-reload.
             allowReload: () => { dirty.current = false; saving.current = false; setSavePending(false); dispatch({ type: "submit" }); },
           }}><AssessmentNavigation.Provider value={navigate}>{panels[state.step]}</AssessmentNavigation.Provider></AssessmentSave.Provider>

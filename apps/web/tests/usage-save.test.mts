@@ -118,7 +118,7 @@ test("timeouts and lost replies never declare failure, clear edits or trigger a 
 
 test("the UI freezes a pending submission and requires explicit discard before loading a fresh version", async () => {
   const source = await readFile(new URL("../src/app/assessments/[id]/assessment-section-form.tsx", import.meta.url), "utf8");
-  assert.ok(source.includes("if (inFlight.current || reloadRequired.current || mustReload)"));
+  assert.ok(source.includes("if (inFlight.current || reloadRequired.current || mustReload || lifecycle?.isSaving?.())"));
   assert.ok(source.includes("fieldset disabled={pending}")); assert.ok(source.includes("disabled={pending || mustReload}"));
   assert.ok(source.includes("reloadDialog.current.showModal()"));
   assert.ok(source.includes("!reloadDialog.current?.open"));

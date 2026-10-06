@@ -4,10 +4,10 @@ import { postProfileSection, profileReloadPath, profileFormIssues, profileWriteR
   type ProfileSection } from "../src/lib/assessment/profile-save.ts";
 import { profileFormFixture, profileSectionAction, profileSaveFixtureId as id } from "./fixtures/profile-save.mts";
 
-for (const section of ["context","capabilities","auditability"] as const) {
+for (const section of ["context","capabilities","auditability","operations"] as const) {
   test(`${section}: all checked outcomes bind the exact one-shot form payload and submitted version`, async () => {
     const action=profileSectionAction(section); const params=profileFormFixture(section); const before=params.toString();
-    assert.equal(profileReloadPath(section,action),`/assessments/${id}?step=${section}`);
+    assert.equal(profileReloadPath(section,action),`/assessments/${id}?step=${section === "operations" ? "usage" : section}`);
     assert.deepEqual(profileFormIssues(section,params),[]);
     for (const [outcome,status] of [["saved",200],["conflict",409],["invalid",422],["locked",423]] as const) {
       let calls=0;
@@ -41,7 +41,7 @@ for (const section of ["context","capabilities","auditability"] as const) {
     for(const change of [(p:URLSearchParams)=>p.append("workspaceId","forged"),
       (p:URLSearchParams)=>p.append("expectedVersion","1"),(p:URLSearchParams)=>p.set("expectedVersion","01"),
       (p:URLSearchParams)=> section==="context" ? p.set("allowedCountries","US, US") :
-        section==="capabilities" ? p.set("SCIM","AVAILABLE") : p.set("minimumRetentionDays","0")]) {
+        section==="capabilities" ? p.set("SCIM","AVAILABLE") : section === "operations" ? p.set("hosting", "AVAILABLE") : p.set("minimumRetentionDays","0")]) {
       const params=profileFormFixture(section); change(params); const before=params.toString(); let calls=0;
       assert.ok(profileFormIssues(section,params).length>0);
       assert.equal(await postProfileSection(section,profileSectionAction(section),params,async()=>{calls++;throw new Error("Unexpected IO");}),"invalid");

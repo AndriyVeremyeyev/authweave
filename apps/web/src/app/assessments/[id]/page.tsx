@@ -23,6 +23,7 @@ import { ProvisioningLifecycle } from "./provisioning-lifecycle";
 import { UsagePlanningEditor } from "./usage-planning-editor";
 import { UsagePlanningPreflight } from "./usage-planning-preflight";
 import { OperationsPlanning, OperationsPlanningUnavailable } from "./operations-planning";
+import { OperationalPreferencesEditor } from "./operational-preferences-editor";
 import { AuditabilityEditor } from "./auditability-editor";
 import { AuditabilityPreflight, AuditabilityPreflightUnavailable } from "./auditability-preflight";
 import { assessmentStepFromQuery } from "@/lib/assessment/workflow";
@@ -54,6 +55,11 @@ const usageErrors: Record<string, string> = {
 const auditErrors: Record<string, string> = {
   stale: "This draft changed since you opened it. Review the current auditability inputs and save again.",
   invalid: "Core rejected these auditability inputs. Review the current profile before trying again.",
+  locked: "Only drafts can be edited here.",
+};
+const operationsErrors: Record<string, string> = {
+  stale: "This draft changed since you opened it. Review the current operational preferences and save again.",
+  invalid: "Core rejected these operational preferences. Review the current profile before trying again.",
   locked: "Only drafts can be edited here.",
 };
 
@@ -170,6 +176,10 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
             {auditPreview ? <AuditabilityPreflight preview={auditPreview} /> : <AuditabilityPreflightUnavailable />}
           </>,
           usage: <>
+            <StepError error={query.operationsError} messages={operationsErrors} />
+            {assessment.status === "DRAFT" && (operationsValues
+              ? <OperationalPreferencesEditor assessmentId={assessment.id} version={assessment.version} values={operationsValues.inputs} />
+              : <UnreadableStep name="Operational preferences" />)}
             <StepError error={usageError} messages={usageErrors} />
             {assessment.status !== "DRAFT" ? <ReadOnlyStep /> : usageValues
               ? <UsagePlanningEditor assessmentId={assessment.id} version={assessment.version} values={usageValues} />

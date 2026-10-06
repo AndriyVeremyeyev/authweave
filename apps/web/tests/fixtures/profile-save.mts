@@ -21,6 +21,9 @@ export function profileFormFixture(section: ProfileSection) {
   } else if (section === "auditability") {
     params.set("criticality", "PREFERRED"); params.append("selectedCriteria", "AUDIT_LOG_RETENTION");
     params.set("minimumRetentionDays", "30");
+  } else if (section === "operations") {
+    for (const [key, value] of Object.entries({ hosting: "UNKNOWN", deploymentTarget: "UNDECIDED",
+      identityExpertise: "UNKNOWN", budgetSensitivity: "UNKNOWN" })) params.set(key, value);
   } else {
     params.set("scopeDescription", "Fictional unsaved input");
     for (let i=0; i<10; i++) params.append("assumption", "");

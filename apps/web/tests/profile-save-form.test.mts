@@ -15,7 +15,7 @@ function elements(value: unknown): ElementView[] {
   return [node, ...elements(node.props.children)];
 }
 
-test("all four real section form handlers retain conflict edits, block duplicate writes, and release the guard only for a receipt or explicit reload", async () => {
+test("all real section form handlers retain conflict edits, block duplicate writes, and release the guard only for a receipt or explicit reload", async () => {
   const slot = `__authweave_usage_save_${crypto.randomUUID()}`;
   const globals = globalThis as unknown as Record<string, unknown>;
   const originalFormData = Object.getOwnPropertyDescriptor(globalThis, "FormData");
@@ -32,7 +32,7 @@ test("all four real section form handlers retain conflict edits, block duplicate
   const source = await readFile(new URL("../src/app/assessments/[id]/assessment-section-form.tsx", import.meta.url), "utf8");
   // React must not reuse refusal state for another server-rendered section or loaded version.
   for (const [section, editor] of [["context", "evaluation-context-editor"],
-    ["capabilities", "capability-editor"], ["auditability", "auditability-editor"]]) {
+    ["capabilities", "capability-editor"], ["auditability", "auditability-editor"], ["operations", "operational-preferences-editor"]]) {
     const binding = await readFile(new URL(`../src/app/assessments/[id]/${editor}.tsx`, import.meta.url), "utf8");
     assert.ok(binding.includes(`key={\`${section}:\${assessmentId}:\${version}\`}`));
     assert.ok(binding.includes(`section="${section}"`));
@@ -49,7 +49,7 @@ test("all four real section form handlers retain conflict edits, block duplicate
     for (const section of Object.keys(profileSaveSections) as ProfileSection[]) {
       const action = profileSectionAction(section);
       params = profileFormFixture(section); const before = params.toString();
-      for (const outcome of ["conflict", "uncertain", "signed-out", "forbidden", "not-found", "locked", "invalid", "saved", "detached"] as const) {
+      for (const outcome of ["conflict", "uncertain", "signed-out", "forbidden", "not-found", "locked", "invalid", "saved", "saved-other", "detached"] as const) {
       let resolve: (value: string)=>void = ()=>{throw new Error("No deferred request");};
       const reply = new Promise<string>(done=>{resolve=done;});
       let calls=0, releases=0, opens=0, focusReturns=0;
@@ -63,7 +63,9 @@ test("all four real section form handlers retain conflict edits, block duplicate
       } });
       const render = () => {memory.cursor=0; memory.refCursor=0; return AssessmentSectionForm({section,action,children:"Server-rendered fields"});};
       let form = render();
-      const event = () => ({ currentTarget: { isConnected: true }, prevented: false,
+      const other = { dataset: { profileDirty: "true" } };
+      const event = () => ({ currentTarget: { isConnected: true, dataset: { profileDirty: "true" },
+        ownerDocument: { querySelectorAll: () => outcome === "saved-other" ? [other] : [] } }, prevented: false,
         preventDefault() { this.prevented=true; } });
       const first = event(); const handler = form.props.onSubmit; const request = handler(first);
       assert.equal(first.prevented, true); assert.equal(calls, 1); assert.deepEqual(busy, [true]);
@@ -71,7 +73,7 @@ test("all four real section form handlers retain conflict edits, block duplicate
       const pending = renderToStaticMarkup(render());
       assert.ok(pending.includes('aria-busy="true"')); assert.ok(pending.includes('<fieldset disabled=""'));
       if (outcome === "detached") first.currentTarget.isConnected=false;
-      resolve(outcome === "detached" ? "saved" : outcome); await request;
+      resolve(outcome === "detached" || outcome === "saved-other" ? "saved" : outcome); await request;
       assert.deepEqual(busy, [true,false]); assert.equal(params.toString(), before);
       if (outcome === "saved") {
         assert.equal(releases, 1); assert.deepEqual(destinations, [profileReloadPath(section, action)]);
@@ -90,7 +92,12 @@ test("all four real section form handlers retain conflict edits, block duplicate
         // Even the pre-render callback is blocked after the reply, before React commits new state.
         const extra=event(); await handler(extra); assert.equal(extra.prevented,true); assert.equal(calls,1);
         form=render(); const html=renderToStaticMarkup(form);
-        assert.ok(html.includes(profileSaveFeedback[outcome].title));
+        assert.ok(html.includes(outcome === "saved-other" ? "Saved — other edits remain unsaved" : profileSaveFeedback[outcome].title));
+        if (outcome === "saved-other") {
+          assert.ok(html.includes("Another form in this tab has unsaved edits"));
+          assert.equal(other.dataset.profileDirty, "true");
+          assert.equal(first.currentTarget.dataset.profileDirty, undefined);
+        }
         const nodes=elements(form);
         const reload=nodes.find(node=>node.type === "button" && node.props.children === "Load current saved version")!;
         const modal=nodes.find(node=>node.type === "dialog")!;
@@ -128,6 +135,7 @@ test("all four real section form handlers retain conflict edits, block duplicate
     for (const [section, key, invalid, fieldId] of [
       ["context", "allowedCountries", "US, US", "context-allowedCountries"],
       ["auditability", "minimumRetentionDays", "030", "audit-retention-days"],
+      ["operations", "hosting", "unsupported", "operations-hosting"],
     ] as const) {
       params=profileFormFixture(section); const valid=params.toString(); params.set(key,invalid);
       const before=params.toString(); let calls=0, focus=0, releases=0;
@@ -155,6 +163,15 @@ test("all four real section form handlers retain conflict edits, block duplicate
       assert.equal(calls,0); // Editing and following a field link never submit.
       await form.props.onSubmit({...event,prevented:false});
       assert.equal(calls,1);assert.equal(releases,0);assert.deepEqual(busy,[true,false]);
+    }
+    for (const section of ["operations", "usage"] as const) {
+      params = profileFormFixture(section);
+      globals[slot] = { cursor: 0, refCursor: 0, states: [], refs: [],
+        lifecycle: { isSaving: () => true, setSaving: () => { throw new Error("Must not start a concurrent save"); } },
+        save: () => { throw new Error("Must not send a concurrent save"); } };
+      const event = { currentTarget: { isConnected: true }, prevented: false, preventDefault() { this.prevented = true; } };
+      await AssessmentSectionForm({ section, action: profileSectionAction(section), children: "Fields" }).props.onSubmit(event);
+      assert.equal(event.prevented, true);
     }
   } finally {
     Reflect.deleteProperty(globals, slot);

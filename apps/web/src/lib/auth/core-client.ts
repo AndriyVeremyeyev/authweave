@@ -34,6 +34,8 @@ import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
   type UsageMetric, type UsagePlanningValues } from "../assessment/usage-planning.ts";
 import { operationsPlanningBinding, operationsPlanningByteLimit, operationsPlanningFromCore,
   type OperationsPlanningValues, type OperationsPlanningPreview } from "../assessment/operations-planning.ts";
+import { withOperationalPreferences, operationalPreferencesSaveMatches } from "../assessment/operational-preferences.ts";
+import type { OperationsInputs } from "../assessment/operations-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
   type SensitivityCapabilityDelta, type SensitivityCandidate, type SensitivityPreview,
   type WeightedCandidate, type WeightedContribution, type WeightedPreview } from "../assessment/weights.ts";
@@ -495,7 +497,8 @@ export async function readPersonalAssessment(session: BrowserSession, id: string
 export type ProfileUpdateResult = "saved" | "conflict" | "invalid" | "not-found" | "not-editable";
 
 async function updatePersonalProfile(session: BrowserSession, id: string, expectedVersion: number,
-  patch: (profile: Record<string, unknown>) => Record<string, unknown>): Promise<ProfileUpdateResult> {
+  patch: (profile: Record<string, unknown>) => Record<string, unknown>,
+  savedMatches: (expected: Record<string, unknown>, saved: Record<string, unknown>) => boolean = () => true): Promise<ProfileUpdateResult> {
   if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) {
     throw new Error("Profile update request is invalid");
   }
@@ -517,7 +520,8 @@ async function updatePersonalProfile(session: BrowserSession, id: string, expect
   const saved = assessmentFromCore(await response.json(), session, id);
   if (saved.status !== "DRAFT" || saved.version < expectedVersion ||
       saved.version > expectedVersion + 1 ||
-      JSON.stringify(auditabilityValues(saved.profile)) !== JSON.stringify(auditabilityValues(profile))) {
+      JSON.stringify(auditabilityValues(saved.profile)) !== JSON.stringify(auditabilityValues(profile)) ||
+      !savedMatches(profile, saved.profile)) {
     throw new Error("Core profile update response is invalid");
   }
   return "saved";
@@ -542,6 +546,13 @@ export async function updatePersonalUsagePlanning(
 ): Promise<ProfileUpdateResult> {
   return updatePersonalProfile(session, id, expectedVersion,
     profile => withUsagePlanningValues(profile, values));
+}
+
+export async function updatePersonalOperationalPreferences(
+  session: BrowserSession, id: string, expectedVersion: number, values: OperationsInputs,
+): Promise<ProfileUpdateResult> {
+  return updatePersonalProfile(session, id, expectedVersion,
+    profile => withOperationalPreferences(profile, values), operationalPreferencesSaveMatches);
 }
 
 export async function updatePersonalAuditability(

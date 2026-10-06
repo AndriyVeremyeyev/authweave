@@ -128,7 +128,7 @@ test("Operations UI explains both models, input gaps and responsibilities withou
   const { OperationsPlanning, OperationsPlanningUnavailable } = await assessmentUiComponents();
   const html = renderToStaticMarkup(createElement(OperationsPlanning, { preview: operationsPlanningFromCore(operationsFixture(), binding()) }));
   for (const text of ["Managed identity service", "Self-hosted identity service", "not excluded", "Potential advantages", "Support planning", "Cost planning",
-    "not a spending cap", "does not establish a free tier", "not IdP location", "Missing saved inputs", "Shared responsibility guidance", "currently read-only"]) assert.ok(html.includes(text), text);
+    "not a spending cap", "does not establish a free tier", "not IdP location", "Missing saved inputs", "Shared responsibility guidance", "not unsaved form selections"]) assert.ok(html.includes(text), text);
   for (const text of ["Synthetic private", "Bearer", "<form", "<select", "Estimated monthly cost", operationsWorkspaceId, operationsAssessmentId]) assert.equal(html.includes(text), false, text);
   assert.equal((html.match(/<article/g) ?? []).length, 2); assert.ok(html.includes("lg:grid-cols-2"));
   const unavailable = renderToStaticMarkup(createElement(OperationsPlanningUnavailable));
