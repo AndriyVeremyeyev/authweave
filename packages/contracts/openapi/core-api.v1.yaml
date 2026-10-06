@@ -389,6 +389,43 @@ paths:
           description: Missing, duplicate or invalid server service credential.
         '503':
           description: Server service credential is not configured.
+  /internal/v1/catalog-provisioning-lifecycle/regression-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Inspect source-controlled synthetic lifecycle v2 regression
+      operationId: getSyntheticProvisioningLifecycleRegressionCheck
+      description: >-
+        Internal input-free read requiring one server-only service credential.
+        Replays 2016 bounded synthetic v6 cases from four frozen v5 profiles and
+        their explicit auditability supplement. Only provisioning criticalities
+        are overlaid; temporary declarations are never saved. Checks six requirement
+        contexts, all three lifecycle patterns and four group strategies, six common
+        declaration variants and two removal variants only for explicit group transports.
+        Keeps hard SCIM/group conflicts and independent account/session/token gaps.
+        Returns no-store inventories, counts and binding digests without profiles,
+        declarations, individual rows or identity. This is neither observed lifecycle
+        nor provider compatibility, candidate-change impact, full coverage or publication.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: Body-free synthetic regression; verification and authority remain false.
+          headers:
+            Cache-Control:
+              description: Diagnostic results must not be cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-provisioning-lifecycle-regression-check.v1.schema.json
+        '400':
+          description: Body or query supplied to this input-free read.
+        '401':
+          description: Missing, duplicate or invalid service credential.
+        '503':
+          description: Server service credential is not configured.
   /internal/v1/catalog-operations-planning/regression-preflight:
     get:
       tags: [Catalog drafts]

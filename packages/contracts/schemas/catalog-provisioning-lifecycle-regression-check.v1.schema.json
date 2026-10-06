@@ -1,0 +1,592 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-provisioning-lifecycle-regression-check.v1.schema.json",
+  "title": "Body-free synthetic lifecycle v2 regression",
+  "description": "Fresh bounded source-controlled design regression, not observed lifecycle, candidate-change impact or publication authority. Exact semantics and digests require independent replay beyond JSON shape.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evaluatedAt",
+    "scenarioSetSha256",
+    "auditabilityScenarioSetSha256",
+    "analysisSha256",
+    "results",
+    "requirementOutcomes",
+    "designOutcomes",
+    "conditionOutcomes",
+    "offboardingOutcomes",
+    "groupRemovalOutcomes",
+    "checkedConditionChecks",
+    "reasons",
+    "scope",
+    "policyVersion",
+    "lifecyclePolicyVersion",
+    "definitionsSha256",
+    "scenarioSetVersion",
+    "baseScenarioSetVersion",
+    "baseScenarioSetSha256",
+    "auditabilityScenarioSetVersion",
+    "profileSchemaVersion",
+    "profileSchemaSha256",
+    "analysisBasis",
+    "declaredProfiles",
+    "checkedCases",
+    "checkedRequirementChecks",
+    "checkedDesignChecks",
+    "checkedOffboardingChecks",
+    "checkedGroupRemovalChecks",
+    "requirementVariants",
+    "declarationVariants",
+    "patternIds",
+    "groupStrategies",
+    "conditionIds",
+    "checkedPaths",
+    "deferredBoundaries",
+    "candidateChangesEvaluated",
+    "coverageComplete",
+    "configurationVerified",
+    "providerCompatibilityVerified",
+    "lifecycleVerified",
+    "groupSynchronizationVerified",
+    "accessRevocationVerified",
+    "sourceVerificationPerformed",
+    "storedReportVerified",
+    "baselineVerified",
+    "approvalGranted",
+    "publicationReady",
+    "evaluationReady",
+    "recommendationReady",
+    "writesPerformed"
+  ],
+  "properties": {
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scenarioSetSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "auditabilityScenarioSetSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "analysisSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "results": {
+      "$ref": "#/$defs/results"
+    },
+    "requirementOutcomes": {
+      "$ref": "#/$defs/counts"
+    },
+    "designOutcomes": {
+      "$ref": "#/$defs/counts"
+    },
+    "conditionOutcomes": {
+      "$ref": "#/$defs/counts"
+    },
+    "offboardingOutcomes": {
+      "$ref": "#/$defs/counts"
+    },
+    "groupRemovalOutcomes": {
+      "$ref": "#/$defs/counts"
+    },
+    "checkedConditionChecks": {
+      "type": "integer",
+      "minimum": 14112,
+      "maximum": 30240
+    },
+    "reasons": {
+      "type": "array",
+      "minItems": 14,
+      "maxItems": 14,
+      "items": false,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "REQUIRED_MECHANISM_PLANNED"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "REQUIRED_MECHANISM_ABSENT"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "FORBIDDEN_MECHANISM_PLANNED"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "FORBIDDEN_MECHANISM_ABSENT"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "REQUIREMENT_UNKNOWN"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "PREFERENCE_NOT_SCORED"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "NO_REQUIREMENT"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "GROUP_STRATEGY_UNKNOWN"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "GROUP_TRANSPORT_PLANNED"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "NO_GROUP_TRANSPORT_PLANNED"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "SCIM_GROUPS_REQUIRE_SCIM_PATTERN"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "DECLARED_CONDITION_SATISFIED"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "DECLARED_CONDITION_NOT_SATISFIED"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reasonCode",
+            "checks"
+          ],
+          "properties": {
+            "reasonCode": {
+              "const": "CONDITION_UNKNOWN"
+            },
+            "checks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 38304
+            }
+          }
+        }
+      ]
+    },
+    "scope": {
+      "const": "SYNTHETIC_PROVISIONING_LIFECYCLE_V2_REGRESSION"
+    },
+    "policyVersion": {
+      "const": "catalog-provisioning-lifecycle-regression-1"
+    },
+    "lifecyclePolicyVersion": {
+      "const": "provisioning-lifecycle-design-2"
+    },
+    "definitionsSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "scenarioSetVersion": {
+      "const": "catalog-provisioning-lifecycle-scenarios-1"
+    },
+    "baseScenarioSetVersion": {
+      "const": "catalog-scoped-profile-scenarios-1"
+    },
+    "baseScenarioSetSha256": {
+      "const": "ce70ce85cbb2e5b1537f36e2120a5c4add5ef0ce5d64be46397436bbc1993ca1"
+    },
+    "auditabilityScenarioSetVersion": {
+      "const": "catalog-scoped-auditability-scenarios-1"
+    },
+    "profileSchemaVersion": {
+      "const": 6
+    },
+    "profileSchemaSha256": {
+      "const": "3d384daf2d98851ebcbe00f90a9c6dabeedbae8361f8a41f58d00b9742c95fbb"
+    },
+    "analysisBasis": {
+      "const": "SYNTHETIC_REQUIREMENTS_AND_UNVERIFIED_DESIGN_DECLARATIONS"
+    },
+    "declaredProfiles": {
+      "const": 4
+    },
+    "checkedCases": {
+      "const": 2016
+    },
+    "checkedRequirementChecks": {
+      "const": 6048
+    },
+    "checkedDesignChecks": {
+      "const": 2016
+    },
+    "checkedOffboardingChecks": {
+      "const": 6048
+    },
+    "checkedGroupRemovalChecks": {
+      "const": 1152
+    },
+    "requirementVariants": {
+      "const": [
+        "BASE_PROFILE",
+        "REQUIRED",
+        "FORBIDDEN",
+        "UNKNOWN",
+        "PREFERRED",
+        "NOT_REQUIRED"
+      ]
+    },
+    "declarationVariants": {
+      "const": [
+        "UNRECORDED",
+        "EXPLICIT_UNKNOWN",
+        "ALL_SATISFIED",
+        "ALL_NOT_SATISFIED",
+        "OFFBOARDING_GAPS",
+        "OFFBOARDING_FAILURE_WITH_GAP",
+        "GROUP_REMOVAL_GAP",
+        "GROUP_REMOVAL_FAILURE_WITH_GAP"
+      ]
+    },
+    "patternIds": {
+      "const": [
+        "SCIM_PUSH",
+        "JIT_LOGIN",
+        "SCIM_AND_JIT"
+      ]
+    },
+    "groupStrategies": {
+      "const": [
+        "UNKNOWN",
+        "NONE",
+        "SCIM_GROUPS",
+        "APPLICATION_BRIDGE"
+      ]
+    },
+    "conditionIds": {
+      "const": [
+        "TENANT_AND_SUBJECT_CORRELATION",
+        "ATTRIBUTE_OWNERSHIP_AND_MAPPING",
+        "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
+        "APPLICATION_SESSION_INVALIDATION",
+        "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY",
+        "FAILURE_RECOVERY_AND_RECONCILIATION",
+        "SCIM_CLIENT_SERVER_DIRECTION",
+        "SCIM_USER_OPERATIONS",
+        "JIT_TRUSTED_LOGIN_AND_LINKING",
+        "SCIM_JIT_COLLISION_POLICY",
+        "GROUP_SOURCE_AND_MEMBERSHIP_MAPPING",
+        "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION",
+        "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT",
+        "GROUP_REMOVAL_AND_ACCESS_RECHECK",
+        "SCIM_GROUP_OPERATIONS",
+        "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"
+      ]
+    },
+    "checkedPaths": {
+      "const": [
+        "provisioning.scim",
+        "provisioning.justInTimeProvisioning",
+        "provisioning.groupSynchronization"
+      ]
+    },
+    "deferredBoundaries": {
+      "const": [
+        "providerOperationsAndEntitlements",
+        "observedProvisioningDelivery",
+        "groupMembershipAndAuthorization",
+        "sessionAndTokenRevocation",
+        "reconciliationAndFailureRecovery"
+      ]
+    },
+    "candidateChangesEvaluated": {
+      "const": false
+    },
+    "coverageComplete": {
+      "const": false
+    },
+    "configurationVerified": {
+      "const": false
+    },
+    "providerCompatibilityVerified": {
+      "const": false
+    },
+    "lifecycleVerified": {
+      "const": false
+    },
+    "groupSynchronizationVerified": {
+      "const": false
+    },
+    "accessRevocationVerified": {
+      "const": false
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "storedReportVerified": {
+      "const": false
+    },
+    "baselineVerified": {
+      "const": false
+    },
+    "approvalGranted": {
+      "const": false
+    },
+    "publicationReady": {
+      "const": false
+    },
+    "evaluationReady": {
+      "const": false
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "writesPerformed": {
+      "const": false
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "conditionallySatisfied",
+        "conditionallyNotSatisfied",
+        "unknown",
+        "notApplied"
+      ],
+      "properties": {
+        "conditionallySatisfied": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 38304
+        },
+        "conditionallyNotSatisfied": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 38304
+        },
+        "unknown": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 38304
+        },
+        "notApplied": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 38304
+        }
+      }
+    },
+    "results": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "conditionallyMatches",
+        "conditionallyDoesNotMatch",
+        "needsInformation"
+      ],
+      "properties": {
+        "conditionallyMatches": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2016
+        },
+        "conditionallyDoesNotMatch": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2016
+        },
+        "needsInformation": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2016
+        }
+      }
+    }
+  }
+}

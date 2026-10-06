@@ -686,6 +686,31 @@ Group and offboarding concepts also reference the
 [OAuth token-revocation implementation notes](https://www.rfc-editor.org/rfc/rfc7009.html#section-3);
 these are protocol context, not evidence of a vendor or application's enforcement.
 
+### Synthetic lifecycle v2 regression
+
+`GET /internal/v1/catalog-provisioning-lifecycle/regression-preflight` is a protected,
+input-free internal diagnostic. It replays 2016 source-controlled synthetic cases:
+four frozen v5 profiles with their explicit v6 auditability supplement, six
+provisioning-requirement contexts, all three patterns and four group strategies.
+Only provisioning criticalities are overlaid; all other profile inputs remain intact.
+Six common declaration variants distinguish omitted/explicit unknown, all-met,
+all-unmet, session/token gaps and failure-with-gap. Two group-removal variants apply
+only to explicit group transports. These are test inputs, never owner defaults.
+The bounded matrix is not every possible combination or candidate-change coverage.
+
+Independent expectations check all 16 scoped conditions, hard SCIM/group conflicts,
+account/session/token separation, group removal/access rechecks and failure precedence
+without hiding unknown gaps. The diagnostic requires one server-only credential,
+refuses body/query input and returns `no-store` inventories, reason/outcome counts and
+binding digests. It returns no profiles, declarations, rows or identity and writes
+nothing. Complete ordered reports are replayed before summarization; independent
+contract checks rebuild inputs, checks and digests from frozen source files rather
+than Core output. A fresh clock changes only analysis binding, not evidence freshness.
+All configuration, compatibility, lifecycle, group synchronization, access revocation,
+coverage, approval, publication, recommendation and write claims stay false. Existing
+v1/v2 previews, personal BFF/UI, history and coverage gates are unchanged. No new
+dependencies, migrations, provider calls, accounts or subscriptions are added.
+
 ### Auditability capability rule kernel
 
 The separate `auditability-capability-preflight-1` kernel evaluates explicit requirements

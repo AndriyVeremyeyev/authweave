@@ -15,6 +15,8 @@ import { architectureConfigurationFromCore } from "../../../apps/web/src/lib/ass
 import { validateConfigurationRegression } from "../tests/helpers/architecture-configuration-regression-spec.mjs";
 import { validateOperationsPlanning } from "../tests/helpers/operations-planning-spec.mjs";
 import { validateOperationsRegression } from "../tests/helpers/operations-planning-regression-spec.mjs";
+import { validateLifecycleRegression } from "../tests/helpers/lifecycle-regression-spec.mjs";
+import { lifecycleV2Expectation, lifecycleV2Patterns, lifecycleV2Groups, lifecycleV2GroupCommon } from "../tests/helpers/provisioning-lifecycle-v2-spec.mjs";
 import { operationsPlanningValues, operationsPlanningFromCore } from "../../../apps/web/src/lib/assessment/operations-planning.ts";
 
 const samplePaths = process.argv.slice(2);
@@ -47,6 +49,7 @@ let lifecycleV2Samples = 0;
 let architectureConfigurationSamples = 0;
 let operationsPlanningSamples = 0;
 let operationsRegressionSamples = 0;
+let lifecycleRegressionSamples = 0;
 const operationsSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("operations-saved-"))
   .map(s => [s.name.slice("operations-saved-".length), s.payload]));
 const architectureConfigurationRequests = new Map(samples.filter(s => s.schema === "architecture-configuration-request" && s.valid)
@@ -123,14 +126,6 @@ function validateLifecycle(payload, name) {
   assert.deepEqual(payload.conditionDefinitions.map(c => c.conditionId), lifecycleConditions.SCIM_AND_JIT);
 }
 
-const lifecycleV2Common = ["TENANT_AND_SUBJECT_CORRELATION", "ATTRIBUTE_OWNERSHIP_AND_MAPPING", "ACCOUNT_DISABLE_AND_LOGIN_BLOCK",
-  "APPLICATION_SESSION_INVALIDATION", "TOKEN_REVOCATION_OR_BOUNDED_EXPIRY", "FAILURE_RECOVERY_AND_RECONCILIATION"];
-const lifecycleV2Patterns = { SCIM_PUSH: [...lifecycleV2Common, "SCIM_CLIENT_SERVER_DIRECTION", "SCIM_USER_OPERATIONS"],
-  JIT_LOGIN: [...lifecycleV2Common, "JIT_TRUSTED_LOGIN_AND_LINKING"],
-  SCIM_AND_JIT: [...lifecycleV2Common, "SCIM_CLIENT_SERVER_DIRECTION", "SCIM_USER_OPERATIONS", "JIT_TRUSTED_LOGIN_AND_LINKING", "SCIM_JIT_COLLISION_POLICY"] };
-const lifecycleV2GroupCommon = ["GROUP_SOURCE_AND_MEMBERSHIP_MAPPING", "GROUP_CHANGE_DELIVERY_AND_RECONCILIATION", "GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT", "GROUP_REMOVAL_AND_ACCESS_RECHECK"];
-const lifecycleV2Groups = { UNKNOWN: [], NONE: [], SCIM_GROUPS: [...lifecycleV2GroupCommon, "SCIM_GROUP_OPERATIONS"],
-  APPLICATION_BRIDGE: [...lifecycleV2GroupCommon, "APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY"] };
 function validateLifecycleV2(payload, name) {
   const input = lifecycleV2Requests.get(name), a = payload.analysis;
   assert.ok(input, `${name}: exact V2 request is required`);
@@ -145,32 +140,8 @@ function validateLifecycleV2(payload, name) {
   assert.deepEqual(a.requirements, requirements);
   const consumer = lifecycleV2PreviewFromCore(payload, { workspaceId: saved.workspaceId, assessmentId: saved.id, input, requirements });
   assert.deepEqual(consumer.analysis, a, "Actual Core v2 responses must pass the personal BFF consumer, not only the schema.");
-  const satisfied = ["REQUIRED_MECHANISM_PLANNED", "FORBIDDEN_MECHANISM_ABSENT", "DECLARED_CONDITION_SATISFIED", "GROUP_TRANSPORT_PLANNED"];
-  const failed = ["REQUIRED_MECHANISM_ABSENT", "FORBIDDEN_MECHANISM_PLANNED", "DECLARED_CONDITION_NOT_SATISFIED", "SCIM_GROUPS_REQUIRE_SCIM_PATTERN"];
-  const outcome = reason => satisfied.includes(reason) ? "CONDITIONALLY_SATISFIED" : failed.includes(reason) ? "CONDITIONALLY_NOT_SATISFIED"
-    : ["PREFERENCE_NOT_SCORED", "NO_REQUIREMENT", "NO_GROUP_TRANSPORT_PLANNED"].includes(reason) ? "NOT_APPLIED" : "UNKNOWN";
-  const checks = ["scim", "justInTimeProvisioning", "groupSynchronization"].map(key => {
-    const criticality = requirements[key], planned = key === "scim" ? input.patternId !== "JIT_LOGIN" : key === "justInTimeProvisioning"
-      ? input.patternId !== "SCIM_PUSH" : input.groupStrategy === "UNKNOWN" ? null : input.groupStrategy !== "NONE";
-    const reasonCode = criticality === "UNKNOWN" ? "REQUIREMENT_UNKNOWN" : criticality === "PREFERRED" ? "PREFERENCE_NOT_SCORED"
-      : criticality === "NOT_REQUIRED" ? "NO_REQUIREMENT" : planned === null ? "GROUP_STRATEGY_UNKNOWN"
-        : criticality === "REQUIRED" ? planned ? "REQUIRED_MECHANISM_PLANNED" : "REQUIRED_MECHANISM_ABSENT"
-          : planned ? "FORBIDDEN_MECHANISM_PLANNED" : "FORBIDDEN_MECHANISM_ABSENT";
-    return { profilePath: `provisioning.${key}`, criticality, outcome: outcome(reasonCode), reasonCode };
-  });
-  assert.deepEqual(a.requirementChecks, checks, "V2 cannot replace saved criticalities or use a group bridge as SCIM.");
-  const reasonCode = input.groupStrategy === "UNKNOWN" ? "GROUP_STRATEGY_UNKNOWN" : input.groupStrategy === "NONE" ? "NO_GROUP_TRANSPORT_PLANNED"
-    : input.groupStrategy === "SCIM_GROUPS" && input.patternId === "JIT_LOGIN" ? "SCIM_GROUPS_REQUIRE_SCIM_PATTERN" : "GROUP_TRANSPORT_PLANNED";
-  const designChecks = [{ boundary: "groupTransport", outcome: outcome(reasonCode), reasonCode }];
-  assert.deepEqual(a.designChecks, designChecks);
-  const conditionChecks = [...lifecycleV2Patterns[input.patternId], ...lifecycleV2Groups[input.groupStrategy]].map(conditionId => {
-    const value = input.declarations[conditionId] ?? "UNKNOWN";
-    const reasonCode = value === "SATISFIED" ? "DECLARED_CONDITION_SATISFIED" : value === "NOT_SATISFIED" ? "DECLARED_CONDITION_NOT_SATISFIED" : "CONDITION_UNKNOWN";
-    return { conditionId, outcome: outcome(reasonCode), reasonCode };
-  });
-  assert.deepEqual(a.conditionChecks, conditionChecks, "V2 complete scoped groups, application-session and token conditions.");
-  const all = [...checks, ...designChecks, ...conditionChecks].map(c => c.outcome);
-  assert.equal(a.status, all.includes("CONDITIONALLY_NOT_SATISFIED") ? "CONDITIONALLY_DOES_NOT_MATCH" : all.includes("UNKNOWN") ? "NEEDS_INFORMATION" : "CONDITIONALLY_MATCHES");
+  assert.deepEqual(a, lifecycleV2Expectation(requirements, input.patternId, input.groupStrategy, input.declarations),
+    "V2 must retain exact requirements, scoped conditions, every gap and hard-failure precedence.");
   assert.deepEqual(payload.groupStrategies.map(g => g.groupStrategy), Object.keys(lifecycleV2Groups));
   for (const group of payload.groupStrategies) assert.deepEqual(group.conditions, lifecycleV2Groups[group.groupStrategy]);
   assert.deepEqual(payload.conditionDefinitions.map(c => c.conditionId), [...lifecycleV2Patterns.SCIM_AND_JIT, ...lifecycleV2GroupCommon,
@@ -399,6 +370,17 @@ for (const { name, schema, valid, payload } of samples) {
       assert.throws(() => operationsPlanningFromCore(forged, binding), undefined, "The personal BFF must refuse these actual HTTP substitutions too.");
     }
   }
+  if (schema === "catalog-provisioning-lifecycle-regression-check" && valid) {
+    validateLifecycleRegression(payload); lifecycleRegressionSamples++;
+    for (const mutate of [r => { r.results.conditionallyMatches--; r.results.needsInformation++; },
+      ...["requirementOutcomes", "designOutcomes", "conditionOutcomes", "offboardingOutcomes", "groupRemovalOutcomes"].map(key => r => { r[key].conditionallySatisfied--; r[key].unknown++; }),
+      r => r.checkedConditionChecks--, r => { r.reasons[0].checks--; r.reasons[1].checks++; },
+      ...["scenarioSetSha256", "auditabilityScenarioSetSha256", "analysisSha256", "definitionsSha256"].map(key => r => r[key] = "0".repeat(64)),
+      r => r.evaluatedAt = "2026-09-12T12:00:01Z"]) {
+      const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true);
+      assert.throws(() => validateLifecycleRegression(forged), undefined, "Shape-valid lifecycle counter, digest or clock substitutions must fail independent source replay.");
+    }
+  }
   if (schema === "catalog-operations-planning-regression-check" && valid) {
     validateOperationsRegression(payload); operationsRegressionSamples++;
     for (const mutate of [r => { r.inputResults.inputsRecorded--; r.inputResults.needsInformation++; },
@@ -613,12 +595,15 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-auditability-regression-check:true", "catalog-auditability-regression-check:false",
   "catalog-architecture-configuration-regression-check:true", "catalog-architecture-configuration-regression-check:false",
   "catalog-operations-planning-regression-check:true", "catalog-operations-planning-regression-check:false",
+  "catalog-provisioning-lifecycle-regression-check:true", "catalog-provisioning-lifecycle-regression-check:false",
   "catalog-profile-impact-coverage:true", "catalog-profile-impact-coverage:false",
   "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",
   "update-assessment-profile-request:true", "update-assessment-profile-request:false"]) {
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.equal(lifecycleRegressionSamples, 1, "The protected lifecycle diagnostic must reach independent source-controlled replay.");
+console.log("Verified the bounded 2016-case lifecycle v2 diagnostic with independent requirements, declarations, scoped checks, counts and digests.");
 assert.equal(operationsRegressionSamples, 1, "The protected operations diagnostic must reach independent source-controlled replay.");
 console.log("Verified the bounded 140-case operations planning diagnostic with independent inputs, counts, digests and unverified scope.");
 assert.equal(operationsPlanningSamples, 17, "Unknown and all sixteen hosting/expertise saved contexts must reach independent operations replay.");
