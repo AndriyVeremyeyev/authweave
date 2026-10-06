@@ -6,10 +6,11 @@ import { capabilityFields, capabilityValues } from "@/lib/assessment/capabilitie
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
 import { operationsPlanningValues, type OperationsPlanningPreview } from "@/lib/assessment/operations-planning";
+import { assurancePlanningValues } from "@/lib/assessment/assurance-compliance-planning";
 import { auditabilityValues } from "@/lib/assessment/auditability";
 import type { AuditabilityPreview } from "@/lib/assessment/auditability-preview";
 import { authConfiguration } from "@/lib/auth/config";
-import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning, readPersonalAuditability, readPersonalOperationsPlanning,
+import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning, readPersonalAuditability, readPersonalOperationsPlanning, readPersonalAssurancePlanning,
   readSyntheticComparison,
   type ArchitecturePatternPreflightSummary,
   type PersonalAssessment, type SyntheticComparisonSummary,
@@ -23,6 +24,7 @@ import { ProvisioningLifecycle } from "./provisioning-lifecycle";
 import { UsagePlanningEditor } from "./usage-planning-editor";
 import { UsagePlanningPreflight } from "./usage-planning-preflight";
 import { OperationsPlanning, OperationsPlanningUnavailable } from "./operations-planning";
+import { AssuranceCompliancePlanning, AssuranceCompliancePlanningUnavailable } from "./assurance-compliance-planning";
 import { OperationalPreferencesEditor } from "./operational-preferences-editor";
 import { AuditabilityEditor } from "./auditability-editor";
 import { AuditabilityPreflight, AuditabilityPreflightUnavailable } from "./auditability-preflight";
@@ -95,6 +97,9 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
   const usageValues = usagePlanningValues(assessment.profile);
   const operationsValues = operationsPlanningValues(assessment.profile);
   const auditValues = auditabilityValues(assessment.profile);
+  const assuranceValues = assurancePlanningValues(assessment.profile);
+  // Start this independent saved-input read alongside existing previews; never cache or infer a fallback result.
+  const assurancePreviewPromise = assuranceValues ? readPersonalAssurancePlanning(session, id, assessment.version, assuranceValues).catch(() => null) : Promise.resolve(null);
   const preferred = values ? capabilityFields.filter(field => values[field.capability] === "PREFERRED")
     .map(field => ({ capability: field.capability, label: field.label })) : [];
 
@@ -140,6 +145,8 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
       // A stale, malformed or unavailable preview must not block the assessment or infer a result.
     }
   }
+
+  const assurancePreview = await assurancePreviewPromise;
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 text-slate-100 sm:px-8 sm:py-14">
@@ -187,8 +194,11 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
             {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : <PreviewUnavailable name="Usage input check" />}
             {operationsPreview ? <OperationsPlanning preview={operationsPreview} /> : <OperationsPlanningUnavailable />}
           </>,
-          review: <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"}
-            exportPanel={<SavedRequirementsExport assessmentId={assessment.id} version={assessment.version} />} />,
+          review: <>
+            <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"}
+              exportPanel={<SavedRequirementsExport assessmentId={assessment.id} version={assessment.version} />} />
+            {assurancePreview ? <AssuranceCompliancePlanning preview={assurancePreview} editable={assessment.status === "DRAFT"} /> : <AssuranceCompliancePlanningUnavailable />}
+          </>,
           comparison: comparison ? <ComparisonSection comparison={comparison} profile={assessment.profile} editable={assessment.status === "DRAFT"}
             preferencePreview={preferred.length > 0 ? <WeightedPreviewForm key={`${assessment.id}-${comparison.assessmentVersion}`}
               assessmentId={assessment.id} version={comparison.assessmentVersion} preferred={preferred} /> : null} /> : <PreviewUnavailable name="Synthetic comparison" />,

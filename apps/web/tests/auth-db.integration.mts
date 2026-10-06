@@ -25,7 +25,8 @@ import { POST as operationalPreferencesRoute } from "../src/app/api/assessments/
 import { POST as auditabilityRoute } from "../src/app/api/assessments/[id]/auditability/route.ts";
 import { POST as requirementsBriefRoute } from "../src/app/api/assessments/[id]/requirements-brief/route.ts";
 import { requirementsBriefFilename } from "../src/lib/assessment/requirements-brief.ts";
-import { readPersonalAssessment, readPersonalAuditability, readPersonalOperationsPlanning } from "../src/lib/auth/core-client.ts";
+import { readPersonalAssessment, readPersonalAuditability, readPersonalOperationsPlanning, readPersonalAssurancePlanning } from "../src/lib/auth/core-client.ts";
+import { assuranceFixture, assuranceValues, assuranceWorkspaceId, assuranceAssessmentId } from "./fixtures/assurance-compliance-planning.mts";
 import { operationsFixture, operationsValues, operationsProfile, operationsWorkspaceId, operationsAssessmentId } from "./fixtures/operations-planning.mts";
 import { auditabilityFixture, auditabilityInput, auditabilityAssessmentId,
   auditabilityWorkspaceId } from "./fixtures/auditability-preview.mts";
@@ -380,6 +381,30 @@ test("auditability preview reads with a live DB session, cannot cross ownership/
     await revokeSession(sessionId); globalThis.fetch = previousFetch;
     for (const name of names) if (saved[name] === undefined) delete process.env[name]; else process.env[name] = saved[name];
   }
+});
+
+test("assurance planning uses a live DB session, rejects foreign/stale inventories and stops revoked sessions before Core", async () => {
+  const previousFetch = globalThis.fetch, previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-assurance-preview-token-000000000000000000";
+  const identity = { workspaceId: assuranceWorkspaceId, issuer: "http://localhost:8081", subject: "synthetic-assurance-db-owner",
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined); let calls = 0, fixture = assuranceFixture();
+  globalThis.fetch = async (url, init) => {
+    calls++; assert.equal(String(url), `http://127.0.0.1:8080/api/v1/workspaces/${assuranceWorkspaceId}/assessments/${assuranceAssessmentId}/assurance-compliance-planning-preflight`);
+    assert.equal(init?.method, "GET"); assert.equal(init?.body, undefined); assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error");
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Issuer"], identity.issuer); assert.equal(headers["X-AuthWeave-Oidc-Subject"], identity.subject);
+    return Response.json(fixture);
+  };
+  const read = async () => { const live = await touchSession(sessionId); return live ? readPersonalAssurancePlanning(live, assuranceAssessmentId, 7, assuranceValues()) : null; };
+  try {
+    const before = structuredClone(fixture), preview = await read(); assert.ok(preview); assert.equal(preview.assessmentVersion, 7); assert.deepEqual(fixture, before);
+    for (const foreign of [{ ...before, workspaceId: "70000000-0000-4000-8000-000000000002" }, { ...before, assessmentId: "80000000-0000-4000-8000-000000000002" }, { ...before, assessmentVersion: 8 }]) {
+      fixture = foreign; await assert.rejects(read());
+    }
+    assert.equal(calls, 4); await revokeSession(sessionId); assert.equal(await read(), null); assert.equal(calls, 4);
+  } finally { await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN; else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken; }
 });
 
 test("operations planning uses a live DB session, preserves ownership/version and refuses revoked sessions before the Core call", async () => {

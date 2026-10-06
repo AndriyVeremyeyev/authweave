@@ -1308,8 +1308,28 @@ and write flags remain false. Strict contracts and independent saved-input repla
 check row order, completeness, explanations, scope and time/version binding, not
 just response shape. No provider calls, standards mapping, new dependencies,
 migrations, accounts or subscriptions are added. Existing candidate-change and
-publication coverage gates remain closed. Personal BFF/UI integration is the next
-separate step; this slice does not change the browser interface.
+publication coverage gates remain closed. The personal BFF/UI boundary below
+does not open those gates.
+
+The protected personal assessment's Review step displays this inventory for its
+saved version: the seven assurance investigations, selected compliance targets,
+independent control requirements and expandable generic prompts. A planning label
+is not a formal level; `HIGH` does not silently set MFA. Mixed and machine-only
+scope remain distinct, partial target lists are preserved, and an empty target
+list is not a legal exemption. Existing context and capability editors remain the
+only places to change these inputs; this display collects no answers or evidence.
+Archived assessments show the same read-only inventory without editing shortcuts.
+
+The server page resolves a live session before contacting Core and sends only a
+fixed, credentialed, `no-store` GET. The BFF bounds the response and independently
+replays every row against the loaded saved inputs, owner scope and version; stale,
+malformed or substituted results become a sanitized unavailable section while the
+saved assessment and other checks remain usable. `evaluatedAt` must be a valid UTC
+timestamp, but is calculation metadata, not evidence freshness. No workspace
+identity, server credential, raw profile text or verification flags enter the
+browser projection. Tests cover the real asynchronous page, isolated live-session
+revocation and the consumer against actual Core HTTP responses; a display-only
+browser fixture is not an authenticated OIDC end-to-end test.
 
 ### Synthetic operations planning regression
 

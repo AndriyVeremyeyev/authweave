@@ -295,6 +295,8 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
         { workspaceId, assessmentId: id, expectedVersion: version, values });
     },
     OperationsPlanning: overview.OperationsPlanning, OperationsPlanningUnavailable: overview.OperationsPlanningUnavailable,
+    AssuranceCompliancePlanning: overview.AssuranceCompliancePlanning,
+    AssuranceCompliancePlanningUnavailable: overview.AssuranceCompliancePlanningUnavailable,
     OperationalPreferencesEditor: overview.OperationalPreferencesEditor,
     ...component, SavedRequirementsOverview: overview.SavedRequirementsOverview, ComparisonSection: overview.ComparisonSection,
     SavedContextSummary: overview.SavedContextSummary,
@@ -320,10 +322,13 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const readPersonalArchitecturePatterns = async () => null;
     export const readPersonalUsagePlanning = async () => null;
     export const readPersonalOperationsPlanning = (...args) => state.operations(...args);
+    export const readPersonalAssurancePlanning = async () => null;
     export const readPersonalAuditability = (...args) => state.read(...args);
     export const WeightedPreviewForm = () => null,
       ArchitecturePatterns = () => null, ProvisioningLifecycle = () => null, UsagePlanningPreflight = () => null;
     export const OperationsPlanning = state.OperationsPlanning, OperationsPlanningUnavailable = state.OperationsPlanningUnavailable;
+    export const AssuranceCompliancePlanning = state.AssuranceCompliancePlanning,
+      AssuranceCompliancePlanningUnavailable = state.AssuranceCompliancePlanningUnavailable;
     export const OperationalPreferencesEditor = state.OperationalPreferencesEditor;
     export const AssessmentWorkflow = ({ initialStep, panels }) => createElement('section', { 'data-step': initialStep }, panels[initialStep]);
     export const SavedRequirementsOverview = state.SavedRequirementsOverview;
@@ -343,10 +348,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
   for (const name of ["next/link", "next/headers", "next/navigation", "@/lib/auth/config", "@/lib/auth/core-client",
     "@/lib/auth/session-policy", "@/lib/auth/store", "./weighted-preview", "./evaluation-context-editor", "./architecture-patterns",
-    "./usage-planning-editor", "./usage-planning-preflight", "./operations-planning", "./operational-preferences-editor", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export", "./capability-editor", "./provisioning-lifecycle"]) {
+    "./usage-planning-editor", "./usage-planning-preflight", "./operations-planning", "./assurance-compliance-planning", "./operational-preferences-editor", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export", "./capability-editor", "./provisioning-lifecycle"]) {
     compiled = compiled.replaceAll(JSON.stringify(name), JSON.stringify(shim));
   }
-  for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "operations-planning", "auditability", "workflow"]) {
+  for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "operations-planning", "assurance-compliance-planning", "auditability", "workflow"]) {
     compiled = compiled.replaceAll(JSON.stringify(`@/lib/assessment/${name}`),
       JSON.stringify(new URL(`../src/lib/assessment/${name}.ts`, import.meta.url).href));
   }

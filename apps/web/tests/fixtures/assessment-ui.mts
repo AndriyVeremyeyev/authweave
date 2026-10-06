@@ -124,5 +124,9 @@ export async function assessmentUiComponents() {
   const operationsEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/operational-preferences-editor.tsx"))
     .replaceAll('"./assessment-section-form"', JSON.stringify(sectionFormUrl))
     .replaceAll('"@/lib/assessment/operational-preferences"', JSON.stringify(new URL("../../src/lib/assessment/operational-preferences.ts", import.meta.url).href))));
-  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor };
+  const assurance = await import(moduleUrl((await compile("../../src/app/assessments/[id]/assurance-compliance-planning.tsx"))
+    .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
+    .replaceAll('"@/lib/assessment/assurance-compliance-planning"', JSON.stringify(new URL("../../src/lib/assessment/assurance-compliance-planning.ts", import.meta.url).href))
+    .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
+  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
 }

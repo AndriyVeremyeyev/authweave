@@ -19,6 +19,7 @@ import { validateOperationsRegression } from "../tests/helpers/operations-planni
 import { validateLifecycleRegression } from "../tests/helpers/lifecycle-regression-spec.mjs";
 import { lifecycleV2Expectation, lifecycleV2Patterns, lifecycleV2Groups, lifecycleV2GroupCommon } from "../tests/helpers/provisioning-lifecycle-v2-spec.mjs";
 import { operationsPlanningValues, operationsPlanningFromCore } from "../../../apps/web/src/lib/assessment/operations-planning.ts";
+import { assurancePlanningValues, assurancePlanningFromCore } from "../../../apps/web/src/lib/assessment/assurance-compliance-planning.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -358,12 +359,24 @@ for (const { name, schema, valid, payload } of samples) {
   if (schema === "assurance-compliance-planning-preflight" && valid) {
     const saved = assuranceSaved.get(name.slice("assurance-planning-".length));
     validateAssurancePlanning(payload, saved, "2026-09-12T12:00:00Z"); assurancePlanningSamples++;
+    const binding = { workspaceId: saved.workspaceId, assessmentId: saved.id, expectedVersion: saved.version, values: assurancePlanningValues(saved.profile) };
+    assert.ok(binding.values, "Projected saved assurance/compliance inputs must be readable without defaults.");
+    const consumer = assurancePlanningFromCore(payload, binding);
+    assert.equal(consumer.assessmentVersion, saved.version); assert.deepEqual(consumer.inputs, payload.inputs);
+    assert.equal("workspaceId" in consumer, false); assert.equal("assuranceVerified" in consumer, false);
     for (const mutate of [r => r.assessmentVersion++, r => r.inputs.assuranceExpectation = r.inputs.assuranceExpectation === "HIGH" ? "BASELINE" : "HIGH",
       r => r.assuranceItems.reverse(), r => r.assuranceItems[0].question = "All assurance requirements met",
       r => r.complianceScopeCheck.outcome = r.complianceScopeCheck.outcome === "UNKNOWN" ? "NOT_APPLIED" : "UNKNOWN",
       r => r.complianceQuestions[0] = "No evidence is needed", r => r.evaluatedAt = "2026-09-12T12:00:01Z"]) {
       const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true);
       assert.throws(() => validateAssurancePlanning(forged, saved, "2026-09-12T12:00:00Z"), undefined, "Valid-shaped substitutions cannot replace the saved assurance/compliance investigation binding.");
+      if (forged.evaluatedAt !== payload.evaluatedAt) {
+        // The fixed-clock contract replay knows the test clock; a live personal reader does not.
+        // Valid calculation metadata cannot verify or refresh evidence, and it must not change the inventory.
+        const changedClock = assurancePlanningFromCore(forged, binding);
+        assert.deepEqual(changedClock.assuranceItems, consumer.assuranceItems); assert.deepEqual(changedClock.complianceItems, consumer.complianceItems);
+        assert.equal(changedClock.evaluatedAt, forged.evaluatedAt); assert.equal(changedClock.status, "NEEDS_INFORMATION");
+      } else assert.throws(() => assurancePlanningFromCore(forged, binding), undefined, "The personal BFF must refuse saved-input, scope, narrative and version substitutions in actual HTTP responses.");
     }
   }
   if (schema === "operations-planning-preflight" && valid) {
@@ -624,7 +637,7 @@ assert.equal(operationsRegressionSamples, 1, "The protected operations diagnosti
 console.log("Verified the bounded 140-case operations planning diagnostic with independent inputs, counts, digests and unverified scope.");
 assert.equal(operationsPlanningSamples, 17, "Unknown and all sixteen hosting/expertise saved contexts must reach independent operations replay.");
 assert.equal(assurancePlanningSamples, 23, "Unknown, twelve label/scope contexts, three client scopes, all six stored formats and an archived profile must reach independent assurance/compliance replay.");
-console.log(`Verified ${assurancePlanningSamples} saved assurance/compliance planning responses without standards mapping or evidence claims.`);
+console.log(`Verified ${assurancePlanningSamples} saved assurance/compliance planning responses through independent replay and the strict personal BFF consumer.`);
 console.log(`Verified ${operationsPlanningSamples} operations planning responses against exact saved inputs and generic responsibility boundaries.`);
 assert.ok(architectureConfigurationSamples > 0, "Actual architecture settings must reach independent request, saved-scope and conditional outcome checks.");
 console.log(`Verified ${architectureConfigurationSamples} proposed architecture configurations with independent version, scope, settings, metadata and preflight guards.`);

@@ -36,6 +36,8 @@ import { operationsPlanningBinding, operationsPlanningByteLimit, operationsPlann
   type OperationsPlanningValues, type OperationsPlanningPreview } from "../assessment/operations-planning.ts";
 import { withOperationalPreferences, operationalPreferencesSaveMatches } from "../assessment/operational-preferences.ts";
 import type { OperationsInputs } from "../assessment/operations-planning.ts";
+import { assurancePlanningBinding, assurancePlanningByteLimit, assurancePlanningFromCore,
+  type AssurancePlanningValues, type AssurancePlanningPreview } from "../assessment/assurance-compliance-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
   type SensitivityCapabilityDelta, type SensitivityCandidate, type SensitivityPreview,
   type WeightedCandidate, type WeightedContribution, type WeightedPreview } from "../assessment/weights.ts";
@@ -951,6 +953,17 @@ export async function readPersonalAuditability(session: BrowserSession, id: stri
   });
   if (response.status !== 200) throw new Error("Core auditability capability read failed");
   return auditabilityPreviewFromCore(JSON.parse(await boundedPrerequisiteText(response, auditabilityPreviewByteLimit)), binding);
+}
+
+export async function readPersonalAssurancePlanning(session: BrowserSession, id: string,
+  expectedVersion: number, values: AssurancePlanningValues): Promise<AssurancePlanningPreview> {
+  const binding = assurancePlanningBinding(session.workspaceId, id, expectedVersion, values);
+  const response = await fetch(`${CORE_ORIGIN}/api/v1/workspaces/${session.workspaceId}/assessments/${id}/assurance-compliance-planning-preflight`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error",
+    signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status !== 200) throw new Error("Core assurance/compliance planning read failed");
+  return assurancePlanningFromCore(JSON.parse(await boundedPrerequisiteText(response, assurancePlanningByteLimit)), binding);
 }
 
 export async function readPersonalOperationsPlanning(session: BrowserSession, id: string,
