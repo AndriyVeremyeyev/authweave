@@ -14,6 +14,7 @@ import { expectedAnalysis, validateArchitectureConfiguration } from "../tests/he
 import { architectureConfigurationFromCore } from "../../../apps/web/src/lib/assessment/architecture-configuration.ts";
 import { validateConfigurationRegression } from "../tests/helpers/architecture-configuration-regression-spec.mjs";
 import { validateOperationsPlanning } from "../tests/helpers/operations-planning-spec.mjs";
+import { operationsPlanningValues, operationsPlanningFromCore } from "../../../apps/web/src/lib/assessment/operations-planning.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -380,6 +381,11 @@ for (const { name, schema, valid, payload } of samples) {
   if (schema === "operations-planning-preflight" && valid) {
     const saved = operationsSaved.get(name.slice("operations-planning-".length));
     validateOperationsPlanning(payload, saved, "2026-09-12T12:00:00Z"); operationsPlanningSamples++;
+    const binding = { workspaceId: saved.workspaceId, assessmentId: saved.id, expectedVersion: saved.version, values: operationsPlanningValues(saved.profile) };
+    assert.ok(binding.values, "Saved operations inputs must be readable without defaults.");
+    const consumer = operationsPlanningFromCore(payload, binding);
+    assert.equal(consumer.assessmentVersion, saved.version); assert.deepEqual(consumer.inputs, payload.inputs);
+    assert.equal("workspaceId" in consumer, false); assert.equal("pricingEvaluated" in consumer, false);
     for (const mutate of [r => r.assessmentVersion++, r => r.status = r.status === "INPUTS_RECORDED" ? "NEEDS_INFORMATION" : "INPUTS_RECORDED",
       r => r.inputs.deploymentTarget = r.inputs.deploymentTarget === "AZURE" ? "AWS" : "AZURE",
       r => r.options[0].hostingAlignment = r.options[0].hostingAlignment === "PREFERENCE_ALIGNED" ? "PREFERENCE_DIFFERS" : "PREFERENCE_ALIGNED",
@@ -388,6 +394,7 @@ for (const { name, schema, valid, payload } of samples) {
       r => r.options[0].tradeoffs[0] = "No operational cost or responsibility remains"]) {
       const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true);
       assert.throws(() => validateOperationsPlanning(forged, saved, "2026-09-12T12:00:00Z"), undefined, "Shape-valid operations substitutions cannot replace exact saved inputs and generic scope.");
+      assert.throws(() => operationsPlanningFromCore(forged, binding), undefined, "The personal BFF must refuse these actual HTTP substitutions too.");
     }
   }
   if (schema === "catalog-architecture-configuration-regression-check" && valid) {

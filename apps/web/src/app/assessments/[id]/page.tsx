@@ -5,10 +5,11 @@ import { notFound, redirect } from "next/navigation";
 import { capabilityFields, capabilityValues } from "@/lib/assessment/capabilities";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
+import { operationsPlanningValues, type OperationsPlanningPreview } from "@/lib/assessment/operations-planning";
 import { auditabilityValues } from "@/lib/assessment/auditability";
 import type { AuditabilityPreview } from "@/lib/assessment/auditability-preview";
 import { authConfiguration } from "@/lib/auth/config";
-import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning, readPersonalAuditability,
+import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning, readPersonalAuditability, readPersonalOperationsPlanning,
   readSyntheticComparison,
   type ArchitecturePatternPreflightSummary,
   type PersonalAssessment, type SyntheticComparisonSummary,
@@ -21,6 +22,7 @@ import { ArchitecturePatterns } from "./architecture-patterns";
 import { ProvisioningLifecycle } from "./provisioning-lifecycle";
 import { UsagePlanningEditor } from "./usage-planning-editor";
 import { UsagePlanningPreflight } from "./usage-planning-preflight";
+import { OperationsPlanning, OperationsPlanningUnavailable } from "./operations-planning";
 import { AuditabilityEditor } from "./auditability-editor";
 import { AuditabilityPreflight, AuditabilityPreflightUnavailable } from "./auditability-preflight";
 import { assessmentStepFromQuery } from "@/lib/assessment/workflow";
@@ -85,6 +87,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
   const values = capabilityValues(assessment.profile);
   const contextValues = evaluationContextValues(assessment.profile);
   const usageValues = usagePlanningValues(assessment.profile);
+  const operationsValues = operationsPlanningValues(assessment.profile);
   const auditValues = auditabilityValues(assessment.profile);
   const preferred = values ? capabilityFields.filter(field => values[field.capability] === "PREFERRED")
     .map(field => ({ capability: field.capability, label: field.label })) : [];
@@ -111,6 +114,15 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
       usagePreview = await readPersonalUsagePlanning(session, id, assessment.version, usageValues);
     } catch {
       // Keep the assessment and other independent previews readable if this input check is unavailable.
+    }
+  }
+
+  let operationsPreview: OperationsPlanningPreview | null = null;
+  if (operationsValues) {
+    try {
+      operationsPreview = await readPersonalOperationsPlanning(session, id, assessment.version, operationsValues);
+    } catch {
+      // Never infer an operating model or cost from stale, malformed or unavailable results.
     }
   }
 
@@ -163,6 +175,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
               ? <UsagePlanningEditor assessmentId={assessment.id} version={assessment.version} values={usageValues} />
               : <UnreadableStep name="Usage" />}
             {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : <PreviewUnavailable name="Usage input check" />}
+            {operationsPreview ? <OperationsPlanning preview={operationsPreview} /> : <OperationsPlanningUnavailable />}
           </>,
           review: <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"}
             exportPanel={<SavedRequirementsExport assessmentId={assessment.id} version={assessment.version} />} />,

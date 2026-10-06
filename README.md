@@ -1217,8 +1217,20 @@ and [self-operated identity production concerns](https://www.keycloak.org/server
 not verified vendor-plan facts. This assesses the target application's identity design,
 not AuthWeave's own hosting or budget. V6 profiles are read without downgrade;
 assessment state/history, catalogs, coverage gates and the existing usage check are
-unchanged. The personal BFF/UI connection is a separate follow-up. No dependencies,
-accounts, subscriptions, price lookups or provider calls are added.
+unchanged. No dependencies, accounts, subscriptions, price lookups or provider calls
+are added.
+
+The personal assessment's Usage step shows both operating models side by side on
+desktop and stacked on narrow screens, with saved preferences, input gaps, support
+planning and responsibilities. Operational preferences are currently read-only;
+draft usage inputs remain editable in the existing form. The server-side BFF uses
+only its live session's workspace and identity, a body-free fixed-origin GET,
+no-store, refused redirects, a timeout and a 32 KiB streamed response limit. It
+independently replays the saved preferences and usage presence, exact assessment
+version, ordered alternatives, narratives and all false authority flags. Unknown
+inputs have no invented defaults; stale or malformed responses produce a sanitized
+unavailable section without blocking the saved assessment or inventing a result.
+The browser receives no service credential, workspace identity or raw Core payload.
 
 ### Proposed auditability supplement: exact binding before source review
 

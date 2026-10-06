@@ -119,5 +119,7 @@ export async function assessmentUiComponents() {
     .replaceAll('"./usage-planning-form"', JSON.stringify(usageFormUrl))
     .replaceAll('"@/lib/assessment/usage-planning"', JSON.stringify(new URL("../../src/lib/assessment/usage-planning.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/usage-guidance"', JSON.stringify(new URL("../../src/lib/assessment/usage-guidance.ts", import.meta.url).href))));
-  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm };
+  const operations = await import(moduleUrl((await compile("../../src/app/assessments/[id]/operations-planning.tsx"))
+    .replaceAll('"@/lib/assessment/usage-planning"', JSON.stringify(new URL("../../src/lib/assessment/usage-planning.ts", import.meta.url).href))));
+  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations };
 }

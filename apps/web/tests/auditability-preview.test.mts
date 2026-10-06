@@ -8,6 +8,8 @@ import type { AuditabilityValues } from "../src/lib/assessment/auditability.ts";
 import { auditabilityPreviewByteLimit, auditabilityPreviewFromCore,
   type AuditabilityReason } from "../src/lib/assessment/auditability-preview.ts";
 import { readPersonalAuditability } from "../src/lib/auth/core-client.ts";
+import { operationsPlanningFromCore, type OperationsPlanningValues } from "../src/lib/assessment/operations-planning.ts";
+import { operationsFixture, operationsProfile, operationsValues } from "./fixtures/operations-planning.mts";
 import { assessmentUiComponents, comparisonUiFixture, savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { auditabilityAssessmentId as id, auditabilityWorkspaceId as workspaceId, auditabilityBinding as binding,
   auditabilityFixture, auditabilityInput, replaceAuditabilityCheck } from "./fixtures/auditability-preview.mts";
@@ -262,7 +264,8 @@ test("SSR missing preview never invents a result or exposes upstream errors", as
 test("personal pages accept canonical UUIDs, bind current inputs, isolate preview failure and resolve session first", async () => {
   const component = await previewComponent();
   const overview = await assessmentUiComponents();
-  const state = { live: true, reads: 0, listReads: 0, fail: false, comparison: null as ReturnType<typeof comparisonUiFixture> | null };
+  const state = { live: true, reads: 0, listReads: 0, fail: false, operationsReads: 0, operationsFail: false,
+    comparison: null as ReturnType<typeof comparisonUiFixture> | null };
   const identity = { workspaceId, issuer: "http://localhost:8081", subject: "synthetic-page-owner",
     email: null, displayName: null, authenticatedAt: new Date() };
   const slot = "__authweaveAuditabilityPageTest";
@@ -284,6 +287,14 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
       if (state.fail) throw new Error("synthetic upstream credential must not appear");
       return auditabilityPreviewFromCore(auditabilityFixture(), binding);
     }, comparison: () => state.comparison,
+    operations: async (session: typeof identity, assessmentId: string, version: number, values: OperationsPlanningValues) => {
+      state.operationsReads++; assert.deepEqual(session, identity); assert.equal(assessmentId, id); assert.equal(version, assessment.version);
+      assert.deepEqual(values.inputs, operationsValues().inputs);
+      if (state.operationsFail) throw new Error("Private operations upstream token must not appear");
+      return operationsPlanningFromCore({ ...operationsFixture(values, version), workspaceId, assessmentId: id },
+        { workspaceId, assessmentId: id, expectedVersion: version, values });
+    },
+    OperationsPlanning: overview.OperationsPlanning, OperationsPlanningUnavailable: overview.OperationsPlanningUnavailable,
     ...component, SavedRequirementsOverview: overview.SavedRequirementsOverview, ComparisonSection: overview.ComparisonSection,
     SavedContextSummary: overview.SavedContextSummary,
     AssessmentList: overview.AssessmentList,
@@ -307,9 +318,11 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const readSyntheticComparison = async () => state.comparison();
     export const readPersonalArchitecturePatterns = async () => null;
     export const readPersonalUsagePlanning = async () => null;
+    export const readPersonalOperationsPlanning = (...args) => state.operations(...args);
     export const readPersonalAuditability = (...args) => state.read(...args);
     export const WeightedPreviewForm = () => null,
       ArchitecturePatterns = () => null, ProvisioningLifecycle = () => null, UsagePlanningPreflight = () => null;
+    export const OperationsPlanning = state.OperationsPlanning, OperationsPlanningUnavailable = state.OperationsPlanningUnavailable;
     export const AssessmentWorkflow = ({ initialStep, panels }) => createElement('section', { 'data-step': initialStep }, panels[initialStep]);
     export const SavedRequirementsOverview = state.SavedRequirementsOverview;
     export const ComparisonSection = state.ComparisonSection;
@@ -328,10 +341,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
   for (const name of ["next/link", "next/headers", "next/navigation", "@/lib/auth/config", "@/lib/auth/core-client",
     "@/lib/auth/session-policy", "@/lib/auth/store", "./weighted-preview", "./evaluation-context-editor", "./architecture-patterns",
-    "./usage-planning-editor", "./usage-planning-preflight", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export", "./capability-editor", "./provisioning-lifecycle"]) {
+    "./usage-planning-editor", "./usage-planning-preflight", "./operations-planning", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export", "./capability-editor", "./provisioning-lifecycle"]) {
     compiled = compiled.replaceAll(JSON.stringify(name), JSON.stringify(shim));
   }
-  for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "auditability", "workflow"]) {
+  for (const name of ["capabilities", "comparison-evidence", "evaluation-context", "usage-planning", "operations-planning", "auditability", "workflow"]) {
     compiled = compiled.replaceAll(JSON.stringify(`@/lib/assessment/${name}`),
       JSON.stringify(new URL(`../src/lib/assessment/${name}.ts`, import.meta.url).href));
   }
@@ -417,6 +430,18 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(usage.includes("How to choose Unknown, Assumed or Observed"));
     assert.ok(usage.includes(`action="/api/assessments/${id}/usage-planning"`));
     assert.ok(usage.includes('name="expectedVersion" value="2"'));
+    assert.ok(usage.includes("Operations planning comparison unavailable")); assert.equal(state.operationsReads, 0);
+    Object.assign(assessment, { profile: { ...savedRequirementsFixture(), ...operationsProfile() } });
+    const operationsBefore = structuredClone(assessment);
+    const operations = renderToStaticMarkup(await page.default(usageProps));
+    assert.ok(operations.includes("Managed identity service")); assert.ok(operations.includes("Self-hosted identity service"));
+    assert.ok(operations.includes("Saved assessment version 2")); assert.equal(state.operationsReads, 1);
+    assert.deepEqual(assessment, operationsBefore); // Reading and rendering never saves an operating model.
+    state.operationsFail = true;
+    const operationsUnavailable = renderToStaticMarkup(await page.default(usageProps));
+    assert.ok(operationsUnavailable.includes("Operations planning comparison unavailable"));
+    assert.ok(operationsUnavailable.includes("Save usage inputs")); assert.ok(operationsUnavailable.includes("Saved profile and technical details"));
+    assert.ok(!operationsUnavailable.includes("Private operations upstream token"));
     Object.assign(assessment, { status: "ARCHIVED" });
     const readOnlyRequirements = renderToStaticMarkup(await page.default(requirementsProps));
     assert.ok(readOnlyRequirements.includes("This assessment is read-only"));
@@ -434,8 +459,8 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(readOnlyUsage.includes("This assessment is read-only"));
     assert.ok(!readOnlyUsage.includes("Save usage inputs"));
     assert.ok(!readOnlyUsage.includes("<form"));
-    state.live = false; const count = state.reads;
-    await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count);
+    state.live = false; const count = state.reads, operationsCount = state.operationsReads;
+    await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count); assert.equal(state.operationsReads, operationsCount);
     const listReads = state.listReads;
     await assert.rejects(listPage.default({ searchParams: Promise.resolve({ before: id }) }), /redirect-account/);
     assert.equal(state.listReads, listReads);

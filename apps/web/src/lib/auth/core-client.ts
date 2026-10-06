@@ -32,6 +32,8 @@ import { architectureConfigurationByteLimit, architectureConfigurationFromCore, 
   type ArchitectureConfigurationInput, type ArchitectureConfigurationPreview } from "../assessment/architecture-configuration.ts";
 import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
   type UsageMetric, type UsagePlanningValues } from "../assessment/usage-planning.ts";
+import { operationsPlanningBinding, operationsPlanningByteLimit, operationsPlanningFromCore,
+  type OperationsPlanningValues, type OperationsPlanningPreview } from "../assessment/operations-planning.ts";
 import { preferredCapabilities, weightsMatchPreferences, type CapabilityWeights,
   type SensitivityCapabilityDelta, type SensitivityCandidate, type SensitivityPreview,
   type WeightedCandidate, type WeightedContribution, type WeightedPreview } from "../assessment/weights.ts";
@@ -938,6 +940,17 @@ export async function readPersonalAuditability(session: BrowserSession, id: stri
   });
   if (response.status !== 200) throw new Error("Core auditability capability read failed");
   return auditabilityPreviewFromCore(JSON.parse(await boundedPrerequisiteText(response, auditabilityPreviewByteLimit)), binding);
+}
+
+export async function readPersonalOperationsPlanning(session: BrowserSession, id: string,
+  expectedVersion: number, values: OperationsPlanningValues): Promise<OperationsPlanningPreview> {
+  const binding = operationsPlanningBinding(session.workspaceId, id, expectedVersion, values);
+  const response = await fetch(`${CORE_ORIGIN}/api/v1/workspaces/${session.workspaceId}/assessments/${id}/operations-planning-preflight`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error",
+    signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status !== 200) throw new Error("Core operations planning read failed");
+  return operationsPlanningFromCore(JSON.parse(await boundedPrerequisiteText(response, operationsPlanningByteLimit)), binding);
 }
 
 export async function readPersonalUsagePlanning(session: BrowserSession, id: string,
