@@ -16,6 +16,35 @@ class InternalServiceCredentialFilterTests {
     private static final String ORGANIZATION = "987654321098765432";
 
     @Test
+    void assurancePlanningRechecksEncodedPersonalRoutesAndRejectsInputWithoutCallingTheService() {
+        var id = java.util.UUID.fromString("60000000-0000-4000-8000-000000000001");
+        var assessment = java.util.UUID.fromString("80000000-0000-4000-8000-000000000001");
+        var workspaces = org.mockito.Mockito.mock(io.authweave.core.assessment.application.PersonalWorkspaceService.class);
+        org.mockito.Mockito.when(workspaces.owns("http://localhost:8081", "owner", id)).thenReturn(true);
+        var service = org.mockito.Mockito.mock(io.authweave.core.evaluation.AssuranceCompliancePlanningService.class);
+        String path = "/%61pi/v1/workspaces/" + id + "/assessments/" + assessment + "/assurance-compliance-planning-preflight";
+        for (String configured : java.util.List.of("", TOKEN)) for (String subject : java.util.List.of("", "other-owner", "owner")) {
+            var controller = new io.authweave.core.evaluation.AssuranceCompliancePlanningController(service, new InternalServiceCredentialFilter(configured, workspaces, "", ""));
+            var request = new MockHttpServletRequest("GET", path); request.addHeader("Authorization", "Bearer " + TOKEN);
+            request.addHeader("X-AuthWeave-Oidc-Issuer", "http://localhost:8081"); if (!subject.isEmpty()) request.addHeader("X-AuthWeave-Oidc-Subject", subject);
+            request.setQueryString("");
+            var response = controller.preview(id, assessment, request);
+            assertEquals(configured.isEmpty() ? 503 : subject.isEmpty() ? 401 : subject.equals("owner") ? 400 : 403, response.getStatusCode().value());
+            assertEquals("no-store", response.getHeaders().getCacheControl());
+        }
+        var controller = new io.authweave.core.evaluation.AssuranceCompliancePlanningController(service, new InternalServiceCredentialFilter(TOKEN, workspaces, "", ""));
+        for (String variant : java.util.List.of("body", "chunked", "duplicate")) {
+            var request = new MockHttpServletRequest("GET", path); request.addHeader("Authorization", "Bearer " + TOKEN);
+            request.addHeader("X-AuthWeave-Oidc-Issuer", "http://localhost:8081"); request.addHeader("X-AuthWeave-Oidc-Subject", "owner");
+            if (variant.equals("body")) request.setContent(new byte[] { 1 });
+            if (variant.equals("chunked")) request.addHeader("Transfer-Encoding", "chunked");
+            if (variant.equals("duplicate")) request.addHeader("Authorization", "Bearer " + TOKEN);
+            assertEquals(variant.equals("duplicate") ? 401 : 400, controller.preview(id, assessment, request).getStatusCode().value());
+        }
+        org.mockito.Mockito.verifyNoInteractions(service);
+    }
+
+    @Test
     void operationsControllerBindsRoutedWorkspaceEvenWhenUriEncodingBypassesTheFilter() throws Exception {
         var id = java.util.UUID.fromString("60000000-0000-4000-8000-000000000001");
         var assessment = java.util.UUID.fromString("80000000-0000-4000-8000-000000000001");

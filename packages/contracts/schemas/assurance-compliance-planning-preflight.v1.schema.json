@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assurance-compliance-planning-preflight.v1.schema.json",
+  "title": "Unverified assurance and compliance investigation planning",
+  "description": "Exact saved inputs and generic investigation prompts, not a standards checklist or evidence assessment. Independently replay all inputs, rows, explanations and bindings; schema validity alone does not establish semantics.",
+  "type": "object", "additionalProperties": false,
+  "required": ["workspaceId", "assessmentId", "assessmentVersion", "evaluatedAt", "inputs", "complianceScopeCheck", "assuranceItems", "complianceItems", "humanScope", "policyVersion", "scope", "analysisBasis", "status", "checkedPaths", "complianceQuestions", "deferredBoundaries", "assuranceVerified", "complianceVerified", "legalApplicabilityDetermined", "providerEligibilityEvaluated", "configurationVerified", "recommendationReady", "publicationReady", "writesPerformed"],
+  "properties": {
+    "workspaceId": { "type": "string", "format": "uuid" }, "assessmentId": { "type": "string", "format": "uuid" },
+    "assessmentVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }, "evaluatedAt": { "type": "string", "format": "date-time" },
+    "inputs": { "type": "object", "additionalProperties": false, "required": ["clients", "populations", "assuranceExpectation", "controls", "complianceScopeStatus", "complianceTargets"], "properties": {
+      "clients": { "type": "array", "maxItems": 3, "uniqueItems": true, "items": { "enum": ["BROWSER", "NATIVE_MOBILE", "MACHINE_TO_MACHINE"] } },
+      "populations": { "type": "array", "maxItems": 6, "uniqueItems": true, "items": { "enum": ["EXTERNAL_CUSTOMERS", "PARTNERS", "CITIZENS", "EMPLOYEES", "CONTRACTORS", "INTERNAL_OPERATORS"] } },
+      "assuranceExpectation": { "enum": ["BASELINE", "ELEVATED", "HIGH", "UNKNOWN"] },
+      "controls": { "type": "object", "additionalProperties": false, "required": ["multiFactorAuthentication", "phishingResistance", "nonExportableKeys", "stepUpAuthentication"], "properties": {
+        "multiFactorAuthentication": { "$ref": "#/$defs/criticality" }, "phishingResistance": { "$ref": "#/$defs/criticality" }, "nonExportableKeys": { "$ref": "#/$defs/criticality" }, "stepUpAuthentication": { "$ref": "#/$defs/criticality" } } },
+      "complianceScopeStatus": { "enum": ["UNKNOWN", "NONE_IDENTIFIED", "TARGETS_IDENTIFIED"] },
+      "complianceTargets": { "$ref": "#/$defs/targets" }
+    } },
+    "complianceScopeCheck": { "type": "object", "additionalProperties": false, "required": ["profilePath", "scopeStatus", "recordedTargets", "outcome", "reasonCode", "explanation", "verificationPerformed"], "properties": {
+      "profilePath": { "const": "security.complianceScopeStatus" }, "scopeStatus": { "enum": ["UNKNOWN", "NONE_IDENTIFIED", "TARGETS_IDENTIFIED"] }, "recordedTargets": { "$ref": "#/$defs/targets" },
+      "outcome": { "enum": ["UNKNOWN", "NOT_APPLIED"] }, "reasonCode": { "enum": ["COMPLIANCE_SCOPE_UNKNOWN", "NO_COMPLIANCE_TARGETS_IDENTIFIED", "COMPLIANCE_TARGETS_NOT_EVALUATED", "COMPLIANCE_SCOPE_INCONSISTENT"] },
+      "explanation": { "type": "string", "minLength": 1, "maxLength": 700 }, "verificationPerformed": { "const": false }
+    } },
+    "assuranceItems": { "type": "array", "minItems": 7, "maxItems": 7, "items": { "type": "object", "additionalProperties": false, "required": ["itemId", "status", "reasonCode", "question"], "properties": {
+      "itemId": { "enum": ["ASSURANCE_OBJECTIVE", "HUMAN_AUTHENTICATION_SCOPE", "AUTHENTICATION_CONTROLS", "ENROLLMENT_AND_RECOVERY", "SESSIONS_AND_REAUTHENTICATION", "WORKLOAD_IDENTITY", "FEDERATION_AND_TRUST_BOUNDARIES"] },
+      "status": { "$ref": "#/$defs/itemStatus" }, "reasonCode": { "enum": ["EXPECTATION_UNRECORDED", "LABEL_NEEDS_DEFINITION", "HUMAN_FLOW_NOT_SELECTED", "HUMAN_SCOPE_UNRESOLVED", "DECLARED_SCOPE_NOT_VERIFIED", "CONTROL_INTENT_UNRESOLVED", "CONTROLS_NOT_VERIFIED", "FLOW_EVIDENCE_NOT_EVALUATED", "CLIENT_SCOPE_UNRESOLVED", "WORKLOAD_FLOW_NOT_SELECTED"] },
+      "question": { "type": "string", "minLength": 1, "maxLength": 350 }
+    } } },
+    "complianceItems": { "type": "array", "maxItems": 6, "uniqueItems": true, "items": { "type": "object", "additionalProperties": false, "required": ["target", "status", "reasonCode"], "properties": {
+      "target": { "$ref": "#/$defs/target" }, "status": { "enum": ["INPUT_CLARIFICATION_NEEDED", "EVIDENCE_NEEDED"] },
+      "reasonCode": { "enum": ["TARGET_SCOPE_NOT_ESTABLISHED", "OTHER_TARGET_NEEDS_DEFINITION", "TARGET_EVIDENCE_NOT_EVALUATED"] }
+    } } },
+    "humanScope": { "enum": ["MACHINE_ONLY", "HUMAN_SCOPE_RECORDED", "SCOPE_UNRESOLVED"] }, "policyVersion": { "const": "assurance-compliance-planning-1" },
+    "scope": { "const": "UNVERIFIED_ASSURANCE_COMPLIANCE_PLANNING" }, "analysisBasis": { "const": "SAVED_INPUTS_AND_GENERIC_INVESTIGATION_PROMPTS" }, "status": { "const": "NEEDS_INFORMATION" },
+    "checkedPaths": { "const": ["application.clients", "audience.populations", "security.assurance", "security.multiFactorAuthentication", "security.authenticationControls.phishingResistance", "security.authenticationControls.nonExportableKeys", "security.authenticationControls.stepUpAuthentication", "security.complianceScopeStatus", "security.complianceTargets"] },
+    "complianceQuestions": { "type": "array", "minItems": 3, "maxItems": 3, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 350 } },
+    "deferredBoundaries": { "const": ["Formal assurance framework and level mapping", "Observed authentication, enrollment, recovery, session and workload flows", "Exact provider and service evidence verification", "Legal applicability and target-specific compliance assessment", "Candidate-change coverage and publication authority"] },
+    "assuranceVerified": { "const": false }, "complianceVerified": { "const": false }, "legalApplicabilityDetermined": { "const": false }, "providerEligibilityEvaluated": { "const": false }, "configurationVerified": { "const": false }, "recommendationReady": { "const": false }, "publicationReady": { "const": false }, "writesPerformed": { "const": false }
+  },
+  "$defs": {
+    "criticality": { "enum": ["REQUIRED", "PREFERRED", "NOT_REQUIRED", "FORBIDDEN", "UNKNOWN"] },
+    "itemStatus": { "enum": ["INPUT_CLARIFICATION_NEEDED", "EVIDENCE_NEEDED", "NOT_APPLIED"] },
+    "target": { "enum": ["SOC_2", "ISO_27001", "HIPAA", "FEDRAMP", "GDPR", "OTHER"] },
+    "targets": { "type": "array", "maxItems": 6, "uniqueItems": true, "items": { "$ref": "#/$defs/target" } }
+  }
+}

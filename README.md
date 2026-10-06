@@ -1276,6 +1276,41 @@ save does not automatically reload and discard them: explicit discard is require
 The comparison continues to show the originally loaded saved snapshot until reload;
 unsaved selections never recalculate it or become provider/cost recommendations.
 
+### Assurance and compliance investigation planning
+
+`GET /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/assurance-compliance-planning-preflight`
+returns a read-only investigation inventory bound to the exact saved assessment
+version. It requires the server-only service credential and personal-workspace
+ownership, rechecks ownership after routing, accepts no body/query and returns
+`no-store`. All six stored profile formats and archived assessments can be read
+without rewriting their profile, history or events. Only selected enums are
+included; owner free text, provider facts and source documents are not returned.
+
+Seven generic assurance items identify where inputs need clarification or evidence
+still needs investigation: the objective, human scope, independent authentication
+controls, enrollment/recovery, sessions/reauthentication, workload identity and
+federation/trust boundaries. `BASELINE`, `ELEVATED` and `HIGH` are planning labels,
+not formal assurance levels or automatic requirements. MFA and each control remain
+independent. Explicit machine-only scope marks human-flow items `NOT_APPLIED`,
+not verified; missing clients/populations never become wildcard scope. Workload
+flows remain separate and mixed human/machine clients retain both investigations.
+
+The existing compliance-scope check is reused without changing eligibility rules.
+Unknown scope retains partial target lists; `NONE_IDENTIFIED` with an empty list
+removes that target check, not legal obligations. Recorded targets still need
+evidence and `OTHER` needs a concrete definition. Generic prompts ask for concrete
+criteria, applicability review, exact service scope, responsibilities and dated
+source material. This is not a framework-specific checklist, legal determination,
+certification or source verification. No target-specific obligations are inferred.
+
+Overall status stays `NEEDS_INFORMATION`; all verification, eligibility, readiness
+and write flags remain false. Strict contracts and independent saved-input replay
+check row order, completeness, explanations, scope and time/version binding, not
+just response shape. No provider calls, standards mapping, new dependencies,
+migrations, accounts or subscriptions are added. Existing candidate-change and
+publication coverage gates remain closed. Personal BFF/UI integration is the next
+separate step; this slice does not change the browser interface.
+
 ### Synthetic operations planning regression
 
 `GET /internal/v1/catalog-operations-planning/regression-preflight` is a protected,

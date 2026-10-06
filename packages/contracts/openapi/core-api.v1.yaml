@@ -1579,6 +1579,51 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/assurance-compliance-planning-preflight:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Plan assurance and compliance evidence investigation without verification
+      operationId: getAssuranceCompliancePlanningPreflight
+      description: >-
+        Read-only, exact saved-version inventory protected by service credential
+        and personal-workspace ownership, including a controller ownership recheck.
+        Accepts no body or query. Seven generic assurance investigation items
+        distinguish unknown, human and workload scope and independent controls.
+        Reuses the existing compliance scope check and retains each selected
+        target, including legacy partial lists and OTHER. Labels never map to
+        standards levels or establish applicability, certification, provider
+        eligibility or evidence. NOT_APPLIED is limited to an unselected flow
+        or the existing explicit empty compliance scope, not verified safety.
+        No owner free text, provider calls, evidence assessment, writes or readiness.
+        Reads every stored profile format without downgrade or history changes.
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Version-bound generic investigation inventory; status remains NEEDS_INFORMATION.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+              description: Personal saved-input inventory must not be cached.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assurance-compliance-planning-preflight.v1.schema.json
+        "400":
+          description: Query or body supplied to the input-free read.
+        "401":
+          description: Missing, duplicate or invalid service credential or identity headers.
+        "403":
+          description: The asserted identity does not own the routed personal workspace.
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "503":
+          description: Server service credential is not configured.
   /api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/operations-planning-preflight:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"

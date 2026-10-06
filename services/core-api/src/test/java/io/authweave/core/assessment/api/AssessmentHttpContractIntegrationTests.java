@@ -82,6 +82,121 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @Test
+    void assurancePlanningBindsSavedInputsAndPreservesScopeWithoutClaimsOrHistoryWrites() throws Exception {
+        String issuer = "http://localhost:8081", subject = "synthetic-assurance-owner-" + UUID.randomUUID();
+        UUID workspaceId = applicationContext.getBean(io.authweave.core.assessment.application.PersonalWorkspaceService.class).provision(issuer, subject);
+        String root = "/api/v6/workspaces/" + workspaceId + "/assessments";
+        var saved = versionedSample("assurance-saved-0", "assessment-response.v6", mvc.perform(post(root)).andExpect(status().isCreated()).andReturn());
+        String v6 = root + "/" + saved.get("id").asText(), endpoint = v6.replace("/api/v6/", "/api/v1/") + "/assurance-compliance-planning-preflight";
+        assurancePlanningSample("0", endpoint, issuer, subject);
+        int index = 0;
+        for (var level : io.authweave.core.assessment.domain.profile.SecurityRequirements.AssuranceLevel.values())
+            for (var scope : io.authweave.core.assessment.domain.profile.ComplianceScopeStatus.values()) {
+                index++;
+                var profile = (ObjectNode) saved.get("profile").deepCopy();
+                ((ObjectNode) profile.get("application")).putArray("clients").add("BROWSER");
+                ((ObjectNode) profile.get("audience")).putArray("populations").add("EMPLOYEES");
+                var security = (ObjectNode) profile.get("security"); security.put("assurance", level.name()).put("complianceScopeStatus", scope.name());
+                var targets = security.putArray("complianceTargets");
+                if (scope != io.authweave.core.assessment.domain.profile.ComplianceScopeStatus.NONE_IDENTIFIED)
+                    for (var target : io.authweave.core.assessment.domain.profile.SecurityRequirements.ComplianceTarget.values()) targets.add(target.name());
+                security.put("multiFactorAuthentication", io.authweave.core.assessment.domain.profile.RequirementCriticality.values()[index % 5].name());
+                var controls = (ObjectNode) security.get("authenticationControls"); controls.put("phishingResistance", "REQUIRED").put("nonExportableKeys", "NOT_REQUIRED").put("stepUpAuthentication", "PREFERRED");
+                // Keep an unrelated v6 field recorded to detect accidental downgrade or mutation.
+                security.put("auditability", "REQUIRED");
+                ((ObjectNode) security.get("auditabilityRequirements")).putArray("selectedCriteria").add("AUTHENTICATION_SUCCESS_EVENTS");
+                var update = mapper.createObjectNode().put("expectedVersion", saved.get("version").asLong()); update.set("profile", profile);
+                saved = versionedSample("assurance-saved-" + index, "assessment-response.v6", mvc.perform(put(v6 + "/profile").contentType(MediaType.APPLICATION_JSON).content(update.toString())).andExpect(status().isOk()).andReturn());
+                var history = mvc.perform(get(v6 + "/revisions")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+                var eventPath = v6.replace("/api/v6/", "/api/v1/") + "/events";
+                var events = mvc.perform(get(eventPath)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+                var result = assurancePlanningSample(Integer.toString(index), endpoint, issuer, subject);
+                assertEquals(saved.get("version").asLong(), result.get("assessmentVersion").asLong());
+                assertEquals(saved, mapper.readTree(mvc.perform(get(v6)).andReturn().getResponse().getContentAsString()));
+                assertEquals(history, mvc.perform(get(v6 + "/revisions")).andReturn().getResponse().getContentAsString());
+                assertEquals(events, mvc.perform(get(eventPath)).andReturn().getResponse().getContentAsString());
+            }
+        for (int variant = 0; variant < 3; variant++) {
+            var profile = (ObjectNode) saved.get("profile").deepCopy(); var clients = ((ObjectNode) profile.get("application")).putArray("clients");
+            clients.add(variant == 0 ? "MACHINE_TO_MACHINE" : "BROWSER"); if (variant == 2) clients.add("MACHINE_TO_MACHINE");
+            var populations = ((ObjectNode) profile.get("audience")).putArray("populations"); if (variant == 2) populations.add("EMPLOYEES").add("PARTNERS");
+            var update = mapper.createObjectNode().put("expectedVersion", saved.get("version").asLong()); update.set("profile", profile);
+            saved = versionedSample("assurance-saved-" + (++index), "assessment-response.v6", mvc.perform(put(v6 + "/profile").contentType(MediaType.APPLICATION_JSON).content(update.toString())).andExpect(status().isOk()).andReturn());
+            assurancePlanningSample(Integer.toString(index), endpoint, issuer, subject);
+        }
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        mvc.perform(get(endpoint)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token, token)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", "wrong").header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject, subject)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", "other-owner")).andExpect(status().isForbidden());
+        mvc.perform(get(endpoint.replace(workspaceId.toString(), UUID.randomUUID().toString())).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isForbidden());
+        mvc.perform(get(endpoint.replace(saved.get("id").asText(), UUID.randomUUID().toString())).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isNotFound());
+        for (var request : List.of(get(endpoint).queryParam("assurance", "HIGH"), get(endpoint).content("{}"), get(endpoint).header("Transfer-Encoding", "chunked")))
+            mvc.perform(request.header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isBadRequest());
+        mvc.perform(post(endpoint).header("Authorization", token)).andExpect(status().isMethodNotAllowed());
+        assertEquals(saved, mapper.readTree(mvc.perform(get(v6)).andReturn().getResponse().getContentAsString()));
+    }
+
+    @Test
+    void assurancePlanningReadsAllSixStoredFormatsAndArchivedProfilesWithoutRewritingThem() throws Exception {
+        String issuer = "http://localhost:8081", subject = "synthetic-assurance-formats-" + UUID.randomUUID();
+        UUID workspace = applicationContext.getBean(io.authweave.core.assessment.application.PersonalWorkspaceService.class).provision(issuer, subject);
+        String root = "/api/v6/workspaces/" + workspace + "/assessments";
+        var saved = mapper.readTree(mvc.perform(post(root)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString());
+        UUID id = UUID.fromString(saved.get("id").asText()); String path = root + "/" + id;
+        String endpoint = path.replace("/api/v6/", "/api/v1/") + "/assurance-compliance-planning-preflight";
+        for (int format = 1; format <= 6; format++) {
+            if (format > 1) {
+                var profile = (ObjectNode) saved.get("profile").deepCopy(); var security = (ObjectNode) profile.get("security");
+                switch (format) {
+                    case 2 -> ((ObjectNode) security.get("dataResidencyDetails")).putArray("allowedCountries").add("DE");
+                    case 3 -> ((ObjectNode) security.get("authenticationControls")).put("phishingResistance", "REQUIRED");
+                    case 4 -> security.put("complianceScopeStatus", "NONE_IDENTIFIED");
+                    case 5 -> ((ObjectNode) profile.at("/operations/usagePlanning/volumes")).putObject("MONTHLY_ACTIVE_USERS").put("basis", "OBSERVED").put("value", 0);
+                    case 6 -> {
+                        security.put("auditability", "REQUIRED"); ((ObjectNode) security.get("auditabilityRequirements")).putArray("selectedCriteria").add("AUTHENTICATION_SUCCESS_EVENTS");
+                    }
+                    default -> throw new IllegalStateException();
+                }
+                var update = mapper.createObjectNode().put("expectedVersion", saved.get("version").asLong()); update.set("profile", profile);
+                saved = mapper.readTree(mvc.perform(put(path + "/profile").contentType(MediaType.APPLICATION_JSON).content(update.toString())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            }
+            assertEquals(format, proposalDsl.fetchOne("select profile_schema_version from core.assessments where id = ?", id).get(0, Integer.class));
+            sample("assurance-saved-format-" + format, "assessment-response.v6", true, saved);
+            var history = mvc.perform(get(path + "/revisions")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            assurancePlanningSample("format-" + format, endpoint, issuer, subject);
+            assertEquals(history, mvc.perform(get(path + "/revisions")).andReturn().getResponse().getContentAsString());
+            assertEquals(saved, mapper.readTree(mvc.perform(get(path)).andReturn().getResponse().getContentAsString()));
+            assertEquals(format, proposalDsl.fetchOne("select profile_schema_version from core.assessments where id = ?", id).get(0, Integer.class));
+        }
+        var persisted = repository.findById(new WorkspaceId(workspace), new AssessmentId(id)).orElseThrow(); persisted.assessment().archive(); repository.update(persisted.assessment(), persisted.version());
+        saved = versionedSample("assurance-saved-format-archived", "assessment-response.v6", mvc.perform(get(path)).andExpect(status().isOk()).andReturn());
+        var archivedHistory = mvc.perform(get(path + "/revisions")).andReturn().getResponse().getContentAsString();
+        assurancePlanningSample("format-archived", endpoint, issuer, subject);
+        assertEquals(saved, mapper.readTree(mvc.perform(get(path)).andReturn().getResponse().getContentAsString()));
+        assertEquals(archivedHistory, mvc.perform(get(path + "/revisions")).andReturn().getResponse().getContentAsString());
+    }
+
+    private JsonNode assurancePlanningSample(String id, String endpoint, String issuer, String subject) throws Exception {
+        var result = versionedSample("assurance-planning-" + id, "assurance-compliance-planning-preflight", mvc.perform(get(endpoint)
+                .header("Authorization", "Bearer synthetic-internal-token-000000000000000000000")
+                .header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andExpect(jsonPath("$.status").value("NEEDS_INFORMATION")).andReturn());
+        if (id.equals("0")) {
+            for (String flag : List.of("assuranceVerified", "complianceVerified", "legalApplicabilityDetermined", "providerEligibilityEvaluated", "configurationVerified", "recommendationReady", "publicationReady", "writesPerformed")) {
+                var forged = (ObjectNode) result.deepCopy(); forged.put(flag, true); sample("assurance-no-" + flag, "assurance-compliance-planning-preflight", false, forged);
+            }
+            for (String field : List.of("winner", "score", "certification", "sourceUrl", "formalAssuranceLevel", "providerId")) {
+                var forged = (ObjectNode) result.deepCopy(); forged.put(field, "forged"); sample("assurance-no-" + field, "assurance-compliance-planning-preflight", false, forged);
+            }
+            var partial = (ObjectNode) result.deepCopy(); partial.withArray("assuranceItems").remove(0); sample("assurance-complete-inventory", "assurance-compliance-planning-preflight", false, partial);
+        }
+        return result;
+    }
+
+    @Test
     void operationsPlanningReadsBoundOwnerInputsWithoutExclusionPricingOrHistoryWrites() throws Exception {
         String issuer = "http://localhost:8081", subject = "synthetic-operations-owner-" + UUID.randomUUID();
         UUID workspaceId = applicationContext.getBean(io.authweave.core.assessment.application.PersonalWorkspaceService.class).provision(issuer, subject);

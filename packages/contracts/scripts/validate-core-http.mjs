@@ -14,6 +14,7 @@ import { expectedAnalysis, validateArchitectureConfiguration } from "../tests/he
 import { architectureConfigurationFromCore } from "../../../apps/web/src/lib/assessment/architecture-configuration.ts";
 import { validateConfigurationRegression } from "../tests/helpers/architecture-configuration-regression-spec.mjs";
 import { validateOperationsPlanning } from "../tests/helpers/operations-planning-spec.mjs";
+import { validateAssurancePlanning } from "../tests/helpers/assurance-compliance-planning-spec.mjs";
 import { validateOperationsRegression } from "../tests/helpers/operations-planning-regression-spec.mjs";
 import { validateLifecycleRegression } from "../tests/helpers/lifecycle-regression-spec.mjs";
 import { lifecycleV2Expectation, lifecycleV2Patterns, lifecycleV2Groups, lifecycleV2GroupCommon } from "../tests/helpers/provisioning-lifecycle-v2-spec.mjs";
@@ -48,6 +49,9 @@ let lifecycleSamples = 0;
 let lifecycleV2Samples = 0;
 let architectureConfigurationSamples = 0;
 let operationsPlanningSamples = 0;
+let assurancePlanningSamples = 0;
+const assuranceSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("assurance-saved-"))
+  .map(s => [s.name.slice("assurance-saved-".length), s.payload]));
 let operationsRegressionSamples = 0;
 let lifecycleRegressionSamples = 0;
 const operationsSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("operations-saved-"))
@@ -351,6 +355,17 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "assurance-compliance-planning-preflight" && valid) {
+    const saved = assuranceSaved.get(name.slice("assurance-planning-".length));
+    validateAssurancePlanning(payload, saved, "2026-09-12T12:00:00Z"); assurancePlanningSamples++;
+    for (const mutate of [r => r.assessmentVersion++, r => r.inputs.assuranceExpectation = r.inputs.assuranceExpectation === "HIGH" ? "BASELINE" : "HIGH",
+      r => r.assuranceItems.reverse(), r => r.assuranceItems[0].question = "All assurance requirements met",
+      r => r.complianceScopeCheck.outcome = r.complianceScopeCheck.outcome === "UNKNOWN" ? "NOT_APPLIED" : "UNKNOWN",
+      r => r.complianceQuestions[0] = "No evidence is needed", r => r.evaluatedAt = "2026-09-12T12:00:01Z"]) {
+      const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true);
+      assert.throws(() => validateAssurancePlanning(forged, saved, "2026-09-12T12:00:00Z"), undefined, "Valid-shaped substitutions cannot replace the saved assurance/compliance investigation binding.");
+    }
+  }
   if (schema === "operations-planning-preflight" && valid) {
     const saved = operationsSaved.get(name.slice("operations-planning-".length));
     validateOperationsPlanning(payload, saved, "2026-09-12T12:00:00Z"); operationsPlanningSamples++;
@@ -563,6 +578,7 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-impact-report-event:true", "catalog-impact-report-event:false",
   "capability-preflight:true", "eligibility-preflight:true", "architecture-pattern-preflight:true",
   "operations-planning-preflight:true", "operations-planning-preflight:false",
+  "assurance-compliance-planning-preflight:true", "assurance-compliance-planning-preflight:false",
   "architecture-prerequisite-request:true", "architecture-prerequisite-request:false",
   "architecture-prerequisite-preview:true", "architecture-prerequisite-preview:false",
   "architecture-configuration-request:true", "architecture-configuration-request:false",
@@ -607,6 +623,8 @@ console.log("Verified the bounded 2016-case lifecycle v2 diagnostic with indepen
 assert.equal(operationsRegressionSamples, 1, "The protected operations diagnostic must reach independent source-controlled replay.");
 console.log("Verified the bounded 140-case operations planning diagnostic with independent inputs, counts, digests and unverified scope.");
 assert.equal(operationsPlanningSamples, 17, "Unknown and all sixteen hosting/expertise saved contexts must reach independent operations replay.");
+assert.equal(assurancePlanningSamples, 23, "Unknown, twelve label/scope contexts, three client scopes, all six stored formats and an archived profile must reach independent assurance/compliance replay.");
+console.log(`Verified ${assurancePlanningSamples} saved assurance/compliance planning responses without standards mapping or evidence claims.`);
 console.log(`Verified ${operationsPlanningSamples} operations planning responses against exact saved inputs and generic responsibility boundaries.`);
 assert.ok(architectureConfigurationSamples > 0, "Actual architecture settings must reach independent request, saved-scope and conditional outcome checks.");
 console.log(`Verified ${architectureConfigurationSamples} proposed architecture configurations with independent version, scope, settings, metadata and preflight guards.`);
