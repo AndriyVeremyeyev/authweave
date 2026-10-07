@@ -462,6 +462,43 @@ paths:
           description: Missing, duplicate or invalid service credential.
         '503':
           description: Server service credential is not configured.
+  /internal/v1/catalog-profile-planning/coverage-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Inspect structural profile coverage and separate synthetic planning regressions
+      operationId: getProfilePlanningCoverageCheck
+      description: >-
+        Internal local-only input-free read requiring one server service credential.
+        Freshly replays structural v6 coverage and four separate architecture,
+        lifecycle, operations and assurance/compliance regression summaries at one
+        clock and unchanged frozen base. Returns a complete 136-dimension routing
+        matrix, exact regression bindings and all remaining verification gaps.
+        Architecture fixtures remain v5; the other three use the explicit v6
+        auditability supplement. Preserves every old structural state and receipt.
+        No body, query, candidate, caller profile or completeness assertion is accepted.
+        Planning routes do not imply candidate-change impact, observed configuration,
+        verified sources, complete coverage, a durable receipt or publication authority.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: Body-free incomplete planning coverage; all authority and verification gates remain false.
+          headers:
+            Cache-Control:
+              description: Diagnostic results must not be cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-profile-planning-coverage.v1.schema.json
+        '400':
+          description: Body or query supplied to this input-free read.
+        '401':
+          description: Missing, duplicate or invalid service credential.
+        '503':
+          description: Server service credential is not configured.
   /internal/v1/catalog-operations-planning/regression-preflight:
     get:
       tags: [Catalog drafts]

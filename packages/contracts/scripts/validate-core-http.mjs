@@ -17,6 +17,7 @@ import { validateOperationsPlanning } from "../tests/helpers/operations-planning
 import { validateAssurancePlanning } from "../tests/helpers/assurance-compliance-planning-spec.mjs";
 import { validateOperationsRegression } from "../tests/helpers/operations-planning-regression-spec.mjs";
 import { validateAssuranceRegression } from "../tests/helpers/assurance-compliance-regression-spec.mjs";
+import { validatePlanningCoverage } from "../tests/helpers/profile-planning-coverage-spec.mjs";
 import { validateLifecycleRegression } from "../tests/helpers/lifecycle-regression-spec.mjs";
 import { lifecycleV2Expectation, lifecycleV2Patterns, lifecycleV2Groups, lifecycleV2GroupCommon } from "../tests/helpers/provisioning-lifecycle-v2-spec.mjs";
 import { operationsPlanningValues, operationsPlanningFromCore } from "../../../apps/web/src/lib/assessment/operations-planning.ts";
@@ -56,6 +57,7 @@ const assuranceSaved = new Map(samples.filter(s => s.valid && s.schema === "asse
   .map(s => [s.name.slice("assurance-saved-".length), s.payload]));
 let operationsRegressionSamples = 0;
 let assuranceRegressionSamples = 0;
+let planningCoverageSamples = 0;
 let lifecycleRegressionSamples = 0;
 const operationsSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("operations-saved-"))
   .map(s => [s.name.slice("operations-saved-".length), s.payload]));
@@ -411,6 +413,19 @@ for (const { name, schema, valid, payload } of samples) {
       assert.throws(() => validateLifecycleRegression(forged), undefined, "Shape-valid lifecycle counter, digest or clock substitutions must fail independent source replay.");
     }
   }
+  if (schema === "catalog-profile-planning-coverage" && valid) {
+    const structural = samples.find(s => s.valid && s.schema === "catalog-profile-impact-coverage" && s.name === "profile-v6-coverage")?.payload;
+    assert.ok(structural, "A separate fresh structural HTTP sample must bind planning composition.");
+    validatePlanningCoverage(payload, structural); planningCoverageSamples++;
+    for (const mutate of [r => r.analysisSha256 = "0".repeat(64), r => r.structuralCoverageSha256 = "0".repeat(64),
+      r => r.regressions[0].checkSha256 = "0".repeat(64), r => r.regressions[3].analysisSha256 = "0".repeat(64),
+      r => { [r.regressions[0], r.regressions[1]] = [r.regressions[1], r.regressions[0]]; },
+      r => { [r.dimensions[0], r.dimensions[1]] = [r.dimensions[1], r.dimensions[0]]; },
+      r => r.dimensions[0].structuralState = "DEFERRED_DIMENSION", r => r.evaluatedAt = "2026-09-12T12:00:01Z"]) {
+      const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true, ajv.errorsText(validate.errors));
+      assert.throws(() => validatePlanningCoverage(forged, structural), undefined, "Shape-valid digest, order, clock and structural-state substitutions must fail complete independent composition replay.");
+    }
+  }
   if (schema === "catalog-assurance-compliance-regression-check" && valid) {
     validateAssuranceRegression(payload); assuranceRegressionSamples++;
     for (const mutate of [r => { r.assurance.inputClarificationNeeded--; r.assurance.evidenceNeeded++; }, r => { r.compliance.inputClarificationNeeded--; r.compliance.evidenceNeeded++; },
@@ -638,11 +653,14 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-assurance-compliance-regression-check:true", "catalog-assurance-compliance-regression-check:false",
   "catalog-provisioning-lifecycle-regression-check:true", "catalog-provisioning-lifecycle-regression-check:false",
   "catalog-profile-impact-coverage:true", "catalog-profile-impact-coverage:false",
+  "catalog-profile-planning-coverage:true", "catalog-profile-planning-coverage:false",
   "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",
   "update-assessment-profile-request:true", "update-assessment-profile-request:false"]) {
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.equal(planningCoverageSamples, 1, "The protected combined planning diagnostic must reach independent composition replay.");
+console.log("Verified complete 136-dimension profile planning composition against a separate structural HTTP sample and four independent frozen regression bindings.");
 assert.equal(assuranceRegressionSamples, 1, "The protected assurance/compliance diagnostic must reach independent source replay.");
 console.log("Verified the bounded 36-case assurance/compliance diagnostic with independent input, question, scope, count and digest expectations.");
 assert.equal(lifecycleRegressionSamples, 1, "The protected lifecycle diagnostic must reach independent source-controlled replay.");

@@ -1356,6 +1356,40 @@ their flags stay false.
 Existing coverage policies, historical receipts and the personal UI are unchanged.
 No provider calls, dependencies, migrations, accounts or subscriptions are added.
 
+### Composed profile planning coverage
+
+`GET /internal/v1/catalog-profile-planning/coverage-preflight` freshly combines the
+existing v6 structural coverage with the separate architecture configuration,
+lifecycle v2, operations and assurance/compliance regression checks. It requires
+one server-only service credential, refuses query/body input and returns `no-store`
+output without profile bodies, identities, source documents or writes.
+
+The report retains every old structural state across four frozen scenarios and
+all 34 semantic inputs (136 dimensions). Each dimension lists the planning
+regression families that consume that input, not verified provider capabilities.
+All 36 historically deferred dimensions now have a separate planning route;
+their structural state still remains `DEFERRED_DIMENSION`. Auditability stays
+bound to its existing synthetic structural regression rather than being relabeled
+as observed logging. A route is not exhaustive coverage of every input combination.
+
+All four planning summaries must independently replay at one clock and bind the
+same unchanged base. Exact policy, definition, source, analysis and full-check
+digests identify their 252 architecture, 2016 lifecycle, 140 operations and
+36 assurance/compliance cases. Architecture fixtures keep their original v5
+schema; the other three retain the explicit v6 auditability supplement. Missing,
+stale or substituted inputs fail rather than falling back to an older result.
+Independent HTTP contract checks bind the separately obtained structural response
+and reconstruct the planning bindings, input routes, manifest and complete digest.
+
+The old 40 scenario-specific verification gaps and all 22 additional planning
+boundaries remain visible. `INCOMPLETE`, `coverageComplete: false` and all
+verification/publication flags stay unchanged. This is not candidate-change
+impact, observed configuration or lifecycle, a price calculation, verified
+assurance/compliance, a durable receipt or publication authority. Existing
+publication/bootstrap consumers, historical receipts and the personal UI are
+unchanged; the new report is a separate internal diagnostic. No dependencies,
+migrations, provider calls, accounts or subscriptions are added.
+
 ### Synthetic operations planning regression
 
 `GET /internal/v1/catalog-operations-planning/regression-preflight` is a protected,
