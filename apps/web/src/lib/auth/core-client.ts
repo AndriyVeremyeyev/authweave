@@ -15,6 +15,8 @@ import { evidencePageFromCore, type CandidateEvidencePage } from "../catalog/evi
 import { parseProposalReviewCursor, proposalIndexFromCore,
   type ProposalReviewIndexPage } from "../catalog/proposal-index.ts";
 import { proposalReviewFromCore, type CatalogProposalReview } from "../catalog/proposal-review.ts";
+import { publicationReference, publicationReviewByteLimit, publicationReviewFromCore,
+  type PublicationReference, type PublicationReview } from "../catalog/publication-preflight.ts";
 import { withCapabilityValues, type CapabilityValues } from "../assessment/capabilities.ts";
 import { auditabilityValues, withAuditabilityValues, type AuditabilityValues } from "../assessment/auditability.ts";
 import { auditabilityPreviewBinding, auditabilityPreviewByteLimit, auditabilityPreviewFromCore,
@@ -393,6 +395,33 @@ export async function readCatalogProposalReview(session: BrowserSession,
   } catch {
     return { kind: "core-unavailable" };
   }
+}
+
+export type PublicationReviewResult =
+  | { kind: "ready"; report: PublicationReview }
+  | { kind: Exclude<CuratorProbeStatus, "ready"> | "invalid" };
+
+/** Separate fresh read: a historical receipt or another review panel is never a fallback. */
+export async function readCatalogPublicationPreflight(session: BrowserSession,
+  config: Pick<AuthConfiguration, "issuer" | "curatorScope">, input: PublicationReference,
+  now: Date = new Date()): Promise<PublicationReviewResult> {
+  let reference: PublicationReference;
+  try { reference = publicationReference(input); } catch { return { kind: "invalid" }; }
+  const authorization = await readCuratorAuthorization(session, config, now);
+  if (authorization !== "ready") return { kind: authorization };
+  if (!config.curatorScope) return { kind: "not-configured" };
+  try {
+    const path = reference.mode === "PROPOSAL_APPROVAL"
+      ? `proposals/${reference.inputId}/revisions/${reference.inputVersion}` : `bootstrap-reviews/${reference.inputId}`;
+    const url = new URL(`${CORE_ORIGIN}/internal/v1/catalog-curator/${path}/publication-preflight`);
+    url.searchParams.set("expectedSha256", reference.inputSha256);
+    const response = await fetch(url, { method: "GET", headers: curatorHeaders(session, config.curatorScope),
+      cache: "no-store", redirect: "error", signal: AbortSignal.timeout(10_000) });
+    if (response.status === 401 || response.status === 403) return { kind: "core-rejected" };
+    if (response.status !== 200) return { kind: "core-unavailable" };
+    const body: unknown = JSON.parse(await boundedPrerequisiteText(response, publicationReviewByteLimit));
+    return { kind: "ready", report: publicationReviewFromCore(body, reference, now) };
+  } catch { return { kind: "core-unavailable" }; }
 }
 
 export async function rejectCatalogProposal(session: BrowserSession,

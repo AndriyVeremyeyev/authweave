@@ -1,0 +1,431 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-publication-preflight-review.v1.schema.json",
+  "title": "Fresh, body-free curator publication preflight review",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "scope",
+    "policyVersion",
+    "status",
+    "mode",
+    "inputId",
+    "inputVersion",
+    "inputSha256",
+    "evaluatedAt",
+    "facts",
+    "reviewThroughNumber",
+    "planning",
+    "blockers",
+    "coverageComplete",
+    "baselineVerified",
+    "sourceVerificationPerformed",
+    "approvalGranted",
+    "publicationReady",
+    "evaluationReady",
+    "writesPerformed"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "scope": {
+      "const": "CATALOG_PUBLICATION_PREFLIGHT_REVIEW"
+    },
+    "policyVersion": {
+      "const": "catalog-publication-preflight-12"
+    },
+    "status": {
+      "const": "BLOCKED"
+    },
+    "mode": {
+      "enum": [
+        "PROPOSAL_APPROVAL",
+        "CURATED_BOOTSTRAP"
+      ]
+    },
+    "inputId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "inputVersion": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "inputSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "Z$"
+    },
+    "facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total",
+        "unobserved",
+        "supporting",
+        "contradicting",
+        "insufficient",
+        "stale",
+        "future",
+        "allFactsHaveSupportingObservation"
+      ],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6800
+        },
+        "unobserved": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6800
+        },
+        "supporting": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6800
+        },
+        "contradicting": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6800
+        },
+        "insufficient": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6800
+        },
+        "stale": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6800
+        },
+        "future": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 6800
+        },
+        "allFactsHaveSupportingObservation": {
+          "type": "boolean"
+        }
+      }
+    },
+    "reviewThroughNumber": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "planning": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/planning"
+        }
+      ]
+    },
+    "blockers": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 54,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "PROPOSAL_NOT_FOUND",
+          "PROPOSAL_READ_BUDGET_EXCEEDED",
+          "PROPOSAL_FORMAT_INVALID",
+          "PROPOSAL_DIGEST_MISMATCH",
+          "PROPOSAL_NOT_CURRENT",
+          "PROPOSAL_REJECTED",
+          "PROPOSAL_ALREADY_PUBLISHED",
+          "CHANGE_NOT_REVIEWABLE",
+          "CANDIDATE_INVALID",
+          "CATALOG_LABEL_ALREADY_USED",
+          "FACT_REVIEW_LEDGER_INVALID",
+          "FACT_OBSERVATIONS_MISSING",
+          "SOURCE_CONTRADICTION",
+          "INSUFFICIENT_SOURCE_EVIDENCE",
+          "FACT_EVIDENCE_STALE",
+          "FACT_EVIDENCE_FUTURE",
+          "BASELINE_REFERENCE_MISSING",
+          "BASELINE_INTEGRITY_UNAVAILABLE",
+          "BASELINE_CONTENT_MISMATCH",
+          "BASELINE_NOT_TIP",
+          "BASELINE_AUTHORITY_UNAVAILABLE",
+          "BOOTSTRAP_REGISTRY_NOT_EMPTY",
+          "BOOTSTRAP_REVIEW_WORKFLOW_UNAVAILABLE",
+          "BOOTSTRAP_REVIEW_UNAVAILABLE",
+          "BOOTSTRAP_IMPACT_WORKFLOW_UNAVAILABLE",
+          "BOOTSTRAP_IMPACT_ANALYSIS_BLOCKED",
+          "BOOTSTRAP_IMPACT_ANALYSIS_INCOMPLETE",
+          "BOOTSTRAP_IMPACT_RECEIPT_MISSING",
+          "BOOTSTRAP_IMPACT_REPORT_READ_BUDGET_EXCEEDED",
+          "BOOTSTRAP_IMPACT_RECEIPT_INVALID",
+          "BOOTSTRAP_IMPACT_RULES_INCOMPATIBLE",
+          "BOOTSTRAP_IMPACT_REPLAY_MISMATCH",
+          "STORED_BOOTSTRAP_IMPACT_ANALYSIS_BLOCKED",
+          "STORED_BOOTSTRAP_IMPACT_ANALYSIS_INCOMPLETE",
+          "IMPACT_RECEIPT_MISSING",
+          "IMPACT_REPORT_READ_BUDGET_EXCEEDED",
+          "IMPACT_RECEIPT_INVALID",
+          "IMPACT_RULES_INCOMPATIBLE",
+          "IMPACT_REPLAY_MISMATCH",
+          "IMPACT_ANALYSIS_BLOCKED",
+          "FACT_PATH_REGRESSION_BLOCKED",
+          "FACT_PATH_REGRESSION_INCOMPLETE",
+          "IMPACT_COVERAGE_INCOMPLETE",
+          "FACT_PATH_RECEIPT_MISSING",
+          "FACT_PATH_REPORT_READ_BUDGET_EXCEEDED",
+          "FACT_PATH_RECEIPT_INVALID",
+          "FACT_PATH_RULES_INCOMPATIBLE",
+          "FACT_PATH_REPLAY_MISMATCH",
+          "STORED_FACT_PATH_ANALYSIS_BLOCKED",
+          "STORED_FACT_PATH_ANALYSIS_INCOMPLETE",
+          "SCOPED_PROFILE_REGRESSION_BLOCKED",
+          "SCOPED_PROFILE_REGRESSION_INCOMPLETE",
+          "CURATOR_AUTHORIZATION_NOT_PERFORMED",
+          "PUBLICATION_WORKFLOW_UNAVAILABLE"
+        ]
+      }
+    },
+    "coverageComplete": {
+      "const": false
+    },
+    "baselineVerified": {
+      "const": false
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "approvalGranted": {
+      "const": false
+    },
+    "publicationReady": {
+      "const": false
+    },
+    "evaluationReady": {
+      "const": false
+    },
+    "writesPerformed": {
+      "const": false
+    }
+  },
+  "allOf": [
+    {
+      "properties": {
+        "blockers": {
+          "type": "array",
+          "contains": {
+            "const": "IMPACT_COVERAGE_INCOMPLETE"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "blockers": {
+          "type": "array",
+          "contains": {
+            "const": "CURATOR_AUTHORIZATION_NOT_PERFORMED"
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "blockers": {
+          "type": "array",
+          "contains": {
+            "const": "PUBLICATION_WORKFLOW_UNAVAILABLE"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "CURATED_BOOTSTRAP"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "inputVersion": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "inputVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "blockers": {
+            "type": "array",
+            "contains": {
+              "enum": [
+                "PROPOSAL_NOT_FOUND",
+                "PROPOSAL_READ_BUDGET_EXCEEDED",
+                "PROPOSAL_FORMAT_INVALID",
+                "PROPOSAL_DIGEST_MISMATCH",
+                "BOOTSTRAP_REVIEW_UNAVAILABLE"
+              ]
+            }
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "planning": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "planning": {
+            "$ref": "#/$defs/planning"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "planning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evaluatedAt",
+        "analysisSha256",
+        "checkedDimensions",
+        "structuralVerificationGaps",
+        "planningVerificationGaps",
+        "regressions",
+        "status",
+        "policyVersion"
+      ],
+      "properties": {
+        "evaluatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "analysisSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "checkedDimensions": {
+          "const": 136
+        },
+        "structuralVerificationGaps": {
+          "const": 40
+        },
+        "planningVerificationGaps": {
+          "const": 22
+        },
+        "regressions": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "family",
+                "checkedCases"
+              ],
+              "properties": {
+                "family": {
+                  "const": "ARCHITECTURE_CONFIGURATION"
+                },
+                "checkedCases": {
+                  "const": 252
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "family",
+                "checkedCases"
+              ],
+              "properties": {
+                "family": {
+                  "const": "PROVISIONING_LIFECYCLE"
+                },
+                "checkedCases": {
+                  "const": 2016
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "family",
+                "checkedCases"
+              ],
+              "properties": {
+                "family": {
+                  "const": "OPERATIONS_PLANNING"
+                },
+                "checkedCases": {
+                  "const": 140
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "family",
+                "checkedCases"
+              ],
+              "properties": {
+                "family": {
+                  "const": "ASSURANCE_COMPLIANCE"
+                },
+                "checkedCases": {
+                  "const": 36
+                }
+              }
+            }
+          ],
+          "items": false
+        },
+        "status": {
+          "const": "INCOMPLETE"
+        },
+        "policyVersion": {
+          "const": "catalog-profile-planning-coverage-1"
+        }
+      }
+    }
+  }
+}

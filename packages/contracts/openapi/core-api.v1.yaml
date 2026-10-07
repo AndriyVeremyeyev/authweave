@@ -606,6 +606,89 @@ paths:
           description: Missing, duplicate or invalid server service credential.
         '503':
           description: Server service credential is not configured.
+  /internal/v1/catalog-curator/proposals/{id}/revisions/{version}/publication-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Read a fresh Core publication denial for an exact proposal revision
+      operationId: getCatalogProposalPublicationPreflight
+      description: >-
+        BFF service credential and fresh, singular, project/organization-scoped curator
+        assertions are required before reading storage. Accepts only one expectedSha256;
+        no caller baseline, evidence, counts or readiness assertions. The bounded body-free
+        projection comes from the existing read-only repeatable-read Core policy. Missing
+        or invalid stored input returns BLOCKED with planning absent. Failed calculations
+        propagate; historical receipts are never a fallback. Read authorization is not
+        publication-write authorization. No approval, publication, verification or writes.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/CatalogProposalVersion'
+        - name: expectedSha256
+          in: query
+          required: true
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: Fresh exact-bound BLOCKED display projection, never a durable receipt or permission.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-publication-preflight-review.v1.schema.json
+        '400':
+          description: Invalid, repeated, additional or missing query parameters, body, UUID, version or digest.
+        '401':
+          description: Missing or invalid BFF service credential or singular OIDC principal.
+        '403':
+          description: Invalid curator role/scope or stale authentication.
+        '503':
+          description: Server credential or curator scope is not configured.
+  /internal/v1/catalog-curator/bootstrap-reviews/{id}/publication-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Read a fresh Core publication denial for an exact stored bootstrap review
+      operationId: getCatalogBootstrapPublicationPreflight
+      description: >-
+        Same protected read-only boundary as proposal preflight. Pins a stored review UUID
+        and its complete review SHA-256, never a candidate digest or raw draft. Only one
+        expectedSha256 is accepted. A fresh denial does not rewrite the manual receipt,
+        refresh evidence, verify sources or enable publication. Failed reads/calculations
+        never use another review or historical report as fallback.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: expectedSha256
+          in: query
+          required: true
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: Fresh exact-bound BLOCKED projection; planning absent if the stored review is unavailable or invalid.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-publication-preflight-review.v1.schema.json
+        '400':
+          description: Invalid, repeated, additional or missing query parameters, body, UUID or digest.
+        '401':
+          description: Missing or invalid BFF service credential or singular OIDC principal.
+        '403':
+          description: Invalid curator role/scope or stale authentication.
+        '503':
+          description: Server credential or curator scope is not configured.
   /api/v1/catalog-bootstrap-reviews:
     post:
       tags: [Catalog drafts]

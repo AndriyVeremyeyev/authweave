@@ -1398,13 +1398,37 @@ the preflight instant and the complete structural result, not merely its manifes
 Calculation failures, absent checked reports and mismatched clocks or structural
 content propagate rather than falling back or producing a successful partial read.
 
-This is an internal Core consumer, not a new HTTP endpoint or browser feature.
-Its existing read-only, repeatable-read transaction and mandatory full-coverage,
+The native consumer retains its read-only, repeatable-read transaction; its mandatory full-coverage,
 curator-authorization and publication-workflow blockers are preserved. Real
 database tests compare count/content digests for 25 application and audit tables,
 verify the planner runs in that same transaction, and preserve historical proposal
 and bootstrap receipts. No saved receipt is reinterpreted as verified planning,
 and a fresh calculation does not refresh source evidence or confer permission.
+
+A separate bounded, body-free display contract now exposes the fresh denial through
+`GET /internal/v1/catalog-curator/proposals/{id}/revisions/{version}/publication-preflight`
+and `GET /internal/v1/catalog-curator/bootstrap-reviews/{id}/publication-preflight`.
+Both require the BFF service credential and a fresh singular curator assertion for
+the configured project/organization. They accept exactly one `expectedSha256`,
+no body or caller-supplied baseline/evidence/readiness. Bootstrap binds the complete
+stored review digest, not the candidate digest. Missing or invalid stored inputs
+return `BLOCKED` with planning absent; calculation errors propagate without fallback.
+Successful reads are `no-store` and leave application/audit data unchanged.
+
+The protected proposal review and exact stored bootstrap-review page show a shared
+**Fresh publication check** panel: exact input/time, whole-candidate manual counts,
+136 exercised structural dimensions, four synthetic planning case counts, all
+mandatory blockers and the 40 structural/22 additional planning boundaries.
+These counts are not a completion percentage or verified provider behavior. The
+BFF independently checks the exact requested binding, recent clock, known inventory,
+balanced counts, mandatory blockers and false authority flags within a 16 KiB body
+limit. This compact display does not replay the omitted native analysis or establish
+cryptographic proof from its digest. Other panels remain separate reads, not one
+atomic page-wide snapshot. An unavailable fresh read shows fixed feedback and cannot
+reuse a historical receipt. Curator read access is not publication-write authorization.
+Ordinary users receive no curator role automatically; a real assigned-role/step-up
+browser walkthrough remains pending. No approval, publication or hosted security
+readiness is added, and the personal assessment/public preview are unchanged.
 
 ### Synthetic operations planning regression
 
@@ -2190,8 +2214,9 @@ pinning, account or paid call is added by this step.
 
 ### Core publication preflight policy
 
-`CatalogPublicationPreflight` adds a Core-owned, internal read-only denial policy, not
-an HTTP action, publisher or authorization token. Unlike the display-only BFF summary,
+`CatalogPublicationPreflight` adds a Core-owned read-only denial policy, not
+a publisher or authorization token. Its separate protected HTTP projection is
+described under composed profile planning coverage. Unlike the older display-only BFF summary,
 it reads one repeatable-read database snapshot and checks an exact stored proposal
 UUID/revision/SHA-256. It rejects missing, malformed, over-budget or tampered requests,
 noncurrent heads, rejected/already published revisions, nonreviewable changes, invalid

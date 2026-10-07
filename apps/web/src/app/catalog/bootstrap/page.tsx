@@ -2,10 +2,12 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { authConfiguration } from "@/lib/auth/config";
-import { readCuratorAuthorization, readCatalogBootstrapReview, type BootstrapReadResult } from "@/lib/auth/core-client";
+import { readCuratorAuthorization, readCatalogBootstrapReview, readCatalogPublicationPreflight,
+  type BootstrapReadResult, type PublicationReviewResult } from "@/lib/auth/core-client";
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession } from "@/lib/auth/store";
 import BootstrapReviewForm from "./review-form";
+import PublicationPreflight from "../publication-preflight";
 
 export const runtime = "nodejs";
 const messages: Record<string, string> = {
@@ -24,6 +26,7 @@ export default async function BootstrapReviewPage({ searchParams }: PageProps<"/
   let anonymous = false;
   let status = "core-unavailable";
   let result: BootstrapReadResult | null = null;
+  let publication: PublicationReviewResult | null = null;
   try {
     const config = authConfiguration();
     const values = (await cookies()).getAll(sessionCookieName(config.secureCookies));
@@ -32,6 +35,9 @@ export default async function BootstrapReviewPage({ searchParams }: PageProps<"/
     else if (requested) {
       result = await readCatalogBootstrapReview(session, config, query.reviewId, query.expectedSha256);
       status = result.kind;
+      if (result.kind === "ready") publication = await readCatalogPublicationPreflight(session, config, {
+        mode: "CURATED_BOOTSTRAP", inputId: result.receipt.reviewId, inputVersion: null, inputSha256: result.receipt.reviewSha256,
+      });
     } else status = await readCuratorAuthorization(session, config);
   } catch { /* Service errors are not anonymous access or permission to review. */ }
   if (anonymous) redirect("/account");
@@ -51,6 +57,7 @@ export default async function BootstrapReviewPage({ searchParams }: PageProps<"/
       <p className="mt-4 break-all text-sm text-slate-400">Review UUID: {result.receipt.reviewId}<br />Candidate draft SHA-256: {result.receipt.candidateSha256}<br />Complete review SHA-256: {result.receipt.reviewSha256}</p>
       <p className="mt-4 text-slate-300">This receipt contains no actor, source bodies or candidate. It does not prove current source freshness, full impact coverage, source truth or permission to publish. No source verification, trust promotion, approval or catalog writes were performed.</p>
     </section> : <BootstrapReviewForm />}
+    {result?.kind === "ready" && <PublicationPreflight result={publication} />}
     <p className="mt-8 text-sm text-slate-400">Publication remains blocked pending complete impact coverage and an authenticated atomic publication workflow.</p>
   </main>;
 }

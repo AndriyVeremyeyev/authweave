@@ -4,7 +4,9 @@ import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { authConfiguration } from "@/lib/auth/config";
-import { readCatalogProposalReview, type CatalogReviewResult } from "@/lib/auth/core-client";
+import { readCatalogProposalReview, readCatalogPublicationPreflight, type CatalogReviewResult,
+  type PublicationReviewResult } from "@/lib/auth/core-client";
+import PublicationPreflight from "../../publication-preflight";
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession } from "@/lib/auth/store";
 import type { CatalogImpactReview, ScenarioImpactRow } from "@/lib/catalog/impact-review";
@@ -44,6 +46,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
   if (!UUID.test(id)) notFound();
   const query = await searchParams;
   let result: CatalogReviewResult = { kind: "core-unavailable" };
+  let publication: PublicationReviewResult | null = null;
   let anonymous = false;
   try {
     const config = authConfiguration();
@@ -56,6 +59,9 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
       catch { result = { kind: "invalid-review-cursor" }; }
       if (historyCursor !== undefined) result = await readCatalogProposalReview(session, config, id, new Date(),
         evidenceOffsetFromQuery(query.evidenceOffset), historyCursor);
+      if (result.kind === "ready") publication = await readCatalogPublicationPreflight(session, config, {
+        mode: "PROPOSAL_APPROVAL", inputId: id, inputVersion: result.review.version, inputSha256: result.review.proposalSha256,
+      });
     }
   } catch { /* Do not render proposal data if authentication or Core is unavailable. */ }
   if (anonymous) redirect("/account");
@@ -121,6 +127,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
         <p className="mt-2 whitespace-pre-wrap break-words text-slate-300">{review.rationale}</p>
       </section>
       <ReviewPrerequisites report={prerequisites} />
+      <PublicationPreflight result={publication} />
       <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="changes-heading">
         <h2 id="changes-heading" className="text-2xl font-semibold">Semantic changes</h2>
         <p className="mt-2 text-slate-300">{review.affectedOptionIds.length} affected option IDs · {review.optionChanges.length} option-scope changes · {review.factChanges.length} fact changes.</p>

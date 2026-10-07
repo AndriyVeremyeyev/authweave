@@ -4,6 +4,19 @@ import java.time.Instant;
 import java.sql.DriverManager;
 import java.util.UUID;
 import java.util.List;
+import java.util.ArrayList;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.node.ObjectNode;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,8 +53,13 @@ import static io.authweave.core.generated.jooq.tables.CatalogImpactReports.CATAL
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.doAnswer;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@SpringBootTest(properties = {"AUTHWEAVE_CORE_SERVICE_TOKEN=synthetic-preflight-http-service-token-000000000000000",
+        "AUTHWEAVE_OIDC_PROJECT_ID=123456789012345678", "AUTHWEAVE_OIDC_ORG_ID=987654321098765432"})
+@AutoConfigureMockMvc
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @ActiveProfiles({"local-catalog-write", "local-catalog-impact-write", "local-catalog-regression-write"})
 class CatalogPublicationPreflightIntegrationTests {
     // Empty registry is a real bootstrap prerequisite; do not share a database with admin-seeded storage tests.
@@ -62,6 +80,15 @@ class CatalogPublicationPreflightIntegrationTests {
     }
 
     @Autowired private ObjectMapper mapper;
+    @Autowired private MockMvc mvc;
+    private static final String ROOT = "/internal/v1/catalog-curator/";
+    private static final Path HTTP_SAMPLES = Path.of("target", "publication-preflight-http-contract-samples.json");
+    private record HttpSample(String name, String schema, boolean valid, JsonNode payload, JsonNode reference) { }
+    private final List<HttpSample> httpSamples = new ArrayList<>();
+    @BeforeAll void clearHttpSamples() throws Exception { Files.deleteIfExists(HTTP_SAMPLES); }
+    @AfterAll void saveHttpSamples() throws Exception {
+        Files.createDirectories(HTTP_SAMPLES.getParent()); Files.writeString(HTTP_SAMPLES, mapper.writeValueAsString(httpSamples));
+    }
     @Autowired private DSLContext dsl;
     @Autowired private CatalogPublicationPreflight preflight;
     @Autowired private LocalCatalogProposalWriter writer;
@@ -375,6 +402,100 @@ class CatalogPublicationPreflightIntegrationTests {
         org.mockito.Mockito.doThrow(new IllegalStateException("Planning regression unavailable")).when(planningCoverage).inspectUsing(any(), any());
         assertThrows(IllegalStateException.class, () -> preflight.bootstrap(request.reviewId(), receipt.reviewSha256()));
         assertEquals(before, storedData()); registryStillEmpty();
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"credential", "duplicate-credential", "issuer", "subject", "duplicate-subject", "role", "duplicate-role", "project", "org", "stale", "future", "time"})
+    void freshPublicationHttpChecksDenyBeforeReadingStorageOrRunningPlanning(String guard) throws Exception {
+        var before = storedData();
+        for (String suffix : List.of("proposals/" + UUID.randomUUID() + "/revisions/0/publication-preflight",
+                "bootstrap-reviews/" + UUID.randomUUID() + "/publication-preflight")) {
+            int status = List.of("credential", "duplicate-credential", "issuer", "subject", "duplicate-subject").contains(guard) ? 401 : 403;
+            for (String root : List.of(ROOT, ROOT.replace("/v1/", "/v2/")))
+                mvc.perform(httpAuth(get(root + suffix).param("expectedSha256", "a".repeat(64)), guard)).andExpect(status().is(status));
+        }
+        org.mockito.Mockito.verifyNoInteractions(repository, planningCoverage);
+        assertEquals(before, storedData());
+    }
+
+    @Test void freshPublicationHttpReadsBothExactInputsAndNeverMutatesStoredData() throws Exception {
+        var fixture = new CatalogPublicationLookupFixtures(mapper); var node = fixture.child(fixture.root(Instant.now()));
+        var saved = writer.save(node.request(), null).proposal();
+        var candidate = fixture.root(Instant.now()).snapshot().catalog().asDraft();
+        var observations = validator.validate(candidate).facts().stream().map(f -> new CatalogBootstrapReviewRequest.Observation(f.optionId(), f.path(), SOURCE_SUPPORTS_CLAIM)).toList();
+        var review = bootstrapReviews.record(new CatalogBootstrapReviewRequest(1, UUID.randomUUID(), CatalogDraftCanonicalizer.sha256(candidate), candidate,
+                observations, CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW),
+                new CuratorActor("http://localhost:8081", "synthetic-http-curator", "123456789012345678", "987654321098765432", Instant.now())).review();
+        var before = storedData();
+        doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(planningCoverage).inspectUsing(any(), any());
+        for (boolean bootstrap : List.of(false, true)) {
+            var id = bootstrap ? review.reviewId() : saved.proposalId(); var digest = bootstrap ? review.reviewSha256() : saved.proposalSha256();
+            var path = ROOT + (bootstrap ? "bootstrap-reviews/" + id : "proposals/" + id + "/revisions/" + saved.version()) + "/publication-preflight";
+            var result = mvc.perform(httpAuth(get(path).param("expectedSha256", digest), "ok"))
+                    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(jsonPath("$.status").value("BLOCKED")).andExpect(jsonPath("$.planning.checkedDimensions").value(136))
+                    .andExpect(jsonPath("$.approvalGranted").value(false)).andReturn();
+            var json = (ObjectNode) mapper.readTree(result.getResponse().getContentAsString());
+            var reference = mapper.createObjectNode().put("mode", bootstrap ? "CURATED_BOOTSTRAP" : "PROPOSAL_APPROVAL")
+                    .put("inputId", id.toString()).put("inputSha256", digest);
+            if (bootstrap) reference.putNull("inputVersion"); else reference.put("inputVersion", saved.version());
+            httpSamples.add(new HttpSample(bootstrap ? "bootstrap-fresh" : "proposal-fresh", "catalog-publication-preflight-review", true, json, reference));
+            assertEquals(json.get("evaluatedAt"), json.at("/planning/evaluatedAt"));
+            assertEquals(List.of(252, 2016, 140, 36), mapper.treeToValue(json.at("/planning/regressions"), List.class).stream()
+                    .map(r -> ((java.util.Map<?, ?>) r).get("checkedCases")).toList());
+            String body = json.toString();
+            for (String privateField : List.of("sourceUrl", "actor", "synthetic-http-curator", "rationale", "candidate\"", "profile\"")) assertFalse(body.contains(privateField));
+            var again = mapper.readTree(mvc.perform(httpAuth(get(path).param("expectedSha256", digest), "ok"))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            assertNotEquals(json.get("evaluatedAt"), again.get("evaluatedAt"));
+            assertNotEquals(json.at("/planning/analysisSha256"), again.at("/planning/analysisSha256"));
+            for (String flag : List.of("coverageComplete", "baselineVerified", "sourceVerificationPerformed", "approvalGranted", "publicationReady", "evaluationReady", "writesPerformed")) {
+                var forged = json.deepCopy(); forged.put(flag, true);
+                httpSamples.add(new HttpSample((bootstrap ? "bootstrap-" : "proposal-") + flag, "catalog-publication-preflight-review", false, forged, reference));
+            }
+            var disclosure = json.deepCopy(); disclosure.put("actorSubject", "private");
+            httpSamples.add(new HttpSample((bootstrap ? "bootstrap-" : "proposal-") + "disclosure", "catalog-publication-preflight-review", false, disclosure, reference));
+            for (String badDigest : List.of("0".repeat(64))) {
+                var denied = mapper.readTree(mvc.perform(httpAuth(get(path).param("expectedSha256", badDigest), "ok"))
+                        .andExpect(status().isOk()).andExpect(jsonPath("$.planning").doesNotExist()).andReturn().getResponse().getContentAsString());
+                var badReference = reference.deepCopy().put("inputSha256", badDigest);
+                httpSamples.add(new HttpSample((bootstrap ? "bootstrap-" : "proposal-") + "digest-unavailable", "catalog-publication-preflight-review", true, denied, badReference));
+            }
+            org.mockito.Mockito.doThrow(new IllegalStateException("Private calculation unavailable")).when(planningCoverage).inspectUsing(any(), any());
+            assertThrows(Exception.class, () -> mvc.perform(httpAuth(get(path).param("expectedSha256", digest), "ok")));
+            doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(planningCoverage).inspectUsing(any(), any());
+        }
+        assertEquals(before, storedData()); registryStillEmpty();
+    }
+
+    @Test void freshPublicationHttpRefusesMissingRepeatedAndExtraInputsBeforeReadingStorage() throws Exception {
+        var before = storedData();
+        for (String suffix : List.of("proposals/" + UUID.randomUUID() + "/revisions/0", "bootstrap-reviews/" + UUID.randomUUID())) {
+            var path = ROOT + suffix + "/publication-preflight";
+            for (var request : List.of(get(path), get(path).param("expectedSha256", "invalid"),
+                    get(path).param("expectedSha256", "a".repeat(64), "a".repeat(64)),
+                    get(path).param("expectedSha256", "a".repeat(64)).param("baselineVerified", "true"),
+                    get(path).param("expectedSha256", "a".repeat(64)).header("Transfer-Encoding", "chunked"),
+                    get(path).param("expectedSha256", "a".repeat(64)).content("{}")))
+                mvc.perform(httpAuth(request, "ok")).andExpect(status().isBadRequest());
+        }
+        for (String version : List.of("-1", "9007199254740992", "invalid"))
+            mvc.perform(httpAuth(get(ROOT + "proposals/" + UUID.randomUUID() + "/revisions/" + version + "/publication-preflight")
+                    .param("expectedSha256", "a".repeat(64)), "ok")).andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(repository, planningCoverage); assertEquals(before, storedData());
+    }
+
+    private static MockHttpServletRequestBuilder httpAuth(MockHttpServletRequestBuilder request, String guard) {
+        if (!guard.equals("credential")) request.header("Authorization", "Bearer synthetic-preflight-http-service-token-000000000000000");
+        if (guard.equals("duplicate-credential")) request.header("Authorization", "duplicate");
+        if (!guard.equals("issuer")) request.header("X-AuthWeave-Oidc-Issuer", "http://localhost:8081");
+        if (!guard.equals("subject")) request.header("X-AuthWeave-Oidc-Subject", "synthetic-http-curator");
+        if (guard.equals("duplicate-subject")) request.header("X-AuthWeave-Oidc-Subject", "duplicate");
+        request.header("X-AuthWeave-Curator-Role", guard.equals("role") ? "assessor" : "catalog_curator");
+        if (guard.equals("duplicate-role")) request.header("X-AuthWeave-Curator-Role", "catalog_curator");
+        request.header("X-AuthWeave-Curator-Project-Id", guard.equals("project") ? "1" : "123456789012345678");
+        request.header("X-AuthWeave-Curator-Org-Id", guard.equals("org") ? "1" : "987654321098765432");
+        request.header("X-AuthWeave-Authenticated-At", guard.equals("time") ? "invalid" : Instant.now().plusSeconds(guard.equals("stale") ? -901 : guard.equals("future") ? 31 : 0).toString());
+        return request;
     }
 
     private static void assertPlanning(CatalogPublicationPreflight.Result result) {

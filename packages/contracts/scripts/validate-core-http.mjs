@@ -22,6 +22,7 @@ import { validateLifecycleRegression } from "../tests/helpers/lifecycle-regressi
 import { lifecycleV2Expectation, lifecycleV2Patterns, lifecycleV2Groups, lifecycleV2GroupCommon } from "../tests/helpers/provisioning-lifecycle-v2-spec.mjs";
 import { operationsPlanningValues, operationsPlanningFromCore } from "../../../apps/web/src/lib/assessment/operations-planning.ts";
 import { assurancePlanningValues, assurancePlanningFromCore } from "../../../apps/web/src/lib/assessment/assurance-compliance-planning.ts";
+import { publicationReviewFromCore } from "../../../apps/web/src/lib/catalog/publication-preflight.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -53,6 +54,7 @@ let lifecycleV2Samples = 0;
 let architectureConfigurationSamples = 0;
 let operationsPlanningSamples = 0;
 let assurancePlanningSamples = 0;
+let publicationReviewSamples = 0;
 const assuranceSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("assurance-saved-"))
   .map(s => [s.name.slice("assurance-saved-".length), s.payload]));
 let operationsRegressionSamples = 0;
@@ -360,6 +362,21 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "catalog-publication-preflight-review") {
+    const reference = samples.find(s => s.name === name && s.schema === schema)?.reference;
+    assert.ok(reference, "Fresh publication review must bind to the original HTTP request reference, not its response fields.");
+    const now = new Date(payload.evaluatedAt);
+    if (!valid) assert.throws(() => publicationReviewFromCore(payload, reference, now));
+    else {
+      const report = publicationReviewFromCore(payload, reference, now); publicationReviewSamples++;
+      assert.equal(report.inputId, reference.inputId); assert.equal(report.inputSha256, reference.inputSha256);
+      for (const mutate of [r => r.inputSha256 = r.inputSha256 === "a".repeat(64) ? "b".repeat(64) : "a".repeat(64),
+        r => r.evaluatedAt = "2026-01-01T00:00:00Z", r => r.facts.allFactsHaveSupportingObservation = !r.facts.allFactsHaveSupportingObservation]) {
+        const substituted = structuredClone(payload); mutate(substituted); assert.equal(validate(substituted), true);
+        assert.throws(() => publicationReviewFromCore(substituted, reference, now));
+      }
+    }
+  }
   if (schema === "assurance-compliance-planning-preflight" && valid) {
     const saved = assuranceSaved.get(name.slice("assurance-planning-".length));
     validateAssurancePlanning(payload, saved, "2026-09-12T12:00:00Z"); assurancePlanningSamples++;
@@ -584,7 +601,7 @@ for (const { name, schema, valid, payload } of samples) {
     auditabilityConsumerSamples++;
   }
 }
-for (const required of ["assessment-response:true", "core-problem:true",
+for (const required of ["catalog-publication-preflight-review:true", "catalog-publication-preflight-review:false", "assessment-response:true", "core-problem:true",
   "provisioning-lifecycle-request:true", "provisioning-lifecycle-request:false", "provisioning-lifecycle-preview:true", "provisioning-lifecycle-preview:false",
   "provisioning-lifecycle-request.v2:true", "provisioning-lifecycle-request.v2:false", "provisioning-lifecycle-preview.v2:true", "provisioning-lifecycle-preview.v2:false",
   "catalog-bootstrap-review-request:true", "catalog-bootstrap-review-request:false",
@@ -659,6 +676,8 @@ for (const required of ["assessment-response:true", "core-problem:true",
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.equal(publicationReviewSamples, 4, "Both proposal/bootstrap checked and unavailable-input projections must pass the actual BFF contract.");
+console.log(`Verified ${publicationReviewSamples} exact-request-bound fresh publication denials through the strict curator BFF guard.`);
 assert.equal(planningCoverageSamples, 1, "The protected combined planning diagnostic must reach independent composition replay.");
 console.log("Verified complete 136-dimension profile planning composition against a separate structural HTTP sample and four independent frozen regression bindings.");
 assert.equal(assuranceRegressionSamples, 1, "The protected assurance/compliance diagnostic must reach independent source replay.");
