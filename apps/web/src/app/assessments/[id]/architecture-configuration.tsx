@@ -5,6 +5,7 @@ import { architectureConfigurationAnalysis, architectureConfigurationDeferred, a
   type ArchitectureClientScope, type ArchitectureConfigurationAnalysis, type ArchitectureConfigurationInput, type ArchitectureConfigurationPreview,
   type ArchitectureSettingId, type ArchitectureSettingValue } from "@/lib/assessment/architecture-configuration";
 import type { ArchitecturePatternId } from "@/lib/assessment/architecture-prerequisites";
+import { ArchitectureDesignFollowUps } from "./architecture-design-follow-ups";
 
 const labels: Record<ArchitectureSettingId, string> = {
   OAUTH_FLOW: "OAuth flow", OAUTH_CLIENT_TYPE: "OAuth client type", CLIENT_AUTHENTICATION: "Client credential custody",
@@ -104,7 +105,7 @@ export function ArchitectureConfiguration({ assessmentId, version, patternId, cl
             <label htmlFor={id} className="block font-medium">{labels[definition.settingId]}</label>
             <select id={id} name={definition.settingId} aria-describedby={`${id}-hint`} value={selected}
               onChange={event => setSettings({ ...settings, [definition.settingId]: event.currentTarget.value as ArchitectureSettingValue })}
-              className="mt-2 w-full min-w-0 rounded-lg border border-slate-600 bg-slate-900 p-2">
+              className="mt-2 w-full min-w-0 scroll-mt-6 rounded-lg border border-slate-600 bg-slate-900 p-2 focus-visible:outline-2 focus-visible:outline-cyan-200">
               {definition.allowedValues.map(value => <option key={value} value={value}>{choice(definition.settingId, value)}</option>)}
             </select>
             <p className="mt-2 break-words text-xs text-cyan-100">Selected proposal: {choice(definition.settingId, selected)}</p>
@@ -121,6 +122,9 @@ export function ArchitectureConfiguration({ assessmentId, version, patternId, cl
       {error && <p role="alert" className="text-amber-100">{error}</p>}
       {preview && <div className="rounded-lg border border-slate-600 p-4">
         <p className="font-medium text-cyan-200">{statusText[preview.analysis.status]}</p>
+        <ArchitectureDesignFollowUps clientScope={preview.analysis.clientScope} kind="settings"
+          checks={preview.analysis.checks.map(check => ({ fieldId: `${patternId}-configuration-${check.settingId}`,
+            label: labels[check.settingId], outcome: check.outcome }))} />
         <ul className="mt-3 space-y-3">{preview.analysis.checks.map((check, index) => <li key={check.settingId}>
           <p className="font-medium">{labels[check.settingId]}</p><p className="mt-1">Proposed: {choice(check.settingId, preview.analysis.settings[check.settingId] ?? "UNKNOWN")}</p>
           <p className={check.outcome === "CONDITIONALLY_NOT_SATISFIED" || check.outcome === "UNKNOWN" ? "mt-1 text-amber-100" : "mt-1 text-slate-400"}>{outcomeText[check.outcome]}</p>

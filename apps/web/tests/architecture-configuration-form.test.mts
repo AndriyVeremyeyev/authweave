@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { architectureDesignFollowUpsModuleUrl } from "./fixtures/assessment-ui.mts";
 import { parseArchitectureConfigurationForm, architectureConfigurationPatterns, type ArchitectureConfigurationAnalysis } from "../src/lib/assessment/architecture-configuration.ts";
 import type { ArchitecturePatternId } from "../src/lib/assessment/architecture-prerequisites.ts";
 import { configurationFixture, configurationMatching } from "./fixtures/architecture-configuration.mts";
@@ -18,6 +19,7 @@ const source = await readFile(new URL("../src/app/assessments/[id]/architecture-
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext,
   target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
   .replaceAll('"react"', JSON.stringify(hooks)).replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
+  .replaceAll('"./architecture-design-follow-ups"', JSON.stringify(await architectureDesignFollowUpsModuleUrl()))
   .replaceAll('"@/lib/assessment/architecture-configuration"', JSON.stringify(new URL("../src/lib/assessment/architecture-configuration.ts", import.meta.url).href));
 const { ArchitectureConfiguration } = await import(moduleUrl(compiled));
 type Entries = [string, unknown][];
@@ -99,6 +101,36 @@ test("all five settings forms keep matches and unknown gaps conditional on saved
       }
     }, pattern, scope);
   }
+});
+
+test("settings follow-ups link only exact incompatible/unknown controls of each pattern and clear on edit", async () => {
+  for (const pattern of Object.keys(architectureConfigurationPatterns) as ArchitecturePatternId[]) await withForm(async f => {
+    const values = f.values("SATISFIED"); values[2][1] = "IMPLICIT"; values[3][1] = "UNKNOWN";
+    assert.equal(f.html().includes("Next steps for this temporary preview"), false);
+    const done = f.submit(values); f.requests[0].reply.resolve(Response.json(f.response(values))); await done;
+    const html = f.html();
+    assert.match(html, /Does not match the reference setting \(1\)/); assert.match(html, /Unknown proposal \(1\)/);
+    assert.equal((html.match(/<a /g) ?? []).length, 2);
+    for (const setting of ["OAUTH_FLOW", "OAUTH_CLIENT_TYPE"]) {
+      assert.ok(html.includes(`href="#${pattern}-configuration-${setting}"`)); assert.ok(html.includes(`id="${pattern}-configuration-${setting}"`));
+    }
+    assert.equal(html.includes(`href="#${pattern}-configuration-TOKEN_LOCATION"`), false);
+    assert.match(html, /not observed IdP settings/); assert.match(html, /INCOMPATIBLE_SETTING_DECLARED/);
+    assert.equal(f.requests.length, 1); f.select("OAUTH_FLOW", "UNKNOWN");
+    assert.equal(f.html().includes("Next steps for this temporary preview"), false); assert.equal(f.html().includes("<a "), false);
+  }, pattern);
+});
+
+test("settings follow-ups send unresolved applicability to saved Context, never to guessed setting corrections", async () => {
+  for (const scope of ["UNKNOWN", "NOT_SELECTED"] as const) await withForm(async f => {
+    const values = f.values("SATISFIED"), done = f.submit(values);
+    f.requests[0].reply.resolve(Response.json(f.response(values))); await done;
+    const html = f.html();
+    assert.match(html, /Next steps for this temporary preview/); assert.equal(html.includes("<a "), false);
+    assert.equal(html.includes("Unknown proposal"), false); assert.equal(html.includes("No unmet or unknown"), false);
+    assert.match(html, scope === "UNKNOWN" ? /not a missing design answer/ : /cannot make this pattern applicable/);
+    assert.equal(f.requests.length, 1);
+  }, "BFF_SESSION", scope);
 });
 
 test("local settings validation binds the visible pattern and saved version", async () => withForm(async f => {

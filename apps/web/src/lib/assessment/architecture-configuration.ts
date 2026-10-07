@@ -119,7 +119,7 @@ function expectedAnalysis(input: ArchitectureConfigurationInput, scope: Architec
     const value = Object.hasOwn(input.settings, definition.settingId) ? input.settings[definition.settingId]! : "UNKNOWN";
     const reasonCode = scope === "NOT_SELECTED" ? "PATTERN_NOT_APPLICABLE" : scope === "UNKNOWN" ? "CLIENT_SCOPE_UNKNOWN"
       : value === "UNKNOWN" ? "SETTING_UNKNOWN" : definition.compatibleValues.includes(value) ? "EXPECTED_SETTING_DECLARED" : "INCOMPATIBLE_SETTING_DECLARED";
-    const outcome = reasonCode === "PATTERN_NOT_APPLICABLE" ? "NOT_APPLICABLE" : reasonCode === "CLIENT_SCOPE_UNKNOWN" || reasonCode === "SETTING_UNKNOWN" ? "UNKNOWN"
+    const outcome: PrerequisiteAnalysis["checks"][number]["outcome"] = reasonCode === "PATTERN_NOT_APPLICABLE" ? "NOT_APPLICABLE" : reasonCode === "CLIENT_SCOPE_UNKNOWN" || reasonCode === "SETTING_UNKNOWN" ? "UNKNOWN"
       : reasonCode === "EXPECTED_SETTING_DECLARED" ? "CONDITIONALLY_SATISFIED" : "CONDITIONALLY_NOT_SATISFIED";
     return { settingId: definition.settingId, outcome, reasonCode };
   });

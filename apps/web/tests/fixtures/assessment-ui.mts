@@ -60,6 +60,10 @@ async function compile(relativePath: string): Promise<string> {
     .replaceAll('"react"', JSON.stringify(import.meta.resolve("react")));
 }
 
+export async function architectureDesignFollowUpsModuleUrl() {
+  return moduleUrl(await compile("../../src/app/assessments/[id]/architecture-design-follow-ups.tsx"));
+}
+
 export async function assessmentUiComponents() {
   const router = moduleUrl('export function useRouter() { return { push() { throw new Error("No navigation during rendering"); } }; }');
   const workflowUrl = moduleUrl((await compile("../../src/app/assessments/[id]/assessment-workflow.tsx"))
@@ -92,10 +96,14 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/comparison-presentation"', JSON.stringify(new URL("../../src/lib/assessment/comparison-presentation.ts", import.meta.url).href))));
   const context = await import(moduleUrl((await compile("../../src/app/assessments/[id]/saved-context-summary.tsx"))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
+  const designFollowUpsUrl = await architectureDesignFollowUpsModuleUrl();
+  const designFollowUps = await import(designFollowUpsUrl);
   const prerequisitesUrl = moduleUrl((await compile("../../src/app/assessments/[id]/architecture-prerequisites.tsx"))
+    .replaceAll('"./architecture-design-follow-ups"', JSON.stringify(designFollowUpsUrl))
     .replaceAll('"@/lib/assessment/architecture-prerequisites"', JSON.stringify(new URL("../../src/lib/assessment/architecture-prerequisites.ts", import.meta.url).href)));
   const prerequisites = await import(prerequisitesUrl);
   const configurationUrl = moduleUrl((await compile("../../src/app/assessments/[id]/architecture-configuration.tsx"))
+    .replaceAll('"./architecture-design-follow-ups"', JSON.stringify(designFollowUpsUrl))
     .replaceAll('"@/lib/assessment/architecture-configuration"', JSON.stringify(new URL("../../src/lib/assessment/architecture-configuration.ts", import.meta.url).href)));
   const configuration = await import(configurationUrl);
   const overviewUrl = moduleUrl((await compile("../../src/app/assessments/[id]/architecture-overview.tsx"))
@@ -146,5 +154,5 @@ export async function assessmentUiComponents() {
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/assurance-compliance-planning"', JSON.stringify(new URL("../../src/lib/assessment/assurance-compliance-planning.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
-  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...matrix, ...followUps, ...context, ...prerequisites, ...configuration, ...architectureOverview, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
+  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...matrix, ...followUps, ...context, ...designFollowUps, ...prerequisites, ...configuration, ...architectureOverview, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
 }

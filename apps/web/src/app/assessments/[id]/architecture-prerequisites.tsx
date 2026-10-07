@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { parsePrerequisiteForm, prerequisiteAnalysis, prerequisiteIds,
   type ArchitecturePatternId, type PrerequisiteAnalysis, type PrerequisiteInput, type PrerequisitePreview } from "@/lib/assessment/architecture-prerequisites";
+import { ArchitectureDesignFollowUps } from "./architecture-design-follow-ups";
 
 const statusText: Record<PrerequisiteAnalysis["status"], string> = {
   CONDITIONALLY_MATCHES: "Conditions met in your proposed design only",
@@ -114,7 +115,7 @@ export function ArchitecturePrerequisites({ assessmentId, version, patternId, de
         <legend className="mb-3 font-medium">Unverified design conditions</legend>
         {ids.map((id, index) => <div key={id}>
           <label htmlFor={`${patternId}-${id}`} className="block">{descriptions[index]}</label>
-          <select id={`${patternId}-${id}`} name={id} defaultValue="UNKNOWN" className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 p-2">
+          <select id={`${patternId}-${id}`} name={id} defaultValue="UNKNOWN" className="mt-2 w-full scroll-mt-6 rounded-lg border border-slate-600 bg-slate-900 p-2 focus-visible:outline-2 focus-visible:outline-cyan-200">
             <option value="UNKNOWN">Unknown / not yet assessed</option>
             <option value="SATISFIED">Met in proposed design (unverified)</option>
             <option value="NOT_SATISFIED">Not met in proposed design (unverified)</option>
@@ -133,6 +134,9 @@ export function ArchitecturePrerequisites({ assessmentId, version, patternId, de
       {error && <p role="alert" className="text-amber-100">{error}</p>}
       {preview && <div className="rounded-lg border border-slate-600 p-4">
         <p className="font-medium text-cyan-200">{statusText[preview.analysis.status]}</p>
+        <ArchitectureDesignFollowUps clientScope={preview.analysis.clientScope} kind="conditions"
+          checks={preview.analysis.checks.map((check, index) => ({ fieldId: `${patternId}-${check.prerequisiteId}`,
+            label: descriptions[index], outcome: check.outcome }))} />
         <ul className="mt-3 space-y-3">{preview.analysis.checks.map((check, index) => <li key={check.prerequisiteId}>
           <p>{descriptions[index]}</p><p className="text-slate-400">{outcomeText[check.outcome]} ({check.reasonCode})</p>
         </li>)}</ul>

@@ -6,6 +6,7 @@ import ts from "typescript";
 import { parsePrerequisiteForm, prerequisiteIds, type ArchitecturePatternId,
   type PrerequisiteAnalysis } from "../src/lib/assessment/architecture-prerequisites.ts";
 import { prerequisiteAssessmentId as id, prerequisiteFixture } from "./fixtures/architecture-prerequisites.mts";
+import { architectureDesignFollowUpsModuleUrl } from "./fixtures/assessment-ui.mts";
 
 const slot = `__authweave_architecture_form_${crypto.randomUUID()}`;
 const globals = globalThis as unknown as Record<string, unknown>;
@@ -17,6 +18,7 @@ const source = await readFile(new URL("../src/app/assessments/[id]/architecture-
 const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext,
   target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
   .replaceAll('"react"', JSON.stringify(hooks)).replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
+  .replaceAll('"./architecture-design-follow-ups"', JSON.stringify(await architectureDesignFollowUpsModuleUrl()))
   .replaceAll('"@/lib/assessment/architecture-prerequisites"', JSON.stringify(new URL("../src/lib/assessment/architecture-prerequisites.ts", import.meta.url).href));
 const { ArchitecturePrerequisites } = await import(moduleUrl(compiled));
 type Entries = [string, unknown][];
@@ -94,6 +96,36 @@ test("all five pattern handlers keep unknown, unmet and all-met results conditio
       }
     }, pattern, scope);
   }
+});
+
+test("condition follow-ups link only exact unmet/unknown fields of each pattern and clear on edit", async () => {
+  for (const pattern of Object.keys(prerequisiteIds) as ArchitecturePatternId[]) await withForm(async f => {
+    const values = f.values("SATISFIED"); values[2][1] = "NOT_SATISFIED"; values[3][1] = "UNKNOWN";
+    assert.equal(f.html().includes("Next steps for this temporary preview"), false);
+    const done = f.submit(values); f.requests[0].reply.resolve(Response.json(f.response(values))); await done;
+    const html = f.html();
+    assert.match(html, /Declared not met \(1\)/); assert.match(html, /Unknown proposal \(1\)/);
+    assert.equal((html.match(/<a /g) ?? []).length, 2);
+    for (const condition of prerequisiteIds[pattern].slice(0, 2)) {
+      assert.ok(html.includes(`href="#${pattern}-${condition}"`)); assert.ok(html.includes(`id="${pattern}-${condition}"`));
+    }
+    for (const condition of prerequisiteIds[pattern].slice(2)) assert.equal(html.includes(`href="#${pattern}-${condition}"`), false);
+    assert.match(html, /Conditional results do not override/); assert.match(html, /DECLARED_CONDITION_NOT_SATISFIED/);
+    assert.equal(f.requests.length, 1); f.change();
+    assert.equal(f.html().includes("Next steps for this temporary preview"), false); assert.equal(f.html().includes("<a "), false);
+  }, pattern);
+});
+
+test("condition follow-ups send unresolved applicability to saved Context rather than guessing missing declarations", async () => {
+  for (const scope of ["UNKNOWN", "NOT_SELECTED"] as const) await withForm(async f => {
+    const values = f.values("SATISFIED"), done = f.submit(values);
+    f.requests[0].reply.resolve(Response.json(f.response(values))); await done;
+    const html = f.html();
+    assert.match(html, /Next steps for this temporary preview/); assert.equal(html.includes("<a "), false);
+    assert.equal(html.includes("Unknown proposal"), false); assert.equal(html.includes("No unmet or unknown"), false);
+    assert.match(html, scope === "UNKNOWN" ? /not a missing design answer/ : /cannot make this pattern applicable/);
+    assert.equal(f.requests.length, 1);
+  }, "BFF_SESSION", scope);
 });
 
 test("local validation binds the visible pattern and version without sending malformed declarations", async () => withForm(async f => {

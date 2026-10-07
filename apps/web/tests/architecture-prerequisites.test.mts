@@ -9,6 +9,7 @@ import { boundedPrerequisiteText, InvalidPrerequisiteForm, parsePrerequisiteForm
 import { previewPersonalArchitecturePrerequisites } from "../src/lib/auth/core-client.ts";
 import { prerequisiteAssessmentId as id, prerequisiteWorkspaceId as workspaceId, prerequisiteFixture,
   prerequisiteInput, prerequisiteProfile } from "./fixtures/architecture-prerequisites.mts";
+import { architectureDesignFollowUpsModuleUrl } from "./fixtures/assessment-ui.mts";
 
 test("what-if form renders eleven labelled unknown-by-default controls and explicit temporary-design limits", async () => {
   const source = await readFile(new URL("../src/app/assessments/[id]/architecture-prerequisites.tsx", import.meta.url), "utf8");
@@ -16,6 +17,7 @@ test("what-if form renders eleven labelled unknown-by-default controls and expli
     jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
     .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
     .replaceAll('"react"', JSON.stringify(import.meta.resolve("react")))
+    .replaceAll('"./architecture-design-follow-ups"', JSON.stringify(await architectureDesignFollowUpsModuleUrl()))
     .replaceAll('"@/lib/assessment/architecture-prerequisites"',
       JSON.stringify(new URL("../src/lib/assessment/architecture-prerequisites.ts", import.meta.url).href));
   const component = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);

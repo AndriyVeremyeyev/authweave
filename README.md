@@ -541,6 +541,14 @@ network, parser or response text. Replies still require the loaded assessment ve
 and exact pattern, client scope and declaration/result checks. This UI recovery does
 not verify a design, save declarations or change the independent preflight verdict.
 
+Both temporary Architecture forms summarize only unmet and unknown items from the
+validated preview, with native links back to their exact fields. Conditions and
+concrete settings stay separate; the summary never chooses answers or changes the
+reference rules. Unknown or unselected saved client scope points to Context instead
+of being presented as missing design answers. Editing removes the summary together
+with the old result. No open items is not configuration verification or a recommendation;
+all original checks and limitations remain visible below it.
+
 The same-origin BFF POST `/api/assessments/{id}/architecture-prerequisites` requires a
 live database-backed session. It calls the separate Core POST
 `/api/v1/workspaces/{workspaceId}/assessments/{assessmentId}/architecture-prerequisite-preview`
