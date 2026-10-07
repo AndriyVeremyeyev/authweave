@@ -77,7 +77,13 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/comparison-matrix"', JSON.stringify(new URL("../../src/lib/assessment/comparison-matrix.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/comparison-presentation"', JSON.stringify(new URL("../../src/lib/assessment/comparison-presentation.ts", import.meta.url).href)));
   const matrix = await import(matrixUrl);
+  const followUpsUrl = moduleUrl((await compile("../../src/app/assessments/[id]/comparison-follow-ups.tsx"))
+    .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
+    .replaceAll('"@/lib/assessment/comparison-follow-ups"', JSON.stringify(new URL("../../src/lib/assessment/comparison-follow-ups.ts", import.meta.url).href))
+    .replaceAll('"@/lib/assessment/comparison-presentation"', JSON.stringify(new URL("../../src/lib/assessment/comparison-presentation.ts", import.meta.url).href)));
+  const followUps = await import(followUpsUrl);
   const comparison = await import(moduleUrl((await compile("../../src/app/assessments/[id]/comparison-section.tsx"))
+    .replaceAll('"./comparison-follow-ups"', JSON.stringify(followUpsUrl))
     .replaceAll('"./comparison-matrix"', JSON.stringify(matrixUrl))
     .replaceAll('"@/lib/assessment/comparison-matrix"', JSON.stringify(new URL("../../src/lib/assessment/comparison-matrix.ts", import.meta.url).href))
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
@@ -134,5 +140,5 @@ export async function assessmentUiComponents() {
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/assurance-compliance-planning"', JSON.stringify(new URL("../../src/lib/assessment/assurance-compliance-planning.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
-  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...matrix, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
+  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...matrix, ...followUps, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
 }

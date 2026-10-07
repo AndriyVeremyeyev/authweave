@@ -367,6 +367,15 @@ available; technical identifiers are in expandable details. Deferred topics stay
 visible. Options retain Core's order, not a ranking, and a partial pass is not a
 real-provider recommendation or a complete suitability check.
 
+A clarification summary groups Core's returned unknowns across options, separating
+saved-requirement questions, catalog-evidence gaps and remaining check boundaries.
+Hard-check gaps and unknown preferences are never merged. Every scoped explanation
+is retained, including multiple criteria sharing a reason; counts are affected
+options, not severity or completeness. Excluded options keep their gaps without
+being revived. Exact option links and allowlisted editor navigation support manual
+review; unknown or unreadable paths never guess an editor. This is display-only,
+not a new question generator, policy, penalty, recommendation or saved task list.
+
 Each option also has collapsed fictional evidence details: recorded claims, source
 references, observation dates and explicit missing/unreviewed/future/stale states.
 Identity capabilities, compatibility, storage destinations, human authentication

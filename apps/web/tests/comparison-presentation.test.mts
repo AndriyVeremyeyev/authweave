@@ -100,8 +100,11 @@ test("actual comparison renders all three statuses in Core order, saved inputs, 
   const html = await rendered();
   for (const label of ["Excluded by a checked requirement", "Needs more information", "Passes checked requirements only", "Fictional catalog · Unranked preview",
     "Saved assessment version 7", "Saved SCIM provisioning:", "Required", "Preferred", "What this comparison does not check", "Existing weight preview slot"]) assert.ok(html.includes(label), label);
-  assert.ok(html.indexOf("Fictional Limited Plan") < html.indexOf("Fictional Uncertain Plan"));
-  assert.ok(html.indexOf("Fictional Uncertain Plan") < html.indexOf("Fictional Broad Plan"));
+  const cards = html.slice(html.indexOf('aria-label="Fictional options in Core order"'));
+  assert.ok(cards.indexOf("Fictional Limited Plan") < cards.indexOf("Fictional Uncertain Plan"));
+  assert.ok(cards.indexOf("Fictional Uncertain Plan") < cards.indexOf("Fictional Broad Plan"));
+  assert.ok(html.includes("What still needs clarification?"));
+  comparisonUiFixture().candidates.forEach((_, index) => assert.ok(cards.includes(`id="comparison-option-${index}"`)));
   for (const candidate of comparisonUiFixture().candidates) for (const finding of [...candidate.exclusionReasons, ...candidate.informationGaps, ...candidate.capabilityPreferences]) {
     assert.ok(html.includes(finding.explanation)); assert.ok(html.includes(finding.reasonCode)); assert.ok(html.includes(finding.profilePath));
   }

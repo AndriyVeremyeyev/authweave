@@ -8,6 +8,7 @@ import { AssessmentStepButton } from "./assessment-workflow";
 import type { ComparisonProvenance, EvidenceGroup } from "@/lib/assessment/comparison-provenance";
 import { evidenceFamilies, evidenceGateCopy } from "@/lib/assessment/comparison-matrix";
 import { ComparisonMatrix } from "./comparison-matrix";
+import { ComparisonFollowUps } from "./comparison-follow-ups";
 
 const tones = {
   excluded: "border-rose-300/20 bg-rose-300/5 text-rose-100",
@@ -45,10 +46,11 @@ export function ComparisonSection({ comparison, profile, editable, preferencePre
       <p>No capability preferences are recorded in this draft. The optional weight preview requires at least one saved preference.</p>
       {editable && groups.find(group => group.id === "capabilities")?.rows && <div className="mt-3"><AssessmentStepButton step="capabilities">Review identity requirements →</AssessmentStepButton></div>}
     </div>}
+    <ComparisonFollowUps comparison={comparison} groups={groups} editable={editable} />
     {evidence && <ComparisonMatrix key={`${comparison.assessmentVersion}-${comparison.catalogVersion}-${comparison.auditabilityEvidenceVersion}-${comparison.evaluatedAt}`}
       candidates={comparison.candidates.map(({ optionId, displayName, plan, region, hardVerdict }) => ({ optionId, displayName, plan, region, hardVerdict }))} evidence={evidence} />}
     <ul aria-label="Fictional options in Core order" className="mt-6 space-y-5">
-      {comparison.candidates.map(candidate => <ComparisonCard key={candidate.optionId} candidate={candidate} groups={groups} editable={editable}
+      {comparison.candidates.map((candidate, index) => <ComparisonCard key={candidate.optionId} index={index} candidate={candidate} groups={groups} editable={editable}
         evidence={evidence?.find(item => item.optionId === candidate.optionId)?.groups} />)}
     </ul>
     {preferencePreview}
@@ -68,9 +70,9 @@ export function ComparisonSection({ comparison, profile, editable, preferencePre
   </section>;
 }
 
-function ComparisonCard({ candidate, groups, editable, evidence }: { candidate: ComparisonCandidate; groups: SavedRequirementGroup[]; editable: boolean; evidence?: EvidenceGroup[] }) {
+function ComparisonCard({ candidate, index, groups, editable, evidence }: { candidate: ComparisonCandidate; index: number; groups: SavedRequirementGroup[]; editable: boolean; evidence?: EvidenceGroup[] }) {
   const verdict = comparisonVerdicts[candidate.hardVerdict];
-  return <li className="min-w-0 rounded-xl border border-slate-700 p-5 sm:p-6">
+  return <li id={`comparison-option-${index}`} tabIndex={-1} className="min-w-0 scroll-mt-6 rounded-xl border border-slate-700 p-5 sm:p-6 focus-visible:outline-2 focus-visible:outline-cyan-200">
     <h3 className="break-words text-xl font-semibold">{candidate.displayName}</h3>
     <p className="mt-1 break-words text-sm text-slate-400">{candidate.plan} · {candidate.region}</p>
     <div className={`mt-4 rounded-xl border p-4 ${tones[verdict.tone]}`}>
