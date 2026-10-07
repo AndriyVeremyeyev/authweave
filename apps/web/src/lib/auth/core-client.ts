@@ -22,6 +22,7 @@ import { auditabilityValues, withAuditabilityValues, type AuditabilityValues } f
 import { auditabilityPreviewBinding, auditabilityPreviewByteLimit, auditabilityPreviewFromCore,
   type AuditabilityPreview } from "../assessment/auditability-preview.ts";
 import { comparisonFromCore, type SyntheticComparisonSummary } from "../assessment/comparison.ts";
+import { comparisonEvidenceByteLimit, comparisonEvidenceFromCore, type ComparisonEvidenceSummary } from "../assessment/comparison-provenance.ts";
 import { applicationTypes, clientTypes, populations, evaluationContextValues,
   withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
@@ -701,6 +702,16 @@ export async function readSyntheticComparison(session: BrowserSession, id: strin
   });
   if (response.status !== 200) throw new Error("Core comparison read failed");
   return comparisonFromCore(JSON.parse(await boundedPrerequisiteText(response, auditabilityPreviewByteLimit)), binding);
+}
+
+export async function readComparisonEvidence(session: BrowserSession, id: string,
+  expectedVersion: number, values: AuditabilityValues): Promise<ComparisonEvidenceSummary> {
+  const binding = auditabilityPreviewBinding(session.workspaceId, id, expectedVersion, values);
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/comparison-evidence-preview`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+  });
+  if (response.status !== 200) throw new Error("Core comparison evidence read failed");
+  return comparisonEvidenceFromCore(JSON.parse(await boundedPrerequisiteText(response, comparisonEvidenceByteLimit)), binding);
 }
 
 const patternMetadata = {

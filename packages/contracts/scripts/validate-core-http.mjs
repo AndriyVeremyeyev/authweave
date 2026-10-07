@@ -8,6 +8,7 @@ import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import { auditabilityPreviewFromCore } from "../../../apps/web/src/lib/assessment/auditability-preview.ts";
 import { comparisonFromCore } from "../../../apps/web/src/lib/assessment/comparison.ts";
+import { comparisonEvidenceFromCore } from "../../../apps/web/src/lib/assessment/comparison-provenance.ts";
 import { lifecyclePreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle.ts";
 import { lifecycleV2PreviewFromCore } from "../../../apps/web/src/lib/assessment/provisioning-lifecycle-v2.ts";
 import { expectedAnalysis, validateArchitectureConfiguration } from "../tests/helpers/architecture-configuration-spec.mjs";
@@ -49,6 +50,9 @@ let auditabilityImpactSamples = 0;
 let auditabilityCoverageSamples = 0;
 let combinedConstraintSamples = 0;
 let combinedConsumerSamples = 0;
+let comparisonEvidenceSamples = 0;
+const evidenceSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("evidence-saved-"))
+  .map(s => [s.name.slice("evidence-saved-".length), s.payload]));
 let lifecycleSamples = 0;
 let lifecycleV2Samples = 0;
 let architectureConfigurationSamples = 0;
@@ -362,6 +366,25 @@ for (const { name, schema, valid, payload } of samples) {
   assert.equal(validate(payload), valid,
     `${name} (${schema}): ${ajv.errorsText(validate.errors, { separator: "\n" })}`);
   covered.add(`${schema}:${valid}`);
+  if (schema === "comparison-evidence-preview" && valid) {
+    const saved = evidenceSaved.get(name.slice("comparison-evidence-".length));
+    assert.ok(saved, `${name}: bind the original saved assessment, not response-selected identity or requirements`);
+    const binding = { workspaceId: saved.workspaceId, assessmentId: saved.id, expectedVersion: saved.version,
+      values: { criticality: saved.profile.security.auditability, ...saved.profile.security.auditabilityRequirements } };
+    const projected = comparisonEvidenceFromCore(payload, binding);
+    validateCombinedConstraints(payload);
+    assert.equal(payload.catalogSha256, digest(payload.catalog), "Independent exact catalog digest");
+    assert.deepEqual(projected.comparison.candidates.map(c => c.hardVerdict), payload.comparison.candidates.map(c => c.hardVerdict));
+    assert.deepEqual(projected.evidence.map(e => e.groups.map(g => g.rows.length)), payload.catalog.options.map(() => [9, 19, 4, 36, 6]));
+    for (const mutate of [r => r.comparison.assessmentVersion++, r => r.catalog.catalogVersion = "synthetic-foreign-evidence",
+      r => r.catalog.options[0].plan = "Foreign plan", r => r.catalogSha256 = "0".repeat(64)]) {
+      const forged = structuredClone(payload); mutate(forged);
+      if (forged.catalogSha256 !== "0".repeat(64)) forged.catalogSha256 = digest(forged.catalog);
+      assert.equal(validate(forged), true, "Foreign binding/content can retain valid JSON shape, even with a recomputed digest.");
+      assert.throws(() => comparisonEvidenceFromCore(forged, binding), undefined, "The personal BFF rejects shape-valid foreign evidence.");
+    }
+    comparisonEvidenceSamples++;
+  }
   if (schema === "catalog-publication-preflight-review") {
     const reference = samples.find(s => s.name === name && s.schema === schema)?.reference;
     assert.ok(reference, "Fresh publication review must bind to the original HTTP request reference, not its response fields.");
@@ -601,7 +624,8 @@ for (const { name, schema, valid, payload } of samples) {
     auditabilityConsumerSamples++;
   }
 }
-for (const required of ["catalog-publication-preflight-review:true", "catalog-publication-preflight-review:false", "assessment-response:true", "core-problem:true",
+for (const required of ["comparison-evidence-preview:true", "comparison-evidence-preview:false",
+  "catalog-publication-preflight-review:true", "catalog-publication-preflight-review:false", "assessment-response:true", "core-problem:true",
   "provisioning-lifecycle-request:true", "provisioning-lifecycle-request:false", "provisioning-lifecycle-preview:true", "provisioning-lifecycle-preview:false",
   "provisioning-lifecycle-request.v2:true", "provisioning-lifecycle-request.v2:false", "provisioning-lifecycle-preview.v2:true", "provisioning-lifecycle-preview.v2:false",
   "catalog-bootstrap-review-request:true", "catalog-bootstrap-review-request:false",
@@ -676,6 +700,8 @@ for (const required of ["catalog-publication-preflight-review:true", "catalog-pu
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.equal(comparisonEvidenceSamples, 2, "Unknown and selected-audit saved profiles must both reach the exact-catalog personal BFF consumer.");
+console.log(`Verified ${comparisonEvidenceSamples} actual comparison evidence responses against their saved profiles, native constraints and exact catalog digests.`);
 assert.equal(publicationReviewSamples, 4, "Both proposal/bootstrap checked and unavailable-input projections must pass the actual BFF contract.");
 console.log(`Verified ${publicationReviewSamples} exact-request-bound fresh publication denials through the strict curator BFF guard.`);
 assert.equal(planningCoverageSamples, 1, "The protected combined planning diagnostic must reach independent composition replay.");

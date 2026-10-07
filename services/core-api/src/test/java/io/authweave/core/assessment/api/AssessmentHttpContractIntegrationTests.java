@@ -82,6 +82,61 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @Test
+    void comparisonEvidenceBindsTheActualCatalogAndSavedProfileWithoutChangingDataOrPermissions() throws Exception {
+        String issuer = "http://localhost:8081", subject = "synthetic-comparison-evidence-owner-" + UUID.randomUUID();
+        UUID workspace = applicationContext.getBean(io.authweave.core.assessment.application.PersonalWorkspaceService.class).provision(issuer, subject);
+        String root = "/api/v6/workspaces/" + workspace + "/assessments";
+        var saved = versionedSample("evidence-saved-empty", "assessment-response.v6", mvc.perform(post(root)).andExpect(status().isCreated()).andReturn());
+        String path = root + "/" + saved.get("id").asText(), endpoint = path + "/comparison-evidence-preview";
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        for (String variant : List.of("empty", "audit")) {
+            if (variant.equals("audit")) {
+                var profile = (ObjectNode) saved.get("profile").deepCopy();
+                ((ObjectNode) profile.at("/protocols")).put("socialLogin", "PREFERRED");
+                ((ObjectNode) profile.at("/security")).put("auditability", "REQUIRED");
+                ((ObjectNode) profile.at("/security/auditabilityRequirements")).putArray("selectedCriteria").add("AUTHENTICATION_SUCCESS_EVENTS");
+                var update = mapper.createObjectNode().put("expectedVersion", saved.get("version").asLong()); update.set("profile", profile);
+                saved = versionedSample("evidence-saved-audit", "assessment-response.v6", mvc.perform(put(path + "/profile")
+                        .contentType(MediaType.APPLICATION_JSON).content(update.toString())).andExpect(status().isOk()).andReturn());
+            }
+            String history = mvc.perform(get(path + "/revisions")).andReturn().getResponse().getContentAsString();
+            String eventPath = path.replace("/api/v6/", "/api/v1/") + "/events";
+            String events = mvc.perform(get(eventPath)).andReturn().getResponse().getContentAsString();
+            versionedSample("evidence-legacy-hard-" + variant, "hard-constraint-preflight",
+                    mvc.perform(get(path.replace("/api/v6/", "/api/v5/") + "/hard-constraint-preflight"))
+                            .andExpect(status().isOk()).andReturn());
+            var body = versionedSample("comparison-evidence-" + variant, "comparison-evidence-preview", mvc.perform(get(endpoint)
+                    .header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject))
+                    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andReturn());
+            assertEquals(saved.get("version"), body.at("/comparison/assessmentVersion"));
+            assertEquals(mapper.valueToTree(applicationContext.getBean(io.authweave.core.catalog.ProviderCatalog.class)), body.get("catalog"));
+            assertEquals(mapper.readTree(mvc.perform(get(path + "/comparison-preflight")).andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString()), body.get("comparison"));
+            assertEquals(io.authweave.core.catalog.draft.CatalogDraftCanonicalizer.sha256(body.get("catalog")), body.get("catalogSha256").asText());
+            assertEquals(saved, mapper.readTree(mvc.perform(get(path)).andReturn().getResponse().getContentAsString()));
+            assertEquals(history, mvc.perform(get(path + "/revisions")).andReturn().getResponse().getContentAsString());
+            assertEquals(events, mvc.perform(get(eventPath)).andReturn().getResponse().getContentAsString());
+            for (String flag : List.of("sourceVerificationPerformed", "publicationReady", "recommendationReady", "writesPerformed")) {
+                var forged = (ObjectNode) body.deepCopy(); forged.put(flag, true); sample("comparison-evidence-no-" + variant + "-" + flag, "comparison-evidence-preview", false, forged);
+            }
+            var disclosure = (ObjectNode) body.deepCopy(); disclosure.put("actorSubject", "private");
+            sample("comparison-evidence-no-actor-" + variant, "comparison-evidence-preview", false, disclosure);
+        }
+        mvc.perform(get(endpoint)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token, token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject, subject)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", "wrong").header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isUnauthorized());
+        mvc.perform(get(endpoint).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", "other-owner")).andExpect(status().isForbidden());
+        mvc.perform(get(endpoint.replace(workspace.toString(), UUID.randomUUID().toString())).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isForbidden());
+        mvc.perform(get(endpoint.replace(saved.get("id").asText(), UUID.randomUUID().toString())).header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isNotFound());
+        for (var request : List.of(get(endpoint).queryParam("expectedVersion", "0"), get(endpoint).content("{}"), get(endpoint).header("Transfer-Encoding", "chunked")))
+            mvc.perform(request.header("Authorization", token).header("X-AuthWeave-Oidc-Issuer", issuer).header("X-AuthWeave-Oidc-Subject", subject)).andExpect(status().isBadRequest());
+        mvc.perform(post(endpoint).header("Authorization", token)).andExpect(status().isMethodNotAllowed());
+        assertEquals(saved, mapper.readTree(mvc.perform(get(path)).andReturn().getResponse().getContentAsString()));
+    }
+
+    @Test
     void assurancePlanningBindsSavedInputsAndPreservesScopeWithoutClaimsOrHistoryWrites() throws Exception {
         String issuer = "http://localhost:8081", subject = "synthetic-assurance-owner-" + UUID.randomUUID();
         UUID workspaceId = applicationContext.getBean(io.authweave.core.assessment.application.PersonalWorkspaceService.class).provision(issuer, subject);

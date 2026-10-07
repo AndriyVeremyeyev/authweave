@@ -367,6 +367,15 @@ available; technical identifiers are in expandable details. Deferred topics stay
 visible. Options retain Core's order, not a ranking, and a partial pass is not a
 real-provider recommendation or a complete suitability check.
 
+Each option also has collapsed fictional evidence details: recorded claims, source
+references, observation dates and explicit missing/unreviewed/future/stale states.
+Identity capabilities, compatibility, storage destinations, human authentication
+controls and IdP auditability stay separate. The exact plan/region and audit
+configuration are shown; listed facts are not necessarily applied checks. Missing
+evidence is not proof of incompatibility, and a fresh REVIEWED fixture label is not
+real source or deployed-behavior verification. All `.invalid` references are plain
+text, never fetched. Expanding evidence does not change the verdict or rank options.
+
 This workspace requires the local BFF session, Core API and PostgreSQL. It does not
 add autosave, expand editable profile fields, change ownership/version checks or
 turn synthetic comparisons into real-provider recommendations. Temporary what-if
@@ -820,8 +829,8 @@ events or evidence dates. Full audit verification, catalog publication and final
 recommendations remain unavailable; the auditability deferred path still denotes
 unchecked deployed logging/compliance boundaries, not ignored capability inputs.
 
-The personal Web Comparison and both temporary weight previews use these v6
-endpoints through the existing session-bound BFF. Its bounded response guard
+The personal Web Comparison and both temporary weight previews use v6
+analyses through the existing session-bound BFF. Its bounded response guard
 replays embedded audit evidence against the exact saved criteria and retention,
 binds catalog/time/option scopes, and rejects hidden or mismatched audit findings.
 Failures and gaps link to saved Audit inputs; fixed explanatory copy distinguishes
@@ -829,6 +838,30 @@ documented capabilities from deployed logs and compliance. Neither preview saves
 answers or awards scores/deltas to excluded or unresolved options. Actual Core HTTP
 samples also pass this strict Web consumer. The v5 endpoints and historical
 policies/receipts remain unchanged.
+
+### Inspecting fictional comparison evidence
+
+The protected GET
+`/api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/comparison-evidence-preview`
+returns the native comparison with the exact immutable synthetic catalog used to
+evaluate it. One saved-profile read and one evaluation instant bind the analyses;
+it accepts no query or body and requires the existing service credential and
+personal-workspace owner. Responses are not cached and no state is written.
+The [evidence envelope](packages/contracts/schemas/comparison-evidence-preview.v1.schema.json)
+includes a catalog content digest, not a signature or source-verification proof.
+
+The personal Comparison page uses this envelope instead of independently joining
+catalog facts to a result. Its 1 MiB guard checks the saved assessment/version,
+exact candidate/plan/region inventory, catalog digest and preference-source binding,
+and reuses the scoped auditability guard. It distinguishes missing, unreviewed,
+future and older-than-90-day evidence without losing timestamp nanoseconds. The
+74-row inventory per option includes omitted known facts, not 74 applied checks
+or proof of complete coverage. Claims remain claims; UNKNOWN is not promoted.
+Unreadable or mismatched evidence makes Comparison unavailable, without falling
+back to another catalog or an older policy. Other independently read page panels
+are not one page-wide snapshot. Existing comparison/weight endpoints, verdicts,
+scores and historical receipts remain unchanged. No sources are fetched, real
+provider baseline activated, recommendation granted or publication performed.
 
 ### Scoped synthetic auditability regression
 

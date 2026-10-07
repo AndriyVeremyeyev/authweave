@@ -8,6 +8,8 @@ import type { AuditabilityValues } from "../src/lib/assessment/auditability.ts";
 import { auditabilityPreviewByteLimit, auditabilityPreviewFromCore,
   type AuditabilityReason } from "../src/lib/assessment/auditability-preview.ts";
 import { readPersonalAuditability } from "../src/lib/auth/core-client.ts";
+import { comparisonEvidenceFromCore, type ComparisonProvenance } from "../src/lib/assessment/comparison-provenance.ts";
+import { provenanceFixture, provenanceBinding } from "./fixtures/comparison-provenance.mts";
 import { operationsPlanningFromCore, type OperationsPlanningValues } from "../src/lib/assessment/operations-planning.ts";
 import { operationsFixture, operationsProfile, operationsValues } from "./fixtures/operations-planning.mts";
 import { assessmentUiComponents, comparisonUiFixture, savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
@@ -265,7 +267,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
   const component = await previewComponent();
   const overview = await assessmentUiComponents();
   const state = { live: true, reads: 0, listReads: 0, fail: false, operationsReads: 0, operationsFail: false,
-    comparison: null as ReturnType<typeof comparisonUiFixture> | null };
+    comparisonReads: 0, evidence: [] as ComparisonProvenance[], comparison: null as ReturnType<typeof comparisonUiFixture> | null };
   const identity = { workspaceId, issuer: "http://localhost:8081", subject: "synthetic-page-owner",
     email: null, displayName: null, authenticatedAt: new Date() };
   const slot = "__authweaveAuditabilityPageTest";
@@ -286,7 +288,12 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
       assert.equal(version, 2); assert.deepEqual(values, auditabilityInput);
       if (state.fail) throw new Error("synthetic upstream credential must not appear");
       return auditabilityPreviewFromCore(auditabilityFixture(), binding);
-    }, comparison: () => state.comparison,
+    }, comparison: (session: typeof identity, assessmentId: string, version: number, values: AuditabilityValues) => {
+      state.comparisonReads++; assert.deepEqual(session, identity); assert.equal(assessmentId, id);
+      assert.equal(version, assessment.version); assert.equal(values.criticality, assessment.profile.security.auditability);
+      if (!state.comparison) throw new Error("Private comparison upstream token must not appear");
+      return { comparison: state.comparison, evidence: state.evidence, catalogSha256: "a".repeat(64) };
+    },
     operations: async (session: typeof identity, assessmentId: string, version: number, values: OperationsPlanningValues) => {
       state.operationsReads++; assert.deepEqual(session, identity); assert.equal(assessmentId, id); assert.equal(version, assessment.version);
       assert.deepEqual(values.inputs, operationsValues().inputs);
@@ -318,7 +325,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const touchSession = async () => state.session();
     export const readPersonalAssessment = async () => state.assessment;
     export const listPersonalAssessments = (...args) => state.list(...args);
-    export const readSyntheticComparison = async () => state.comparison();
+    export const readComparisonEvidence = (...args) => state.comparison(...args);
     export const readPersonalArchitecturePatterns = async () => null;
     export const readPersonalUsagePlanning = async () => null;
     export const readPersonalOperationsPlanning = (...args) => state.operations(...args);
@@ -393,12 +400,17 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(comparison.includes("Synthetic comparison unavailable"));
     assert.ok(!comparison.includes("Identity auditability capability preview"));
     state.comparison = { ...comparisonUiFixture(), assessmentVersion: 2 };
+    // Page receives an already-projected envelope; native Core binding is tested separately.
+    state.evidence = [{ ...comparisonEvidenceFromCore(provenanceFixture(), provenanceBinding).evidence[0], optionId: "fictional-excluded" }];
     const availableComparison = renderToStaticMarkup(await page.default({ ...props, searchParams: Promise.resolve({ step: "comparison" }) }));
     assert.ok(availableComparison.includes("Saved assessment version 2"));
     assert.ok(availableComparison.includes("Fictional Limited Plan"));
+    assert.ok(availableComparison.includes("Inspect fictional evidence"));
+    assert.ok(availableComparison.includes("https://catalog.invalid/fictional-plan"));
     assert.ok(availableComparison.includes("Related saved inputs cannot be read safely"));
     assert.ok(!availableComparison.includes("Identity auditability capability preview"));
     assert.ok(!availableComparison.includes("synthetic upstream credential"));
+    assert.ok(!comparison.includes("Private comparison upstream token"));
     assert.ok(!unavailable.includes("synthetic upstream credential")); assert.ok(!unavailable.includes("Matches selected capability"));
     const reviewProps = { ...props, searchParams: Promise.resolve({ step: "review" }) };
     const review = renderToStaticMarkup(await page.default(reviewProps));
@@ -470,7 +482,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     assert.ok(!readOnlyUsage.includes("Save usage inputs"));
     assert.ok(!readOnlyUsage.includes("Save operational preferences"));
     assert.ok(!readOnlyUsage.includes("<form"));
-    state.live = false; const count = state.reads, operationsCount = state.operationsReads;
+    state.live = false; const count = state.reads, operationsCount = state.operationsReads, comparisonCount = state.comparisonReads;
     await assert.rejects(page.default(props), /redirect-account/); assert.equal(state.reads, count); assert.equal(state.operationsReads, operationsCount);
     const listReads = state.listReads;
     await assert.rejects(listPage.default({ searchParams: Promise.resolve({ before: id }) }), /redirect-account/);
@@ -480,6 +492,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     await assert.rejects(page.default(usageProps), /redirect-account/); assert.equal(state.reads, count);
     await assert.rejects(page.default({ ...props, searchParams: Promise.resolve({ step: "comparison" }) }), /redirect-account/);
     assert.equal(state.reads, count);
+    assert.equal(state.comparisonReads, comparisonCount);
   } finally {
     if (previous === undefined) delete globals[slot]; else globals[slot] = previous;
   }

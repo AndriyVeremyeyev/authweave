@@ -5,6 +5,7 @@ import { savedRequirementGroups } from "@/lib/assessment/saved-requirements";
 import type { SavedRequirementGroup } from "@/lib/assessment/saved-requirements";
 import { comparisonVerdicts, deferredComparisonLabel, isComparisonEvidenceGap, relatedComparisonInput } from "@/lib/assessment/comparison-presentation";
 import { AssessmentStepButton } from "./assessment-workflow";
+import type { ComparisonProvenance, EvidenceGate, EvidenceGroup } from "@/lib/assessment/comparison-provenance";
 
 const tones = {
   excluded: "border-rose-300/20 bg-rose-300/5 text-rose-100",
@@ -13,8 +14,8 @@ const tones = {
 };
 const preferenceLabels = { AVAILABLE: "Preferred capability available", UNAVAILABLE: "Preferred capability unavailable", UNKNOWN: "Availability not established" };
 
-export function ComparisonSection({ comparison, profile, editable, preferencePreview }: {
-  comparison: SyntheticComparisonSummary; profile: Record<string, unknown>; editable: boolean; preferencePreview?: ReactNode;
+export function ComparisonSection({ comparison, profile, editable, preferencePreview, evidence }: {
+  comparison: SyntheticComparisonSummary; profile: Record<string, unknown>; editable: boolean; preferencePreview?: ReactNode; evidence?: ComparisonProvenance[];
 }) {
   const groups = savedRequirementGroups(profile);
   const hasPreferences = comparison.candidates.some(candidate => candidate.capabilityPreferences.length > 0);
@@ -43,7 +44,8 @@ export function ComparisonSection({ comparison, profile, editable, preferencePre
       {editable && groups.find(group => group.id === "capabilities")?.rows && <div className="mt-3"><AssessmentStepButton step="capabilities">Review identity requirements →</AssessmentStepButton></div>}
     </div>}
     <ul aria-label="Fictional options in Core order" className="mt-6 space-y-5">
-      {comparison.candidates.map(candidate => <ComparisonCard key={candidate.optionId} candidate={candidate} groups={groups} editable={editable} />)}
+      {comparison.candidates.map(candidate => <ComparisonCard key={candidate.optionId} candidate={candidate} groups={groups} editable={editable}
+        evidence={evidence?.find(item => item.optionId === candidate.optionId)?.groups} />)}
     </ul>
     {preferencePreview}
     <section aria-labelledby="comparison-scope-heading" className="mt-6 rounded-xl border border-slate-700 p-5">
@@ -62,7 +64,7 @@ export function ComparisonSection({ comparison, profile, editable, preferencePre
   </section>;
 }
 
-function ComparisonCard({ candidate, groups, editable }: { candidate: ComparisonCandidate; groups: SavedRequirementGroup[]; editable: boolean }) {
+function ComparisonCard({ candidate, groups, editable, evidence }: { candidate: ComparisonCandidate; groups: SavedRequirementGroup[]; editable: boolean; evidence?: EvidenceGroup[] }) {
   const verdict = comparisonVerdicts[candidate.hardVerdict];
   return <li className="min-w-0 rounded-xl border border-slate-700 p-5 sm:p-6">
     <h3 className="break-words text-xl font-semibold">{candidate.displayName}</h3>
@@ -83,7 +85,41 @@ function ComparisonCard({ candidate, groups, editable }: { candidate: Comparison
         <ReasonDetails finding={preference} />
       </li>)}</ul>
     </section>}
+    {evidence && <ComparisonEvidence groups={evidence} plan={candidate.plan} region={candidate.region} />}
   </li>;
+}
+
+const evidenceFamilies = { CAPABILITY: "Identity capabilities", CONTEXT: "Application and audience compatibility",
+  RESIDENCY: "At-rest storage destinations", AUTHENTICATION_CONTROL: "Scoped human authentication controls", AUDITABILITY: "Identity-provider auditability" };
+const evidenceGateCopy: Record<EvidenceGate, string> = {
+  MISSING: "No fact recorded — not proof of unsupported capability",
+  UNREVIEWED: "Unreviewed claim — cannot establish support or exclusion",
+  FUTURE: "Future-dated — cannot be used at this comparison time",
+  STALE: "Older than 90 days — cannot be used at this comparison time",
+  CURRENT: "Passes date/review gates only — not source or deployed-behavior verification",
+};
+export function ComparisonEvidence({ groups, plan, region }: { groups: EvidenceGroup[]; plan: string; region: string }) {
+  const rows = groups.flatMap(group => group.rows), missing = rows.filter(row => row.gate === "MISSING").length;
+  return <details className="mt-5 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.025] p-4">
+    <summary className="cursor-pointer text-sm font-semibold text-cyan-100">Inspect fictional evidence · {rows.length - missing} recorded, {missing} missing</summary>
+    <p className="mt-3 text-sm leading-6 text-slate-300">These recorded claims belong to this exact plan ({plan}) and region ({region}). Not every listed fact is applied to your requirements. The comparison verdict above is unchanged.</p>
+    <p className="mt-3 text-xs leading-5 text-amber-100">All sources are fictional .invalid references, shown as text and never fetched. REVIEWED is a fixture label, not real source verification. Usability is checked at the comparison time under the 90-day policy; an unknown claim still needs information. Missing evidence is not a negative claim.</p>
+    <div className="mt-4 space-y-3">{groups.map(group => <details key={group.family} className="rounded-lg border border-white/10 p-3">
+      <summary className="cursor-pointer text-sm font-medium">{evidenceFamilies[group.family]}</summary>
+      {group.family === "RESIDENCY" && <p className="mt-3 text-xs leading-5 text-slate-400">Recorded destinations, not a region menu. PARTIAL cannot rule out other storage locations; this does not verify processing, transfers or compliance.</p>}
+      {group.family === "AUTHENTICATION_CONTROL" && <p className="mt-3 text-xs leading-5 text-slate-400">Availability and enforcement capability are distinct; neither proves configured controls, enrollment/recovery security or an assurance level.</p>}
+      {group.family === "AUDITABILITY" && <p className="mt-3 text-xs leading-5 text-slate-400">Identity-provider scope only, not application logs. A documented retention minimum is not deployed retention, export delivery or compliance verification.</p>}
+      <ul className="mt-3 space-y-3">{group.rows.map(row => <li key={row.path} className="min-w-0 rounded-lg bg-white/[0.025] p-3">
+        <h5 className="break-words text-sm font-medium">{row.label}</h5>
+        <p className={`mt-2 text-xs leading-5 ${row.gate === "CURRENT" ? "text-slate-300" : "text-amber-100"}`}>{evidenceGateCopy[row.gate]}</p>
+        {row.claim !== null && <p className="mt-2 break-words text-xs leading-5 text-slate-300">Recorded claim: {row.claim}</p>}
+        {row.configuration && <p className="mt-2 break-words text-xs leading-5 text-slate-400">Exact configuration scope: {row.configuration}</p>}
+        {row.observedAt && <p className="mt-2 break-words text-xs text-slate-400">Observation: <time dateTime={row.observedAt}>{row.observedAt}</time> · {row.evidenceStatus}</p>}
+        {row.sourceUrl && <p className="mt-2 break-all text-xs leading-5 text-slate-400">Fictional source: {row.sourceUrl}</p>}
+        <p className="mt-2 break-all text-xs text-slate-500">Fact path: {row.path}</p>
+      </li>)}</ul>
+    </details>)}</div>
+  </details>;
 }
 
 function FindingList({ title, findings, groups, editable }: { title: string; findings: ComparisonFinding[]; groups: SavedRequirementGroup[]; editable: boolean }) {

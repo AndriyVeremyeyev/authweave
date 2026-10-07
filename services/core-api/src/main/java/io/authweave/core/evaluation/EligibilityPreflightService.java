@@ -54,6 +54,12 @@ public class EligibilityPreflightService {
                 AuditabilityCapabilityPreflightService.evaluate(assessment, catalog, auditability, at));
     }
 
+    /** One saved-profile read and clock; the attached catalog is the actual immutable evaluator input. */
+    @Transactional(readOnly = true)
+    public ComparisonEvidencePreview comparisonEvidence(WorkspaceId workspaceId, AssessmentId assessmentId) {
+        return new ComparisonEvidencePreview(SyntheticComparison.from(previewWithAuditability(workspaceId, assessmentId)), catalog);
+    }
+
     private EligibilityPreflightV4 withComplianceScope(PersistedAssessment assessment, Instant at) {
         var profile = assessment.assessment().profile();
         return new EligibilityPreflightV4(assessment.assessment().workspaceId().value(), assessment.assessment().id().value(), assessment.version(),

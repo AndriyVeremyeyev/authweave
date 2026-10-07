@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/comparison-evidence-preview.v1.schema.json",
+  "title": "Synthetic comparison and its exact catalog evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "scope", "policyVersion", "catalogSha256", "comparison", "catalog", "sourceVerificationPerformed", "publicationReady", "recommendationReady", "writesPerformed"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "scope": { "const": "SYNTHETIC_COMPARISON_EVIDENCE" },
+    "policyVersion": { "const": "comparison-evidence-preview-1" },
+    "catalogSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "comparison": { "$ref": "./synthetic-comparison.v2.schema.json" },
+    "catalog": { "$ref": "./synthetic-provider-catalog.v4.schema.json" },
+    "sourceVerificationPerformed": { "const": false },
+    "publicationReady": { "const": false },
+    "recommendationReady": { "const": false },
+    "writesPerformed": { "const": false }
+  }
+}

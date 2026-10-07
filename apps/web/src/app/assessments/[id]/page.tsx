@@ -11,7 +11,7 @@ import { auditabilityValues } from "@/lib/assessment/auditability";
 import type { AuditabilityPreview } from "@/lib/assessment/auditability-preview";
 import { authConfiguration } from "@/lib/auth/config";
 import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning, readPersonalAuditability, readPersonalOperationsPlanning, readPersonalAssurancePlanning,
-  readSyntheticComparison,
+  readComparisonEvidence,
   type ArchitecturePatternPreflightSummary,
   type PersonalAssessment, type SyntheticComparisonSummary,
   type UsagePlanningPreflightSummary } from "@/lib/auth/core-client";
@@ -35,6 +35,7 @@ import { ComparisonSection } from "./comparison-section";
 import { SavedContextSummary } from "./saved-context-summary";
 import { SavedRequirementsExport } from "./saved-requirements-export";
 import { CapabilityEditor } from "./capability-editor";
+import type { ComparisonProvenance } from "@/lib/assessment/comparison-provenance";
 
 export const runtime = "nodejs";
 
@@ -104,8 +105,12 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
     .map(field => ({ capability: field.capability, label: field.label })) : [];
 
   let comparison: SyntheticComparisonSummary | null = null;
+  let comparisonEvidence: ComparisonProvenance[] | undefined;
   try {
-    if (auditValues) comparison = await readSyntheticComparison(session, id, assessment.version, auditValues);
+    if (auditValues) {
+      const preview = await readComparisonEvidence(session, id, assessment.version, auditValues);
+      comparison = preview.comparison; comparisonEvidence = preview.evidence;
+    }
   } catch {
     // Keep the private assessment readable if the diagnostic comparison is unavailable.
   }
@@ -199,7 +204,7 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
               exportPanel={<SavedRequirementsExport assessmentId={assessment.id} version={assessment.version} />} />
             {assurancePreview ? <AssuranceCompliancePlanning preview={assurancePreview} editable={assessment.status === "DRAFT"} /> : <AssuranceCompliancePlanningUnavailable />}
           </>,
-          comparison: comparison ? <ComparisonSection comparison={comparison} profile={assessment.profile} editable={assessment.status === "DRAFT"}
+          comparison: comparison ? <ComparisonSection comparison={comparison} evidence={comparisonEvidence} profile={assessment.profile} editable={assessment.status === "DRAFT"}
             preferencePreview={preferred.length > 0 ? <WeightedPreviewForm key={`${assessment.id}-${comparison.assessmentVersion}`}
               assessmentId={assessment.id} version={comparison.assessmentVersion} preferred={preferred} /> : null} /> : <PreviewUnavailable name="Synthetic comparison" />,
           architecture: <>

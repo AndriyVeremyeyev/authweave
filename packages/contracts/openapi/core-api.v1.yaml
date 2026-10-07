@@ -2793,6 +2793,44 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/AssessmentNotFound"
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/comparison-evidence-preview:
+    parameters:
+      - $ref: "#/components/parameters/WorkspaceId"
+      - $ref: "#/components/parameters/OidcIssuer"
+      - $ref: "#/components/parameters/OidcSubject"
+      - $ref: "#/components/parameters/AssessmentId"
+    get:
+      tags: [Assessments]
+      summary: Inspect the exact fictional catalog used by the saved comparison
+      description: >-
+        Read-only, no-store, owner-scoped read of one saved profile and evaluation instant.
+        Includes the unchanged v6 comparison and its complete synthetic v4 catalog.
+        Scoped auditability evidence remains in the comparison. No query or request body
+        is accepted. The catalog digest binds content, not source truth or publication
+        authority. Listed facts are not necessarily applied to this profile; missing,
+        unknown, unreviewed, future and stale evidence is not promoted. Sources are
+        fictional HTTPS .invalid references and must not be fetched. No writes,
+        ranking, approval or provider recommendation is performed.
+      operationId: getAssessmentComparisonEvidencePreview
+      security:
+        - BffServiceToken: []
+      responses:
+        "200":
+          description: Exact synthetic comparison with catalog provenance for display.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/comparison-evidence-preview.v1.schema.json
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "401":
+          description: Missing or invalid BFF service credential or principal.
+        "403":
+          description: The principal does not own this workspace.
+        "404":
+          $ref: "#/components/responses/AssessmentNotFound"
+        "503":
+          description: The required service credential is not configured.
   /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/weighted-comparison-preview:
     parameters:
       - $ref: "#/components/parameters/WorkspaceId"
