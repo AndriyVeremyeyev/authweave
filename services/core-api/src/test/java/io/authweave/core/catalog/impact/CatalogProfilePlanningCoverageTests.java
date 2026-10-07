@@ -94,4 +94,18 @@ class CatalogProfilePlanningCoverageTests {
         for (int i = 0; i < 4; i++) { assertEquals(a.regressions().get(i).scenarioSetSha256(), b.regressions().get(i).scenarioSetSha256()); assertNotEquals(a.regressions().get(i).checkSha256(), b.regressions().get(i).checkSha256()); }
         assertThrows(NullPointerException.class, () -> service.inspectAt(null));
     }
+    @Test void freshConsumerReplaysTheWholeSuppliedStructuralReportNotOnlyItsManifest() {
+        var s = service.readAt(AT).structural();
+        assertEquals(service.inspectAt(AT), service.inspectUsing(s, AT));
+        assertThrows(IllegalArgumentException.class, () -> service.inspectUsing(s, AT.plusNanos(1)));
+        assertThrows(IllegalArgumentException.class, () -> service.inspectUsing(CatalogProfileImpactCoverageV6Service.Check.notChecked(), AT));
+        var substituted = new CatalogProfileImpactCoverageV6Service.Check(s.status(), AT, s.baseScenarioSetSha256(), s.scenarioSetSha256(),
+                "0".repeat(64), s.auditabilityRegression(), s.dimensions(), s.verificationGaps(), s.unexercisedFactPaths());
+        assertThrows(IllegalArgumentException.class, () -> service.inspectUsing(substituted, AT));
+        var reordered = new ArrayList<>(s.dimensions()); java.util.Collections.swap(reordered, 0, 1);
+        var mixedOrder = new CatalogProfileImpactCoverageV6Service.Check(s.status(), AT, s.baseScenarioSetSha256(), s.scenarioSetSha256(),
+                s.catalogCoverageSha256(), s.auditabilityRegression(), reordered, s.verificationGaps(), s.unexercisedFactPaths());
+        assertThrows(IllegalArgumentException.class, () -> service.inspectUsing(mixedOrder, AT));
+        assertThrows(NullPointerException.class, () -> service.inspectUsing(null, AT));
+    }
 }

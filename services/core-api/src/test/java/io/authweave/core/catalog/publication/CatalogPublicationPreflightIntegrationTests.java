@@ -3,6 +3,7 @@ package io.authweave.core.catalog.publication;
 import java.time.Instant;
 import java.sql.DriverManager;
 import java.util.UUID;
+import java.util.List;
 import org.jooq.DSLContext;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,7 @@ import io.authweave.core.catalog.impact.CatalogFactPathReportRepository;
 import io.authweave.core.catalog.impact.LocalCatalogFactPathReportWriter;
 import io.authweave.core.catalog.impact.CatalogBootstrapImpactService;
 import io.authweave.core.catalog.impact.CatalogProfileImpactCoverageService;
+import io.authweave.core.catalog.impact.CatalogProfilePlanningCoverageService;
 import io.authweave.core.catalog.proposal.CatalogFactReviewRequest;
 import io.authweave.core.catalog.proposal.CatalogFactReviewWriter;
 import io.authweave.core.catalog.proposal.LocalCatalogProposalWriter;
@@ -72,6 +74,7 @@ class CatalogPublicationPreflightIntegrationTests {
     @MockitoSpyBean private CatalogPublicationPreflightRepository repository;
     @MockitoSpyBean private CatalogBootstrapReviewService bootstrapReviews;
     @MockitoSpyBean private CatalogBootstrapImpactReportRepository bootstrapReports;
+    @MockitoSpyBean private CatalogProfilePlanningCoverageService planningCoverage;
 
     @Test
     void emptyBootstrapIsReadOnlyRepeatableReadAndDoesNotPublishOrSeed() {
@@ -83,6 +86,7 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(9, result.facts().unobserved()); assertFalse(result.publicationReady()); registryStillEmpty();
         assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, result.profileImpactCoverage().status());
         assertEquals(io.authweave.core.catalog.impact.CatalogProfileImpactCoverageV6Service.Status.NOT_CHECKED, result.profileImpactCoverageV6().status());
+        assertNull(result.profilePlanningCoverage());
         assertEquals(io.authweave.core.catalog.impact.CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED,
                 result.profileImpactCoverage().architectureImpact().status());
     }
@@ -163,6 +167,7 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(result.evaluatedAt(), result.profileImpactCoverageV6().evaluatedAt());
         assertEquals(40, result.profileImpactCoverageV6().verificationGaps().size());
         assertFalse(result.profileImpactCoverageV6().candidateAuditabilityChangesEvaluated());
+        assertPlanning(result);
         assertEquals(CatalogDraftCanonicalizer.sha256(result.profileImpactCoverage()), result.profileImpactCoverageV6().catalogCoverageSha256());
         assertTrue(result.profileImpactCoverage().unexercisedFactPaths().isEmpty());
         var architecture = result.profileImpactCoverage().architectureImpact();
@@ -318,6 +323,7 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(12, result.profileImpactCoverageV6().auditabilityRegression().checkedCases());
         assertEquals(result.evaluatedAt(), result.profileImpactCoverageV6().evaluatedAt());
         assertFalse(result.profileImpactCoverageV6().coverageComplete());
+        assertPlanning(result);
         var architecture = result.profileImpactCoverage().architectureImpact();
         assertEquals(result.evaluatedAt(), architecture.evaluatedAt()); assertEquals(20, architecture.checkedPatterns());
         assertEquals(result.profileImpactCoverage().scenarioSetSha256(), architecture.scenarioSetSha256());
@@ -327,6 +333,72 @@ class CatalogPublicationPreflightIntegrationTests {
         assertEquals(result.evaluatedAt(), result.scopedProfileImpact().evaluatedAt()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
         assertEquals(request.reviewId(), result.scopedProfileImpact().inputId()); assertEquals(receipt.reviewSha256(), result.scopedProfileImpact().inputSha256());
         var json = mapper.writeValueAsString(check); assertFalse(json.contains("sourceUrl")); assertFalse(json.contains("profile")); assertFalse(json.contains(actor.subject()));
+    }
+
+    @Test
+    void proposalPlanningRunsInTheSameReadOnlySnapshotAndNeverRewritesHistoricalReceipts() {
+        var fixtures = new CatalogPublicationLookupFixtures(mapper); var node = fixtures.child(fixtures.root(Instant.now()));
+        var saved = writer.save(node.request(), null).proposal();
+        var report = impactWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        var regression = regressionWriter.save(UUID.randomUUID(), saved.proposalId(), saved.version()).report();
+        doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(planningCoverage).inspectUsing(any(), any());
+        var before = storedData();
+        var first = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null); assertPlanning(first);
+        var second = preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null); assertPlanning(second);
+        assertNotEquals(first.profilePlanningCoverage().analysisSha256(), second.profilePlanningCoverage().analysisSha256());
+        assertEquals(first.profilePlanningCoverage().baseScenarioSetSha256(), second.profilePlanningCoverage().baseScenarioSetSha256());
+        assertEquals(report, impacts.get(saved.proposalId(), saved.version(), report.reportId()));
+        assertEquals(regression.reportSha256(), second.storedFactPaths().reportSha256());
+        assertEquals(before, storedData());
+        org.mockito.Mockito.doThrow(new IllegalStateException("Planning regression unavailable")).when(planningCoverage).inspectUsing(any(), any());
+        assertThrows(IllegalStateException.class, () -> preflight.proposal(saved.proposalId(), saved.version(), saved.proposalSha256(), null));
+        assertEquals(before, storedData()); registryStillEmpty();
+    }
+
+    @Test
+    void storedBootstrapPlanningPreservesReviewsAndInvalidReferencesNeverReachThePlanner() {
+        var candidate = new CatalogPublicationLookupFixtures(mapper).root(Instant.now()).snapshot().catalog().asDraft();
+        var observations = validator.validate(candidate).facts().stream().map(f -> new CatalogBootstrapReviewRequest.Observation(f.optionId(), f.path(), SOURCE_SUPPORTS_CLAIM)).toList();
+        var request = new CatalogBootstrapReviewRequest(1, UUID.randomUUID(), CatalogDraftCanonicalizer.sha256(candidate), candidate, observations, CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
+        var actor = new CuratorActor("http://localhost:8081", "synthetic-planning-curator", "123456789012345678", "987654321098765432", Instant.now());
+        var receipt = bootstrapReviews.record(request, actor).review(); var reviewed = bootstrapReviews.reviewed(request.reviewId(), receipt.reviewSha256());
+        doAnswer(call -> { transaction(); return call.callRealMethod(); }).when(planningCoverage).inspectUsing(any(), any());
+        var before = storedData(); var result = preflight.bootstrap(request.reviewId(), receipt.reviewSha256()); assertPlanning(result);
+        assertEquals(CatalogPublicationPreflight.Mode.CURATED_BOOTSTRAP, result.mode());
+        assertTrue(result.facts().allFactsHaveSupportingObservation()); assertEquals(9, result.facts().supporting());
+        assertEquals(reviewed, bootstrapReviews.reviewed(request.reviewId(), receipt.reviewSha256())); assertEquals(before, storedData());
+        org.mockito.Mockito.clearInvocations(planningCoverage);
+        assertNull(preflight.bootstrap(request.reviewId(), "0".repeat(64)).profilePlanningCoverage());
+        assertNull(preflight.bootstrap(UUID.randomUUID(), receipt.reviewSha256()).profilePlanningCoverage());
+        assertNull(preflight.bootstrap(candidate).profilePlanningCoverage());
+        org.mockito.Mockito.verifyNoInteractions(planningCoverage);
+        org.mockito.Mockito.doThrow(new IllegalStateException("Planning regression unavailable")).when(planningCoverage).inspectUsing(any(), any());
+        assertThrows(IllegalStateException.class, () -> preflight.bootstrap(request.reviewId(), receipt.reviewSha256()));
+        assertEquals(before, storedData()); registryStillEmpty();
+    }
+
+    private static void assertPlanning(CatalogPublicationPreflight.Result result) {
+        var planning = result.profilePlanningCoverage(); assertNotNull(planning);
+        assertEquals(result.evaluatedAt(), planning.evaluatedAt()); assertEquals(result.profileImpactCoverageV6(), planning.structuralCoverage());
+        assertEquals(CatalogDraftCanonicalizer.sha256(result.profileImpactCoverageV6()), planning.structuralCoverageSha256());
+        assertEquals(136, planning.checkedDimensions()); assertEquals(36, planning.planningAddedToDeferredDimensions()); assertEquals(0, planning.unroutedDeferredDimensions());
+        assertEquals(List.of(252, 2016, 140, 36), planning.regressions().stream().map(CatalogProfilePlanningCoverageService.RegressionBinding::checkedCases).toList());
+        assertEquals(40, planning.structuralCoverage().verificationGaps().size()); assertEquals(22, planning.verificationGaps().size());
+        assertFalse(planning.coverageComplete()); assertFalse(planning.sourceVerificationPerformed()); assertFalse(planning.configurationVerified());
+        assertFalse(planning.approvalGranted()); assertFalse(planning.writesPerformed()); assertFalse(planning.publicationReady());
+        assertTrue(result.blockers().containsAll(List.of(IMPACT_COVERAGE_INCOMPLETE, CURATOR_AUTHORIZATION_NOT_PERFORMED, PUBLICATION_WORKFLOW_UNAVAILABLE)));
+        assertFalse(result.coverageComplete()); assertFalse(result.approvalGranted()); assertFalse(result.publicationReady());
+    }
+
+    private List<String> storedData() {
+        // Count and content digests only; no test row bodies or curator identity leave the database.
+        return List.of("core.workspaces", "core.personal_workspaces", "core.assessments", "core.assessment_revisions", "audit.assessment_events",
+                "core.catalog_proposals", "core.catalog_proposal_revisions", "audit.catalog_proposal_events", "core.catalog_proposal_decisions", "audit.catalog_proposal_decision_events",
+                "core.catalog_fact_reviews", "audit.catalog_fact_review_events", "core.catalog_impact_reports", "audit.catalog_impact_report_events",
+                "core.catalog_fact_path_reports", "audit.catalog_fact_path_report_events", "core.catalog_bootstrap_reviews", "audit.catalog_bootstrap_review_events",
+                "core.catalog_bootstrap_impact_reports", "audit.catalog_bootstrap_impact_report_events", "core.catalog_publication_decisions", "core.catalog_published_snapshots",
+                "audit.catalog_publication_events", "core.catalog_auditability_reviews", "audit.catalog_auditability_review_events").stream()
+                .map(table -> table + "|" + dsl.fetchValue("SELECT count(*)::text || ':' || md5(coalesce(string_agg(to_jsonb(t)::text, '' ORDER BY to_jsonb(t)::text), '')) FROM " + table + " t")).toList();
     }
 
     private void replace(CatalogImpactReport report, String body, String digest) throws Exception {

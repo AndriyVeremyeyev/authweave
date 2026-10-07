@@ -872,7 +872,7 @@ Rule presence is independent of whether dated evidence passes, fails or remains 
 The 36 deferred input rows and 40 scenario-bound verification gaps remain explicit,
 including all seven auditability verification boundaries in every scenario.
 
-Fresh Core publication preflight policy `catalog-publication-preflight-11` consumes
+Fresh Core publication preflight policy `catalog-publication-preflight-12` consumes
 both the unchanged v5 structural summary and this new v6 composition for exact stored
 proposals or bootstrap reviews. Missing/invalid inputs keep coverage `NOT_CHECKED`;
 failed calculation or inconsistent time/digests fails closed. These are fresh checks,
@@ -1385,10 +1385,26 @@ The old 40 scenario-specific verification gaps and all 22 additional planning
 boundaries remain visible. `INCOMPLETE`, `coverageComplete: false` and all
 verification/publication flags stay unchanged. This is not candidate-change
 impact, observed configuration or lifecycle, a price calculation, verified
-assurance/compliance, a durable receipt or publication authority. Existing
-publication/bootstrap consumers, historical receipts and the personal UI are
-unchanged; the new report is a separate internal diagnostic. No dependencies,
-migrations, provider calls, accounts or subscriptions are added.
+assurance/compliance, a durable receipt or publication authority. Historical
+receipts and the personal UI are unchanged. No dependencies, migrations,
+provider calls, accounts or subscriptions are added.
+
+Fresh Core publication preflight policy `catalog-publication-preflight-12` now
+consumes this report for an exact stored proposal revision or bootstrap source
+review. `profilePlanningCoverage` is present only when structural coverage was
+actually checked; it is `null` on missing/invalid input or an unreviewed raw
+bootstrap draft, without running the planning kernels. Checked reports must share
+the preflight instant and the complete structural result, not merely its manifest.
+Calculation failures, absent checked reports and mismatched clocks or structural
+content propagate rather than falling back or producing a successful partial read.
+
+This is an internal Core consumer, not a new HTTP endpoint or browser feature.
+Its existing read-only, repeatable-read transaction and mandatory full-coverage,
+curator-authorization and publication-workflow blockers are preserved. Real
+database tests compare count/content digests for 25 application and audit tables,
+verify the planner runs in that same transaction, and preserve historical proposal
+and bootstrap receipts. No saved receipt is reinterpreted as verified planning,
+and a fresh calculation does not refresh source evidence or confer permission.
 
 ### Synthetic operations planning regression
 

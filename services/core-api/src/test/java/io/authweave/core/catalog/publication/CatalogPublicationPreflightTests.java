@@ -31,6 +31,15 @@ import io.authweave.core.catalog.impact.CatalogArchitectureImpactService;
 import io.authweave.core.catalog.impact.CatalogProfileImpactCoverageV6Service;
 import io.authweave.core.catalog.impact.CatalogAuditabilityRegressionCases;
 import io.authweave.core.catalog.impact.CatalogAuditabilityRegressionService;
+import io.authweave.core.catalog.impact.CatalogProfilePlanningCoverageService;
+import io.authweave.core.catalog.impact.CatalogArchitectureConfigurationRegressionService;
+import io.authweave.core.catalog.impact.CatalogArchitectureConfigurationCases;
+import io.authweave.core.catalog.impact.CatalogLifecycleRegressionService;
+import io.authweave.core.catalog.impact.CatalogLifecycleRegressionCases;
+import io.authweave.core.catalog.impact.CatalogOperationsPlanningRegressionService;
+import io.authweave.core.catalog.impact.CatalogOperationsPlanningCases;
+import io.authweave.core.catalog.impact.CatalogAssuranceComplianceRegressionService;
+import io.authweave.core.catalog.impact.CatalogAssuranceComplianceCases;
 import static io.authweave.core.catalog.publication.CatalogPublicationPreflight.*;
 import static io.authweave.core.catalog.publication.CatalogPublicationLookupFixtures.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -39,6 +48,9 @@ import static org.mockito.Mockito.*;
 
 class CatalogPublicationPreflightTests {
     private static final Instant AT = Instant.parse("2026-09-30T12:00:00Z");
+    // Real source-controlled outputs shared only by unit fixtures, never cached by production preflight.
+    private static final CatalogProfilePlanningCoverageService.Check PLANNING = planningAt(AT);
+    private static final CatalogProfilePlanningCoverageService.Check LATER_PLANNING = planningAt(AT.plusNanos(1));
     private final JsonMapper mapper = JsonMapper.builder().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS).disable(MapperFeature.ALLOW_COERCION_OF_SCALARS).build();
     private final Clock clock = Clock.fixed(AT, ZoneOffset.UTC);
@@ -57,10 +69,11 @@ class CatalogPublicationPreflightTests {
     private final CatalogProfileImpactCoverageService profileCoverage = spy(new CatalogProfileImpactCoverageService(scopedCases, architecture));
     private final CatalogScopedProfileImpactService scopedImpacts = spy(new CatalogScopedProfileImpactService(scopedCases, new CatalogChangePreviewService(validator, clock), validator));
     private final CatalogProfileImpactCoverageV6Service profileCoverageV6 = spy(coverageV6());
+    private final CatalogProfilePlanningCoverageService planningCoverage = mock(CatalogProfilePlanningCoverageService.class);
     private final CatalogPublicationPreflight preflight = new CatalogPublicationPreflight(repository, reviews, publications,
             lookup, validator, new CatalogChangePreviewService(validator, clock), mapper, clock, bootstrapReviews, impacts,
             new CatalogFactPathRegressionService(new CatalogImpactService(new CatalogChangePreviewService(validator, clock))), storedRegressions, bootstrapImpacts, storedBootstrapImpacts,
-            profileCoverage, scopedImpacts, profileCoverageV6);
+            profileCoverage, scopedImpacts, profileCoverageV6, planningCoverage);
     private CatalogChangePreviewRequest request;
     private CatalogPublicationPreflightRepository.Proposal row;
     private PublishedCatalogSnapshot.Reference baseline;
@@ -69,6 +82,7 @@ class CatalogPublicationPreflightTests {
 
     @BeforeEach
     void stored() {
+        when(planningCoverage.inspectUsing(any(), eq(AT))).thenReturn(PLANNING);
         when(storedBootstrapImpacts.verify(any(), any(), any())).thenReturn(CatalogPublicationBootstrapImpactVerifier.Check.unavailable(CatalogPublicationBootstrapImpactVerifier.Status.MISSING));
         var fixtures = new CatalogPublicationLookupFixtures(mapper);
         var root = fixtures.root(AT.minusSeconds(60)); var child = fixtures.child(root);
@@ -88,7 +102,7 @@ class CatalogPublicationPreflightTests {
     @Test
     void allSupportingFactsAndMatchingAdminAssertionsStillCannotAuthorizeAnyPublication() {
         var result = run();
-        assertEquals("catalog-publication-preflight-11", POLICY_VERSION);
+        assertEquals("catalog-publication-preflight-12", POLICY_VERSION);
         assertEquals(9, result.facts().total()); assertTrue(result.facts().allFactsHaveSupportingObservation());
         assertEquals(9, result.reviewThroughNumber()); assertTrue(result.baselineIntegrityValidated()); assertTrue(result.baselineContentMatches());
         assertEquals(List.of(Blocker.BASELINE_AUTHORITY_UNAVAILABLE, Blocker.IMPACT_COVERAGE_INCOMPLETE,
@@ -115,6 +129,11 @@ class CatalogPublicationPreflightTests {
         assertEquals(AT, result.profileImpactCoverageV6().evaluatedAt());
         assertEquals(CatalogDraftCanonicalizer.sha256(result.profileImpactCoverage()), result.profileImpactCoverageV6().catalogCoverageSha256());
         assertFalse(result.profileImpactCoverageV6().candidateAuditabilityChangesEvaluated());
+        assertEquals(PLANNING, result.profilePlanningCoverage());
+        assertEquals(result.profileImpactCoverageV6(), result.profilePlanningCoverage().structuralCoverage());
+        assertEquals(AT, result.profilePlanningCoverage().evaluatedAt()); assertEquals(136, result.profilePlanningCoverage().checkedDimensions());
+        assertEquals(36, result.profilePlanningCoverage().planningAddedToDeferredDimensions());
+        verify(planningCoverage, times(2)).inspectUsing(result.profileImpactCoverageV6(), AT);
         assertEquals(4, result.profileImpactCoverage().patternDimensions());
         var patterns = result.profileImpactCoverage().architectureImpact();
         assertEquals(result.evaluatedAt(), patterns.evaluatedAt()); assertEquals(20, patterns.checkedPatterns());
@@ -376,6 +395,8 @@ class CatalogPublicationPreflightTests {
         assertEquals(20, result.profileImpactCoverage().architectureImpact().checkedPatterns());
         assertEquals(AT, result.profileImpactCoverage().architectureImpact().evaluatedAt());
         assertFalse(result.profileImpactCoverage().architectureImpact().configurationVerified());
+        assertEquals(PLANNING, result.profilePlanningCoverage());
+        assertEquals(result.profileImpactCoverageV6(), result.profilePlanningCoverage().structuralCoverage());
         assertEquals(CatalogScopedProfileImpactService.Mode.CURATED_BOOTSTRAP, result.scopedProfileImpact().mode());
         assertEquals(AT, result.scopedProfileImpact().evaluatedAt()); assertEquals(id, result.scopedProfileImpact().inputId());
         assertEquals(digest, result.scopedProfileImpact().inputSha256()); assertEquals(4, result.scopedProfileImpact().checkedScenarios());
@@ -469,18 +490,73 @@ class CatalogPublicationPreflightTests {
         assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, raw.profileImpactCoverage().status());
         assertEquals(CatalogProfileImpactCoverageV6Service.Status.NOT_CHECKED, missing.profileImpactCoverageV6().status());
         assertEquals(CatalogProfileImpactCoverageV6Service.Status.NOT_CHECKED, raw.profileImpactCoverageV6().status());
+        assertNull(missing.profilePlanningCoverage()); assertNull(raw.profilePlanningCoverage());
         assertEquals(CatalogScopedProfileImpactService.Status.NOT_CHECKED, missing.scopedProfileImpact().status());
         assertEquals(CatalogScopedProfileImpactService.Status.NOT_CHECKED, raw.scopedProfileImpact().status());
         assertEquals(CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED, raw.profileImpactCoverage().architectureImpact().status());
         assertEquals(CatalogArchitectureImpactService.CheckStatus.NOT_CHECKED, missing.profileImpactCoverage().architectureImpact().status());
-        verifyNoInteractions(profileCoverage, profileCoverageV6, scopedImpacts, architecture);
+        verifyNoInteractions(profileCoverage, profileCoverageV6, planningCoverage, scopedImpacts, architecture);
         when(repository.proposal(any(), anyLong())).thenReturn(row);
         doThrow(new IllegalStateException("Unreviewed schema drift")).when(profileCoverage).inspectAt(any());
         assertThrows(IllegalStateException.class, this::run);
         verifyNoInteractions(scopedImpacts, architecture);
         var id = java.util.UUID.randomUUID();
         when(bootstrapReviews.reviewed(any(), any())).thenThrow(new CatalogBootstrapReviewException(CatalogBootstrapReviewException.Reason.NOT_FOUND));
-        assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, preflight.bootstrap(id, "a".repeat(64)).profileImpactCoverage().status());
+        var unavailable = preflight.bootstrap(id, "a".repeat(64));
+        assertEquals(CatalogProfileImpactCoverageService.Status.NOT_CHECKED, unavailable.profileImpactCoverage().status());
+        assertNull(unavailable.profilePlanningCoverage()); verifyNoInteractions(planningCoverage);
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"proposal", "bootstrap"})
+    void planningCoverageFailureNullClockAndStructuralSubstitutionCannotFallBack(String mode) {
+        java.util.function.Supplier<Result> operation = this::run;
+        if (mode.equals("bootstrap")) {
+            var input = reviewedBootstrap(); operation = () -> preflight.bootstrap(input.reviewId(), CatalogDraftCanonicalizer.sha256(input));
+        }
+        var run = operation;
+        assertEquals(PLANNING, run.get().profilePlanningCoverage());
+        doThrow(new IllegalStateException("Planning regression unavailable")).when(planningCoverage).inspectUsing(any(), eq(AT));
+        assertThrows(IllegalStateException.class, run::get);
+        doReturn(null).when(planningCoverage).inspectUsing(any(), eq(AT)); assertThrows(IllegalArgumentException.class, run::get);
+        doReturn(LATER_PLANNING).when(planningCoverage).inspectUsing(any(), eq(AT)); assertThrows(IllegalArgumentException.class, run::get);
+        var s = PLANNING.structuralCoverage();
+        var wrong = new CatalogProfileImpactCoverageV6Service.Check(s.status(), AT, s.baseScenarioSetSha256(), s.scenarioSetSha256(),
+                "0".repeat(64), s.auditabilityRegression(), s.dimensions(), s.verificationGaps(), s.unexercisedFactPaths());
+        var substituted = new CatalogProfilePlanningCoverageService.Check(AT, wrong, PLANNING.regressions(), PLANNING.dimensions(), PLANNING.verificationGaps());
+        doReturn(substituted).when(planningCoverage).inspectUsing(any(), eq(AT)); assertThrows(IllegalArgumentException.class, run::get);
+    }
+
+    @Test void nativeResultRequiresPlanningIfAndOnlyIfStructuralCoverageWasActuallyChecked() {
+        var checked = run();
+        var missing = assertThrows(AssertionError.class, () -> with(checked, "profilePlanningCoverage", null));
+        assertInstanceOf(IllegalArgumentException.class, missing.getCause().getCause());
+        when(repository.proposal(any(), anyLong())).thenReturn(null); var absent = run(); assertNull(absent.profilePlanningCoverage());
+        var invented = assertThrows(AssertionError.class, () -> with(absent, "profilePlanningCoverage", PLANNING));
+        assertInstanceOf(IllegalArgumentException.class, invented.getCause().getCause());
+    }
+
+    private CatalogBootstrapReviewRequest reviewedBootstrap() {
+        var candidate = request.candidate(); var id = UUID.randomUUID();
+        var observations = validator.validate(candidate).facts().stream().map(f -> new CatalogBootstrapReviewRequest.Observation(f.optionId(), f.path(), Verdict.SOURCE_SUPPORTS_CLAIM)).toList();
+        var input = new CatalogBootstrapReviewRequest(1, id, CatalogDraftCanonicalizer.sha256(candidate), candidate, observations, CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
+        var review = new CatalogBootstrapReview(id, input.expectedCandidateSha256(), CatalogDraftCanonicalizer.sha256(input), candidate.catalogVersion(), 9, new CatalogBootstrapReview.Counts(9, 0, 0), AT);
+        when(bootstrapReviews.reviewed(id, CatalogDraftCanonicalizer.sha256(input))).thenReturn(new CatalogBootstrapReviewService.ReviewedCandidate(input, review));
+        return input;
+    }
+
+    private static CatalogProfilePlanningCoverageService.Check planningAt(Instant at) {
+        var mapper = JsonMapper.builder().build();
+        try (var baseStream = new org.springframework.core.io.ClassPathResource("catalog/synthetic.v4.json").getInputStream();
+                var evidenceStream = new org.springframework.core.io.ClassPathResource("catalog/auditability-evidence.v1.json").getInputStream()) {
+            var base = new CatalogScopedProfileCases(mapper); var cases = new CatalogAuditabilityRegressionCases(mapper, base);
+            var legacy = new CatalogProfileImpactCoverageService(base, new CatalogArchitectureImpactService(base, mapper));
+            var audit = new CatalogAuditabilityRegressionService(cases, mapper.readValue(baseStream, io.authweave.core.catalog.ProviderCatalog.class), mapper.readValue(evidenceStream, io.authweave.core.catalog.AuditabilityCatalog.class));
+            return new CatalogProfilePlanningCoverageService(new CatalogProfileImpactCoverageV6Service(legacy, cases, audit),
+                    new CatalogArchitectureConfigurationRegressionService(new CatalogArchitectureConfigurationCases(base, mapper)),
+                    new CatalogLifecycleRegressionService(new CatalogLifecycleRegressionCases(base, cases, mapper)),
+                    new CatalogOperationsPlanningRegressionService(new CatalogOperationsPlanningCases(base, cases, mapper)),
+                    new CatalogAssuranceComplianceRegressionService(new CatalogAssuranceComplianceCases(base, cases, mapper))).inspectAt(at);
+        } catch (java.io.IOException failure) { throw new AssertionError(failure); }
     }
 
     @Test void architecturePolicyFailureCannotBecomeSuccessfulCoverageOrATrustPromotion() {

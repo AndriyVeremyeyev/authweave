@@ -125,6 +125,15 @@ public final class CatalogProfilePlanningCoverageService {
     }
 
     public Check inspectAt(Instant at) { return compose(readAt(at), at); }
+    /** Fresh preflight consumers supply the exact structural result, never an HTTP completeness assertion. */
+    public Check inspectUsing(CatalogProfileImpactCoverageV6Service.Check coverage, Instant at) {
+        Objects.requireNonNull(coverage); Objects.requireNonNull(at);
+        if (coverage.status() != CatalogProfileImpactCoverageV6Service.Status.INCOMPLETE || !at.equals(coverage.evaluatedAt()))
+            throw new IllegalArgumentException("Use current checked structural coverage");
+        var current = readAt(at);
+        if (!coverage.equals(current.structural())) throw new IllegalArgumentException("Use the complete exact-bound structural result");
+        return compose(current, at);
+    }
     Snapshot readAt(Instant at) {
         Objects.requireNonNull(at);
         return new Snapshot(structural.inspectAt(at), architecture.inspectAt(at), lifecycle.inspectAt(at), operations.inspectAt(at), assurance.inspectAt(at));

@@ -26,13 +26,14 @@ import io.authweave.core.catalog.impact.CatalogFactPathRegressionService;
 import io.authweave.core.catalog.impact.CatalogBootstrapImpactService;
 import io.authweave.core.catalog.impact.CatalogProfileImpactCoverageService;
 import io.authweave.core.catalog.impact.CatalogProfileImpactCoverageV6Service;
+import io.authweave.core.catalog.impact.CatalogProfilePlanningCoverageService;
 import io.authweave.core.catalog.impact.CatalogScopedProfileImpactService;
 
 /** Core-owned denial policy, not authorization, a prepared publication token or a publisher. */
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class CatalogPublicationPreflight {
-    public static final String POLICY_VERSION = "catalog-publication-preflight-11";
+    public static final String POLICY_VERSION = "catalog-publication-preflight-12";
     private static final long MAX_SAFE_INTEGER = 9007199254740991L;
     private final CatalogPublicationPreflightRepository repository;
     private final CatalogFactReviewRepository reviews;
@@ -51,6 +52,7 @@ public class CatalogPublicationPreflight {
     private final CatalogProfileImpactCoverageService profileCoverage;
     private final CatalogScopedProfileImpactService scopedImpacts;
     private final CatalogProfileImpactCoverageV6Service profileCoverageV6;
+    private final CatalogProfilePlanningCoverageService planningCoverage;
 
     CatalogPublicationPreflight(CatalogPublicationPreflightRepository repository, CatalogFactReviewRepository reviews,
             CatalogPublicationRepository publications, CatalogPublicationLookup lookup, CatalogDraftValidator validator,
@@ -58,7 +60,8 @@ public class CatalogPublicationPreflight {
             CatalogPublicationImpactVerifier impacts, CatalogFactPathRegressionService regressions,
             CatalogPublicationFactPathVerifier storedRegressions, CatalogBootstrapImpactService bootstrapImpacts,
             CatalogPublicationBootstrapImpactVerifier storedBootstrapImpacts, CatalogProfileImpactCoverageService profileCoverage,
-            CatalogScopedProfileImpactService scopedImpacts, CatalogProfileImpactCoverageV6Service profileCoverageV6) {
+            CatalogScopedProfileImpactService scopedImpacts, CatalogProfileImpactCoverageV6Service profileCoverageV6,
+            CatalogProfilePlanningCoverageService planningCoverage) {
         this.repository = repository; this.reviews = reviews; this.publications = publications; this.lookup = lookup;
         this.validator = validator; this.preview = preview; this.mapper = mapper; this.clock = clock;
         this.bootstrapReviews = bootstrapReviews;
@@ -70,6 +73,7 @@ public class CatalogPublicationPreflight {
         this.profileCoverage = profileCoverage;
         this.scopedImpacts = scopedImpacts;
         this.profileCoverageV6 = profileCoverageV6;
+        this.planningCoverage = planningCoverage;
     }
 
     public enum Mode { PROPOSAL_APPROVAL, CURATED_BOOTSTRAP }
@@ -116,6 +120,7 @@ public class CatalogPublicationPreflight {
             CatalogPublicationBootstrapImpactVerifier.Check storedBootstrapImpact,
             CatalogProfileImpactCoverageService.Check profileImpactCoverage,
             CatalogProfileImpactCoverageV6Service.Check profileImpactCoverageV6,
+            CatalogProfilePlanningCoverageService.Check profilePlanningCoverage,
             CatalogScopedProfileImpactService.Check scopedProfileImpact,
             List<Blocker> blockers) {
         public Result {
@@ -137,6 +142,12 @@ public class CatalogPublicationPreflight {
                     || profileImpactCoverageV6.coverageComplete()
                     || (profileImpactCoverage.status() == CatalogProfileImpactCoverageService.Status.NOT_CHECKED)
                         != (profileImpactCoverageV6.status() == CatalogProfileImpactCoverageV6Service.Status.NOT_CHECKED)
+                    || (profileImpactCoverageV6.status() == CatalogProfileImpactCoverageV6Service.Status.NOT_CHECKED)
+                        != (profilePlanningCoverage == null)
+                    || profilePlanningCoverage != null
+                        && (!evaluatedAt.equals(profilePlanningCoverage.evaluatedAt())
+                            || !profileImpactCoverageV6.equals(profilePlanningCoverage.structuralCoverage())
+                            || profilePlanningCoverage.coverageComplete())
                     || profileImpactCoverageV6.status() != CatalogProfileImpactCoverageV6Service.Status.NOT_CHECKED
                         && (!evaluatedAt.equals(profileImpactCoverageV6.evaluatedAt())
                             || !profileImpactCoverage.scenarioSetSha256().equals(profileImpactCoverageV6.baseScenarioSetSha256())
@@ -256,8 +267,9 @@ public class CatalogPublicationPreflight {
             }
         }
         var coverage = profileCoverage.inspectAt(at); var scopedImpact = scopedImpacts.inspectAt(request, at); scopedBlockers(scopedImpact, blockers);
+        var coverageV6 = profileCoverageV6.inspectUsing(coverage, at);
         return result(Mode.PROPOSAL_APPROVAL, at, id, version, row.sha256(), observed.counts(), observed.through(), integrity, matches,
-                impact, factPaths, storedFactPaths, coverage, profileCoverageV6.inspectUsing(coverage, at), scopedImpact, blockers);
+                impact, factPaths, storedFactPaths, coverage, coverageV6, planningCoverage.inspectUsing(coverageV6, at), scopedImpact, blockers);
         // Storage errors propagate. This read is never reused as authorization for a later write.
     }
 
@@ -302,11 +314,12 @@ public class CatalogPublicationPreflight {
             case VERIFIED_BOOTSTRAP_ANALYSIS -> { /* Declared paths/scenarios are not complete profile/source/authorization coverage. */ }
         }
         var coverage = profileCoverage.inspectAt(at); var scopedImpact = scopedImpacts.inspectAt(reviewed.request(), at); scopedBlockers(scopedImpact, blockers);
+        var coverageV6 = profileCoverageV6.inspectUsing(coverage, at);
         return new Result(Mode.CURATED_BOOTSTRAP, at, null, null, null, facts, 0, false, false,
                 CatalogPublicationImpactVerifier.Check.unavailable(CatalogPublicationImpactVerifier.Status.NOT_CHECKED),
                 CatalogFactPathRegressionService.Check.notChecked(),
                 CatalogPublicationFactPathVerifier.Check.unavailable(CatalogPublicationFactPathVerifier.Status.NOT_CHECKED), bootstrapImpact,
-                storedBootstrapImpact, coverage, profileCoverageV6.inspectUsing(coverage, at), scopedImpact, List.copyOf(blockers));
+                storedBootstrapImpact, coverage, coverageV6, planningCoverage.inspectUsing(coverageV6, at), scopedImpact, List.copyOf(blockers));
         // Even supporting stored observations cannot replace fresh write authorization, full coverage or a publication workflow.
     }
 
@@ -374,17 +387,18 @@ public class CatalogPublicationPreflight {
                 CatalogPublicationImpactVerifier.Check.unavailable(CatalogPublicationImpactVerifier.Status.NOT_CHECKED),
                 CatalogFactPathRegressionService.Check.notChecked(),
                 CatalogPublicationFactPathVerifier.Check.unavailable(CatalogPublicationFactPathVerifier.Status.NOT_CHECKED),
-                CatalogProfileImpactCoverageService.Check.notChecked(), CatalogProfileImpactCoverageV6Service.Check.notChecked(), CatalogScopedProfileImpactService.Check.notChecked(), blockers);
+                CatalogProfileImpactCoverageService.Check.notChecked(), CatalogProfileImpactCoverageV6Service.Check.notChecked(), null, CatalogScopedProfileImpactService.Check.notChecked(), blockers);
     }
     private static Result result(Mode mode, Instant at, UUID id, Long version, String digest, FactCounts facts,
             long through, boolean integrity, boolean matches, CatalogPublicationImpactVerifier.Check impact,
             CatalogFactPathRegressionService.Check factPaths, CatalogPublicationFactPathVerifier.Check storedFactPaths,
             CatalogProfileImpactCoverageService.Check profileImpactCoverage, CatalogProfileImpactCoverageV6Service.Check profileImpactCoverageV6,
+            CatalogProfilePlanningCoverageService.Check profilePlanningCoverage,
             CatalogScopedProfileImpactService.Check scopedProfileImpact, EnumSet<Blocker> blockers) {
         return new Result(mode, at, id, version, digest, facts, through, integrity, matches, impact, factPaths, storedFactPaths,
                 CatalogBootstrapImpactService.Check.notChecked(),
                 CatalogPublicationBootstrapImpactVerifier.Check.unavailable(CatalogPublicationBootstrapImpactVerifier.Status.NOT_CHECKED),
-                profileImpactCoverage, profileImpactCoverageV6, scopedProfileImpact, List.copyOf(blockers));
+                profileImpactCoverage, profileImpactCoverageV6, profilePlanningCoverage, scopedProfileImpact, List.copyOf(blockers));
     }
     private record FactKey(String optionId, String path) { }
     private record Observations(FactCounts counts, long through) { }

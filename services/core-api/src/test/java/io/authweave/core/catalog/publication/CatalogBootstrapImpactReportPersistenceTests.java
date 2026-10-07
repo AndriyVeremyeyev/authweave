@@ -77,6 +77,11 @@ class CatalogBootstrapImpactReportPersistenceTests {
         assertTrue(preflightResult.blockers().contains(CatalogPublicationPreflight.Blocker.IMPACT_COVERAGE_INCOMPLETE));
         assertEquals(io.authweave.core.catalog.impact.CatalogProfileImpactCoverageService.Status.INCOMPLETE, preflightResult.profileImpactCoverage().status());
         assertEquals(128, preflightResult.profileImpactCoverage().dimensions().size()); assertFalse(preflightResult.profileImpactCoverage().coverageComplete());
+        var planning = preflightResult.profilePlanningCoverage(); assertNotNull(planning);
+        assertEquals(preflightResult.evaluatedAt(), planning.evaluatedAt()); assertEquals(preflightResult.profileImpactCoverageV6(), planning.structuralCoverage());
+        assertEquals(136, planning.checkedDimensions()); assertEquals(36, planning.planningAddedToDeferredDimensions());
+        assertFalse(planning.coverageComplete()); assertFalse(planning.storedReportVerified()); assertFalse(planning.approvalGranted());
+        assertEquals(saved, reports.get(review.reviewId(), review.reviewSha256(), id)); assertEquals(event, reports.find(id).event());
         assertEquals(4, preflightResult.scopedProfileImpact().checkedScenarios()); assertFalse(preflightResult.scopedProfileImpact().storedReportVerified());
         assertFalse(preflightResult.publicationReady()); assertFalse(preflightResult.writesPerformed()); assertEquals(count, dsl.fetchCount(CATALOG_BOOTSTRAP_IMPACT_REPORTS));
     }
