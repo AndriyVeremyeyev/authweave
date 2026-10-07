@@ -32,6 +32,70 @@ const statusText: Record<LifecycleV2Analysis["status"], string> = {
   CONDITIONALLY_DOES_NOT_MATCH: "This proposed design has a mismatch",
   NEEDS_INFORMATION: "More information is needed",
 };
+const conditionLabels: Record<LifecycleV2Condition, string> = {
+  TENANT_AND_SUBJECT_CORRELATION: "Tenant and subject correlation",
+  ATTRIBUTE_OWNERSHIP_AND_MAPPING: "Attribute ownership and mapping",
+  ACCOUNT_DISABLE_AND_LOGIN_BLOCK: "Account disablement and new login",
+  APPLICATION_SESSION_INVALIDATION: "Application session invalidation",
+  TOKEN_REVOCATION_OR_BOUNDED_EXPIRY: "Token revocation or bounded expiry",
+  FAILURE_RECOVERY_AND_RECONCILIATION: "Failure recovery and reconciliation",
+  SCIM_CLIENT_SERVER_DIRECTION: "SCIM client/server direction",
+  SCIM_USER_OPERATIONS: "SCIM User operations",
+  JIT_TRUSTED_LOGIN_AND_LINKING: "Trusted JIT login and account linking",
+  SCIM_JIT_COLLISION_POLICY: "SCIM/JIT collision policy",
+  GROUP_SOURCE_AND_MEMBERSHIP_MAPPING: "Group source and membership mapping",
+  GROUP_CHANGE_DELIVERY_AND_RECONCILIATION: "Group change delivery and reconciliation",
+  GROUP_TO_ROLE_MAPPING_AND_ENFORCEMENT: "Group-to-role mapping and enforcement",
+  GROUP_REMOVAL_AND_ACCESS_RECHECK: "Group removal and access recheck",
+  SCIM_GROUP_OPERATIONS: "SCIM Group operations",
+  APPLICATION_BRIDGE_AUTHORIZATION_AND_IDEMPOTENCY: "Application bridge authorization and idempotency",
+};
+const fieldId = (pattern: LifecyclePattern, field: LifecycleV2Condition | "groupStrategy") => `lifecycle-${pattern}-${field}`;
+const followUpLink = "text-cyan-100 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200";
+
+/** Present already-checked outcomes without inferring answers or reevaluating requirements. */
+export function LifecycleFollowUps({ analysis }: { analysis: LifecycleV2Analysis }) {
+  const mismatches = analysis.requirementChecks.filter(check => check.outcome === "CONDITIONALLY_NOT_SATISFIED");
+  const savedUnknown = analysis.requirementChecks.filter(check => check.reasonCode === "REQUIREMENT_UNKNOWN");
+  const groupGaps = analysis.designChecks.filter(check => check.outcome === "UNKNOWN" || check.outcome === "CONDITIONALLY_NOT_SATISFIED");
+  const unmet = analysis.conditionChecks.filter(check => check.outcome === "CONDITIONALLY_NOT_SATISFIED");
+  const unknown = analysis.conditionChecks.filter(check => check.outcome === "UNKNOWN");
+  return <section aria-label="Provisioning preview follow-ups" className="mt-4 rounded-lg border border-white/10 p-3 text-sm">
+    <h4 className="font-medium">Next steps for this provisioning preview</h4>
+    {mismatches.length > 0 && <div className="mt-3">
+      <p className="font-medium text-amber-100">Design conflicts with saved requirements ({mismatches.length})</p>
+      <p className="mt-2 text-xs leading-5 text-slate-400">Reconsider the proposed lifecycle or group plan. Declaring conditions met cannot supply a missing mechanism or remove a forbidden one. Required SCIM cannot be replaced by JIT; saved requirements stay unchanged.</p>
+      <ul className="mt-2 list-disc space-y-2 pl-5">{mismatches.map(check => <li key={check.profilePath}>
+        <p>{requirementLabels[check.profilePath.slice("provisioning.".length) as keyof ProvisioningRequirements]} · {check.criticality.toLowerCase()}</p>
+        <p className="text-slate-400">{lifecycleReasonText[check.reasonCode]}</p>
+        {check.profilePath === "provisioning.groupSynchronization" && <a href={`#${fieldId(analysis.patternId, "groupStrategy")}`} className={followUpLink}>Revisit the temporary group strategy</a>}
+      </li>)}</ul>
+    </div>}
+    {savedUnknown.length > 0 && <div className="mt-3">
+      <p className="font-medium text-amber-100">Saved requirements to clarify ({savedUnknown.length})</p>
+      <ul className="mt-2 list-disc space-y-2 pl-5">{savedUnknown.map(check => <li key={check.profilePath}>
+        {requirementLabels[check.profilePath.slice("provisioning.".length) as keyof ProvisioningRequirements]}
+      </li>)}</ul>
+      <p className="mt-2 text-xs leading-5 text-slate-400">These are unknown saved requirements, not unanswered temporary conditions. Review Requirements, clarify and save before previewing again.</p>
+      <div className="mt-2"><AssessmentStepButton step="capabilities">Review saved Requirements →</AssessmentStepButton></div>
+    </div>}
+    {groupGaps.length > 0 && <div className="mt-3">
+      <p className="font-medium text-amber-100">Group plan to revisit</p>
+      {groupGaps.map(check => <p key={check.boundary} className="mt-2 text-slate-300">{lifecycleReasonText[check.reasonCode]}</p>)}
+      <a href={`#${fieldId(analysis.patternId, "groupStrategy")}`} className={followUpLink}>Review how groups reach the application</a>
+    </div>}
+    {[{ label: "Declared not met", rows: unmet }, { label: "Unknown temporary conditions", rows: unknown }]
+      .filter(group => group.rows.length > 0).map(group => <div key={group.label} className="mt-3">
+        <p className="font-medium text-amber-100">{group.label} ({group.rows.length})</p>
+        <ul className="mt-2 list-disc space-y-2 pl-5">{group.rows.map(check => <li key={check.conditionId} className="break-words">
+          <a href={`#${fieldId(analysis.patternId, check.conditionId)}`} className={followUpLink}>{conditionLabels[check.conditionId]}</a>
+        </li>)}</ul>
+      </div>)}
+    {mismatches.length + savedUnknown.length + groupGaps.length + unmet.length + unknown.length === 0 &&
+      <p className="mt-2 leading-6 text-slate-300">No unmet or unknown checks in this temporary preview. Declared matches and not-applied checks are not verification or a recommendation.</p>}
+    <p className="mt-3 text-xs leading-5 text-slate-400">Links return to this pattern&apos;s exact fields; they do not select an answer. Changing a proposal clears this result, so preview again. Nothing is saved. Full checks below remain visible; provider support, actual delivery and access revocation remain unverified.</p>
+  </section>;
+}
 
 export function ProvisioningLifecycle({ assessmentId, version, requirements }: {
   assessmentId: string; version: number; requirements: ProvisioningRequirements;
@@ -127,8 +191,8 @@ export function LifecycleConditions({ assessmentId, version, patternId, requirem
       if (!controller.signal.aborted) setError(signal.aborted ? "The preview took too long. Your declarations are still here; try again." : failure);
     } finally { if (active.current === controller) { active.current = null; setPending(false); } }
   }
-  const condition = (id: LifecycleV2Condition, key: string = id) => <div key={key}><label htmlFor={`lifecycle-${patternId}-${id}`} className="block">{lifecycleV2Descriptions[id]}</label>
-    <select id={`lifecycle-${patternId}-${id}`} name={id} defaultValue="UNKNOWN" className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 p-2">
+  const condition = (id: LifecycleV2Condition, key: string = id) => <div key={key}><label htmlFor={fieldId(patternId, id)} className="block">{lifecycleV2Descriptions[id]}</label>
+    <select id={fieldId(patternId, id)} name={id} defaultValue="UNKNOWN" className="mt-2 w-full scroll-mt-8 rounded-lg border border-slate-600 bg-slate-900 p-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">
       <option value="UNKNOWN">Unknown / not yet assessed</option><option value="SATISFIED">Met in proposed design (unverified)</option><option value="NOT_SATISFIED">Not met in proposed design (unverified)</option>
     </select></div>;
   return <details className="mt-4 text-sm text-slate-300">
@@ -137,9 +201,9 @@ export function LifecycleConditions({ assessmentId, version, patternId, requirem
     <form className="mt-4 space-y-4" onSubmit={submit} onChange={change} aria-busy={pending}>
       <input type="hidden" name="expectedVersion" value={version} /><input type="hidden" name="patternId" value={patternId} />
       <fieldset disabled={pending} className="space-y-4"><legend className="mb-3 font-medium">Unverified provisioning and offboarding design</legend>
-        <div><label htmlFor={`lifecycle-${patternId}-groupStrategy`} className="block font-medium">How will group memberships reach the application?</label>
-          <select id={`lifecycle-${patternId}-groupStrategy`} name="groupStrategy" value={groupStrategy} onChange={selectGroup}
-            className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 p-2">
+        <div><label htmlFor={fieldId(patternId, "groupStrategy")} className="block font-medium">How will group memberships reach the application?</label>
+          <select id={fieldId(patternId, "groupStrategy")} name="groupStrategy" value={groupStrategy} onChange={selectGroup}
+            className="mt-2 w-full scroll-mt-8 rounded-lg border border-slate-600 bg-slate-900 p-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200">
             {lifecycleGroupStrategies.map(g => <option key={g.groupStrategy} value={g.groupStrategy}>{g.displayName}</option>)}
           </select>
           <p className="mt-2 text-xs text-slate-400">Unknown is not the same as no synchronization. This choice is temporary and does not select a provider.</p>
@@ -166,6 +230,7 @@ export function LifecycleConditions({ assessmentId, version, patternId, requirem
       {error && <p role="alert" className="text-amber-100">{error}</p>}
       {preview && <div className="rounded-lg border border-slate-600 p-4"><p className="font-medium text-cyan-200">{statusText[preview.analysis.status]}</p>
         <p className="mt-2">Temporary group plan: {group.displayName}</p>
+        <LifecycleFollowUps analysis={preview.analysis} />
         <h4 className="mt-4 font-medium">Group transport design</h4>
         <ul className="mt-2 space-y-2">{preview.analysis.designChecks.map(check => <li key={check.boundary}>{lifecycleReasonText[check.reasonCode]}</li>)}</ul>
         <h4 className="mt-4 font-medium">Saved requirement checks</h4>

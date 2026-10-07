@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
-import type { LifecyclePattern } from "../src/lib/assessment/provisioning-lifecycle.ts";
-import { lifecycleV2ByteLimit, lifecycleV2Conditions, lifecycleV2PatternConditions, lifecycleGroupConditions, parseLifecycleV2Form, type LifecycleGroupStrategy } from "../src/lib/assessment/provisioning-lifecycle-v2.ts";
+import type { LifecyclePattern, ProvisioningRequirements } from "../src/lib/assessment/provisioning-lifecycle.ts";
+import { lifecycleV2Analysis, lifecycleV2ByteLimit, lifecycleV2Conditions, lifecycleV2PatternConditions, lifecycleGroupConditions, parseLifecycleV2Form, type LifecycleGroupStrategy, type LifecycleV2Input } from "../src/lib/assessment/provisioning-lifecycle-v2.ts";
 import { lifecycleAssessmentId as id, lifecycleV2Fixture, lifecycleRequirements } from "./fixtures/provisioning-lifecycle-v2.mts";
 import { chunkedPreviewResponse, deferredJsonResponse } from "./fixtures/preview-stream.mts";
 
@@ -21,7 +21,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
   .replaceAll('"@/lib/assessment/provisioning-lifecycle-v2"', JSON.stringify(new URL("../src/lib/assessment/provisioning-lifecycle-v2.ts", import.meta.url).href))
   .replaceAll('"@/lib/assessment/architecture-prerequisites"', JSON.stringify(new URL("../src/lib/assessment/architecture-prerequisites.ts", import.meta.url).href))
   .replaceAll('"./assessment-workflow"', JSON.stringify(moduleUrl(`export const AssessmentStepButton=()=>null;`)));
-const { LifecycleConditions, ProvisioningLifecycle } = await import(moduleUrl(compiled));
+const { LifecycleConditions, LifecycleFollowUps, ProvisioningLifecycle } = await import(moduleUrl(compiled));
 type View = { type: unknown; key?: string; props: Record<string, unknown> };
 const nodes = (value: unknown): View[] => {
   if (Array.isArray(value)) return value.flatMap(nodes);
@@ -59,6 +59,112 @@ async function withForm(run: (f: ReturnType<typeof harness>) => Promise<void>, p
   try { await run(f); } finally { f.memory.cleanup?.(); Reflect.deleteProperty(globals, slot); globalThis.fetch = fetch;
     Object.defineProperty(globalThis, "FormData", formData); Object.defineProperty(AbortSignal, "timeout", timeout); }
 }
+function followUps(input: LifecycleV2Input, requirements: ProvisioningRequirements = lifecycleRequirements) {
+  const raw = lifecycleV2Fixture(input, requirements);
+  const analysis = lifecycleV2Analysis(raw.analysis, input, requirements);
+  const view = LifecycleFollowUps({ analysis });
+  return { analysis, view, html: renderToStaticMarkup(view) };
+}
+const satisfiedInput = (patternId: LifecyclePattern, groupStrategy: LifecycleGroupStrategy): LifecycleV2Input => ({
+  expectedVersion: 2, patternId, groupStrategy,
+  declarations: Object.fromEntries(lifecycleV2Conditions(patternId, groupStrategy).map(id => [id, "SATISFIED"])),
+});
+
+test("provisioning follow-ups separate saved conflicts, saved unknowns and temporary condition outcomes without mutation", () => {
+  const input = satisfiedInput("JIT_LOGIN", "APPLICATION_BRIDGE");
+  input.declarations.APPLICATION_SESSION_INVALIDATION = "NOT_SATISFIED";
+  input.declarations.TOKEN_REVOCATION_OR_BOUNDED_EXPIRY = "UNKNOWN";
+  const requirements: ProvisioningRequirements = { scim: "REQUIRED", justInTimeProvisioning: "UNKNOWN", groupSynchronization: "FORBIDDEN" };
+  const beforeInput = structuredClone(input), beforeRequirements = structuredClone(requirements);
+  const { analysis, view, html } = followUps(input, requirements), beforeAnalysis = structuredClone(analysis);
+  assert.ok(html.includes("Design conflicts with saved requirements (2)"));
+  assert.ok(html.includes("Saved requirements to clarify (1)"));
+  assert.ok(html.includes("Declared not met (1)")); assert.ok(html.includes("Unknown temporary conditions (1)"));
+  assert.ok(html.includes('href="#lifecycle-JIT_LOGIN-groupStrategy"'));
+  assert.ok(html.includes('href="#lifecycle-JIT_LOGIN-APPLICATION_SESSION_INVALIDATION"'));
+  assert.ok(html.includes('href="#lifecycle-JIT_LOGIN-TOKEN_REVOCATION_OR_BOUNDED_EXPIRY"'));
+  assert.equal(html.includes('href="#lifecycle-JIT_LOGIN-TENANT_AND_SUBJECT_CORRELATION"'), false);
+  assert.equal(nodes(view).filter(n => n.props.step === "capabilities").length, 1);
+  assert.equal(html.includes("Group plan to revisit"), false);
+  for (const text of ["Required SCIM cannot be replaced by JIT", "saved requirements stay unchanged", "not unanswered temporary conditions",
+    "do not select an answer", "Nothing is saved", "Full checks below", "remain unverified"]) assert.ok(html.includes(text), text);
+  assert.equal(html.includes("<form"), false); assert.equal(html.includes("<select"), false); assert.equal(html.includes("<input"), false);
+  renderToStaticMarkup(LifecycleFollowUps({ analysis }));
+  assert.deepEqual(analysis, beforeAnalysis); assert.deepEqual(input, beforeInput); assert.deepEqual(requirements, beforeRequirements);
+});
+
+test("unknown group design is not an unknown saved requirement or a missing condition", () => {
+  for (const criticality of ["REQUIRED", "FORBIDDEN", "PREFERRED", "NOT_REQUIRED"] as const) {
+    const { html, view } = followUps(satisfiedInput("SCIM_AND_JIT", "UNKNOWN"),
+      { scim: "REQUIRED", justInTimeProvisioning: "REQUIRED", groupSynchronization: criticality });
+    assert.ok(html.includes("Group plan to revisit")); assert.ok(html.includes("Group strategy is unknown"));
+    assert.equal((html.match(/href=/g) ?? []).length, 1);
+    assert.ok(html.includes('href="#lifecycle-SCIM_AND_JIT-groupStrategy"'));
+    assert.equal(html.includes("Saved requirements to clarify"), false); assert.equal(html.includes("Unknown temporary conditions"), false);
+    assert.equal(nodes(view).some(n => n.props.step === "capabilities"), false); assert.equal(html.includes("No unmet or unknown"), false);
+  }
+});
+
+test("SCIM Group and JIT incompatibility remains a design gap even when all declarations are met", () => {
+  const { html } = followUps(satisfiedInput("JIT_LOGIN", "SCIM_GROUPS"),
+    { scim: "NOT_REQUIRED", justInTimeProvisioning: "REQUIRED", groupSynchronization: "REQUIRED" });
+  assert.ok(html.includes("Group plan to revisit")); assert.ok(html.includes("JIT-only does not match this option"));
+  assert.ok(html.includes('href="#lifecycle-JIT_LOGIN-groupStrategy"'));
+  assert.equal(html.includes("Unknown temporary conditions"), false); assert.equal(html.includes("Design conflicts with saved requirements"), false);
+  assert.equal(html.includes("No unmet or unknown"), false);
+});
+
+test("matched and not-applied checks are not follow-up gaps or a verification claim", () => {
+  for (const pattern of Object.keys(lifecycleV2PatternConditions) as LifecyclePattern[]) {
+    for (const strategy of ["NONE", "APPLICATION_BRIDGE"] as const) {
+      const { html, view } = followUps(satisfiedInput(pattern, strategy),
+        { scim: "PREFERRED", justInTimeProvisioning: "NOT_REQUIRED", groupSynchronization: "PREFERRED" });
+      assert.ok(html.includes("No unmet or unknown checks in this temporary preview"));
+      assert.ok(html.includes("Declared matches and not-applied checks are not verification or a recommendation"));
+      assert.equal(html.includes("href="), false); assert.equal(nodes(view).some(n => n.props.step), false);
+    }
+  }
+});
+
+test("all real pattern and group forms bind summary links to exact fields and clear them only on explicit changes", async () => {
+  for (const pattern of Object.keys(lifecycleV2PatternConditions) as LifecyclePattern[]) await withForm(async f => {
+    for (const strategy of Object.keys(lifecycleGroupConditions) as LifecycleGroupStrategy[]) {
+      f.chooseGroup(strategy);
+      const entries = f.values("SATISFIED").map(([key, value], index): [string, string] =>
+        [key, index === 3 ? "NOT_SATISFIED" : index === 4 ? "UNKNOWN" : value]);
+      assert.equal(f.html().includes('aria-label="Provisioning preview follow-ups"'), false);
+      const done = f.submit(entries); assert.equal(f.html().includes('aria-label="Provisioning preview follow-ups"'), false);
+      f.requests.at(-1)!.reply.resolve(Response.json(f.response(entries))); await done;
+      const html = f.html(), summary = html.slice(html.indexOf('aria-label="Provisioning preview follow-ups"'), html.indexOf("</section>") + 10);
+      const targets = [...summary.matchAll(/href="#([^\"]+)"/g)].map(match => match[1]);
+      assert.ok(targets.length >= 2);
+      const fields = nodes(f.render()).filter(n => n.type === "select");
+      for (const target of targets) {
+        assert.ok(target.startsWith(`lifecycle-${pattern}-`));
+        assert.equal(fields.filter(n => n.props.id === target).length, 1);
+        assert.ok(fields.find(n => n.props.id === target)!.props.className?.toString().includes("focus-visible"));
+      }
+      assert.ok(summary.includes("Declared not met (1)")); assert.ok(summary.includes("Unknown temporary conditions (1)"));
+      for (const text of ["Group transport design", "Saved requirement checks", "Temporary condition checks", "not a recommendation, approval"]) assert.ok(html.includes(text));
+      if (pattern === "JIT_LOGIN") assert.ok(summary.includes("Design conflicts with saved requirements (1)"));
+      assert.equal(f.requests.length, Object.keys(lifecycleGroupConditions).indexOf(strategy) + 1);
+      assert.equal(fields.find(n => n.props.name === "groupStrategy")!.props.value, strategy);
+      f.change(); assert.equal(f.html().includes('aria-label="Provisioning preview follow-ups"'), false);
+      assert.ok(f.html().includes("No current what-if result"));
+    }
+  }, pattern);
+});
+
+test("unsafe and stale replies cannot create provisioning follow-ups or copy upstream text", async () => withForm(async f => {
+  for (const alter of [(reply: ReturnType<typeof f.response>) => ({ ...reply, assessmentVersion: 3 }),
+    (reply: ReturnType<typeof f.response>) => ({ ...reply, analysis: { ...reply.analysis, status: "READY", secret: "private upstream" } })]) {
+    const done = f.submit(); f.requests.at(-1)!.reply.resolve(Response.json(alter(f.response()))); await done;
+    const html = f.html(); assert.ok(html.includes("could not be read safely"));
+    assert.equal(html.includes('aria-label="Provisioning preview follow-ups"'), false);
+    assert.equal(html.includes("private upstream"), false);
+  }
+}));
+
 test("all three real form handlers show conditional results, saved hard checks and every unknown gap", async () => {
   for (const pattern of Object.keys(lifecycleV2PatternConditions) as LifecyclePattern[]) await withForm(async f => {
     assert.equal(nodes(f.render()).filter(n => n.type === "select").length, lifecycleV2PatternConditions[pattern].length + 1);

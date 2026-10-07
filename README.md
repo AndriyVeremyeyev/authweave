@@ -728,6 +728,16 @@ actual-byte/fatal UTF-8 guard stays in place; rejected bodies release their read
 Manual retry gets a fresh deadline and retains the current group strategy. Late
 body completion cannot restore an obsolete result or unlock a newer request.
 
+Checked provisioning previews now summarize follow-ups separately: conflicts with
+saved requirements, unknown saved requirements, group-plan gaps, declared unmet
+conditions and unknown temporary conditions. Short links return to this pattern's
+exact group/condition fields without choosing an answer. Unknown saved requirements
+lead back to Requirements; an unknown group strategy is not mislabeled as an unknown
+saved requirement. Hard mismatches do not hide the remaining gaps, and declarations
+cannot supply missing SCIM or remove a forbidden mechanism. Full checks and
+unverified boundaries remain visible; the summary is not a task list, saved choice
+or deployment approval.
+
 Same-origin POST `/api/assessments/{id}/provisioning-lifecycle-v2` requires a live
 database-backed browser session. It rejects query parameters, duplicate form fields,
 foreign conditions and caller-supplied requirements. The BFF reads the canonical v6
