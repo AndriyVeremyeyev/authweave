@@ -29,6 +29,7 @@ export type PrerequisiteAnalysis = {
   recommendationReady: false;
 };
 export type PrerequisitePreview = { assessmentVersion: number; analysis: PrerequisiteAnalysis };
+export const architecturePrerequisiteByteLimit = 32_768;
 export class InvalidPrerequisiteForm extends Error { }
 
 export function parsePrerequisiteForm(params: URLSearchParams): PrerequisiteInput {
@@ -91,22 +92,34 @@ export function prerequisiteAnalysis(value: unknown, input: PrerequisiteInput,
     configurationVerified: false, providerCompatibilityVerified: false, recommendationReady: false };
 }
 
-/** Stream byte limits apply even when Content-Length is absent or untruthful. */
-export async function boundedPrerequisiteText(message: Request | Response, limit: number): Promise<string> {
+/** Count actual UTF-8 bytes; an optional deadline/cancel signal also interrupts a pending body read. */
+export async function boundedPrerequisiteText(message: Request | Response, limit: number, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) {
+    void message.body?.cancel().catch(() => {});
+    signal.throwIfAborted();
+  }
   const length = message.headers.get("content-length");
-  if (length && (!/^[0-9]+$/.test(length) || Number(length) > limit)) throw new RangeError("Body too large");
+  if (length && (!/^[0-9]+$/.test(length) || Number(length) > limit)) {
+    void message.body?.cancel().catch(() => {});
+    throw new RangeError("Body too large");
+  }
   if (!message.body) throw new InvalidPrerequisiteForm();
   const reader = message.body.getReader();
+  const cancel = () => { void reader.cancel().catch(() => {}); };
+  signal?.addEventListener("abort", cancel, { once: true });
   const decoder = new TextDecoder("utf-8", { fatal: true });
   let size = 0;
   let text = "";
   try {
+    signal?.throwIfAborted();
     while (true) {
       const chunk = await reader.read();
+      signal?.throwIfAborted();
       if (chunk.done) return text + decoder.decode();
       size += chunk.value.byteLength;
-      if (size > limit) { await reader.cancel(); throw new RangeError("Body too large"); }
+      if (size > limit) throw new RangeError("Body too large");
       text += decoder.decode(chunk.value, { stream: true });
     }
-  } finally { reader.releaseLock(); }
+  } catch (error) { cancel(); throw error; }
+  finally { signal?.removeEventListener("abort", cancel); reader.releaseLock(); }
 }

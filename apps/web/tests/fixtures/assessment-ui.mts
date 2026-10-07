@@ -104,6 +104,7 @@ export async function assessmentUiComponents() {
   const prerequisites = await import(prerequisitesUrl);
   const configurationUrl = moduleUrl((await compile("../../src/app/assessments/[id]/architecture-configuration.tsx"))
     .replaceAll('"./architecture-design-follow-ups"', JSON.stringify(designFollowUpsUrl))
+    .replaceAll('"@/lib/assessment/architecture-prerequisites"', JSON.stringify(new URL("../../src/lib/assessment/architecture-prerequisites.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/architecture-configuration"', JSON.stringify(new URL("../../src/lib/assessment/architecture-configuration.ts", import.meta.url).href)));
   const configuration = await import(configurationUrl);
   const overviewUrl = moduleUrl((await compile("../../src/app/assessments/[id]/architecture-overview.tsx"))

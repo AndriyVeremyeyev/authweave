@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { parsePrerequisiteForm, prerequisiteAnalysis, prerequisiteIds,
+import { architecturePrerequisiteByteLimit, boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis, prerequisiteIds,
   type ArchitecturePatternId, type PrerequisiteAnalysis, type PrerequisiteInput, type PrerequisitePreview } from "@/lib/assessment/architecture-prerequisites";
 import { ArchitectureDesignFollowUps } from "./architecture-design-follow-ups";
 
@@ -87,7 +87,7 @@ export function ArchitecturePrerequisites({ assessmentId, version, patternId, de
         return;
       }
       failureMessage = "The preview could not be read safely. Try again.";
-      const body = await response.json();
+      const body = JSON.parse(await boundedPrerequisiteText(response, architecturePrerequisiteByteLimit, signal));
       if (controller.signal.aborted) return;
       signal.throwIfAborted();
       if (!body || Object.keys(body).length !== 2 || body.assessmentVersion !== version) throw new Error();

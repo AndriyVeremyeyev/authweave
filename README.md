@@ -541,6 +541,14 @@ network, parser or response text. Replies still require the loaded assessment ve
 and exact pattern, client scope and declaration/result checks. This UI recovery does
 not verify a design, save declarations or change the independent preflight verdict.
 
+Successful replies in both Architecture forms are decoded as fatal UTF-8 with a
+32 KiB actual-byte limit before JSON parsing, including when `Content-Length` is
+missing or understated. Cancel and the existing ten-second deadline interrupt a
+pending body read; rejected bodies are canceled and reader locks/listeners are
+released. Invalid replies keep fixed feedback and require a manual retry, without
+restoring a stale result or discarding proposed settings. Version, scope and
+conditional-result checks remain unchanged.
+
 Both temporary Architecture forms summarize only unmet and unknown items from the
 validated preview, with native links back to their exact fields. Conditions and
 concrete settings stay separate; the summary never chooses answers or changes the

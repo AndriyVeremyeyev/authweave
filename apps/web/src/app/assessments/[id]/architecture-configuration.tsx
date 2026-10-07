@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { architectureConfigurationAnalysis, architectureConfigurationDeferred, architectureSettingDefinitions, parseArchitectureConfigurationForm,
+import { architectureConfigurationAnalysis, architectureConfigurationByteLimit, architectureConfigurationDeferred, architectureSettingDefinitions, parseArchitectureConfigurationForm,
   type ArchitectureClientScope, type ArchitectureConfigurationAnalysis, type ArchitectureConfigurationInput, type ArchitectureConfigurationPreview,
   type ArchitectureSettingId, type ArchitectureSettingValue } from "@/lib/assessment/architecture-configuration";
-import type { ArchitecturePatternId } from "@/lib/assessment/architecture-prerequisites";
+import { boundedPrerequisiteText, type ArchitecturePatternId } from "@/lib/assessment/architecture-prerequisites";
 import { ArchitectureDesignFollowUps } from "./architecture-design-follow-ups";
 
 const labels: Record<ArchitectureSettingId, string> = {
@@ -81,7 +81,7 @@ export function ArchitectureConfiguration({ assessmentId, version, patternId, cl
         setError(messages[response.status] ?? message); return;
       }
       message = "The settings preview could not be read safely. Try again.";
-      const body = await response.json();
+      const body = JSON.parse(await boundedPrerequisiteText(response, architectureConfigurationByteLimit, signal));
       if (controller.signal.aborted) return; signal.throwIfAborted();
       if (!body || Object.keys(body).length !== 2 || body.assessmentVersion !== version) throw new Error();
       setPreview({ assessmentVersion: version, analysis: architectureConfigurationAnalysis(body.analysis, input, clientScope) });

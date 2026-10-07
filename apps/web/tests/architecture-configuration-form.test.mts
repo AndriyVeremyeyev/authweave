@@ -4,7 +4,8 @@ import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { architectureDesignFollowUpsModuleUrl } from "./fixtures/assessment-ui.mts";
-import { parseArchitectureConfigurationForm, architectureConfigurationPatterns, type ArchitectureConfigurationAnalysis } from "../src/lib/assessment/architecture-configuration.ts";
+import { chunkedPreviewResponse, deferredJsonResponse } from "./fixtures/preview-stream.mts";
+import { architectureConfigurationByteLimit, parseArchitectureConfigurationForm, architectureConfigurationPatterns, type ArchitectureConfigurationAnalysis } from "../src/lib/assessment/architecture-configuration.ts";
 import type { ArchitecturePatternId } from "../src/lib/assessment/architecture-prerequisites.ts";
 import { configurationFixture, configurationMatching } from "./fixtures/architecture-configuration.mts";
 import { prerequisiteAssessmentId as id } from "./fixtures/architecture-prerequisites.mts";
@@ -20,6 +21,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
   target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
   .replaceAll('"react"', JSON.stringify(hooks)).replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
   .replaceAll('"./architecture-design-follow-ups"', JSON.stringify(await architectureDesignFollowUpsModuleUrl()))
+  .replaceAll('"@/lib/assessment/architecture-prerequisites"', JSON.stringify(new URL("../src/lib/assessment/architecture-prerequisites.ts", import.meta.url).href))
   .replaceAll('"@/lib/assessment/architecture-configuration"', JSON.stringify(new URL("../src/lib/assessment/architecture-configuration.ts", import.meta.url).href));
 const { ArchitectureConfiguration } = await import(moduleUrl(compiled));
 type Entries = [string, unknown][];
@@ -133,6 +135,45 @@ test("settings follow-ups send unresolved applicability to saved Context, never 
   }, "BFF_SESSION", scope);
 });
 
+test("all settings forms accept a valid streamed reply exactly at the response byte limit", async () => {
+  const headerCases: HeadersInit[] = [{}, { "Content-Length": String(architectureConfigurationByteLimit) }, { "Content-Length": "1" }];
+  for (const pattern of Object.keys(architectureConfigurationPatterns) as ArchitecturePatternId[]) await withForm(async f => {
+    for (const headers of headerCases) {
+      const values = f.values("SATISFIED"), bytes = new TextEncoder().encode(JSON.stringify(f.response(values)).padEnd(architectureConfigurationByteLimit, " "));
+      assert.equal(bytes.length, architectureConfigurationByteLimit);
+      const streamed = chunkedPreviewResponse([bytes.slice(0, 17), bytes.slice(17, -1), bytes.slice(-1)], headers);
+      const done = f.submit(values); f.requests.at(-1)!.reply.resolve(streamed.response); await done;
+      assert.match(f.html(), /Proposed settings match this reference design only/); assert.equal(f.form().props["aria-busy"], false);
+      assert.equal(streamed.cancellations(), 0);
+    }
+  }, pattern);
+});
+
+test("oversized or malformed settings reply streams preserve choices and require an explicit retry", async () => {
+  const encoder = new TextEncoder(), limit = architectureConfigurationByteLimit;
+  for (const { bytes, headers, validJson = false } of [
+    { bytes: encoder.encode(""), headers: {}, validJson: true },
+    { bytes: encoder.encode(" ".repeat(limit + 1)), headers: { "Content-Length": "1" } },
+    { bytes: encoder.encode("é".repeat(limit / 2 + 1)), headers: {} },
+    { bytes: encoder.encode("{}"), headers: { "Content-Length": String(limit + 1) } },
+    { bytes: encoder.encode("{}"), headers: { "Content-Length": "invalid" } },
+    { bytes: new Uint8Array([0xff]), headers: {} },
+  ]) await withForm(async f => {
+    f.select("PKCE_METHOD", "S256");
+    const values = f.values("SATISFIED"), chunks = validJson ? [encoder.encode(JSON.stringify(f.response(values)).padEnd(limit + 1, " "))]
+      : [bytes, encoder.encode("private unread tail")];
+    const streamed = chunkedPreviewResponse(chunks, headers);
+    const done = f.submit(values); f.requests[0].reply.resolve(streamed.response); await done;
+    const html = f.html(); assert.match(html, /The settings preview could not be read safely. Try again/);
+    for (const text of ["private", "Body too large", "TypeError", "Next steps for this temporary preview", "Proposed settings match this reference design only"]) assert.equal(html.includes(text), false);
+    assert.match(html, /Selected proposal: S256 — hashed challenge/);
+    assert.equal(streamed.cancellations(), 1); assert.ok(streamed.pulls() <= 1);
+    assert.equal(f.form().props["aria-busy"], false); assert.equal(f.requests.length, 1);
+    const retry = f.submit(values); f.requests[1].reply.resolve(Response.json(f.response(values))); await retry;
+    assert.match(f.html(), /Proposed settings match this reference design only/); assert.equal(f.html().includes('role="alert"'), false);
+  });
+});
+
 test("local settings validation binds the visible pattern and saved version", async () => withForm(async f => {
   const invalid: Entries[] = [
     [["expectedVersion", "3"], ...f.values().slice(1)],
@@ -165,11 +206,12 @@ test("duplicate callbacks share one request, freeze proposed settings and use on
   assert.equal(f.form().props["aria-busy"], false); assert.equal(f.html().includes("Cancel preview"), false);
 }));
 
-test("cancel during body reading preserves proposed settings and a late response cannot unlock a newer explicit retry", async () => withForm(async f => {
-  const body = deferred<unknown>(), reading = deferred<void>(), values = f.values("SATISFIED");
+test("cancel during body reading preserves proposed settings and a late response cannot unlock a newer explicit retry", { timeout: 2000 }, async () => withForm(async f => {
+  const body = deferred<unknown>(), streamed = deferredJsonResponse(body.promise), values = f.values("SATISFIED");
   const first = f.submit(values);
-  f.requests[0].reply.resolve({ status: 200, json() { reading.resolve(); return body.promise; } } as Response);
-  await reading.promise; f.cancel(); assert.equal(f.requests[0].init.signal!.aborted, true);
+  f.requests[0].reply.resolve(streamed.response);
+  await streamed.reading; f.cancel(); assert.equal(f.requests[0].init.signal!.aborted, true);
+  await first; assert.equal(streamed.canceled(), true);
   assert.match(f.html(), /Preview canceled. Your proposed settings are still here/);
   const second = f.submit(values);
   body.resolve(f.response(values)); await first;
@@ -188,14 +230,14 @@ test("changing a declaration cancels pending work, clears its result and ignores
   assert.match(f.html(), /More information is needed/); f.change(); assert.match(f.html(), /No current settings result/);
 }));
 
-test("leaving Architecture suppresses late success, refusals, transport errors and body completion", async () => {
+test("leaving Architecture suppresses late success, refusals, transport errors and body completion", { timeout: 2000 }, async () => {
   for (const outcome of ["success", "refusal", "error", "body"] as const) await withForm(async f => {
-    const body = deferred<unknown>(), reading = deferred<void>(), done = f.submit(f.values("SATISFIED"));
+    const body = deferred<unknown>(), streamed = deferredJsonResponse(body.promise), done = f.submit(f.values("SATISFIED"));
     if (outcome === "body") {
-      f.requests[0].reply.resolve({ status: 200, json() { reading.resolve(); return body.promise; } } as Response); await reading.promise;
+      f.requests[0].reply.resolve(streamed.response); await streamed.reading;
     }
     f.memory.cleanup!(); const updates = f.memory.updates; assert.equal(f.requests[0].init.signal!.aborted, true);
-    if (outcome === "body") body.resolve(f.response(f.values("SATISFIED")));
+    if (outcome === "body") { await done; assert.equal(streamed.canceled(), true); body.resolve(f.response(f.values("SATISFIED"))); }
     else if (outcome === "error") f.requests[0].reply.reject(new Error("private late failure"));
     else f.requests[0].reply.resolve(outcome === "refusal" ? new Response(null, { status: 401 }) : Response.json(f.response(f.values("SATISFIED"))));
     await done; assert.equal(f.memory.updates, updates);
@@ -225,14 +267,14 @@ test("refusals and unreadable or forged replies use fixed feedback, never error 
   });
 });
 
-test("the ten-second deadline gives fixed feedback and rejects late bodies even if transport ignores abort", async () => {
+test("the ten-second deadline gives fixed feedback and rejects late bodies even if transport ignores abort", { timeout: 2000 }, async () => {
   for (const stage of ["fetch", "body"] as const) await withForm(async f => {
-    const clock = new AbortController(), body = deferred<unknown>(), reading = deferred<void>();
+    const clock = new AbortController(), body = deferred<unknown>(), streamed = deferredJsonResponse(body.promise);
     Object.defineProperty(AbortSignal, "timeout", { configurable: true, value: (ms: number) => { assert.equal(ms, 10_000); return clock.signal; } });
     const done = f.submit(f.values("SATISFIED")), request = f.requests[0];
-    if (stage === "body") { request.reply.resolve({ status: 200, json() { reading.resolve(); return body.promise; } } as Response); await reading.promise; }
+    if (stage === "body") { request.reply.resolve(streamed.response); await streamed.reading; }
     clock.abort(new DOMException("private timeout details", "TimeoutError"));
-    if (stage === "body") body.resolve(f.response(f.values("SATISFIED"))); else request.reply.reject(clock.signal.reason);
+    if (stage === "body") { await done; assert.equal(streamed.canceled(), true); body.resolve(f.response(f.values("SATISFIED"))); } else request.reply.reject(clock.signal.reason);
     await done; assert.match(f.html(), /preview took too long/); assert.equal(f.html().includes("private"), false);
     assert.equal(f.form().props["aria-busy"], false); assert.equal(f.html().includes("Proposed settings match this reference design only"), false);
   });
