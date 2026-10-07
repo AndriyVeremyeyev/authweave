@@ -722,6 +722,12 @@ unknown; account lifecycle answers are retained. Account disablement, applicatio
 sessions and token revocation/expiry have separate conditions. Group delivery and
 actual access revocation are not established by these declarations.
 
+Cancel, declaration/group changes, leaving the step and the existing ten-second
+deadline also interrupt a pending provisioning response-body read. The 32 KiB
+actual-byte/fatal UTF-8 guard stays in place; rejected bodies release their reader.
+Manual retry gets a fresh deadline and retains the current group strategy. Late
+body completion cannot restore an obsolete result or unlock a newer request.
+
 Same-origin POST `/api/assessments/{id}/provisioning-lifecycle-v2` requires a live
 database-backed browser session. It rejects query parameters, duplicate form fields,
 foreign conditions and caller-supplied requirements. The BFF reads the canonical v6

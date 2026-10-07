@@ -4,8 +4,9 @@ import { test } from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import type { LifecyclePattern } from "../src/lib/assessment/provisioning-lifecycle.ts";
-import { lifecycleV2Conditions, lifecycleV2PatternConditions, lifecycleGroupConditions, parseLifecycleV2Form, type LifecycleGroupStrategy } from "../src/lib/assessment/provisioning-lifecycle-v2.ts";
+import { lifecycleV2ByteLimit, lifecycleV2Conditions, lifecycleV2PatternConditions, lifecycleGroupConditions, parseLifecycleV2Form, type LifecycleGroupStrategy } from "../src/lib/assessment/provisioning-lifecycle-v2.ts";
 import { lifecycleAssessmentId as id, lifecycleV2Fixture, lifecycleRequirements } from "./fixtures/provisioning-lifecycle-v2.mts";
+import { chunkedPreviewResponse, deferredJsonResponse } from "./fixtures/preview-stream.mts";
 
 const slot = `__authweave_lifecycle_form_${crypto.randomUUID()}`;
 const globals = globalThis as unknown as Record<string, unknown>;
@@ -108,15 +109,19 @@ test("local input validation blocks foreign, duplicate, wrong-version and file a
     await f.submit(entries); assert.equal(f.requests.length, 0); assert.match(f.html(), /Choose valid declarations/); assert.equal(f.html().includes("private"), false);
   }
 }));
-test("one in-flight request, cancel and late body cannot unlock or replace an explicit retry", async () => withForm(async f => {
+test("one in-flight request, cancel and late body cannot unlock or replace an explicit retry", { timeout: 2000 }, async () => withForm(async f => {
+  f.chooseGroup("APPLICATION_BRIDGE");
   const first = f.submit(f.values("SATISFIED")); await f.submit(); assert.equal(f.requests.length, 1);
   const request = f.requests[0]; assert.equal(request.url, `/api/assessments/${id}/provisioning-lifecycle-v2`);
   assert.equal(request.init.credentials, "same-origin"); assert.equal(request.init.redirect, "error"); assert.equal(request.init.cache, "no-store");
   assert.equal(nodes(f.render()).find(n => n.type === "fieldset")!.props.disabled, true);
-  const body = deferred<Uint8Array>(), reading = deferred<void>();
-  request.reply.resolve(new Response(new ReadableStream({ async pull(controller) { reading.resolve(); controller.enqueue(await body.promise); controller.close(); } })));
-  await reading.promise; f.cancel(); assert.match(f.html(), /Preview canceled/); assert.ok(request.init.signal?.aborted);
-  const second = f.submit(); body.resolve(new TextEncoder().encode(JSON.stringify(f.response(f.values("SATISFIED"))))); await first;
+  const body = deferred<unknown>(), streamed = deferredJsonResponse(body.promise);
+  request.reply.resolve(streamed.response);
+  await streamed.reading; f.cancel(); assert.match(f.html(), /Preview canceled/); assert.ok(request.init.signal?.aborted);
+  assert.equal(streamed.canceled(), true); await first;
+  assert.equal(streamed.response.body!.locked, false);
+  assert.equal(f.values()[2][1], "APPLICATION_BRIDGE");
+  const second = f.submit(); body.resolve(f.response(f.values("SATISFIED"))); await Promise.resolve();
   assert.equal(f.form().props["aria-busy"], true); assert.equal(f.html().includes("proposed design only"), false);
   f.requests[1].reply.resolve(Response.json(f.response())); await second; assert.match(f.html(), /More information is needed/);
 }));
@@ -133,8 +138,83 @@ test("bounded body, safe refusals and forged checks cannot leak upstream details
     assert.match(f.html(), /role="alert"/); assert.equal(f.html().includes("private"), false); assert.equal(f.form().props["aria-busy"], false);
   }
 }));
-test("ten-second timeout releases inputs and does not accept a late successful result", async () => withForm(async f => {
-  const clock = new AbortController(); Object.defineProperty(AbortSignal, "timeout", { configurable: true, value: (ms: number) => { assert.equal(ms, 10_000); return clock.signal; } });
-  const done = f.submit(f.values("SATISFIED")); clock.abort(); f.requests[0].reply.resolve(Response.json(f.response(f.values("SATISFIED")))); await done;
-  assert.match(f.html(), /preview took too long/); assert.equal(f.form().props["aria-busy"], false); assert.equal(f.html().includes("proposed design only"), false);
-}));
+test("ten-second timeout releases inputs and does not accept a late successful result", { timeout: 2000 }, async () => {
+  for (const stage of ["fetch", "body"] as const) await withForm(async f => {
+    f.chooseGroup("SCIM_GROUPS");
+    const clocks: AbortController[] = [], body = deferred<unknown>(), streamed = deferredJsonResponse(body.promise);
+    Object.defineProperty(AbortSignal, "timeout", { configurable: true, value: (ms: number) => {
+      assert.equal(ms, 10_000); const clock = new AbortController(); clocks.push(clock); return clock.signal;
+    } });
+    const values = f.values("SATISFIED"), done = f.submit(values);
+    if (stage === "body") { f.requests[0].reply.resolve(streamed.response); await streamed.reading; }
+    clocks[0].abort(new DOMException("synthetic-private-timeout", "TimeoutError"));
+    if (stage === "body") { assert.equal(streamed.canceled(), true); await done; body.resolve(f.response(values)); }
+    else f.requests[0].reply.resolve(Response.json(f.response(values)));
+    await done;
+    assert.match(f.html(), /preview took too long/); assert.equal(f.form().props["aria-busy"], false); assert.equal(f.html().includes("proposed design only"), false);
+    assert.equal(f.html().includes("synthetic-private"), false); assert.equal(f.values()[2][1], "SCIM_GROUPS");
+    const retry = f.submit(values); f.requests[1].reply.resolve(Response.json(f.response(values))); await retry;
+    assert.equal(clocks.length, 2); assert.equal(clocks[1].signal.aborted, false);
+    assert.match(f.html(), /Matches your proposed design only/); assert.equal(f.html().includes('role="alert"'), false);
+  });
+});
+
+test("change, group change and unmount interrupt a held body without waiting for late bytes", { timeout: 2000 }, async () => {
+  for (const pattern of Object.keys(lifecycleV2PatternConditions) as LifecyclePattern[]) {
+    for (const action of ["change", "group", "unmount"] as const) await withForm(async f => {
+      f.chooseGroup("SCIM_GROUPS");
+      const values = f.values("SATISFIED"), body = deferred<unknown>(), streamed = deferredJsonResponse(body.promise), done = f.submit(values);
+      f.requests[0].reply.resolve(streamed.response); await streamed.reading;
+      if (action === "unmount") f.memory.cleanup?.();
+      else if (action === "group") f.chooseGroup("APPLICATION_BRIDGE");
+      else f.change();
+      assert.equal(streamed.canceled(), true); const updates = f.memory.updates;
+      await done; assert.equal(f.memory.updates, updates); assert.equal(streamed.response.body!.locked, false);
+      body.resolve(f.response(values)); await Promise.resolve(); assert.equal(f.memory.updates, updates);
+      if (action !== "unmount") {
+        assert.match(f.html(), /No current what-if result/); assert.equal(f.form().props["aria-busy"], false);
+        assert.equal(f.html().includes('role="alert"'), false);
+        assert.equal(f.values()[2][1], action === "group" ? "APPLICATION_BRIDGE" : "SCIM_GROUPS");
+      }
+    }, pattern);
+  }
+});
+
+test("all lifecycle patterns and group strategies accept valid streamed replies at the exact byte limit", async () => {
+  const headerCases: HeadersInit[] = [{}, { "Content-Length": String(lifecycleV2ByteLimit) }, { "Content-Length": "1" }];
+  for (const pattern of Object.keys(lifecycleV2PatternConditions) as LifecyclePattern[]) await withForm(async f => {
+    for (const group of Object.keys(lifecycleGroupConditions) as LifecycleGroupStrategy[]) {
+      f.chooseGroup(group);
+      for (const headers of headerCases) {
+        const values = f.values("SATISFIED"), bytes = new TextEncoder().encode(JSON.stringify(f.response(values)).padEnd(lifecycleV2ByteLimit, " "));
+        assert.equal(bytes.length, lifecycleV2ByteLimit);
+        const streamed = chunkedPreviewResponse([bytes.slice(0, 19), bytes.slice(19, -1), bytes.slice(-1)], headers);
+        const done = f.submit(values); f.requests.at(-1)!.reply.resolve(streamed.response); await done;
+        assert.match(f.html(), pattern === "JIT_LOGIN" ? /proposed design has a mismatch/ : group === "UNKNOWN" ? /More information is needed/ : /Matches your proposed design only/);
+        assert.equal(f.html().includes('role="alert"'), false); assert.equal(f.form().props["aria-busy"], false);
+        assert.equal(streamed.cancellations(), 0); assert.equal(streamed.response.body!.locked, false);
+      }
+    }
+  }, pattern);
+});
+
+test("oversized or malformed streams keep the group strategy and require only a manual retry", async () => {
+  const encoder = new TextEncoder(), limit = lifecycleV2ByteLimit;
+  const cases: { bytes?: Uint8Array; headers?: HeadersInit }[] = [
+    {}, { bytes: encoder.encode(" ".repeat(limit + 1)), headers: { "Content-Length": "1" } },
+    { bytes: encoder.encode("é".repeat(limit / 2 + 1)) },
+    { bytes: encoder.encode("{}"), headers: { "Content-Length": String(limit + 1) } },
+    { bytes: encoder.encode("{}"), headers: { "Content-Length": "invalid" } }, { bytes: new Uint8Array([0xff]) },
+  ];
+  for (const { bytes, headers } of cases) await withForm(async f => {
+    f.chooseGroup("APPLICATION_BRIDGE"); const values = f.values("SATISFIED");
+    const streamed = chunkedPreviewResponse([bytes ?? encoder.encode(JSON.stringify(f.response(values)).padEnd(limit + 1, " ")), encoder.encode("synthetic-private-unread-tail")], headers);
+    const done = f.submit(values); f.requests[0].reply.resolve(streamed.response); await done;
+    assert.match(f.html(), /The provisioning preview could not be read safely. Try again/);
+    for (const text of ["synthetic-private", "Body too large", "TypeError", "Matches your proposed design only"]) assert.equal(f.html().includes(text), false);
+    assert.equal(streamed.cancellations(), 1); assert.ok(streamed.pulls() <= 1); assert.equal(streamed.response.body!.locked, false);
+    assert.equal(f.values()[2][1], "APPLICATION_BRIDGE"); assert.equal(f.form().props["aria-busy"], false); assert.equal(f.requests.length, 1);
+    const retry = f.submit(values); f.requests[1].reply.resolve(Response.json(f.response(values))); await retry;
+    assert.match(f.html(), /Matches your proposed design only/); assert.equal(f.html().includes('role="alert"'), false);
+  });
+});

@@ -118,7 +118,7 @@ export function LifecycleConditions({ assessmentId, version, patternId, requirem
         setError(messages[response.status] ?? failure); return;
       }
       failure = "The provisioning preview could not be read safely. Try again.";
-      const body = JSON.parse(await boundedPrerequisiteText(response, lifecycleV2ByteLimit));
+      const body = JSON.parse(await boundedPrerequisiteText(response, lifecycleV2ByteLimit, signal));
       if (controller.signal.aborted) return;
       signal.throwIfAborted();
       if (!body || Object.keys(body).length !== 2 || body.assessmentVersion !== version) throw new Error();
