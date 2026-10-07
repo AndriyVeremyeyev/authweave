@@ -2858,6 +2858,12 @@ captured MVC request/response payloads against the shared JSON Schemas using AJV
 requires `make setup-contracts` and Node.js as well as Java and Docker. The same check
 runs in CI; `make check-contracts` separately validates OpenAPI and synthetic fixtures.
 
+The fact-path report concurrency regression observes actual PostgreSQL blocking,
+uncommitted visibility and report-number allocation with both a normal and a
+saturated connection pool. Its separate same-role observer is test-only, not a
+runtime connection pattern. A blocked writer must not advance the report sequence
+before the preceding transaction is released.
+
 The web profile schema, synthetic example and dependency-free browser validator are
 generated from `packages/contracts` and committed so the web application can build
 independently. After changing the profile contract or its example fixture, run:

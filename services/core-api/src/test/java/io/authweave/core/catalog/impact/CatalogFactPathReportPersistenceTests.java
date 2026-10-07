@@ -13,7 +13,12 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.sql.DataSource;
 import org.jooq.DSLContext;
+import org.jooq.SQLDialect;
+import org.jooq.conf.Settings;
+import org.jooq.impl.DSL;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -41,6 +46,7 @@ class CatalogFactPathReportPersistenceTests extends PostgresIntegrationTest {
     @Autowired ObjectMapper mapper;
     @Autowired DSLContext dsl;
     @Autowired PlatformTransactionManager transactions;
+    @Autowired DataSource dataSource;
 
     @Test void savesAnExactImmutableReportAndAtomicMinimalEventWithoutAdvancingTheProposal() throws Exception {
         var request = request(); var revision = proposals.save(request, null).proposal(); var id = UUID.randomUUID();
@@ -133,20 +139,35 @@ class CatalogFactPathReportPersistenceTests extends PostgresIntegrationTest {
         assertEquals(scenario.equals("different-ids") ? 2 : 1, dsl.fetchCount(CATALOG_FACT_PATH_REPORTS, CATALOG_FACT_PATH_REPORTS.PROPOSAL_ID.in(a.proposalId(), b.proposalId())));
     }
 
-    @Test void sameProposalLockOrdersReportsBeforeNumberAllocation() throws Exception {
-        var request = request(); proposals.save(request, null); var saved = new CountDownLatch(1); var release = new CountDownLatch(1); var started = new CountDownLatch(1);
-        try (var executor = Executors.newFixedThreadPool(2)) {
+    @ParameterizedTest @ValueSource(booleans = {false, true})
+    void sameProposalLockOrdersReportsBeforeNumberAllocation(boolean reservePoolConnection) throws Exception {
+        var request = request(); proposals.save(request, null); var saved = new CountDownLatch(1); var release = new CountDownLatch(1);
+        var blocker = new AtomicInteger();
+        try (var observer = core(); var reservation = reservePoolConnection ? dataSource.getConnection() : null;
+                var executor = Executors.newFixedThreadPool(2)) {
+            // A third pooled read can starve behind the two writers. This same-role observer stays independent.
+            assertEquals(3, dataSource.unwrap(com.zaxxer.hikari.HikariDataSource.class).getMaximumPoolSize());
+            assertTrue(observer.getAutoCommit()); assertEquals(Connection.TRANSACTION_READ_COMMITTED, observer.getTransactionIsolation());
+            var observedReports = new CatalogFactPathReportRepository(DSL.using(observer, SQLDialect.POSTGRES,
+                    new Settings().withQueryTimeout(2)), mapper);
             var first = executor.submit(() -> new TransactionTemplate(transactions).execute(s -> {
+                blocker.set(dsl.select(DSL.field("pg_backend_pid()", Integer.class)).fetchOne(0, Integer.class));
                 var result = writer.save(UUID.randomUUID(), request.proposalId(), 0); saved.countDown(); await(release); return result.report();
             }));
-            await(saved);
-            var second = executor.submit(() -> { started.countDown(); return writer.save(UUID.randomUUID(), request.proposalId(), 0).report(); });
-            await(started);
-            try { assertNull(reports.latest(request.proposalId(), 0)); }
-            finally { release.countDown(); }
-            var one = first.get(30, TimeUnit.SECONDS); var two = second.get(30, TimeUnit.SECONDS);
-            assertTrue(one.reportNumber() < two.reportNumber()); assertEquals(two.reportId(), reports.latest(request.proposalId(), 0).id());
-        } finally { release.countDown(); }
+            try {
+                await(saved);
+                var sequenceBefore = reportSequenceValue(observer);
+                var second = executor.submit(() -> writer.save(UUID.randomUUID(), request.proposalId(), 0).report());
+                awaitBlockedBy(observer, blocker.get());
+                assertEquals(sequenceBefore, reportSequenceValue(observer), "The blocked writer must not allocate a report number");
+                assertNull(observedReports.latest(request.proposalId(), 0));
+                assertFalse(second.isDone(), "A contending writer cannot finish before the first transaction is released");
+                release.countDown();
+                var one = first.get(30, TimeUnit.SECONDS); var two = second.get(30, TimeUnit.SECONDS);
+                assertTrue(one.reportNumber() < two.reportNumber()); assertEquals(two.reportId(), reports.latest(request.proposalId(), 0).id());
+                assertEquals(2, dsl.fetchCount(CATALOG_FACT_PATH_REPORTS, CATALOG_FACT_PATH_REPORTS.PROPOSAL_ID.eq(request.proposalId())));
+            } finally { release.countDown(); } // Release before ExecutorService.close() also on failed setup/observation.
+        }
     }
 
     @Test void auditFailureAndCallerRollbackLeaveNoReportOrEvent() throws Exception {
@@ -255,6 +276,24 @@ class CatalogFactPathReportPersistenceTests extends PostgresIntegrationTest {
         input.put("proposalId", UUID.randomUUID().toString()); return mapper.treeToValue(input, CatalogChangePreviewRequest.class);
     }
     private static void await(CountDownLatch latch) { try { assertTrue(latch.await(10, TimeUnit.SECONDS)); } catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); } }
+    private static long reportSequenceValue(Connection observer) throws SQLException {
+        // The isolated suite has no other active writers; pg_sequences exposes this value via the existing USAGE grant.
+        try (var sql = observer.prepareStatement("SELECT last_value FROM pg_sequences WHERE schemaname='core' AND sequencename='catalog_fact_path_reports_report_number_seq'")) {
+            sql.setQueryTimeout(2);
+            try (var row = sql.executeQuery()) { assertTrue(row.next()); var value = row.getObject(1, Long.class); assertNotNull(value); return value; }
+        }
+    }
+    private static void awaitBlockedBy(Connection observer, int blocker) throws Exception {
+        var deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        try (var sql = observer.prepareStatement("SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE datname=current_database() AND ?=ANY(pg_blocking_pids(pid)))")) {
+            sql.setInt(1, blocker); sql.setQueryTimeout(2);
+            do {
+                try (var row = sql.executeQuery()) { assertTrue(row.next()); if (row.getBoolean(1)) return; }
+                Thread.sleep(10);
+            } while (System.nanoTime() < deadline);
+        }
+        fail("The second writer never waited on the first writer's PostgreSQL lock");
+    }
     private static Connection core() throws SQLException { return DriverManager.getConnection(postgres.getJdbcUrl(), "authweave_core_runtime", CORE_RUNTIME_PASSWORD); }
     private static Connection admin() throws SQLException { return DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()); }
     private static void denied(Connection c, String sql) throws Exception { c.setAutoCommit(false); try (var statement = c.createStatement()) {
