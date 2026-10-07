@@ -1331,6 +1331,31 @@ browser projection. Tests cover the real asynchronous page, isolated live-sessio
 revocation and the consumer against actual Core HTTP responses; a display-only
 browser fixture is not an authenticated OIDC end-to-end test.
 
+### Synthetic assurance and compliance investigation regression
+
+`GET /internal/v1/catalog-assurance-compliance/regression-preflight` is a protected,
+input-free internal diagnostic. It replays 36 synthetic cases: four unchanged frozen
+v5 profiles with the explicit v6 auditability supplement, each with nine assurance,
+control and scope variants. Only investigation inputs are overlaid; unrelated
+requirements remain intact. The bounded set covers all planning labels, independent
+control criticalities, all target labels, partial unknown scope, explicit no-target
+scope and human/machine/mixed clients. It is not every possible input combination.
+
+Complete ordered reports are replayed before summarization. Independent contract
+expectations reconstruct the profiles, questions, scope checks, counts and binding
+digests from source-controlled inputs, not Core output. The endpoint requires one
+server-only credential, refuses query/body input and returns `no-store` counts,
+digests and inventories only: 252 assurance items and 45 recorded target items.
+No profile bodies, source documents, free text or identities are returned or saved.
+
+Every case still needs information. A fresh calculation changes the analysis digest,
+not evidence freshness; neither an unselected flow nor an empty target list proves
+safety or exemption. Source verification, assurance/compliance verification,
+candidate-change coverage, approval and publication remain separate boundaries;
+their flags stay false.
+Existing coverage policies, historical receipts and the personal UI are unchanged.
+No provider calls, dependencies, migrations, accounts or subscriptions are added.
+
 ### Synthetic operations planning regression
 
 `GET /internal/v1/catalog-operations-planning/regression-preflight` is a protected,

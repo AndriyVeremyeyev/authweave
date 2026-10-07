@@ -426,6 +426,42 @@ paths:
           description: Missing, duplicate or invalid service credential.
         '503':
           description: Server service credential is not configured.
+  /internal/v1/catalog-assurance-compliance/regression-preflight:
+    get:
+      tags: [Catalog drafts]
+      summary: Inspect bounded synthetic assurance and compliance investigation regression
+      operationId: getSyntheticAssuranceComplianceRegressionCheck
+      description: >-
+        Internal local-only read requiring one server service credential. Accepts
+        no body, query, caller profiles or evidence assertions. Replays 36 synthetic
+        v6 cases across four unchanged frozen profiles and nine explicit input
+        variants, preserving unrelated requirements and the auditability supplement.
+        Checks seven assurance investigations, human/machine scope, independent
+        controls and partial compliance targets. Returns only no-store counts,
+        digests and inventories, not profile bodies, source material or identity.
+        This is not source verification, standards mapping, candidate-change impact,
+        full coverage, a stored receipt or publication authority.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: Body-free investigation regression; verification and authority remain false.
+          headers:
+            Cache-Control:
+              description: Diagnostic results must not be cached.
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-assurance-compliance-regression-check.v1.schema.json
+        '400':
+          description: Body or query supplied to this input-free read.
+        '401':
+          description: Missing, duplicate or invalid service credential.
+        '503':
+          description: Server service credential is not configured.
   /internal/v1/catalog-operations-planning/regression-preflight:
     get:
       tags: [Catalog drafts]

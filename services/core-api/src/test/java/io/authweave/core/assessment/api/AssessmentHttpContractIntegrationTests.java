@@ -311,6 +311,46 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
     }
 
     @Test
+    void assuranceComplianceRegressionIsInputFreeCredentialProtectedBodyFreeAndReadOnly() throws Exception {
+        String path = "/internal/v1/catalog-assurance-compliance/regression-preflight";
+        String token = "Bearer synthetic-internal-token-000000000000000000000";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized()); mvc.perform(get(path).header("Authorization", "wrong-token")).andExpect(status().isUnauthorized());
+        mvc.perform(get(path).header("Authorization", token, token)).andExpect(status().isUnauthorized());
+        for (var request : List.of(get(path).queryParam("evidenceVerified", "true"), get(path).content("{}"), get(path).header("Transfer-Encoding", "chunked")))
+            mvc.perform(request.header("Authorization", token)).andExpect(status().isBadRequest());
+        mvc.perform(post(path).header("Authorization", token)).andExpect(status().isMethodNotAllowed());
+        mvc.perform(get(java.net.URI.create("/%69nternal/v1/catalog-assurance-compliance/regression-preflight"))).andExpect(status().isUnauthorized());
+        var tables = List.of("core.assessments", "core.assessment_revisions", "audit.assessment_events", "core.catalog_proposals", "core.catalog_impact_reports",
+                "core.catalog_fact_path_reports", "core.catalog_bootstrap_impact_reports", "core.catalog_published_snapshots", "core.catalog_publication_decisions", "audit.catalog_publication_events");
+        var before = tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList();
+        var response = mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.checkedCases").value(36)).andExpect(jsonPath("$.checkedAssuranceItems").value(252)).andExpect(jsonPath("$.checkedComplianceItems").value(45))
+                .andExpect(jsonPath("$.assurance.evidenceNeeded").value(154)).andExpect(jsonPath("$.needsInformationCases").value(36))
+                .andExpect(jsonPath("$.sourceVerificationPerformed").value(false)).andExpect(jsonPath("$.coverageComplete").value(false)).andReturn().getResponse();
+        var json = mapper.readTree(response.getContentAsString()); org.junit.jupiter.api.Assertions.assertTrue(response.getContentAsByteArray().length < 8192);
+        sample("assurance-compliance-regression", "catalog-assurance-compliance-regression-check", true, json);
+        assertEquals(json, mapper.readTree(mvc.perform(get(path).header("Authorization", token)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()));
+        assertEquals(before, tables.stream().map(t -> proposalDsl.fetchCount(proposalDsl.selectFrom(org.jooq.impl.DSL.table(t)))).toList());
+        var service = applicationContext.getBean(io.authweave.core.catalog.impact.CatalogAssuranceComplianceRegressionService.class);
+        var expected = service.inspectAt(Instant.parse("2026-09-12T12:00:00Z")); assertEquals(mapper.valueToTree(expected), json);
+        var components = mapper.createObjectNode();
+        for (var component : io.authweave.core.catalog.impact.CatalogAssuranceComplianceRegressionService.Check.class.getRecordComponents()) components.set(component.getName(), json.get(component.getName()));
+        assertEquals(expected, mapper.treeToValue(components, io.authweave.core.catalog.impact.CatalogAssuranceComplianceRegressionService.Check.class));
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> mapper.treeToValue(components.deepCopy().put("checkedComplianceItems", -1), io.authweave.core.catalog.impact.CatalogAssuranceComplianceRegressionService.Check.class));
+        for (String flag : List.of("candidateChangesEvaluated", "coverageComplete", "assuranceVerified", "complianceVerified", "legalApplicabilityDetermined", "providerEligibilityEvaluated", "configurationVerified", "sourceVerificationPerformed", "storedReportVerified", "baselineVerified", "approvalGranted", "publicationReady", "evaluationReady", "recommendationReady", "writesPerformed")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(flag, true); sample("assurance-regression-no-" + flag, "catalog-assurance-compliance-regression-check", false, forged);
+        }
+        for (String field : List.of("profile", "inputs", "rows", "actor", "workspaceId", "sourceUrl", "winner")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.put(field, "private"); sample("assurance-regression-no-" + field, "catalog-assurance-compliance-regression-check", false, forged);
+        }
+        for (String field : List.of("variants", "itemIds", "checkedPaths", "deferredBoundaries")) {
+            var forged = (ObjectNode) json.deepCopy(); forged.withArray(field).remove(0); sample("assurance-regression-complete-" + field, "catalog-assurance-compliance-regression-check", false, forged);
+        }
+        var forged = (ObjectNode) json.deepCopy(); ((ObjectNode) forged.get("assurance")).put("evidenceNeeded", -1);
+        sample("assurance-regression-nonnegative-count", "catalog-assurance-compliance-regression-check", false, forged);
+    }
+
+    @Test
     void operationsRegressionIsInputFreeCredentialProtectedBodyFreeAndReadOnly() throws Exception {
         String path = "/internal/v1/catalog-operations-planning/regression-preflight";
         String token = "Bearer synthetic-internal-token-000000000000000000000";

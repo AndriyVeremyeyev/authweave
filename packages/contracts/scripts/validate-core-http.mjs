@@ -16,6 +16,7 @@ import { validateConfigurationRegression } from "../tests/helpers/architecture-c
 import { validateOperationsPlanning } from "../tests/helpers/operations-planning-spec.mjs";
 import { validateAssurancePlanning } from "../tests/helpers/assurance-compliance-planning-spec.mjs";
 import { validateOperationsRegression } from "../tests/helpers/operations-planning-regression-spec.mjs";
+import { validateAssuranceRegression } from "../tests/helpers/assurance-compliance-regression-spec.mjs";
 import { validateLifecycleRegression } from "../tests/helpers/lifecycle-regression-spec.mjs";
 import { lifecycleV2Expectation, lifecycleV2Patterns, lifecycleV2Groups, lifecycleV2GroupCommon } from "../tests/helpers/provisioning-lifecycle-v2-spec.mjs";
 import { operationsPlanningValues, operationsPlanningFromCore } from "../../../apps/web/src/lib/assessment/operations-planning.ts";
@@ -54,6 +55,7 @@ let assurancePlanningSamples = 0;
 const assuranceSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("assurance-saved-"))
   .map(s => [s.name.slice("assurance-saved-".length), s.payload]));
 let operationsRegressionSamples = 0;
+let assuranceRegressionSamples = 0;
 let lifecycleRegressionSamples = 0;
 const operationsSaved = new Map(samples.filter(s => s.valid && s.schema === "assessment-response.v6" && s.name.startsWith("operations-saved-"))
   .map(s => [s.name.slice("operations-saved-".length), s.payload]));
@@ -409,6 +411,15 @@ for (const { name, schema, valid, payload } of samples) {
       assert.throws(() => validateLifecycleRegression(forged), undefined, "Shape-valid lifecycle counter, digest or clock substitutions must fail independent source replay.");
     }
   }
+  if (schema === "catalog-assurance-compliance-regression-check" && valid) {
+    validateAssuranceRegression(payload); assuranceRegressionSamples++;
+    for (const mutate of [r => { r.assurance.inputClarificationNeeded--; r.assurance.evidenceNeeded++; }, r => { r.compliance.inputClarificationNeeded--; r.compliance.evidenceNeeded++; },
+      r => { r.humanScopes.machineOnly--; r.humanScopes.humanScopeRecorded++; }, r => r.checkedComplianceItems--, r => r.complianceScopeNotApplied--,
+      ...["scenarioSetSha256", "auditabilityScenarioSetSha256", "analysisSha256", "definitionsSha256"].map(key => r => r[key] = "0".repeat(64)), r => r.evaluatedAt = "2026-09-12T12:00:01Z"]) {
+      const forged = structuredClone(payload); mutate(forged); assert.equal(validate(forged), true);
+      assert.throws(() => validateAssuranceRegression(forged), undefined, "Shape-valid investigation counts, hashes and clock cannot replace independent complete source replay.");
+    }
+  }
   if (schema === "catalog-operations-planning-regression-check" && valid) {
     validateOperationsRegression(payload); operationsRegressionSamples++;
     for (const mutate of [r => { r.inputResults.inputsRecorded--; r.inputResults.needsInformation++; },
@@ -624,6 +635,7 @@ for (const required of ["assessment-response:true", "core-problem:true",
   "catalog-auditability-regression-check:true", "catalog-auditability-regression-check:false",
   "catalog-architecture-configuration-regression-check:true", "catalog-architecture-configuration-regression-check:false",
   "catalog-operations-planning-regression-check:true", "catalog-operations-planning-regression-check:false",
+  "catalog-assurance-compliance-regression-check:true", "catalog-assurance-compliance-regression-check:false",
   "catalog-provisioning-lifecycle-regression-check:true", "catalog-provisioning-lifecycle-regression-check:false",
   "catalog-profile-impact-coverage:true", "catalog-profile-impact-coverage:false",
   "update-assessment-profile-request.v2:true", "update-assessment-profile-request.v2:false",
@@ -631,6 +643,8 @@ for (const required of ["assessment-response:true", "core-problem:true",
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+assert.equal(assuranceRegressionSamples, 1, "The protected assurance/compliance diagnostic must reach independent source replay.");
+console.log("Verified the bounded 36-case assurance/compliance diagnostic with independent input, question, scope, count and digest expectations.");
 assert.equal(lifecycleRegressionSamples, 1, "The protected lifecycle diagnostic must reach independent source-controlled replay.");
 console.log("Verified the bounded 2016-case lifecycle v2 diagnostic with independent requirements, declarations, scoped checks, counts and digests.");
 assert.equal(operationsRegressionSamples, 1, "The protected operations diagnostic must reach independent source-controlled replay.");

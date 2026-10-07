@@ -1,0 +1,298 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-assurance-compliance-regression-check.v1.schema.json",
+  "title": "Body-free synthetic assurance/compliance investigation regression",
+  "description": "Bounded frozen-profile investigation replay, not source verification, standards assessment, candidate-change impact or complete publication coverage. Exact counts, source binding and digests require independent replay.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "evaluatedAt",
+    "scenarioSetSha256",
+    "auditabilityScenarioSetSha256",
+    "analysisSha256",
+    "assurance",
+    "compliance",
+    "humanScopes",
+    "checkedComplianceItems",
+    "complianceScopeNotApplied",
+    "scope",
+    "policyVersion",
+    "planningPolicyVersion",
+    "definitionsSha256",
+    "scenarioSetVersion",
+    "baseScenarioSetVersion",
+    "baseScenarioSetSha256",
+    "auditabilityScenarioSetVersion",
+    "profileSchemaVersion",
+    "profileSchemaSha256",
+    "analysisBasis",
+    "declaredProfiles",
+    "checkedCases",
+    "checkedAssuranceItems",
+    "needsInformationCases",
+    "variants",
+    "itemIds",
+    "checkedPaths",
+    "deferredBoundaries",
+    "candidateChangesEvaluated",
+    "coverageComplete",
+    "assuranceVerified",
+    "complianceVerified",
+    "legalApplicabilityDetermined",
+    "providerEligibilityEvaluated",
+    "configurationVerified",
+    "sourceVerificationPerformed",
+    "storedReportVerified",
+    "baselineVerified",
+    "approvalGranted",
+    "publicationReady",
+    "evaluationReady",
+    "recommendationReady",
+    "writesPerformed"
+  ],
+  "properties": {
+    "evaluatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "scenarioSetSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "auditabilityScenarioSetSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "analysisSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "assurance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputClarificationNeeded",
+        "evidenceNeeded",
+        "notApplied"
+      ],
+      "properties": {
+        "inputClarificationNeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 252
+        },
+        "evidenceNeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 252
+        },
+        "notApplied": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 252
+        }
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputClarificationNeeded",
+        "evidenceNeeded",
+        "notApplied"
+      ],
+      "properties": {
+        "inputClarificationNeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 216
+        },
+        "evidenceNeeded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 216
+        },
+        "notApplied": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 0
+        }
+      }
+    },
+    "humanScopes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "machineOnly",
+        "humanScopeRecorded",
+        "scopeUnresolved"
+      ],
+      "properties": {
+        "machineOnly": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 36
+        },
+        "humanScopeRecorded": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 36
+        },
+        "scopeUnresolved": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 36
+        }
+      }
+    },
+    "checkedComplianceItems": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 216
+    },
+    "complianceScopeNotApplied": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 36
+    },
+    "scope": {
+      "const": "SYNTHETIC_ASSURANCE_COMPLIANCE_REGRESSION"
+    },
+    "policyVersion": {
+      "const": "catalog-assurance-compliance-regression-1"
+    },
+    "planningPolicyVersion": {
+      "const": "assurance-compliance-planning-1"
+    },
+    "definitionsSha256": {
+      "$ref": "#/$defs/hash"
+    },
+    "scenarioSetVersion": {
+      "const": "catalog-assurance-compliance-scenarios-1"
+    },
+    "baseScenarioSetVersion": {
+      "const": "catalog-scoped-profile-scenarios-1"
+    },
+    "baseScenarioSetSha256": {
+      "const": "ce70ce85cbb2e5b1537f36e2120a5c4add5ef0ce5d64be46397436bbc1993ca1"
+    },
+    "auditabilityScenarioSetVersion": {
+      "const": "catalog-scoped-auditability-scenarios-1"
+    },
+    "profileSchemaVersion": {
+      "const": 6
+    },
+    "profileSchemaSha256": {
+      "const": "3d384daf2d98851ebcbe00f90a9c6dabeedbae8361f8a41f58d00b9742c95fbb"
+    },
+    "analysisBasis": {
+      "const": "SYNTHETIC_INPUTS_AND_UNVERIFIED_INVESTIGATION_PROMPTS"
+    },
+    "declaredProfiles": {
+      "const": 4
+    },
+    "checkedCases": {
+      "const": 36
+    },
+    "checkedAssuranceItems": {
+      "const": 252
+    },
+    "needsInformationCases": {
+      "const": 36
+    },
+    "variants": {
+      "const": [
+        "BASE_PROFILE",
+        "UNRECORDED_SCOPE",
+        "HUMAN_BASELINE",
+        "HUMAN_ELEVATED",
+        "HUMAN_HIGH_UNRECORDED_CONTROLS",
+        "HUMAN_HIGH_FORBIDDEN_CONTROL",
+        "MACHINE_ONLY",
+        "MIXED_PARTIAL_SCOPE",
+        "HUMAN_NONE_IDENTIFIED"
+      ]
+    },
+    "itemIds": {
+      "const": [
+        "ASSURANCE_OBJECTIVE",
+        "HUMAN_AUTHENTICATION_SCOPE",
+        "AUTHENTICATION_CONTROLS",
+        "ENROLLMENT_AND_RECOVERY",
+        "SESSIONS_AND_REAUTHENTICATION",
+        "WORKLOAD_IDENTITY",
+        "FEDERATION_AND_TRUST_BOUNDARIES"
+      ]
+    },
+    "checkedPaths": {
+      "const": [
+        "application.clients",
+        "audience.populations",
+        "security.assurance",
+        "security.multiFactorAuthentication",
+        "security.authenticationControls.phishingResistance",
+        "security.authenticationControls.nonExportableKeys",
+        "security.authenticationControls.stepUpAuthentication",
+        "security.complianceScopeStatus",
+        "security.complianceTargets"
+      ]
+    },
+    "deferredBoundaries": {
+      "const": [
+        "Formal assurance framework and level mapping",
+        "Observed authentication, enrollment, recovery, session and workload flows",
+        "Exact provider and service evidence verification",
+        "Legal applicability and target-specific compliance assessment",
+        "Candidate-change coverage and publication authority"
+      ]
+    },
+    "candidateChangesEvaluated": {
+      "const": false
+    },
+    "coverageComplete": {
+      "const": false
+    },
+    "assuranceVerified": {
+      "const": false
+    },
+    "complianceVerified": {
+      "const": false
+    },
+    "legalApplicabilityDetermined": {
+      "const": false
+    },
+    "providerEligibilityEvaluated": {
+      "const": false
+    },
+    "configurationVerified": {
+      "const": false
+    },
+    "sourceVerificationPerformed": {
+      "const": false
+    },
+    "storedReportVerified": {
+      "const": false
+    },
+    "baselineVerified": {
+      "const": false
+    },
+    "approvalGranted": {
+      "const": false
+    },
+    "publicationReady": {
+      "const": false
+    },
+    "evaluationReady": {
+      "const": false
+    },
+    "recommendationReady": {
+      "const": false
+    },
+    "writesPerformed": {
+      "const": false
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  }
+}
