@@ -5,7 +5,9 @@ import { savedRequirementGroups } from "@/lib/assessment/saved-requirements";
 import type { SavedRequirementGroup } from "@/lib/assessment/saved-requirements";
 import { comparisonVerdicts, deferredComparisonLabel, isComparisonEvidenceGap, relatedComparisonInput } from "@/lib/assessment/comparison-presentation";
 import { AssessmentStepButton } from "./assessment-workflow";
-import type { ComparisonProvenance, EvidenceGate, EvidenceGroup } from "@/lib/assessment/comparison-provenance";
+import type { ComparisonProvenance, EvidenceGroup } from "@/lib/assessment/comparison-provenance";
+import { evidenceFamilies, evidenceGateCopy } from "@/lib/assessment/comparison-matrix";
+import { ComparisonMatrix } from "./comparison-matrix";
 
 const tones = {
   excluded: "border-rose-300/20 bg-rose-300/5 text-rose-100",
@@ -43,6 +45,8 @@ export function ComparisonSection({ comparison, profile, editable, preferencePre
       <p>No capability preferences are recorded in this draft. The optional weight preview requires at least one saved preference.</p>
       {editable && groups.find(group => group.id === "capabilities")?.rows && <div className="mt-3"><AssessmentStepButton step="capabilities">Review identity requirements →</AssessmentStepButton></div>}
     </div>}
+    {evidence && <ComparisonMatrix key={`${comparison.assessmentVersion}-${comparison.catalogVersion}-${comparison.auditabilityEvidenceVersion}-${comparison.evaluatedAt}`}
+      candidates={comparison.candidates.map(({ optionId, displayName, plan, region, hardVerdict }) => ({ optionId, displayName, plan, region, hardVerdict }))} evidence={evidence} />}
     <ul aria-label="Fictional options in Core order" className="mt-6 space-y-5">
       {comparison.candidates.map(candidate => <ComparisonCard key={candidate.optionId} candidate={candidate} groups={groups} editable={editable}
         evidence={evidence?.find(item => item.optionId === candidate.optionId)?.groups} />)}
@@ -89,15 +93,6 @@ function ComparisonCard({ candidate, groups, editable, evidence }: { candidate: 
   </li>;
 }
 
-const evidenceFamilies = { CAPABILITY: "Identity capabilities", CONTEXT: "Application and audience compatibility",
-  RESIDENCY: "At-rest storage destinations", AUTHENTICATION_CONTROL: "Scoped human authentication controls", AUDITABILITY: "Identity-provider auditability" };
-const evidenceGateCopy: Record<EvidenceGate, string> = {
-  MISSING: "No fact recorded — not proof of unsupported capability",
-  UNREVIEWED: "Unreviewed claim — cannot establish support or exclusion",
-  FUTURE: "Future-dated — cannot be used at this comparison time",
-  STALE: "Older than 90 days — cannot be used at this comparison time",
-  CURRENT: "Passes date/review gates only — not source or deployed-behavior verification",
-};
 export function ComparisonEvidence({ groups, plan, region }: { groups: EvidenceGroup[]; plan: string; region: string }) {
   const rows = groups.flatMap(group => group.rows), missing = rows.filter(row => row.gate === "MISSING").length;
   return <details className="mt-5 rounded-xl border border-cyan-300/20 bg-cyan-300/[0.025] p-4">

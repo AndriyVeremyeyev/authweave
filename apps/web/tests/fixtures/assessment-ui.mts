@@ -73,7 +73,13 @@ export async function assessmentUiComponents() {
   const overview = await import(moduleUrl((await compile("../../src/app/assessments/[id]/saved-requirements-overview.tsx"))
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/saved-requirements"', JSON.stringify(new URL("../../src/lib/assessment/saved-requirements.ts", import.meta.url).href))));
+  const matrixUrl = moduleUrl((await compile("../../src/app/assessments/[id]/comparison-matrix.tsx"))
+    .replaceAll('"@/lib/assessment/comparison-matrix"', JSON.stringify(new URL("../../src/lib/assessment/comparison-matrix.ts", import.meta.url).href))
+    .replaceAll('"@/lib/assessment/comparison-presentation"', JSON.stringify(new URL("../../src/lib/assessment/comparison-presentation.ts", import.meta.url).href)));
+  const matrix = await import(matrixUrl);
   const comparison = await import(moduleUrl((await compile("../../src/app/assessments/[id]/comparison-section.tsx"))
+    .replaceAll('"./comparison-matrix"', JSON.stringify(matrixUrl))
+    .replaceAll('"@/lib/assessment/comparison-matrix"', JSON.stringify(new URL("../../src/lib/assessment/comparison-matrix.ts", import.meta.url).href))
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/comparison-evidence"', JSON.stringify(new URL("../../src/lib/assessment/comparison-evidence.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/saved-requirements"', JSON.stringify(new URL("../../src/lib/assessment/saved-requirements.ts", import.meta.url).href))
@@ -128,5 +134,5 @@ export async function assessmentUiComponents() {
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/assurance-compliance-planning"', JSON.stringify(new URL("../../src/lib/assessment/assurance-compliance-planning.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
-  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
+  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...matrix, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
 }

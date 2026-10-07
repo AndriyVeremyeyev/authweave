@@ -376,6 +376,14 @@ evidence is not proof of incompatibility, and a fresh REVIEWED fixture label is 
 real source or deployed-behavior verification. All `.invalid` references are plain
 text, never fetched. Expanding evidence does not change the verdict or rank options.
 
+The same guarded evidence can be compared side by side for up to three options.
+Choose columns (including excluded or unresolved options) and switch between the
+five evidence groups. The initial columns are the first three in Core order for
+readability, not quality. These choices change only the table; nothing is saved,
+scored or re-evaluated. The initial capability table works without JavaScript;
+changing its display requires JavaScript. Narrow screens use a contained,
+keyboard-focusable horizontal scroll region.
+
 This workspace requires the local BFF session, Core API and PostgreSQL. It does not
 add autosave, expand editable profile fields, change ownership/version checks or
 turn synthetic comparisons into real-provider recommendations. Temporary what-if
@@ -862,6 +870,13 @@ back to another catalog or an older policy. Other independently read page panels
 are not one page-wide snapshot. Existing comparison/weight endpoints, verdicts,
 scores and historical receipts remain unchanged. No sources are fetched, real
 provider baseline activated, recommendation granted or publication performed.
+
+The display matrix joins these already-guarded inventories by exact option ID and
+fact path, not array position. An incomplete or mismatched inventory makes the
+matrix unavailable instead of fabricating missing facts; the option cards are
+unchanged. Source references and dates remain expandable plain text. Display
+choices reset when Comparison is remounted or its evidence snapshot changes;
+they are not saved requirements, shortlist selections or new trust assertions.
 
 ### Scoped synthetic auditability regression
 
