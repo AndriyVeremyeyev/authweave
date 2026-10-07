@@ -345,6 +345,15 @@ a bounded unavailable notice instead of inferred answers. These display labels a
 not Core validation errors, applicability rules or a completeness/readiness score;
 other profile fields remain available in the saved JSON.
 
+Review groups its existing "Not recorded" and "Needs definition" display labels
+into a compact saved-input discussion list. Native links focus the exact saved
+row; they do not open an editor, choose an answer or save anything. Unreadable
+sections are listed separately without an inferred field count. Explicit
+not-required/forbidden answers and observed zero quantities stay out of this list.
+Counts describe displayed fields only; some inputs may not apply, and no missing
+label is a new validation error or a completeness/readiness conclusion. Full cards,
+editor navigation and independent Core checks remain unchanged.
+
 Review also offers **Download saved brief (.md)**: a deterministic, version-bound
 Markdown export of those five saved input sections and their display gaps. The
 same-origin, session-scoped BFF re-reads the assessment and rejects a stale page

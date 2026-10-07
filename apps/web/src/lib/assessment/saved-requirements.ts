@@ -10,6 +10,11 @@ export type SavedRequirementGroup = {
   action: string; note: string; rows: SavedInput[] | null;
 };
 
+// Stable targets within the saved Review only, never inferred editor field IDs.
+export function savedInputRowId(group: SavedRequirementGroup, index: number): string {
+  return `saved-${group.id}-input-${index}`;
+}
+
 function choice(label: string, value: string): SavedInput {
   return { label, value: labels[value] ?? value,
     state: value === "UNKNOWN" ? "not-recorded" : value === "OTHER" ? "needs-definition" : "recorded" };

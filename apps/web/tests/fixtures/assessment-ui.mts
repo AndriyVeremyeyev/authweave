@@ -74,7 +74,11 @@ export async function assessmentUiComponents() {
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/profile-save"', JSON.stringify(new URL("../../src/lib/assessment/profile-save.ts", import.meta.url).href)));
   const sectionForm = await import(sectionFormUrl);
+  const savedFollowUpsUrl = moduleUrl((await compile("../../src/app/assessments/[id]/saved-input-follow-ups.tsx"))
+    .replaceAll('"@/lib/assessment/saved-requirements"', JSON.stringify(new URL("../../src/lib/assessment/saved-requirements.ts", import.meta.url).href)));
+  const savedFollowUps = await import(savedFollowUpsUrl);
   const overview = await import(moduleUrl((await compile("../../src/app/assessments/[id]/saved-requirements-overview.tsx"))
+    .replaceAll('"./saved-input-follow-ups"', JSON.stringify(savedFollowUpsUrl))
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/saved-requirements"', JSON.stringify(new URL("../../src/lib/assessment/saved-requirements.ts", import.meta.url).href))));
   const matrixUrl = moduleUrl((await compile("../../src/app/assessments/[id]/comparison-matrix.tsx"))
@@ -155,5 +159,5 @@ export async function assessmentUiComponents() {
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/assurance-compliance-planning"', JSON.stringify(new URL("../../src/lib/assessment/assurance-compliance-planning.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
-  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...matrix, ...followUps, ...context, ...designFollowUps, ...prerequisites, ...configuration, ...architectureOverview, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
+  return { ...workflow, ...sectionForm, ...overview, ...savedFollowUps, ...comparison, ...matrix, ...followUps, ...context, ...designFollowUps, ...prerequisites, ...configuration, ...architectureOverview, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
 }

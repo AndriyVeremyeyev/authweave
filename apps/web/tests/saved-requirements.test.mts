@@ -116,7 +116,8 @@ test("overview renders saved version, honest labels, safe text and scoped naviga
       : createElement("p", {}, `Synthetic ${step.id}`)]));
   const html = renderToStaticMarkup(createElement(component.AssessmentWorkflow, { initialStep: "review", panels, editable: true }));
   assert.ok(html.includes("Saved version 7 · Read-only overview"));
-  assert.equal((html.match(/<h3 /g) ?? []).length, 5);
+  assert.equal((html.match(/<h3 /g) ?? []).length, 6);
+  assert.equal((html.match(/id="saved-(application|security|capabilities|auditability|usage)-heading"/g) ?? []).length, 5);
   assert.equal((html.match(/<form/g) ?? []).length, 0);
   assert.ok(html.includes("Not recorded")); assert.ok(html.includes("not validation errors"));
   assert.ok(html.includes("Edit identity requirements →")); assert.ok(html.includes("Explore comparison →"));

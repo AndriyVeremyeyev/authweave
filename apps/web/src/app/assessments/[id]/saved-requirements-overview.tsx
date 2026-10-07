@@ -1,5 +1,6 @@
-import { savedRequirementGroups, type SavedInputState } from "@/lib/assessment/saved-requirements";
+import { savedInputRowId, savedRequirementGroups, type SavedInputState } from "@/lib/assessment/saved-requirements";
 import { AssessmentStepButton } from "./assessment-workflow";
+import { SavedInputFollowUps } from "./saved-input-follow-ups";
 import type { ReactNode } from "react";
 
 const stateLabels: Record<SavedInputState, string> = {
@@ -17,13 +18,15 @@ export function SavedRequirementsOverview({ profile, version, editable, exportPa
       <p className="mt-2 text-xs leading-5 text-slate-400">Not recorded and needs definition are display labels, not validation errors. Some inputs may not apply. Recorded answers do not mean the assessment is complete, compliant or ready for a recommendation.</p>
     </div>
     {exportPanel}
+    <SavedInputFollowUps groups={groups} />
     <div className="grid items-start gap-5 xl:grid-cols-2">
       {groups.map(group => <section key={group.id} aria-labelledby={`saved-${group.id}-heading`}
         className="min-w-0 rounded-xl border border-white/10 bg-white/[0.02] p-5">
-        <h3 id={`saved-${group.id}-heading`} className="text-lg font-semibold">{group.title}</h3>
+        <h3 id={`saved-${group.id}-heading`} tabIndex={-1} className="scroll-mt-6 text-lg font-semibold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">{group.title}</h3>
         <p className="mt-2 text-xs leading-5 text-slate-400">{group.note}</p>
         {group.rows ? <dl className="mt-4 divide-y divide-white/10">
-          {group.rows.map(row => <div key={row.label} className="py-3">
+          {group.rows.map((row, index) => <div key={row.label} id={savedInputRowId(group, index)} tabIndex={-1}
+            className="scroll-mt-6 py-3 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">
             <dt className="text-xs text-slate-400">{row.label}</dt>
             <dd className="mt-1 flex flex-wrap items-start justify-between gap-2 text-sm">
               <span className="min-w-0 flex-1 whitespace-pre-wrap break-words text-slate-200">{row.value}</span>
