@@ -14,7 +14,9 @@ test("architecture cards explain saved inputs, preserve all five alternatives an
     "Matches the applied checks only", "Needs more information", "Client type not selected", "Not applied — not a pass",
     "Application server", "Browser code", "Native app", "Workload", "Advantages", "Trade-offs", "Prerequisites to verify",
     "No current what-if result", "Technical check details", "not an architecture recommendation"]) assert.ok(html.includes(text), text);
-  assert.equal((html.match(/<h3 /g) ?? []).length, 5);
+  const cards = html.slice(html.indexOf('aria-label="Detailed architecture patterns in Core order"'));
+  assert.equal((cards.match(/<h3 /g) ?? []).length, 5);
+  assert.ok(html.includes("Compare the saved-input boundaries"));
   assert.equal((html.match(/<select /g) ?? []).length, 51);
   assert.equal((html.match(/value="UNKNOWN" selected=""/g) ?? []).length, 51);
   assert.equal((html.match(/Try concrete settings/g) ?? []).length, 5);
@@ -34,7 +36,8 @@ test("empty saved clients stay unknown rather than becoming five inapplicable pa
   const components = await assessmentUiComponents(), preview = prerequisiteFixture(undefined, []).preflight;
   const html = renderToStaticMarkup(createElement(components.ArchitecturePatterns, { assessmentId: prerequisiteAssessmentId, preview }));
   assert.ok(html.includes("Not recorded")); assert.ok(html.includes("Select at least one client type"));
-  assert.equal((html.match(/Needs more information/g) ?? []).length, 5);
+  const cards = html.slice(html.indexOf('aria-label="Detailed architecture patterns in Core order"'));
+  assert.equal((cards.match(/Needs more information/g) ?? []).length, 5);
   assert.equal((html.match(/Client types are not recorded/g) ?? []).length, 5);
   assert.equal(html.includes("Client type not selected"), false);
   assert.equal(html.includes("Matches the applied checks only"), false);

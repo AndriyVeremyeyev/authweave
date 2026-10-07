@@ -98,7 +98,13 @@ export async function assessmentUiComponents() {
   const configurationUrl = moduleUrl((await compile("../../src/app/assessments/[id]/architecture-configuration.tsx"))
     .replaceAll('"@/lib/assessment/architecture-configuration"', JSON.stringify(new URL("../../src/lib/assessment/architecture-configuration.ts", import.meta.url).href)));
   const configuration = await import(configurationUrl);
+  const overviewUrl = moduleUrl((await compile("../../src/app/assessments/[id]/architecture-overview.tsx"))
+    .replaceAll('"@/lib/assessment/architecture-presentation"', JSON.stringify(new URL("../../src/lib/assessment/architecture-presentation.ts", import.meta.url).href))
+    .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href)));
+  const architectureOverview = await import(overviewUrl);
   const architecture = await import(moduleUrl((await compile("../../src/app/assessments/[id]/architecture-patterns.tsx"))
+    .replaceAll('"./architecture-overview"', JSON.stringify(overviewUrl))
+    .replaceAll('"@/lib/assessment/architecture-presentation"', JSON.stringify(new URL("../../src/lib/assessment/architecture-presentation.ts", import.meta.url).href))
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"./architecture-prerequisites"', JSON.stringify(prerequisitesUrl))
     .replaceAll('"./architecture-configuration"', JSON.stringify(configurationUrl))
@@ -140,5 +146,5 @@ export async function assessmentUiComponents() {
     .replaceAll('"./assessment-workflow"', JSON.stringify(workflowUrl))
     .replaceAll('"@/lib/assessment/assurance-compliance-planning"', JSON.stringify(new URL("../../src/lib/assessment/assurance-compliance-planning.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))));
-  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...matrix, ...followUps, ...context, ...prerequisites, ...configuration, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
+  return { ...workflow, ...sectionForm, ...overview, ...comparison, ...matrix, ...followUps, ...context, ...prerequisites, ...configuration, ...architectureOverview, ...architecture, ...list, ...requirementsExport, ...capabilities, ...contextEditor, ...auditEditor, ...usageEditor, ...usageForm, ...operations, ...operationsEditor, ...assurance };
 }

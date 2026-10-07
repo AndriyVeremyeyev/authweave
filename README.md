@@ -499,6 +499,14 @@ is explicitly not a pass. All five alternatives remain in the policy's display o
 not a ranking. Core explanations, pros/trade-offs, prerequisites and protocol links
 are preserved; technical paths/reasons remain available in expandable details.
 
+A read-only overview compares all five patterns' client scopes, OAuth token
+locations, saved-input results and the two exact checked boundaries in Core order.
+Empty client input stays unknown; Not applied is never a pass. Token location is a
+pattern property, not evidence of deployed storage or the absence of browser
+credentials. Mixed applications may use several patterns. The responsive table
+works without JavaScript and links to each detailed card, retaining pros, trade-offs
+and temporary what-if forms. It does not select, rank, save or verify a design.
+
 Only client selection and browser token minimization are checked. `PREFERRED` preserves
 the browser alternatives without scoring. For `REQUIRED`, server-side patterns satisfy
 the token-handling check under their stated prerequisites; SPA needs clarification of

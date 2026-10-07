@@ -1,20 +1,11 @@
-import type { ArchitecturePatternPreflightSummary, ArchitecturePatternSummary } from "@/lib/auth/core-client";
+import type { ArchitecturePatternPreflightSummary } from "@/lib/auth/core-client";
 import { evaluationContextLabels as labels } from "@/lib/assessment/evaluation-context";
 import { AssessmentStepButton } from "./assessment-workflow";
 import { ArchitecturePrerequisites } from "./architecture-prerequisites";
 import { ArchitectureConfiguration } from "./architecture-configuration";
-
-const statusText: Record<ArchitecturePatternSummary["status"], string> = {
-  MATCHES_CHECKED_REQUIREMENTS: "Matches the applied checks only",
-  NEEDS_INFORMATION: "Needs more information",
-  NOT_APPLICABLE: "Client type not selected",
-};
-const tokenLocation: Record<ArchitecturePatternSummary["tokenHandling"], string> = {
-  SERVER_SIDE: "Application server", BROWSER: "Browser code", NATIVE_APP: "Native app", WORKLOAD: "Workload",
-};
-const outcomeText: Record<ArchitecturePatternSummary["checks"][number]["outcome"], string> = {
-  PASS: "Matches this check only", UNKNOWN: "Needs clarification", NOT_APPLIED: "Not applied — not a pass",
-};
+import { ArchitectureOverview } from "./architecture-overview";
+import { architectureStatusText as statusText, architectureTokenLocation as tokenLocation,
+  architectureOutcomeText as outcomeText } from "@/lib/assessment/architecture-presentation";
 const pathLabels: Record<string, string> = {
   "application.clients": "Client type", "security.browserTokenExposureMinimization": "Browser token minimization",
   "application.type": "Application type", audience: "Audience and organization boundaries", protocols: "Identity protocols",
@@ -47,8 +38,10 @@ export function ArchitecturePatterns({ preview, assessmentId }: { preview: Archi
       {preview.selectedClients.length === 0 && <p className="mt-4 rounded-lg border border-amber-700 p-4 text-amber-100">
         Select at least one client type in the Context step and save to assess applicability.
       </p>}
-      <ul className="mt-6 space-y-4">
-        {preview.patterns.map(pattern => <li key={pattern.patternId} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.02] p-5">
+      <ArchitectureOverview preview={preview} />
+      <ul aria-label="Detailed architecture patterns in Core order" className="mt-6 space-y-4">
+        {preview.patterns.map((pattern, index) => <li key={pattern.patternId} id={`architecture-pattern-${index}`} tabIndex={-1}
+          className="min-w-0 scroll-mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-5 focus-visible:outline-2 focus-visible:outline-cyan-200">
           <h3 className="text-lg font-semibold">{pattern.displayName}</h3>
           <p className="mt-2 text-xs text-slate-400">Client: {labels[pattern.clientType]} · OAuth token location: {tokenLocation[pattern.tokenHandling]}</p>
           <p className="mt-5 text-xs font-medium uppercase tracking-wider text-slate-400">Saved-input result</p>
