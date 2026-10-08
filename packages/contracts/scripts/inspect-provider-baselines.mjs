@@ -239,6 +239,25 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
   },
+  {
+    file: "entra-external-id-basic-public-oidc-clients.v1.json",
+    catalogVersion: "entra-external-id-basic-public-oidc-clients-draft-2026.10.08",
+    scope: {
+      id: "entra-external-id-basic-public-oidc-clients", providerId: "entra-external-id",
+      product: "Microsoft Entra External ID - external tenant", deployment: "MANAGED",
+      plan: "Basic MAU; documented free allowance, no tenant entitlement verified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "Standard external tenant; public SPA/mobile code/S256 browser login; no secrets, native-auth API, BFF, SCIM or brokers",
+    },
+    facts: {
+      OIDC: { availability: "OPTIONAL", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers" },
+    },
+    compatibility: {
+      "compatibility.clients.BROWSER": { support: "SUPPORTED", sourceUrl: "https://learn.microsoft.com/en-us/entra/identity-platform/tutorial-single-page-app-javascript-prepare-app" },
+      "compatibility.clients.NATIVE_MOBILE": { support: "SUPPORTED", sourceUrl: "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-mobile-app-call-api" },
+    },
+    metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
+  },
   ...["okta", "entra"].map((upstream) => ({
     file: `entra-external-id-basic-upstream-${upstream}.v1.json`,
     catalogVersion: `entra-external-id-basic-upstream-${upstream}-draft-2026.10.08`,

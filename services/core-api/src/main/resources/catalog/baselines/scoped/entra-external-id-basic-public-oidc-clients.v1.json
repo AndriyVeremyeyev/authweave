@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "entra-external-id-basic-public-oidc-clients-draft-2026.10.08",
+  "options": [
+    {
+      "id": "entra-external-id-basic-public-oidc-clients",
+      "providerId": "entra-external-id",
+      "product": "Microsoft Entra External ID - external tenant",
+      "plan": "Basic MAU; documented free allowance, no tenant entitlement verified",
+      "deployment": "MANAGED",
+      "region": "No tenant region selected; storage destinations not verified",
+      "configuration": "Standard external tenant; public SPA/mobile code/S256 browser login; no secrets, native-auth API, BFF, SCIM or brokers",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Register separate public SPA/mobile applications for accounts in this external directory only; use its tenant-specific ciamlogin.com authority, not workforce common/organizations/consumers or legacy B2C endpoints.",
+            "Associate each registration with one intended sign-up/sign-in user flow per https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-user-flow-add-application; select and review its login methods separately.",
+            "Use authorization code, openid, a fresh S256 PKCE verifier and exact registered callbacks; public clients must not redeem codes with secrets or certificates. Validate state, nonce, issuer, audience and ID token signatures via the chosen OIDC library.",
+            "S256 is a selected client prerequisite, not a claim of S256-only server enforcement; https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow also documents plain PKCE.",
+            "Basic pricing at https://azure.microsoft.com/en-us/pricing/details/microsoft-entra-external-id/ documents an initial MAU allowance; billing linkage, usage and add-ons remain unverified, not a trial entitlement or zero-cost guarantee.",
+            "This scope excludes confidential BFF, M2M/API grants, SAML, native-authentication APIs, workforce brokers, SCIM/Graph bridges and HSC mode. Cloud documentation is mutable and dated, not release-pinned or a verified tenant configuration."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers",
+            "observedAt": "2026-10-08T07:14:50Z",
+            "summary": "The external-tenant feature table lists OIDC/code/PKCE, SPA and public mobile platforms, single-directory registration and a ciamlogin.com authority. Proposed OPTIONAL describes configurable customer login, not verified billing, runtime enforcement or a complete baseline."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {
+          "BROWSER": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Select the tutorial's external-tenant branch, a single-directory registration and its bound customer user flow; configure MSAL PublicClientApplication with the exact tenant ciamlogin.com authority and registered callback.",
+              "Mark the browser redirect as platform type spa for token-endpoint CORS per https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow; a Web/mobile redirect or public-client label alone is not equivalent.",
+              "Use code/S256 without a client secret; production callbacks must be narrowly registered HTTPS URLs, not the tutorial's local development URL. Review browser storage, interactive fallback and third-party-cookie behavior separately.",
+              "This proposes browser-delegated SPA compatibility, not BFF/session isolation, native-authentication UI, API permission consent or application/population/organization compatibility. No browser, MSAL version or local session enforcement was tested."
+            ],
+            "evidence": {
+              "sourceUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/tutorial-single-page-app-javascript-prepare-app",
+              "observedAt": "2026-10-08T07:14:50Z",
+              "summary": "The JavaScript SPA tutorial includes external-tenant registration, a SPA redirect, a user-flow association and MSAL configuration with a ciamlogin.com authority. Proposed SUPPORTED is conditional browser-client context, not an executed sample or verified tenant."
+            }
+          },
+          "NATIVE_MOBILE": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Use browser-delegated Android/iOS MSAL with an external user-agent under RFC 8252, not a credential-capturing embedded WebView; Microsoft native authentication is a separate approach per https://learn.microsoft.com/en-us/entra/external-id/customers/concept-choose-authentication-approach.",
+              "Register the actual mobile platform callback: Android package name and signing hash or iOS bundle ID; align generated MSAL configuration and OS callback handling. PKCE is not proof of callback ownership, release signing or device token-storage security.",
+              "Retain external-tenant single-directory scope: the mobile quickstart also mentions multi-tenant account types and trial setup, which do not establish this Basic scope. Reconcile those prerequisites with the external-tenant feature table before source approval or live acceptance.",
+              "Review the applicable public-client flow setting for the selected SDK/platform; the quickstart enables it while https://learn.microsoft.com/en-us/entra/external-id/customers/concept-planning-your-solution labels it not required for browser-delegated authentication. Do not equate that toggle with native-authentication API enablement or PKCE enforcement.",
+              "Use code/S256, no embedded client credentials and the intended customer user flow; delegated API permissions, admin consent, brokers, native-authentication grants and API authorization are not established by this login proposal. No mobile SDK, OS callback, tenant or session lifecycle was tested."
+            ],
+            "evidence": {
+              "sourceUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-mobile-app-call-api",
+              "observedAt": "2026-10-08T07:14:50Z",
+              "summary": "The external-tenant Android/iOS quickstart describes browser-delegated MSAL, platform-specific redirects and ciamlogin.com settings. Proposed SUPPORTED retains unresolved account-type/public-flow prerequisites; its API example and trial are not inherited as entitlement or API support."
+            }
+          }
+        },
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}

@@ -1875,9 +1875,9 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 76 recorded and 1,488 omitted option-paths across 23 distinct
-scopes (1,564 possible addresses). The 70 capability proposals comprise 34 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; six separate client-context proposals are `SUPPORTED`.
+The current pack has 79 recorded and 1,553 omitted option-paths across 24 distinct
+scopes (1,632 possible addresses). The 71 capability proposals comprise 35 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; eight separate client-context proposals are `SUPPORTED`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1936,10 +1936,11 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-three distinct options and 76 recorded
+`make inspect-provider-baselines` now reports twenty-four distinct options and 79 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
-plus three public-client-scoped drafts (Keycloak, ZITADEL Cloud Free and Auth0 B2B Free).
+plus four public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free
+and Entra External ID Basic).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2082,6 +2083,33 @@ must not be mistaken for inbound provisioning; HSC mode excludes that outbound f
 do not prove native inbound SCIM Group lifecycle or application access/session enforcement.
 Full commercial, compatibility, residency and control coverage, manual review and
 authorized catalog publication remain pending; the active evaluator stays synthetic.
+
+#### Client-scoped Entra External ID OIDC documentation candidate
+
+A separate [Entra public-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/entra-external-id-basic-public-oidc-clients.v1.json)
+proposes `OIDC: OPTIONAL` and `BROWSER`/`NATIVE_MOBILE: SUPPORTED`, all `UNREVIEWED`.
+Its standard external-tenant scope uses public code/S256 clients, no client secret,
+tenant-specific `ciamlogin.com` authority and one associated customer user flow per
+registration. [External-tenant account types](https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers)
+are single-directory; this is not workforce/B2C or a tenant entitlement check.
+S256 is a client prerequisite, not proof of S256-only server enforcement.
+
+The [external-tenant SPA tutorial](https://learn.microsoft.com/en-us/entra/identity-platform/tutorial-single-page-app-javascript-prepare-app)
+is distinct from Web/BFF registration. A redirect's `spa` type enables the
+[protocol's CORS handling](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow);
+exact callbacks, OIDC validation, browser storage and interactive fallback need review.
+
+For mobile clients, select an external user-agent under RFC 8252 and verify platform
+callback handling. [Browser-delegated mobile login](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-mobile-app-call-api)
+is not Microsoft's separate native-authentication UI/API approach. The quickstart's
+account-type/trial wording and public-client toggle must be reconciled with the
+[external-tenant planning guide](https://learn.microsoft.com/en-us/entra/external-id/customers/concept-planning-your-solution)
+before approval; no broad toggle requirement or tested mobile SDK is inferred.
+
+Mutable sources and the Basic MAU allowance do not prove deployment or free operation.
+Previous scopes/dates are unchanged; SCIM, brokers, BFF/M2M/API grants, residency and
+authentication controls are not inherited. No accounts, grants, subscriptions,
+approval or AuthWeave authentication configuration changed.
 
 #### Upstream workforce compatibility candidates for Auth0
 

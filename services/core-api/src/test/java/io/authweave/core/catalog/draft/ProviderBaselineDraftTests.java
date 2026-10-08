@@ -806,6 +806,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/keycloak-26.8.0-public-oidc-clients.v1.json");
         resources.add("scoped/zitadel-cloud-free-public-oidc-clients.v1.json");
         resources.add("scoped/auth0-b2b-free-public-oidc-clients.v1.json");
+        resources.add("scoped/entra-external-id-basic-public-oidc-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -832,18 +833,18 @@ class ProviderBaselineDraftTests {
             option.facts().values().forEach(fact -> counts.merge(fact.availability(), 1, Integer::sum));
             option.compatibility().clients().values().forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(23, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(76, recordedCount);
-        assertEquals(1488, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 34,
+        assertEquals(24, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(79, recordedCount);
+        assertEquals(1553, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 35,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 6), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 8), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T06:56:20Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T07:14:50Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(23, report.optionCount());
-        assertEquals(76, report.factCount());
+        assertEquals(24, report.optionCount());
+        assertEquals(79, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1093,6 +1094,105 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(5, report.optionCount());
         assertEquals(16, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"BROWSER", "NATIVE_MOBILE"})
+    void entraPublicClientsUseTypedExternalTenantContextWithoutNativeAuthOrProvisioningClaims(String client) throws Exception {
+        var json = resource("catalog/baselines/scoped/entra-external-id-basic-public-oidc-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("entra-external-id-basic-public-oidc-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("entra-external-id-basic-public-oidc-clients", option.id());
+        assertEquals("entra-external-id", option.providerId());
+        assertEquals("Microsoft Entra External ID - external tenant", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Basic MAU; documented free allowance, no tenant entitlement verified", option.plan());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), option.facts().keySet());
+        var oidc = option.facts().get(ProviderCatalog.Capability.OIDC);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, oidc.availability());
+        assertTrue(String.join(" ", oidc.conditions()).contains("not a claim of S256-only server enforcement"));
+        assertTrue(String.join(" ", oidc.conditions()).contains("one intended sign-up/sign-in user flow"));
+        var fact = option.compatibility().clients().get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.valueOf(client));
+        assertNotNull(fact);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, fact.support());
+        assertEquals("learn.microsoft.com", fact.evidence().sourceUrl().getHost());
+        assertEquals(client.equals("BROWSER")
+                ? "/en-us/entra/identity-platform/tutorial-single-page-app-javascript-prepare-app"
+                : "/en-us/entra/identity-platform/quickstart-mobile-app-call-api", fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T07:14:50Z"), fact.evidence().observedAt());
+        var conditions = String.join(" ", fact.conditions());
+        if (client.equals("BROWSER")) {
+            assertTrue(conditions.contains("platform type spa"));
+            assertTrue(conditions.contains("not BFF/session isolation"));
+        } else {
+            assertTrue(conditions.contains("Microsoft native authentication is a separate approach"));
+            assertTrue(conditions.contains("Reconcile those prerequisites"));
+            assertTrue(conditions.contains("not required for browser-delegated authentication"));
+            assertTrue(conditions.contains("PKCE is not proof of callback ownership"));
+        }
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(3, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void entraPublicClientFreshnessRetainsEvidenceHashesAndUnreviewedSupport() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/entra-external-id-basic-public-oidc-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T07:14:50Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+        assertTrue(draft.options().getFirst().compatibility().clients().values().stream()
+                .allMatch(fact -> fact.support() == ProviderCatalog.Support.SUPPORTED
+                        && fact.evidence().observedAt().equals(observed)));
+    }
+
+    @Test
+    void entraPublicClientsKeepResearchNativeAndUpstreamScopesUnchangedAndSeparate() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("entra-external-id.v1.json", "scoped/entra-external-id-basic.v1.json",
+                "scoped/entra-external-id-basic-upstream-okta.v1.json", "scoped/entra-external-id-basic-upstream-entra.v1.json",
+                "scoped/entra-external-id-basic-public-oidc-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(5, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().clients().isEmpty()));
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.getLast().facts().keySet());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.SAML).availability());
+        assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        assertEquals(Instant.parse("2026-10-02T23:12:01Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "entra-public-client-context-coexistence-test", options), Instant.parse("2026-10-08T07:14:50Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(5, report.optionCount());
+        assertEquals(18, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
