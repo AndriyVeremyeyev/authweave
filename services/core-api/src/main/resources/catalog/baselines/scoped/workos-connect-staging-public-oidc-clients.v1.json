@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "workos-connect-staging-public-oidc-clients-draft-2026.10.08",
+  "options": [
+    {
+      "id": "workos-connect-staging-public-oidc-clients",
+      "providerId": "workos",
+      "product": "WorkOS AuthKit Connect",
+      "plan": "Staging only; production entitlement and billing unverified",
+      "deployment": "MANAGED",
+      "region": "No WorkOS region selected; storage destinations not verified",
+      "configuration": "AuthKit Connect staging; first-party public code/S256 mobile clients; SPA CORS unresolved; no Directory Sync or M2M",
+      "facts": {
+        "OIDC": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Select a first-party Public Connect OAuth application in one staging environment. Use that environment's AuthKit-domain OIDC discovery, issuer, JWKS and /oauth2 authorize/token endpoints, not primary AuthKit /user_management authentication endpoints.",
+            "Use authorization code, openid, fresh S256 PKCE and exact registered callbacks; never embed a client secret, certificate or WorkOS API key in a public client. Validate state, nonce and ID token signature, issuer and application-client audience; an ID token is not an API access token.",
+            "The metadata is a documentation example, not an observed environment or S256-only server enforcement. The Public application branch at https://workos.com/docs/authkit/connect/oauth requires PKCE, while https://workos.com/docs/reference/workos-connect/token lists client_secret in the generic code exchange. Reconcile the public-client exchange contract before source approval; do not copy confidential-client credentials into a public app.",
+            "Staging and production are separate per https://workos.com/docs/authkit/environments. Documented free staging is not production Connect entitlement; generic AuthKit MAU or Directory Sync pricing does not establish it. No account, registration, billing or live OIDC behavior was verified.",
+            "This scope excludes confidential BFF, Directory Sync/SCIM/groups, workforce brokers, standalone external-login Connect, third-party consent, M2M/API grants, DCR/CIMD and device flow. Cloud evidence is mutable and dated, not release-pinned or a complete provider baseline."
+          ],
+          "evidence": {
+            "sourceUrl": "https://workos.com/docs/reference/workos-connect/metadata",
+            "observedAt": "2026-10-08T13:50:08Z",
+            "summary": "Connect metadata examples describe OIDC discovery, an environment issuer, JWKS, code flow, openid and S256. Proposed OPTIONAL is configurable Connect login, not primary AuthKit authentication, verified public-client exchange, production entitlement or curator approval."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {
+          "BROWSER": {
+            "support": "UNKNOWN",
+            "conditions": [
+              "Connect-specific token-endpoint CORS and credential-free browser code redemption were not established by the reviewed sources. The generic token reference includes client_secret; a Public registration and mobile PKCE documentation alone do not establish a pure SPA integration.",
+              "Confirm the selected Connect environment's allowed-origin behavior, public code/S256 exchange, registered HTTPS redirects and browser session/storage constraints before proposing browser support. Do not substitute primary AuthKit React/CORS documentation, server-side web examples or a local emulator for Connect OIDC evidence.",
+              "UNKNOWN is recorded uncertainty, not UNSUPPORTED or an omitted fact. No browser exchange or live environment was tested; this does not propose confidential BFF/session compatibility, application/population/tenancy support or authentication-control enforcement."
+            ],
+            "evidence": {
+              "sourceUrl": "https://workos.com/docs/reference/workos-connect/token",
+              "observedAt": "2026-10-08T13:50:08Z",
+              "summary": "The generic Connect token reference describes code exchange with client_secret but does not establish the Connect-specific public SPA/CORS prerequisites reviewed here. Proposed UNKNOWN preserves that unresolved browser scope without claiming incompatibility."
+            }
+          },
+          "NATIVE_MOBILE": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Use a first-party Public Connect OAuth registration for a supporting mobile application, not a default confidential client. The Public application documentation requires PKCE; select code/S256 without embedded credentials and reconcile the generic token reference's confidential-client example before source approval.",
+              "Use an external user-agent under RFC 8252 and exact registered platform callbacks with OS callback handling, not a credential-capturing embedded WebView. PKCE is not proof of callback ownership, platform SDK compatibility, secure device storage or local session/revocation enforcement.",
+              "Keep Connect login separate from primary AuthKit session tokens and Directory Sync. Connect org_id/scopes do not establish organization/membership compatibility, user-role authorization, lifecycle provisioning, API grants or mobile authentication controls. No mobile SDK, callback, registration or live exchange was tested."
+            ],
+            "evidence": {
+              "sourceUrl": "https://workos.com/docs/authkit/connect/oauth",
+              "observedAt": "2026-10-08T13:50:08Z",
+              "summary": "The Connect OAuth application guide includes mobile applications and a Public application branch requiring PKCE. Proposed SUPPORTED is conditional native-client context, not SDK/OS acceptance, production entitlement or security-control verification."
+            }
+          }
+        },
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}

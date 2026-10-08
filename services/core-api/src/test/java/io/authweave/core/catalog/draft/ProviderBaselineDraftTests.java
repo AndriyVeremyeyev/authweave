@@ -807,6 +807,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/zitadel-cloud-free-public-oidc-clients.v1.json");
         resources.add("scoped/auth0-b2b-free-public-oidc-clients.v1.json");
         resources.add("scoped/entra-external-id-basic-public-oidc-clients.v1.json");
+        resources.add("scoped/workos-connect-staging-public-oidc-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -833,18 +834,18 @@ class ProviderBaselineDraftTests {
             option.facts().values().forEach(fact -> counts.merge(fact.availability(), 1, Integer::sum));
             option.compatibility().clients().values().forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(24, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(79, recordedCount);
-        assertEquals(1553, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 35,
+        assertEquals(25, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(82, recordedCount);
+        assertEquals(1618, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 36,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 8), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 9, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T07:14:50Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T13:50:08Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(24, report.optionCount());
-        assertEquals(79, report.factCount());
+        assertEquals(25, report.optionCount());
+        assertEquals(82, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1193,6 +1194,110 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(5, report.optionCount());
         assertEquals(18, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"BROWSER", "NATIVE_MOBILE"})
+    void workosConnectPreservesUnknownBrowserAndConditionalMobileWithoutDirectorySyncClaims(String client) throws Exception {
+        var json = resource("catalog/baselines/scoped/workos-connect-staging-public-oidc-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("workos-connect-staging-public-oidc-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("workos-connect-staging-public-oidc-clients", option.id());
+        assertEquals("workos", option.providerId());
+        assertEquals("WorkOS AuthKit Connect", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Staging only; production entitlement and billing unverified", option.plan());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), option.facts().keySet());
+        var oidc = option.facts().get(ProviderCatalog.Capability.OIDC);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, oidc.availability());
+        assertEquals("/docs/reference/workos-connect/metadata", oidc.evidence().sourceUrl().getPath());
+        assertTrue(String.join(" ", oidc.conditions()).contains("Reconcile the public-client exchange contract before source approval"));
+        assertTrue(String.join(" ", oidc.conditions()).contains("free staging is not production Connect entitlement"));
+        var fact = option.compatibility().clients().get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.valueOf(client));
+        assertNotNull(fact);
+        assertEquals(client.equals("BROWSER") ? ProviderCatalog.Support.UNKNOWN : ProviderCatalog.Support.SUPPORTED,
+                fact.support());
+        assertEquals("workos.com", fact.evidence().sourceUrl().getHost());
+        assertEquals(client.equals("BROWSER") ? "/docs/reference/workos-connect/token" : "/docs/authkit/connect/oauth",
+                fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T13:50:08Z"), fact.evidence().observedAt());
+        var conditions = String.join(" ", fact.conditions());
+        if (client.equals("BROWSER")) {
+            assertTrue(conditions.contains("not established by the reviewed sources"));
+            assertTrue(conditions.contains("not UNSUPPORTED or an omitted fact"));
+            assertTrue(conditions.contains("primary AuthKit React/CORS"));
+        } else {
+            assertTrue(conditions.contains("external user-agent under RFC 8252"));
+            assertTrue(conditions.contains("PKCE is not proof of callback ownership"));
+            assertTrue(conditions.contains("primary AuthKit session tokens and Directory Sync"));
+        }
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(3, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"UNKNOWN\"", "\"support\": \"UNKNOWN\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void workosConnectFreshnessRetainsEvidenceHashesAndDoesNotPromoteBrowserUncertainty() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/workos-connect-staging-public-oidc-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T13:50:08Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+        var clients = draft.options().getFirst().compatibility().clients();
+        assertEquals(ProviderCatalog.Support.UNKNOWN, clients.get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER).support());
+        assertEquals(ProviderCatalog.Support.SUPPORTED, clients.get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.NATIVE_MOBILE).support());
+        assertTrue(clients.values().stream().allMatch(fact -> fact.evidence().observedAt().equals(observed)));
+    }
+
+    @Test
+    void workosConnectKeepsResearchAndDirectorySyncScopesUnchangedWithoutProvisioningInheritance() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("workos.v1.json", "scoped/workos-directory-sync-staging.v1.json",
+                "scoped/workos-directory-sync-staging-upstream-okta.v1.json",
+                "scoped/workos-directory-sync-staging-upstream-entra.v1.json",
+                "scoped/workos-connect-staging-public-oidc-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(5, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().clients().isEmpty()));
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.getLast().facts().keySet());
+        for (var directory : options.subList(1, 4)) {
+            assertEquals(java.util.Set.of(ProviderCatalog.Capability.SCIM, ProviderCatalog.Capability.GROUP_SYNC), directory.facts().keySet());
+            assertTrue(directory.facts().values().stream().allMatch(fact -> fact.availability() == ProviderCatalog.Availability.OPTIONAL));
+        }
+        assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "workos-connect-client-context-coexistence-test", options), Instant.parse("2026-10-08T13:50:08Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(5, report.optionCount());
+        assertEquals(12, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

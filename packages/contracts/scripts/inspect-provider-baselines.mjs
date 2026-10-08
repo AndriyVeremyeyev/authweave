@@ -201,6 +201,24 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
+  {
+    file: "workos-connect-staging-public-oidc-clients.v1.json",
+    catalogVersion: "workos-connect-staging-public-oidc-clients-draft-2026.10.08",
+    scope: {
+      id: "workos-connect-staging-public-oidc-clients", providerId: "workos", product: "WorkOS AuthKit Connect", deployment: "MANAGED",
+      plan: "Staging only; production entitlement and billing unverified",
+      region: "No WorkOS region selected; storage destinations not verified",
+      configuration: "AuthKit Connect staging; first-party public code/S256 mobile clients; SPA CORS unresolved; no Directory Sync or M2M",
+    },
+    facts: {
+      OIDC: { availability: "OPTIONAL", sourceUrl: "https://workos.com/docs/reference/workos-connect/metadata" },
+    },
+    compatibility: {
+      "compatibility.clients.BROWSER": { support: "UNKNOWN", sourceUrl: "https://workos.com/docs/reference/workos-connect/token" },
+      "compatibility.clients.NATIVE_MOBILE": { support: "SUPPORTED", sourceUrl: "https://workos.com/docs/authkit/connect/oauth" },
+    },
+    metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
+  },
   ...["okta", "entra"].map((upstream) => ({
     file: `workos-directory-sync-staging-upstream-${upstream}.v1.json`,
     catalogVersion: `workos-directory-sync-staging-upstream-${upstream}-draft-2026.10.08`,

@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-08T07:14:50Z");
+const at = new Date("2026-10-08T13:50:08Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -104,14 +104,14 @@ test("inventory v2 enumerates 68 schema addresses, not 68 required customer fact
 
 test("the full pack partitions every option independently and replays all aggregate counts", () => {
   assertPartitions(pack);
-  assert.equal(inventory.optionCount, 24);
-  assert.equal(inventory.optionPathCount, 1632);
-  assert.equal(inventory.recordedPathCount, 79);
-  assert.equal(inventory.omittedPathCount, 1553);
-  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 35, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
-  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 8, UNSUPPORTED: 0, UNKNOWN: 0 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 71, COMPATIBILITY: 8, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 79, STALE: 0, FUTURE: 0 });
+  assert.equal(inventory.optionCount, 25);
+  assert.equal(inventory.optionPathCount, 1700);
+  assert.equal(inventory.recordedPathCount, 82);
+  assert.equal(inventory.omittedPathCount, 1618);
+  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 36, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
+  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 9, UNSUPPORTED: 0, UNKNOWN: 1 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 72, COMPATIBILITY: 10, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 82, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -127,6 +127,10 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
   assert.ok(zitadel.families[0].recordedPaths.includes("facts.GROUP_SYNC"));
   const workos = option("workos-directory-sync-staging-scim-events");
   assert.ok(workos.families[0].omittedPaths.includes("facts.OIDC"));
+  const connect = option("workos-connect-staging-public-oidc-clients");
+  assert.deepEqual(connect.recordedUnknownPaths, ["compatibility.clients.BROWSER"]);
+  assert.ok(connect.families[1].recordedPaths.includes("compatibility.clients.BROWSER"));
+  assert.ok(connect.families[1].omittedPaths.includes("compatibility.clients.MACHINE_TO_MACHINE"));
   for (const entry of inventory.options) for (const family of entry.families.slice(1)) {
     const clientScoped = pack.options.find((option) => option.optionId === entry.optionId).basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT";
     assert.deepEqual(family.recordedPaths, clientScoped && family.family === "COMPATIBILITY"
@@ -147,10 +151,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 64 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 67 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 79 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 79, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 82 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 82, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);

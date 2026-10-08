@@ -1875,9 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 79 recorded and 1,553 omitted option-paths across 24 distinct
-scopes (1,632 possible addresses). The 71 capability proposals comprise 35 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; eight separate client-context proposals are `SUPPORTED`.
+The current pack has 82 recorded and 1,618 omitted option-paths across 25 distinct
+scopes (1,700 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; ten separate client-context proposals comprise
+nine `SUPPORTED` and one `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1936,11 +1937,11 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-four distinct options and 79 recorded
+`make inspect-provider-baselines` now reports twenty-five distinct options and 82 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
-plus four public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free
-and Entra External ID Basic).
+plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
+Entra External ID Basic and WorkOS AuthKit Connect staging).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2057,6 +2058,31 @@ queries rather than the deprecated user `groups` field. Directory removal of an
 [inactive user](https://workos.com/docs/directory-sync/handle-inactive-users) is not
 automatic deletion from the SaaS. Other memberships and local sessions need their own
 policy. Compatibility, residency, authentication controls and authorized publication remain pending.
+
+#### Client-scoped WorkOS Connect OIDC documentation candidate
+
+A separate [WorkOS Connect public-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/workos-connect-staging-public-oidc-clients.v1.json)
+selects first-party Public OAuth applications in staging, not Directory Sync or
+primary AuthKit authentication. It records `OIDC: OPTIONAL`, `NATIVE_MOBILE: SUPPORTED`
+and `BROWSER: UNKNOWN`, all `UNREVIEWED`. [Connect metadata](https://workos.com/docs/reference/workos-connect/metadata)
+is a documentation example, not an observed issuer or enforcement test.
+
+The [Public application branch](https://workos.com/docs/authkit/connect/oauth) describes
+PKCE for clients that cannot keep secrets. Conditions require code/S256, exact
+callbacks, no embedded credentials and an external user-agent for mobile login.
+The generic [token reference](https://workos.com/docs/reference/workos-connect/token)
+lists `client_secret`; the public exchange contract must be reconciled before
+source approval. Reviewed sources did not establish Connect-specific SPA token
+exchange/CORS. Browser `UNKNOWN` records this uncertainty, not incompatibility or
+an omitted path; mobile context and generic AuthKit React/CORS do not fill that gap.
+
+Use the selected environment's Connect issuer/discovery and `/oauth2` endpoints,
+not primary AuthKit `/user_management` authentication or session tokens. Directory
+Sync provisioning, organization/membership compatibility, API/M2M grants, BFF,
+third-party consent, residency and authentication controls are not inherited.
+Free [staging](https://workos.com/docs/authkit/environments) is not production
+Connect entitlement. No account, billing, SDK, callback or live exchange was verified;
+AuthWeave's ZITADEL/BFF and synthetic evaluator remain unchanged.
 
 #### Plan-scoped Entra External ID Basic candidate
 
