@@ -50,6 +50,31 @@ const scopedBaselines = Object.freeze([
     ])),
     metadata: { basis: "RELEASE_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
   },
+  ...["okta", "entra"].map((upstream) => ({
+    file: `keycloak-26.8.0-upstream-${upstream}.v1.json`,
+    catalogVersion: `keycloak-26.8.0-upstream-${upstream}-draft-2026.10.08`,
+    scope: {
+      id: `keycloak-26.8.0-upstream-${upstream}-workforce`, providerId: "keycloak",
+      product: `Keycloak upstream ${keycloakRelease.version}`, deployment: "SELF_HOSTED",
+      plan: "Upstream release 26.8.0; upstream workforce entitlement and commercial support unverified",
+      region: "Operator-selected hosting and upstream tenant; storage destinations not verified",
+      configuration: upstream === "okta"
+        ? "Realm-scoped generic OIDC broker, fixed Okta org issuer; first-login JIT; no SCIM pairing or SaaS bridge verified"
+        : "Realm-scoped generic OIDC broker, fixed Entra workforce tenant v2 issuer; first-login JIT; no SCIM pairing verified",
+    },
+    facts: Object.fromEntries(Object.entries({
+      ENTERPRISE_SSO: ["OPTIONAL", "identity-broker/oidc.adoc"],
+      JIT: ["OPTIONAL", "identity-broker/first-login-flow.adoc"],
+      SCIM: ["UNKNOWN", "scim/intro.adoc"],
+      GROUP_SYNC: ["UNKNOWN", "identity-broker/mappers.adoc"],
+    }).map(([capability, [availability, sourcePath]]) => [capability, {
+      availability, sourceUrl: `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/docs/documentation/server_admin/topics/${sourcePath}`,
+    }])),
+    metadata: {
+      basis: "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version,
+      sourceCommit: keycloakRelease.commit, upstreamProviderId: upstream === "okta" ? "okta-workforce" : "entra-id-workforce",
+    },
+  })),
   {
     file: "zitadel-cloud-free.v1.json",
     catalogVersion: "zitadel-cloud-free-native-draft-2026.10.02",

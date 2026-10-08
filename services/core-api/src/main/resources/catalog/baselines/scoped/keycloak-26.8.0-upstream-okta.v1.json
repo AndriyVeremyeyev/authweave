@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "keycloak-26.8.0-upstream-okta-draft-2026.10.08",
+  "options": [{
+    "id": "keycloak-26.8.0-upstream-okta-workforce",
+    "providerId": "keycloak",
+    "product": "Keycloak upstream 26.8.0",
+    "plan": "Upstream release 26.8.0; upstream workforce entitlement and commercial support unverified",
+    "deployment": "SELF_HOSTED",
+    "region": "Operator-selected hosting and upstream tenant; storage destinations not verified",
+    "configuration": "Realm-scoped generic OIDC broker, fixed Okta org issuer; first-login JIT; no SCIM pairing or SaaS bridge verified",
+    "facts": {
+      "ENTERPRISE_SSO": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Select a realm-scoped generic OIDC broker using Authorization Code, client authentication, an exact issuer and signature validation with the matching JWKS; this is a protocol-based proposal, not vendor-certified or runtime-tested interoperability.",
+          "Register an Okta Web app with the broker callback and intended user assignments per https://developer.okta.com/docs/guides/create-an-app-integration/openidconnect/main/; choose the fixed org authorization server described at https://developer.okta.com/docs/concepts/auth-servers/, not an inherited custom/default issuer.",
+          "Only the Keycloak source is release-pinned; upstream documentation is mutable and dated. Upstream workforce entitlements, hosting costs and commercial support remain unverified; this is not a zero-cost guarantee or a change to AuthWeave authentication."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/identity-broker/oidc.adoc",
+          "observedAt": "2026-10-08T04:57:09Z",
+          "summary": "The pinned broker guide documents generic OIDC code-flow configuration and issuer/signature checks. Selecting an Okta org as upstream is a conditional protocol-based proposal, not a verified pair."
+        }
+      },
+      "JIT": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Enable Create User If Unique in the selected first broker login flow; local user creation and identity linking occur at login, not through background provisioning, and can be disabled independently of realm self-registration.",
+          "Review profile requirements, identifier collisions and proof of control for existing accounts; do not enable unverified automatic email-based linking. Login-time JIT does not establish SCIM deactivation or consuming-app session revocation."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/identity-broker/first-login-flow.adoc",
+          "observedAt": "2026-10-08T04:57:09Z",
+          "summary": "The first-login flow can create a unique local user or require verification when linking an existing account. Its automatic-linking warning prevents interpreting JIT as safe unconditional account matching or lifecycle synchronization."
+        }
+      },
+      "SCIM": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "Native realm SCIM server support does not verify this Okta provisioning pair: endpoint authorization, upstream entitlement, identity correlation with the brokered user and operation compatibility still need pair-specific evidence and tests. UNKNOWN is not UNAVAILABLE.",
+          "Do not inherit native SCIM OPTIONAL, Auth0-specific mappings, SAML connector prerequisites or any Group Push claim into this generic OIDC scope; use a separate reviewed provisioning configuration.",
+          "Inbound provisioning into Keycloak is not outbound SaaS provisioning; deactivation, authorization and consuming-app session enforcement remain separate and untested."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/scim/intro.adoc",
+          "observedAt": "2026-10-08T04:57:09Z",
+          "summary": "The release documents a realm-scoped SCIM server for external provisioners. It does not establish Okta entitlement, broker/SCIM identity correlation or a tested provisioning configuration for this selected login scope."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "UNKNOWN",
+        "conditions": [
+          "OIDC claim mappers import or update data at login according to sync mode; login claims and Okta application assignment do not establish background group lifecycle, Group Push or deprovisioning.",
+          "Native SCIM Group resources are a separate interface, not proof of this pair; group membership, deletion, nested-group behavior and downstream SaaS permissions require separate evidence. No external bridge is selected."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/identity-broker/mappers.adoc",
+          "observedAt": "2026-10-08T04:57:09Z",
+          "summary": "Broker mappers describe first-login import and repeated-login updates. This does not establish group lifecycle synchronization from Okta or enforcement in a consuming application."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

@@ -17,6 +17,7 @@ const workosDraft = scopedDrafts.find((draft) => draft.options[0].providerId ===
 const entraDraft = scopedDrafts.find((draft) => draft.options[0].providerId === "entra-external-id");
 const upstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("auth0-b2b-free-upstream-"));
 const zitadelUpstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("zitadel-cloud-free-upstream-"));
+const keycloakUpstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("keycloak-26.8.0-upstream-"));
 const observedAt = new Date("2026-10-02T19:58:06Z");
 const copy = () => structuredClone(drafts);
 
@@ -594,20 +595,132 @@ test("ZITADEL pair inspection rejects connector drift, inherited mappings and JI
   }
 });
 
+test("Keycloak workforce scopes pin broker documentation without certifying a provisioning pair", () => {
+  const at = new Date("2026-10-08T04:57:09Z");
+  const beforeNative = JSON.stringify(scopedDraft);
+  assert.equal(keycloakUpstreamDrafts.length, 2);
+  for (const draft of keycloakUpstreamDrafts) {
+    const before = JSON.stringify(draft);
+    const report = inspectScopedBaselineDraft(draft, at);
+    assertUntrusted(report);
+    assert.equal(report.optionCount, 1);
+    assert.equal(report.factCount, 4);
+    const option = report.options[0];
+    assert.equal(option.basis, "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
+    assert.equal(option.sourceRelease, "26.8.0");
+    assert.equal(option.sourceCommit, "4246609cf2024c85016d3fb1254c3d2533367c31");
+    assert.equal(Object.hasOwn(option, "sourcePlan"), false);
+    assert.equal(option.deployment, "SELF_HOSTED");
+    assert.equal(option.product, "Keycloak upstream 26.8.0");
+    assert.deepEqual(Object.fromEntries(option.facts.map((fact) => [fact.path, fact.availability])), {
+      "facts.ENTERPRISE_SSO": "OPTIONAL", "facts.GROUP_SYNC": "UNKNOWN", "facts.JIT": "OPTIONAL", "facts.SCIM": "UNKNOWN",
+    });
+    assert.equal(option.omittedCapabilities.length, 5);
+    assert.ok(["OIDC", "SAML"].every((capability) => option.omittedCapabilities.includes(capability)));
+    assert.ok(option.facts.every((fact) => fact.freshness === "CURRENT"));
+    const claims = draft.options[0].facts;
+    assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /Authorization Code.*exact issuer.*signature validation.*not vendor-certified or runtime-tested/);
+    assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /Only the Keycloak source is release-pinned.*upstream documentation is mutable/);
+    assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /entitlements.*unverified.*not a zero-cost guarantee/);
+    assert.match(claims.JIT.conditions.join(" "), /Create User If Unique.*at login, not through background provisioning.*independently of realm self-registration/);
+    assert.match(claims.JIT.conditions.join(" "), /proof of control.*do not enable unverified automatic email-based linking/);
+    assert.match(claims.SCIM.conditions.join(" "), /identity correlation.*pair-specific.*UNKNOWN is not UNAVAILABLE/);
+    assert.match(claims.SCIM.conditions.join(" "), /Do not inherit native SCIM OPTIONAL.*Auth0-specific/);
+    assert.match(claims.SCIM.conditions.join(" "), /Inbound provisioning into Keycloak is not outbound SaaS provisioning/);
+    assert.match(claims.GROUP_SYNC.conditions.join(" "), /at login according to sync mode.*do not establish background group lifecycle/);
+    assert.match(claims.GROUP_SYNC.conditions.join(" "), /Native SCIM Group resources.*not proof of this pair.*nested-group.*No external bridge/);
+    if (option.upstreamProviderId === "okta-workforce") {
+      assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /Okta Web app.*developer.okta.com\/docs\/guides\/create-an-app-integration.*fixed org authorization server.*not an inherited custom\/default issuer/);
+      assert.match(claims.GROUP_SYNC.conditions.join(" "), /assignment.*Group Push/);
+    } else {
+      assert.equal(option.upstreamProviderId, "entra-id-workforce");
+      assert.match(claims.ENTERPRISE_SSO.conditions.join(" "), /Entra Web app.*fixed workforce Tenant ID.*tenant-specific v2 discovery.*learn.microsoft.com.*Common, Organizations, Consumers, External ID and B2C are outside/);
+      assert.match(claims.SCIM.conditions.join(" "), /oid\/objectId\/externalId/);
+    }
+    for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
+      const later = inspectScopedBaselineDraft(draft, new Date(at.getTime() + offset));
+      assertUntrusted(later);
+      assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness
+        && fact.evidence.observedAt === "2026-10-08T04:57:09Z"));
+    }
+    assert.equal(JSON.stringify(draft), before);
+  }
+  assert.equal(JSON.stringify(scopedDraft), beforeNative);
+  assert.ok(inspectScopedBaselineDraft(scopedDraft, at).options[0].facts.every((fact) => fact.availability === "OPTIONAL"));
+  assert.equal(Object.hasOwn(scopedDraft.options[0].facts, "JIT"), false);
+});
+
+test("Keycloak pair inspection rejects release/scope drift and inherited provisioning or trust claims", () => {
+  for (const draft of keycloakUpstreamDrafts) {
+    const other = keycloakUpstreamDrafts.find((candidate) => candidate !== draft);
+    const mutations = [
+      (input) => { input.approvalGranted = true; },
+      (input) => { input.sourceRelease = "26.8.0"; },
+      (input) => { input.options[0].upstreamProviderId = "verified-workforce"; },
+      (input) => { input.catalogVersion = other.catalogVersion; },
+      (input) => { input.options[0].id = other.options[0].id; },
+      (input) => { input.options[0].configuration = other.options[0].configuration; },
+      (input) => { input.options[0].configuration = "Automatic email linking and verified outbound SaaS SCIM"; },
+      (input) => { input.options[0].providerId = "zitadel"; },
+      (input) => { input.options[0].product = "Keycloak upstream latest"; },
+      (input) => { input.options[0].deployment = "MANAGED"; },
+      (input) => { input.options[0].plan = "Free; all upstream entitlements verified"; },
+      (input) => { input.options[0].region = "EU"; },
+      (input) => { input.options[0].facts.ENTERPRISE_SSO.availability = "MANDATORY"; },
+      (input) => { input.options[0].facts.JIT.availability = "MANDATORY"; },
+      (input) => { input.options[0].facts.SCIM.availability = "OPTIONAL"; },
+      (input) => { input.options[0].facts.SCIM.availability = "UNAVAILABLE"; },
+      (input) => { input.options[0].facts.GROUP_SYNC.availability = "OPTIONAL"; },
+      (input) => { input.options[0].facts.GROUP_SYNC.availability = "UNAVAILABLE"; },
+      (input) => { input.options[0].facts.SCIM = structuredClone(scopedDraft.options[0].facts.SCIM); },
+      (input) => { input.options[0].facts.JIT.evidence.sourceUrl = input.options[0].facts.ENTERPRISE_SSO.evidence.sourceUrl; },
+      (input) => { input.options[0].facts.SCIM.evidence.sourceUrl = auth0Draft.options[0].facts.SCIM.evidence.sourceUrl; },
+      (input) => { input.options[0].facts.ENTERPRISE_SSO.evidence.sourceUrl = input.options[0].facts.ENTERPRISE_SSO.evidence.sourceUrl.replace("4246609cf2024c85016d3fb1254c3d2533367c31", "main"); },
+      (input) => { input.options[0].facts.GROUP_SYNC.evidence.sourceUrl += "?approved=true"; },
+      (input) => { input.options[0].facts.JIT.evidence.observedAt = "2026-02-30T04:57:09Z"; },
+      (input) => { input.options[0].facts.JIT.conditions = []; },
+      (input) => { input.options[0].facts.JIT.conditions.push(input.options[0].facts.JIT.conditions[0]); },
+      (input) => { input.options[0].facts.OIDC = structuredClone(scopedDraft.options[0].facts.OIDC); },
+      (input) => { delete input.options[0].facts.JIT; },
+      (input) => { input.options.push(structuredClone(input.options[0])); },
+      (input) => { input.options[0].residency.USER_PROFILES = {
+        coverage: "COMPLETE", storageCountries: ["DE"], conditions: [], evidence: structuredClone(input.options[0].facts.JIT.evidence),
+      }; },
+      (input) => { input.options[0].compatibility.applications.B2B_SAAS = {
+        support: "SUPPORTED", conditions: [], evidence: structuredClone(input.options[0].facts.JIT.evidence),
+      }; },
+      (input) => { input.options[0].authenticationControls.BROWSER = { EMPLOYEES: { PHISHING_RESISTANCE: {
+        availability: "SUPPORTED", enforcement: "SUPPORTED", conditions: [], evidence: structuredClone(input.options[0].facts.JIT.evidence),
+      } } }; },
+    ];
+    for (const mutate of mutations) {
+      const input = structuredClone(draft); mutate(input);
+      assert.throws(() => inspectScopedBaselineDraft(input, observedAt));
+    }
+  }
+});
+
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-03T00:27:18Z");
+  const at = new Date("2026-10-08T04:57:09Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 14);
-  assert.equal(report.factCount, 47);
+  assert.equal(report.optionCount, 16);
+  assert.equal(report.factCount, 55);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 9);
+  assert.equal(report.scopedDraftOptionCount, 11);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
-  assert.equal(keycloak.length, 2);
-  assert.notEqual(keycloak[0].optionId, keycloak[1].optionId);
+  assert.equal(keycloak.length, 4);
+  assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 4);
   assert.equal(keycloak.filter((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").length, 1);
   assert.ok(keycloak.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").facts.every((fact) => fact.availability === "UNKNOWN"));
+  const keycloakPairs = keycloak.filter((option) => option.basis === "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
+  assert.deepEqual(keycloakPairs.map((option) => option.upstreamProviderId).sort(), ["entra-id-workforce", "okta-workforce"]);
+  assert.ok(keycloakPairs.every((option) => option.sourceRelease === "26.8.0"
+    && option.facts.find((fact) => fact.path === "facts.SCIM").availability === "UNKNOWN"));
+  assert.ok(keycloak.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT")
+    .facts.every((fact) => fact.availability === "OPTIONAL"));
+  assert.ok(report.options.every((option) => option.facts.every((fact) => fact.freshness === "CURRENT")));
   const zitadel = report.options.filter((option) => option.providerId === "zitadel");
   assert.equal(zitadel.length, 4);
   assert.equal(new Set(zitadel.map((option) => option.optionId)).size, 4);
@@ -694,7 +807,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 47);
+  assert.equal(JSON.parse(run.stdout).factCount, 55);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

@@ -19,7 +19,8 @@ class ProviderBaselineDraftTests {
     private static final Map<String, String> HOSTS = Map.of(
             "entra-external-id", "learn.microsoft.com", "auth0", "auth0.com", "workos", "workos.com",
             "zitadel", "zitadel.com", "keycloak", "www.keycloak.org");
-    private final JsonMapper mapper = JsonMapper.builder().build();
+    private final JsonMapper mapper = JsonMapper.builder()
+            .enable(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
     private final CatalogDraftValidator validator = new CatalogDraftValidator(Clock.fixed(OBSERVED, ZoneOffset.UTC));
 
     @ParameterizedTest
@@ -483,6 +484,103 @@ class ProviderBaselineDraftTests {
         assertUntrusted(combinedReport);
         assertNotEquals(validator.validate(generic).contentSha256(), combinedReport.contentSha256());
         assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"okta", "entra"})
+    void keycloakWorkforcePairsRemainUnreviewedWithoutInheritingNativeScim(String upstream) throws Exception {
+        var json = resource("catalog/baselines/scoped/keycloak-26.8.0-upstream-" + upstream + ".v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("keycloak-26.8.0-upstream-" + upstream + "-workforce", option.id());
+        assertEquals("keycloak", option.providerId());
+        assertEquals("Keycloak upstream 26.8.0", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.SELF_HOSTED, option.deployment());
+        assertTrue(option.plan().contains("upstream workforce entitlement and commercial support unverified"));
+        var expected = Map.of(ProviderCatalog.Capability.ENTERPRISE_SSO, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.JIT, ProviderCatalog.Availability.OPTIONAL,
+                ProviderCatalog.Capability.SCIM, ProviderCatalog.Availability.UNKNOWN,
+                ProviderCatalog.Capability.GROUP_SYNC, ProviderCatalog.Availability.UNKNOWN);
+        var paths = Map.of(ProviderCatalog.Capability.ENTERPRISE_SSO, "identity-broker/oidc.adoc",
+                ProviderCatalog.Capability.JIT, "identity-broker/first-login-flow.adoc",
+                ProviderCatalog.Capability.SCIM, "scim/intro.adoc",
+                ProviderCatalog.Capability.GROUP_SYNC, "identity-broker/mappers.adoc");
+        assertEquals(expected.keySet(), option.facts().keySet());
+        var observed = Instant.parse("2026-10-08T04:57:09Z");
+        option.facts().forEach((capability, fact) -> {
+            assertEquals(expected.get(capability), fact.availability());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("github.com", fact.evidence().sourceUrl().getHost());
+            assertEquals("/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/"
+                    + "server_admin/topics/" + paths.get(capability), fact.evidence().sourceUrl().getPath());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        var login = String.join(" ", option.facts().get(ProviderCatalog.Capability.ENTERPRISE_SSO).conditions());
+        assertTrue(login.contains("not vendor-certified or runtime-tested interoperability"));
+        assertTrue(login.contains("Only the Keycloak source is release-pinned"));
+        assertTrue(login.contains(upstream.equals("okta") ? "fixed org authorization server" : "fixed workforce Tenant ID"));
+        var jit = String.join(" ", option.facts().get(ProviderCatalog.Capability.JIT).conditions());
+        assertTrue(jit.contains("at login, not through background provisioning"));
+        assertTrue(jit.contains("proof of control"));
+        assertTrue(jit.contains("do not enable unverified automatic email-based linking"));
+        var scim = String.join(" ", option.facts().get(ProviderCatalog.Capability.SCIM).conditions());
+        assertTrue(scim.contains("identity correlation"));
+        assertTrue(scim.contains("UNKNOWN is not UNAVAILABLE"));
+        assertTrue(scim.contains("Do not inherit native SCIM OPTIONAL"));
+        assertTrue(String.join(" ", option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).conditions())
+                .contains("No external bridge is selected"));
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(4, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"schemaVersion\": 1", "\"schemaVersion\": 1, \"approvalGranted\": true"), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void keycloakResearchNativeAndBothUpstreamScopesCoexistWithoutFactTransfer() throws Exception {
+        var resources = List.of("keycloak.v1.json", "scoped/keycloak-26.8.0.v1.json",
+                "scoped/keycloak-26.8.0-upstream-okta.v1.json", "scoped/keycloak-26.8.0-upstream-entra.v1.json");
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : resources) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class)
+                    .options().getFirst());
+        }
+        assertEquals(4, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.getFirst().facts().values().stream()
+                .allMatch(fact -> fact.availability() == ProviderCatalog.Availability.UNKNOWN));
+        assertTrue(options.get(1).facts().values().stream()
+                .allMatch(fact -> fact.availability() == ProviderCatalog.Availability.OPTIONAL));
+        assertFalse(options.get(1).facts().containsKey(ProviderCatalog.Capability.JIT));
+        assertTrue(options.subList(2, 4).stream().allMatch(option ->
+                option.facts().get(ProviderCatalog.Capability.SCIM).availability() == ProviderCatalog.Availability.UNKNOWN
+                && option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).availability() == ProviderCatalog.Availability.UNKNOWN));
+        var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "keycloak-research-native-and-upstream-test", options);
+        var report = validator.validateAt(combined, Instant.parse("2026-10-08T04:57:09Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.optionCount());
+        assertEquals(15, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
     }
 
     private void assertUntrusted(CatalogDraftValidation report) {

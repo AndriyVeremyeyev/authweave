@@ -1904,9 +1904,9 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports fourteen distinct options and 47 recorded
+`make inspect-provider-baselines` now reports sixteen distinct options and 55 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
-four upstream-scoped drafts.
+six upstream-scoped drafts.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2042,6 +2042,32 @@ The original Free and research options retain their own observations; no facts a
 inherited across configurations. Offline scope/source checks, typed validation and
 HTTP regression coverage do not verify sources or activate recommendations.
 Remaining pairings, complete baseline coverage and authorized publication stay open.
+
+#### Release-and-upstream-scoped Keycloak workforce candidates
+
+Separate [Okta](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0-upstream-okta.v1.json)
+and [Entra](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0-upstream-entra.v1.json)
+drafts select a realm-scoped generic OIDC broker in Keycloak 26.8.0. They propose
+`ENTERPRISE_SSO` and first-login `JIT` as `OPTIONAL`, not certified or runtime-tested
+pair compatibility. All eight entries remain `UNREVIEWED`; no deployment or account
+was created and AuthWeave's ZITADEL authentication is unchanged.
+
+The [pinned broker guide](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/identity-broker/oidc.adoc)
+documents code-flow, issuer and signature checks. The selected upstream scopes are
+an [Okta org authorization server](https://developer.okta.com/docs/concepts/auth-servers/)
+and [one Entra workforce tenant's v2 authority](https://learn.microsoft.com/en-us/entra/identity-platform/v2-protocols-oidc),
+not interchangeable custom issuers, tenant selectors, External ID or B2C.
+Only Keycloak documentation is release-pinned; upstream documentation is mutable and dated.
+Hosting costs, commercial support and upstream entitlements are unverified.
+
+The [first broker login flow](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/identity-broker/first-login-flow.adoc)
+can create a unique local account or require proof when linking an existing one.
+JIT is not background provisioning. Pair-specific `SCIM` and `GROUP_SYNC` remain
+`UNKNOWN`: native realm SCIM support and login-time claim mappers do not prove
+identity correlation, group lifecycle or consuming-app authorization/session enforcement.
+The original native and research options retain their observations and availability;
+no positive facts are inherited. Offline inspection and typed tests neither verify
+interoperability nor approve or activate these proposals. Full coverage and publication remain pending.
 
 ### Catalog change proposal previews
 
