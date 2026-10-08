@@ -823,6 +823,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/auth0-b2b-free-browser-authentication-controls.v1.json");
         resources.add("scoped/workos-authkit-staging-browser-authentication-controls.v1.json");
         resources.add("scoped/entra-external-id-basic-browser-authentication-controls.v1.json");
+        resources.add("scoped/keycloak-26.8.0-operator-residency.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -845,6 +846,10 @@ class ProviderBaselineDraftTests {
                     || address.equals("compatibility.applications.PARTNER_PORTAL")
                     || address.equals("compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS")
                     || address.equals("compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER")
+                    || address.equals("residency.USER_PROFILES")
+                    || address.equals("residency.CREDENTIALS")
+                    || address.equals("residency.AUDIT_LOGS")
+                    || address.equals("residency.BACKUPS")
                     || address.equals("authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.PHISHING_RESISTANCE")
                     || address.equals("authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.NON_EXPORTABLE_KEYS")
                     || address.equals("authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.STEP_UP_AUTHENTICATION")), file);
@@ -859,18 +864,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(40, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(132, recordedCount);
-        assertEquals(2588, omittedCount);
+        assertEquals(41, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(136, recordedCount);
+        assertEquals(2652, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 45,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 34), counts);
         assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 31, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T21:34:08Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T22:10:43Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(40, report.optionCount());
-        assertEquals(132, report.factCount());
+        assertEquals(41, report.optionCount());
+        assertEquals(136, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -3017,6 +3022,112 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(8, report.optionCount());
         assertEquals(28, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void keycloakOperatorResidencyKeepsAllFourDestinationInventoriesUnknownAndUnreviewed() throws Exception {
+        var json = resource("catalog/baselines/scoped/keycloak-26.8.0-operator-residency.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("keycloak-26.8.0-operator-residency-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("keycloak-26.8.0-operator-residency", option.id());
+        assertEquals("Keycloak upstream 26.8.0", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.SELF_HOSTED, option.deployment());
+        assertTrue(option.configuration().contains("no federation, custom providers or hosted service"));
+        var category = io.authweave.core.assessment.domain.profile.DataResidencyDetails.DataCategory.class;
+        assertEquals(java.util.EnumSet.allOf(category), option.residency().keySet());
+        assertTrue(option.facts().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        var observed = Instant.parse("2026-10-08T22:10:43Z");
+        option.residency().values().forEach(fact -> {
+            assertEquals(ProviderCatalog.ResidencyCoverage.UNKNOWN, fact.coverage());
+            assertTrue(fact.storageCountries().isEmpty());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertTrue(fact.evidence().sourceUrl().toString().startsWith(
+                    "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/"));
+            assertFalse(fact.conditions().isEmpty());
+        });
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        for (var mutation : List.of("unknown-with-country", "complete-without-country", "invalid-country")) {
+            var changed = mapper.readTree(json);
+            var fact = (tools.jackson.databind.node.ObjectNode) changed.at("/options/0/residency/CREDENTIALS");
+            if (mutation.equals("complete-without-country")) {
+                fact.put("coverage", "COMPLETE");
+            } else {
+                ((tools.jackson.databind.node.ArrayNode) fact.get("storageCountries"))
+                        .add(mutation.equals("invalid-country") ? "ZZ" : "US");
+                if (mutation.equals("invalid-country")) fact.put("coverage", "PARTIAL");
+            }
+            var invalid = validator.validateAt(mapper.treeToValue(changed, ProviderCatalogDraft.class), observed);
+            assertEquals(CatalogDraftValidation.Status.INVALID_DRAFT, invalid.status(), mutation);
+            var code = mutation.equals("invalid-country") ? CatalogDraftValidation.IssueCode.INVALID_COUNTRY
+                    : CatalogDraftValidation.IssueCode.RESIDENCY_COVERAGE_INCONSISTENT;
+            assertTrue(invalid.issues().stream().anyMatch(issue -> issue.code() == code), mutation);
+            assertUntrusted(invalid);
+        }
+    }
+
+    @Test
+    void keycloakResidencyFreshnessNeverChangesCountriesCoverageOrAuthority() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/keycloak-26.8.0-operator-residency.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T22:10:43Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertEquals(4, report.factCount());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+            draft.options().getFirst().residency().values().forEach(fact -> {
+                assertEquals(ProviderCatalog.ResidencyCoverage.UNKNOWN, fact.coverage());
+                assertTrue(fact.storageCountries().isEmpty());
+                assertEquals(observed, fact.evidence().observedAt());
+            });
+        }
+    }
+
+    @Test
+    void keycloakOperatorResidencyDoesNotPopulateEightEarlierIntegrationOrAuthenticationScopes() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("keycloak.v1.json", "scoped/keycloak-26.8.0.v1.json",
+                "scoped/keycloak-26.8.0-upstream-okta.v1.json", "scoped/keycloak-26.8.0-upstream-entra.v1.json",
+                "scoped/keycloak-26.8.0-public-oidc-clients.v1.json", "scoped/keycloak-26.8.0-organization-context.v1.json",
+                "scoped/keycloak-26.8.0-machine-clients.v1.json",
+                "scoped/keycloak-26.8.0-browser-authentication-controls.v1.json",
+                "scoped/keycloak-26.8.0-operator-residency.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(9, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        options.subList(0, 8).forEach(option -> assertTrue(option.residency().isEmpty()));
+        assertEquals(Instant.parse("2026-10-02T21:20:39Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(7).facts().get(ProviderCatalog.Capability.MFA).availability());
+        assertFalse(options.get(7).authenticationControls().isEmpty());
+        assertTrue(options.getLast().facts().isEmpty());
+        assertTrue(options.getLast().authenticationControls().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "keycloak-residency-context-coexistence-test", options), Instant.parse("2026-10-08T22:10:43Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(9, report.optionCount());
+        assertEquals(32, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

@@ -136,11 +136,11 @@ test("machine observations keep the inclusive freshness boundary without refresh
 test("machine context coexists with other Keycloak scopes without changing their API omissions", async () => {
   const originals = drafts.filter((entry) => entry.options[0].providerId === "keycloak" && entry !== draft);
   const before = JSON.stringify(originals);
-  assert.equal(originals.length, 6);
+  assert.equal(originals.length, 7);
   const report = await inspectBaselinePack(observed);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
-  assert.equal(keycloak.length, 8);
-  assert.equal(keycloak.reduce((count, option) => count + option.facts.length, 0), 28);
+  assert.equal(keycloak.length, 9);
+  assert.equal(keycloak.reduce((count, option) => count + option.facts.length, 0), 32);
   const earlier = keycloak.filter((option) => option.basis !== "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(earlier.every((option) => !option.facts.some((fact) => paths.includes(fact.path))));
   const native = earlier.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT");

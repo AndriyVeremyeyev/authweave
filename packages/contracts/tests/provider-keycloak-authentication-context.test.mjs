@@ -149,14 +149,14 @@ test("authentication freshness and canonical ordering do not refresh observation
   assert.equal(JSON.stringify(draft), before);
 });
 
-test("authentication context coexists with seven older Keycloak scopes and cannot leak into a public-client scope", async () => {
+test("authentication context coexists with eight other Keycloak scopes and cannot leak into a public-client scope", async () => {
   const originals = drafts.filter((entry) => entry.options[0].providerId === "keycloak" && entry !== draft);
   const before = JSON.stringify(originals);
-  assert.equal(originals.length, 6);
+  assert.equal(originals.length, 7);
   assert.ok(originals.every((entry) => Object.keys(entry.options[0].authenticationControls).length === 0));
   const keycloak = (await inspectBaselinePack(observed)).options.filter((option) => option.providerId === "keycloak");
-  assert.equal(keycloak.length, 8);
-  assert.equal(keycloak.reduce((sum, option) => sum + option.facts.length, 0), 28);
+  assert.equal(keycloak.length, 9);
+  assert.equal(keycloak.reduce((sum, option) => sum + option.facts.length, 0), 32);
   assert.ok(keycloak.filter((option) => option.basis !== "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT")
     .every((option) => !option.facts.some((fact) => fact.path.startsWith("authenticationControls.") || fact.path === "facts.MFA")));
   const native = keycloak.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT");

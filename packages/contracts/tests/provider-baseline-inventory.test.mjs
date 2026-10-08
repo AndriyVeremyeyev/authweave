@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-08T21:34:08Z");
+const at = new Date("2026-10-08T22:10:43Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -59,7 +59,7 @@ function assertPartitions(report) {
     assert.equal(entry.recordedPathCount, recorded.length);
     assert.equal(entry.omittedPathCount, 68 - recorded.length);
     assert.deepEqual(entry.recordedUnknownPaths, source.facts.filter((fact) => fact.availability === "UNKNOWN" || fact.support === "UNKNOWN"
-      || fact.enforcement === "UNKNOWN").map((fact) => fact.path).sort());
+      || fact.enforcement === "UNKNOWN" || fact.coverage === "UNKNOWN").map((fact) => fact.path).sort());
     assert.deepEqual(entry.families.map((family) => family.family), expectedVocabulary.map((family) => family.family));
     for (const family of entry.families) {
       const paths = expectedVocabulary.find((vocabulary) => vocabulary.family === family.family).paths;
@@ -77,6 +77,11 @@ function assertPartitions(report) {
       } else if (fact.path.startsWith("compatibility.")) {
         assert.equal(Object.hasOwn(fact, "availability"), false);
         compatibility[fact.support] += 1;
+      } else if (fact.path.startsWith("residency.")) {
+        for (const field of ["availability", "support", "enforcement"]) assert.equal(Object.hasOwn(fact, field), false);
+        assert.ok(["COMPLETE", "PARTIAL", "UNKNOWN"].includes(fact.coverage));
+        assert.ok(Array.isArray(fact.storageCountries));
+        assert.equal(fact.storageCountries.length === 0, fact.coverage === "UNKNOWN");
       } else {
         assert.ok(fact.path.startsWith("authenticationControls."));
         assert.equal(Object.hasOwn(fact, "support"), false);
@@ -109,14 +114,14 @@ test("inventory v2 enumerates 68 schema addresses, not 68 required customer fact
 
 test("the full pack partitions every option independently and replays all aggregate counts", () => {
   assertPartitions(pack);
-  assert.equal(inventory.optionCount, 40);
-  assert.equal(inventory.optionPathCount, 2720);
-  assert.equal(inventory.recordedPathCount, 132);
-  assert.equal(inventory.omittedPathCount, 2588);
+  assert.equal(inventory.optionCount, 41);
+  assert.equal(inventory.optionPathCount, 2788);
+  assert.equal(inventory.recordedPathCount, 136);
+  assert.equal(inventory.omittedPathCount, 2652);
   assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 45, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 34 });
   assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 31, UNSUPPORTED: 0, UNKNOWN: 4 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 82, COMPATIBILITY: 35, RESIDENCY: 0, AUTHENTICATION_CONTROL: 15 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 132, STALE: 0, FUTURE: 0 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 82, COMPATIBILITY: 35, RESIDENCY: 4, AUTHENTICATION_CONTROL: 15 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 136, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -154,8 +159,11 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
     const expectedControls = basis === "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"
       ? ["NON_EXPORTABLE_KEYS", "PHISHING_RESISTANCE", "STEP_UP_AUTHENTICATION"]
         .map((control) => `authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.${control}`) : [];
+    const expectedResidency = basis === "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT"
+      ? ["AUDIT_LOGS", "BACKUPS", "CREDENTIALS", "USER_PROFILES"].map((category) => `residency.${category}`) : [];
     assert.deepEqual(family.recordedPaths, family.family === "COMPATIBILITY" ? expectedContext
-      : family.family === "AUTHENTICATION_CONTROL" ? expectedControls : []);
+      : family.family === "AUTHENTICATION_CONTROL" ? expectedControls
+        : family.family === "RESIDENCY" ? expectedResidency : []);
   }
 });
 
@@ -172,10 +180,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 117 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 121 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 132 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 132, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 136 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 136, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);
@@ -244,7 +252,7 @@ test("inventory v1 remains a distinct capability-only legacy contract, not a sil
   legacy.policyVersion = "provider-baseline-schema-path-inventory-1";
   legacy.options = legacy.options.filter((entry) =>
     !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT",
-      "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"].includes(
+      "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT"].includes(
       pack.options.find((option) => option.optionId === entry.optionId).basis));
   legacy.optionCount = 20;
   legacy.optionPathCount = 1360;

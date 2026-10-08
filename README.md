@@ -1875,12 +1875,15 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 132 recorded and 2,588 omitted option-paths across 40 distinct
-scopes (2,720 possible addresses). The 82 capability proposals comprise 45 `OPTIONAL`,
+The current pack has 136 recorded and 2,652 omitted option-paths across 41 distinct
+scopes (2,788 possible addresses). The 82 capability proposals comprise 45 `OPTIONAL`,
 3 `UNAVAILABLE` and 34 `UNKNOWN`; thirty-five separate compatibility proposals comprise
 thirty-one `SUPPORTED` and four `UNKNOWN`. Fifteen authentication-control records retain
 their own availability/enforcement pairs, not capability or compatibility counts.
 An `UNKNOWN` in either control field appears in `recordedUnknownPaths`.
+Four separate residency records retain `coverage: UNKNOWN` and empty
+`storageCountries`, also appearing in `recordedUnknownPaths`. They are not converted
+to capability availability, compatibility support or authentication enforcement.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1939,7 +1942,7 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports forty distinct options and 132 recorded
+`make inspect-provider-baselines` now reports forty-one distinct options and 136 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
@@ -1949,7 +1952,8 @@ and Entra External ID Basic), plus five machine-client scopes
 (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
 and Entra External ID with the paid M2M Premium add-on), plus five browser/customer
 authentication-control scopes (release-pinned Keycloak, ZITADEL Cloud Free, Auth0 B2B Free
-and primary WorkOS AuthKit staging, plus Entra External ID Basic).
+and primary WorkOS AuthKit staging, plus Entra External ID Basic), plus one
+release-pinned, operator-residency Keycloak scope.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2006,6 +2010,51 @@ not demonstrate phishing-resistant WebAuthn composition, and local LoA is not a
 certified assurance level. No installation, accounts, flow changes, devices,
 spending or live acceptance tests occurred; ZITADEL/BFF and the synthetic evaluator
 remain unchanged.
+
+#### Operator-scoped Keycloak residency documentation candidate
+
+A separate [Keycloak operator-residency draft](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0-operator-residency.v1.json)
+records four typed categories: `USER_PROFILES`, `CREDENTIALS`, `AUDIT_LOGS` and
+`BACKUPS`. All have `coverage: UNKNOWN`, empty `storageCountries` and
+`UNREVIEWED` evidence pinned to the same upstream 26.8.0 source commit.
+The scope is self-hosted, native local users and operator-selected database,
+logging and backup destinations, excluding federation, custom providers and
+hosted Keycloak services. No deployment inventory or storage country was verified.
+
+The [database guide](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/db.adoc)
+identifies relational user/client/realm storage. Its at-rest section includes
+hashed passwords, client credentials and realm signing keys, with attention to
+database files, WAL/redo and backups. Hashing and recommended encryption are not
+proof of enabled encryption or country coverage. Primary storage, replicas,
+snapshots, exports, caches and persisted sessions need their own inventory;
+[cache behavior](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/caching.adoc)
+does not identify an operator's at-rest destinations.
+
+[User-event persistence](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/events/login.adoc)
+is configurable and off by default; event selection, expiration and listeners
+matter. [Admin-event storage](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/events/admin.adoc)
+is separate and can include representations.
+[Console, file and Syslog output](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/logging.adoc)
+can reach different stores, including runtime-persisted console streams.
+Unknown destinations do not mean no logs exist, and this residency proposal
+does not verify auditing completeness, retention or immutability.
+
+The [import/export guide](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/importExport.adoc)
+limits realm exports: user/admin events, persisted sessions, workflow state and
+revoked tokens are omitted. Consistency requires stopped nodes; that statement
+does not authorize stopping an installation or running export/import. Admin
+Console partial export excludes users and masks sensitive values. Neither is
+evidence of complete recovery coverage. Database backups, WAL archives, snapshots,
+replicas and export copies require independent destination, retention, encryption
+and recovery evidence.
+
+Explicit `UNKNOWN` is not an omitted record, `UNSUPPORTED`, absence of storage or
+a data-localization/compliance guarantee. The offline inspector preserves typed
+coverage/countries and rejects scope, source and claimed-country drift; it neither
+fetches sources nor verifies their truth. No configuration, credentials, logs,
+backup/export/restore, cloud resources, accounts, subscriptions or paid services
+were changed. Earlier candidates, ZITADEL/BFF, UI and the synthetic evaluator
+remain unchanged; full baselines and authorized approval/publication remain pending.
 
 #### Machine-scoped Keycloak OAuth API documentation candidate
 

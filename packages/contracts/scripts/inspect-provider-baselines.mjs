@@ -113,6 +113,28 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
   },
   {
+    file: "keycloak-26.8.0-operator-residency.v1.json",
+    catalogVersion: "keycloak-26.8.0-operator-residency-draft-2026.10.08",
+    scope: {
+      id: "keycloak-26.8.0-operator-residency", providerId: "keycloak",
+      product: "Keycloak upstream 26.8.0", deployment: "SELF_HOSTED",
+      plan: "Upstream release 26.8.0; commercial support not assessed",
+      region: "Operator-selected hosting; storage destinations not verified",
+      configuration: "Operator-selected primary DB, event logging and backup/export storage; no federation, custom providers or hosted service",
+    },
+    facts: {},
+    residency: Object.fromEntries(Object.entries({
+      USER_PROFILES: "docs/guides/server/db.adoc",
+      CREDENTIALS: "docs/guides/server/db.adoc#encrypting-data-at-rest",
+      AUDIT_LOGS: "docs/documentation/server_admin/topics/events/login.adoc",
+      BACKUPS: "docs/guides/server/importExport.adoc",
+    }).map(([category, sourcePath]) => [category, {
+      coverage: "UNKNOWN", storageCountries: [],
+      sourceUrl: `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/${sourcePath}`,
+    }])),
+    metadata: { basis: "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
+  },
+  {
     file: "keycloak-26.8.0-machine-clients.v1.json",
     catalogVersion: "keycloak-26.8.0-machine-clients-draft-2026.10.08",
     scope: {
@@ -719,7 +741,8 @@ function schemaPathInventory(options, evaluatedAt) {
     for (const fact of option.facts) {
       if (fact.path.startsWith("facts.")) proposedAvailabilityCounts[fact.availability] += 1;
       else if (fact.path.startsWith("compatibility.")) proposedCompatibilityCounts[fact.support] += 1;
-      else requireCondition(fact.path.startsWith("authenticationControls."), "Unexpected recorded baseline fact family");
+      else requireCondition(fact.path.startsWith("authenticationControls.") || fact.path.startsWith("residency."),
+        "Unexpected recorded baseline fact family");
       recordedFreshnessCounts[fact.freshness] += 1;
     }
     return {
@@ -728,7 +751,7 @@ function schemaPathInventory(options, evaluatedAt) {
       recordedPathCount: recorded.size,
       omittedPathCount: 68 - recorded.size,
       recordedUnknownPaths: option.facts.filter((fact) => fact.availability === "UNKNOWN" || fact.support === "UNKNOWN"
-        || fact.enforcement === "UNKNOWN").map((fact) => fact.path).sort(),
+        || fact.enforcement === "UNKNOWN" || fact.coverage === "UNKNOWN").map((fact) => fact.path).sort(),
       families,
     };
   });
@@ -778,7 +801,11 @@ function authenticationEntries(option) {
       Object.entries(controls).map(([control, fact]) => [`authenticationControls.${client}.${population}.${control}`, fact])));
 }
 
-function requireDeferredDimensions(option, expectedCompatibility = {}, expectedAuthentication = {}) {
+function residencyEntries(option) {
+  return Object.entries(option.residency).map(([category, fact]) => [`residency.${category}`, fact]);
+}
+
+function requireDeferredDimensions(option, expectedCompatibility = {}, expectedAuthentication = {}, expectedResidency = {}) {
   const entries = compatibilityEntries(option);
   requireCondition(entries.map(([address]) => address).sort().join(",") === Object.keys(expectedCompatibility).sort().join(","),
     "Unexpected scoped compatibility inventory");
@@ -787,7 +814,15 @@ function requireDeferredDimensions(option, expectedCompatibility = {}, expectedA
       && fact.evidence.sourceUrl === expectedCompatibility[address].sourceUrl,
     "Unexpected proposed compatibility or exact scoped source URL");
   }
-  requireCondition(Object.keys(option.residency).length === 0, "This baseline pack must not infer residency");
+  requireCondition(Object.keys(option.residency).sort().join(",") === Object.keys(expectedResidency).sort().join(","),
+    "Unexpected scoped residency inventory");
+  for (const [category, fact] of Object.entries(option.residency)) {
+    const expected = expectedResidency[category];
+    requireCondition(fact.coverage === expected.coverage
+      && JSON.stringify([...fact.storageCountries].sort()) === JSON.stringify([...expected.storageCountries].sort())
+      && fact.evidence.sourceUrl === expected.sourceUrl,
+    "Unexpected proposed residency coverage, destinations or exact scoped source URL");
+  }
   const controls = authenticationEntries(option);
   requireCondition(controls.map(([address]) => address).sort().join(",") === Object.keys(expectedAuthentication).sort().join(","),
     "Unexpected scoped authentication-control inventory");
@@ -808,6 +843,7 @@ function inspectOption(draft, option, evaluatedAt, basis) {
   const entries = [
     ...Object.entries(option.facts).map(([capability, fact]) => [`facts.${capability}`, fact]),
     ...compatibilityEntries(option),
+    ...residencyEntries(option),
     ...authenticationEntries(option),
   ];
   const facts = entries.sort(([left], [right]) => left.localeCompare(right)).map(([address, fact]) => {
@@ -823,7 +859,8 @@ function inspectOption(draft, option, evaluatedAt, basis) {
       path: address,
       ...(address.startsWith("facts.") ? { availability: fact.availability }
         : address.startsWith("compatibility.") ? { support: fact.support }
-          : { availability: fact.availability, enforcement: fact.enforcement }),
+          : address.startsWith("residency.") ? { coverage: fact.coverage, storageCountries: [...fact.storageCountries].sort() }
+            : { availability: fact.availability, enforcement: fact.enforcement }),
       evidenceStatus: "UNREVIEWED",
       freshness: age < 0 ? "FUTURE" : age > windowMs ? "STALE" : "CURRENT",
       conditions: [...fact.conditions].sort(),
@@ -929,7 +966,7 @@ export function inspectScopedBaselineDraft(draft, evaluatedAt = new Date()) {
     "Unexpected release, plan, distribution, deployment or integration scope");
   requireCondition(Object.keys(option.facts).sort().join(",") === Object.keys(expected.facts).sort().join(","),
     "Unexpected scoped capability inventory");
-  requireDeferredDimensions(option, expected.compatibility, expected.authenticationControls);
+  requireDeferredDimensions(option, expected.compatibility, expected.authenticationControls, expected.residency);
   for (const [capability, fact] of Object.entries(option.facts)) {
     requireCondition(fact.availability === expected.facts[capability].availability,
       "Unexpected proposed availability for the scoped documentation candidate");

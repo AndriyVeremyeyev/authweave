@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "keycloak-26.8.0-operator-residency-draft-2026.10.08",
+  "options": [
+    {
+      "id": "keycloak-26.8.0-operator-residency",
+      "providerId": "keycloak",
+      "product": "Keycloak upstream 26.8.0",
+      "plan": "Upstream release 26.8.0; commercial support not assessed",
+      "deployment": "SELF_HOSTED",
+      "region": "Operator-selected hosting; storage destinations not verified",
+      "configuration": "Operator-selected primary DB, event logging and backup/export storage; no federation, custom providers or hosted service",
+      "facts": {},
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {
+        "USER_PROFILES": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Select upstream self-hosted Keycloak with native local users and an operator-selected relational database. No LDAP, upstream identity provider, custom User Storage SPI or managed Keycloak service is included.",
+            "Database configuration identifies a storage mechanism, not a country. Primary storage, replicas, snapshots, exports and operator destinations are unverified; coverage remains UNKNOWN with an empty country list.",
+            "User caches and default persisted sessions are separate from a verified at-rest inventory: https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/caching.adoc. No hosting country or data-localization guarantee is inferred."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/db.adoc",
+            "observedAt": "2026-10-08T22:10:43Z",
+            "summary": "The database guide describes relational storage for user, client and realm data. Actual operator-controlled destinations and completeness are unverified; no country is recorded."
+          }
+        },
+        "CREDENTIALS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "The at-rest section includes hashed user passwords, client credentials and realm signing keys in the database. Hashing and recommended encryption do not identify storage countries or prove encryption is enabled.",
+            "Include relevant database files, WAL/redo copies and backup storage in a separate deployment inventory. Key management and any provider-specific credential stores require independent evidence; this scope excludes external federation and custom storage providers.",
+            "Coverage stays UNKNOWN with no destinations. A self-hosted product label, TLS connection or operator-selected region is not proof that every credential copy stays inside an allowlist. No deployment, credential inspection or encryption setting was changed."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/db.adoc#encrypting-data-at-rest",
+            "observedAt": "2026-10-08T22:10:43Z",
+            "summary": "The pinned guide identifies sensitive database data and requires attention to WAL and backups. This establishes investigation targets, not observed geography, at-rest encryption or complete credential coverage."
+          }
+        },
+        "AUDIT_LOGS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "User-event persistence is configurable and not enabled by default; selected event types, expiration and listeners matter. Unknown log destinations do not mean no logs exist, and this residency record does not certify event completeness, retention or immutability.",
+            "Admin-event storage is a separate setting and can include representations: https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/events/admin.adoc. Its database, replicas and copied records need separate destination evidence.",
+            "Console, file and Syslog handlers route output differently: https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/logging.adoc. A console stream can be persisted by its runtime; local paths and collector endpoints do not identify countries.",
+            "Review event DBs, disk files, runtime collectors, downstream log stores and their copies. Coverage remains UNKNOWN with no countries; no event setting, collector, retention rule or live log retrieval was performed."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/events/login.adoc",
+            "observedAt": "2026-10-08T22:10:43Z",
+            "summary": "The user-event guide describes opt-in persistence and listener behavior. Actual event databases and logging destinations are unverified; this does not establish auditing capabilities or country coverage."
+          }
+        },
+        "BACKUPS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Realm export is not a complete backup: it excludes user/admin events, persisted sessions, workflow state and revoked tokens. Export consistency requires stopped nodes; this is documentation, not authorization to stop an installation or run export/import.",
+            "Admin Console partial export excludes users and masks sensitive values; it is not suitable as a complete backup. No masked export or local JSON file proves complete recovery coverage or a storage country.",
+            "Database backups, WAL archives, snapshots, replicas and CLI export copies need their own operator inventory of destinations, retention, encryption and recovery evidence. Exact completeness and countries are unverified; coverage stays UNKNOWN with an empty list.",
+            "No backup, export, restore, snapshot, cloud storage, account, subscription or deployment was created. No paid service or measured recovery objective is inferred; AuthWeave's ZITADEL/BFF, UI and synthetic evaluator are unchanged."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/server/importExport.adoc",
+            "observedAt": "2026-10-08T22:10:43Z",
+            "summary": "The pinned import/export guide documents consistency and omitted-state limits, including partial Admin Console exports. Actual backup destinations and recovery coverage are unverified; no country or complete backup claim is proposed."
+          }
+        }
+      },
+      "authenticationControls": {}
+    }
+  ]
+}
