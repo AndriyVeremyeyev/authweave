@@ -124,6 +124,26 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
+  ...["okta", "entra"].map((upstream) => ({
+    file: `workos-directory-sync-staging-upstream-${upstream}.v1.json`,
+    catalogVersion: `workos-directory-sync-staging-upstream-${upstream}-draft-2026.10.08`,
+    scope: {
+      id: `workos-directory-sync-staging-upstream-${upstream}-workforce`, providerId: "workos",
+      product: "WorkOS Directory Sync", deployment: "MANAGED",
+      plan: "Staging; upstream workforce provisioning entitlement unverified",
+      region: "No WorkOS or upstream region selected; storage destinations not verified",
+      configuration: upstream === "okta"
+        ? "Org-bound Okta SCIM directory; bearer auth; separate assignment/push groups; app-owned Events API bridge; no login"
+        : "Org-bound Entra SCIM directory; bearer auth; assigned users/groups; objectId/externalId; app-owned Events API; no login",
+    },
+    facts: Object.fromEntries(["SCIM", "GROUP_SYNC"].map((capability) => [capability, {
+      availability: "OPTIONAL", sourceUrl: `https://workos.com/docs/integrations/${upstream === "okta" ? "okta-scim" : "entra-id-scim"}`,
+    }])),
+    metadata: {
+      basis: "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging",
+      upstreamProviderId: upstream === "okta" ? "okta-workforce" : "entra-id-workforce",
+    },
+  })),
   {
     file: "entra-external-id-basic.v1.json",
     catalogVersion: "entra-external-id-basic-draft-2026.10.02",

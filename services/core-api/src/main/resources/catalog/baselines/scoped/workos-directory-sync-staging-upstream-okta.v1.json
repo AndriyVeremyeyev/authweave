@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "workos-directory-sync-staging-upstream-okta-draft-2026.10.08",
+  "options": [{
+    "id": "workos-directory-sync-staging-upstream-okta-workforce",
+    "providerId": "workos",
+    "product": "WorkOS Directory Sync",
+    "plan": "Staging; upstream workforce provisioning entitlement unverified",
+    "deployment": "MANAGED",
+    "region": "No WorkOS or upstream region selected; storage destinations not verified",
+    "configuration": "Org-bound Okta SCIM directory; bearer auth; separate assignment/push groups; app-owned Events API bridge; no login",
+    "facts": {
+      "SCIM": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Select an organization-bound Okta SCIM directory in WorkOS staging and a matching bearer-token provisioning app in Okta; enable user creation, attribute updates and deactivation. OAuth client credentials are outside this selected configuration, not declared unsupported.",
+          "Okta suspension alone does not deactivate the provisioned account; deactivation/deletion has different lifecycle behavior. Verify identity mapping and application enforcement rather than equating upstream login restrictions with SaaS revocation.",
+          "WorkOS staging connections are not billed per https://workos.com/docs/authkit/environments; production Directory Sync is charged per connection at https://workos.com/pricing. Upstream provisioning entitlement remains unverified; this is not free production or a zero-cost guarantee.",
+          "The application requires an Events API bridge with persisted cursor, replay handling and state reconciliation per https://workos.com/docs/events/data-syncing/events-api. WorkOS directory data is read-only to the app, not a native SaaS SCIM endpoint or write-back path; local authorization and sessions remain application-owned.",
+          "This is a dated documentation proposal, not a tested connector or deployed bridge. Login, JIT, nested-group coverage, deprovisioning latency and complete access revocation are unverified; do not inherit another WorkOS scope's positive facts."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/integrations/okta-scim",
+          "observedAt": "2026-10-08T05:14:26Z",
+          "summary": "The Okta guide documents a dedicated directory endpoint, provisioning settings and distinct suspension/deactivation behavior. This staging assertion is conditional, not a verified customer configuration."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Configure Push Groups separately from application assignment groups; assignment alone is not Group Push. Membership removal may be missing after deactivation/unassignment, so test reconciliation and explicit re-push recovery.",
+          "Okta group display names populate WorkOS idp_id; do not treat those names as immutable globally unique authorization identifiers. Bind application mapping to the intended organization, directory and WorkOS group identity.",
+          "Handle dsync.group.deleted without expecting per-member dsync.group.user_removed events per https://workos.com/docs/directory-sync/understanding-events; remove that group's access without deleting unrelated memberships or user accounts.",
+          "The app-owned bridge must reconcile memberships and enforce its own permissions/sessions. This proposal covers configured group ingestion in the selected staging directory, not nested groups, login claims, production entitlement or measured revocation latency."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/integrations/okta-scim",
+          "observedAt": "2026-10-08T05:14:26Z",
+          "summary": "The guide distinguishes group assignment from push configuration and records membership-removal and group-identifier limitations. Group ingestion does not prove complete application access enforcement."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

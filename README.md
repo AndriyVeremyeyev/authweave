@@ -1904,9 +1904,9 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports sixteen distinct options and 55 recorded
+`make inspect-provider-baselines` now reports eighteen distinct options and 59 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
-six upstream-scoped drafts.
+eight upstream-scoped drafts.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2068,6 +2068,31 @@ identity correlation, group lifecycle or consuming-app authorization/session enf
 The original native and research options retain their observations and availability;
 no positive facts are inherited. Offline inspection and typed tests neither verify
 interoperability nor approve or activate these proposals. Full coverage and publication remain pending.
+
+#### Upstream-scoped WorkOS Directory Sync staging candidates
+
+Separate [Okta](services/core-api/src/main/resources/catalog/baselines/scoped/workos-directory-sync-staging-upstream-okta.v1.json)
+and [Entra](services/core-api/src/main/resources/catalog/baselines/scoped/workos-directory-sync-staging-upstream-entra.v1.json)
+drafts propose `SCIM` and `GROUP_SYNC` as `OPTIONAL` for organization-bound WorkOS
+staging directories with bearer authentication and an app-owned Events API bridge.
+All four entries are `UNREVIEWED`. Login, JIT, nested-group coverage, production
+entitlement and measured access revocation are not inferred. AuthWeave is not connected
+to WorkOS and still uses ZITADEL; no account, subscription or integration was created.
+
+The [Okta guide](https://workos.com/docs/integrations/okta-scim) distinguishes
+assignment groups from Push Groups and suspension from deactivation; group identifiers
+use display names, and membership-removal gaps need recovery tests. The
+[Entra guide](https://workos.com/docs/integrations/entra-id-scim) requires explicit
+provisioning mappings/scope and describes membership restoration after soft deletion.
+Scheduled or on-demand provisioning is not proof of immediate SaaS session revocation.
+
+[Staging is not billed](https://workos.com/docs/authkit/environments), but this does not
+establish upstream provisioning entitlement or free production Directory Sync.
+The required app bridge must handle replay, reconcile state and enforce local access;
+[group deletion](https://workos.com/docs/directory-sync/understanding-events) does not
+emit individual member-removal events. These mutable, dated sources are not release pins
+or live interoperability evidence. Original research/generic observations remain unchanged;
+offline scope checks do not approve or activate facts. Full coverage and publication remain pending.
 
 ### Catalog change proposal previews
 

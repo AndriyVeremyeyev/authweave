@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "workos-directory-sync-staging-upstream-entra-draft-2026.10.08",
+  "options": [{
+    "id": "workos-directory-sync-staging-upstream-entra-workforce",
+    "providerId": "workos",
+    "product": "WorkOS Directory Sync",
+    "plan": "Staging; upstream workforce provisioning entitlement unverified",
+    "deployment": "MANAGED",
+    "region": "No WorkOS or upstream region selected; storage destinations not verified",
+    "configuration": "Org-bound Entra SCIM directory; bearer auth; assigned users/groups; objectId/externalId; app-owned Events API; no login",
+    "facts": {
+      "SCIM": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Select an organization-bound Entra ID SCIM directory in WorkOS staging and an Entra workforce enterprise provisioning app; use Automatic provisioning with the WorkOS endpoint and bearer token. OAuth client credentials are outside this selected configuration, not declared unsupported.",
+          "Enable user/group mappings, map objectId to externalId and select only assigned users/groups as the provisioning scope. Establish this provisioning identity separately from any OIDC sub or JIT account; this is not Entra External ID, B2C or a Graph pull connector.",
+          "WorkOS staging connections are not billed per https://workos.com/docs/authkit/environments; production Directory Sync is charged per connection at https://workos.com/pricing. Upstream provisioning entitlement remains unverified; this is not free production or a zero-cost guarantee.",
+          "The application requires an Events API bridge with persisted cursor, replay handling and state reconciliation per https://workos.com/docs/events/data-syncing/events-api. WorkOS directory data is read-only to the app, not a native SaaS SCIM endpoint or write-back path; local authorization and sessions remain application-owned.",
+          "Scheduled provisioning and on-demand actions are distinct; neither proves immediate end-to-end revocation. This is a dated documentation proposal, not a tested connector or deployed bridge; login/JIT and complete lifecycle enforcement remain unverified."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/integrations/entra-id-scim",
+          "observedAt": "2026-10-08T05:14:26Z",
+          "summary": "The Entra guide documents an organization directory, provisioning credentials, objectId/externalId mapping and assigned-user/group scope. Its scheduled and on-demand paths are not measured application revocation."
+        }
+      },
+      "GROUP_SYNC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Enable group mappings and explicitly assign groups to the Entra provisioning application; OIDC group claims are not this SCIM group lifecycle. Group externalId is recorded as WorkOS idp_id, unlike Okta's display-name identifier.",
+          "Reactivation after directory-level soft deletion may not restore memberships automatically; the guide calls for Restart Provisioning. Verify recovery and reconcile group state instead of assuming reactivation restores all access.",
+          "Handle dsync.group.deleted without expecting per-member dsync.group.user_removed events per https://workos.com/docs/directory-sync/understanding-events; remove that group's access without deleting unrelated memberships or user accounts.",
+          "The app-owned bridge must reconcile memberships and enforce its own permissions/sessions. This proposal covers configured group ingestion in the selected staging directory, not nested groups, login claims, production entitlement or measured revocation latency."
+        ],
+        "evidence": {
+          "sourceUrl": "https://workos.com/docs/integrations/entra-id-scim",
+          "observedAt": "2026-10-08T05:14:26Z",
+          "summary": "The guide documents assigned group provisioning, externalId-based group identity and reactivation caveats. These conditions do not prove complete membership restoration or application access enforcement."
+        }
+      }
+    },
+    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

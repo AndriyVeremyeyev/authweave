@@ -583,6 +583,103 @@ class ProviderBaselineDraftTests {
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"okta", "entra"})
+    void workosWorkforceDirectoriesDoNotVerifyLoginEntitlementOrLifecycleEnforcement(String upstream) throws Exception {
+        var json = resource("catalog/baselines/scoped/workos-directory-sync-staging-upstream-" + upstream + ".v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("workos-directory-sync-staging-upstream-" + upstream + "-workforce", option.id());
+        assertEquals("workos", option.providerId());
+        assertEquals("WorkOS Directory Sync", option.product());
+        assertEquals("Staging; upstream workforce provisioning entitlement unverified", option.plan());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.SCIM, ProviderCatalog.Capability.GROUP_SYNC),
+                option.facts().keySet());
+        var observed = Instant.parse("2026-10-08T05:14:26Z");
+        option.facts().values().forEach(fact -> {
+            assertEquals(ProviderCatalog.Availability.OPTIONAL, fact.availability());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("workos.com", fact.evidence().sourceUrl().getHost());
+            assertEquals("/docs/integrations/" + (upstream.equals("okta") ? "okta-scim" : "entra-id-scim"),
+                    fact.evidence().sourceUrl().getPath());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        var scim = String.join(" ", option.facts().get(ProviderCatalog.Capability.SCIM).conditions());
+        var groups = String.join(" ", option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).conditions());
+        assertTrue(scim.contains("OAuth client credentials are outside"));
+        assertTrue(scim.contains("Upstream provisioning entitlement remains unverified"));
+        assertTrue(scim.contains("not a native SaaS SCIM endpoint or write-back path"));
+        assertTrue(scim.contains("persisted cursor"));
+        assertTrue(groups.contains("without expecting per-member dsync.group.user_removed"));
+        assertTrue(groups.contains("not nested groups"));
+        assertTrue(groups.contains("measured revocation latency"));
+        if (upstream.equals("okta")) {
+            assertTrue(scim.contains("suspension alone does not deactivate"));
+            assertTrue(groups.contains("assignment alone is not Group Push"));
+            assertTrue(groups.contains("display names populate WorkOS idp_id"));
+        } else {
+            assertTrue(scim.contains("map objectId to externalId"));
+            assertTrue(scim.contains("only assigned users/groups"));
+            assertTrue(scim.contains("not Entra External ID, B2C or a Graph pull connector"));
+            assertTrue(groups.contains("Restart Provisioning"));
+            assertTrue(groups.contains("unlike Okta's display-name identifier"));
+        }
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(2, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"schemaVersion\": 1", "\"schemaVersion\": 1, \"approvalGranted\": true"), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void workosResearchGenericAndBothWorkforceDirectoriesCoexistWithoutClaimInheritance() throws Exception {
+        var resources = List.of("workos.v1.json", "scoped/workos-directory-sync-staging.v1.json",
+                "scoped/workos-directory-sync-staging-upstream-okta.v1.json",
+                "scoped/workos-directory-sync-staging-upstream-entra.v1.json");
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : resources) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class)
+                    .options().getFirst());
+        }
+        assertEquals(4, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.getFirst().facts().values().stream()
+                .allMatch(fact -> fact.availability() == ProviderCatalog.Availability.UNKNOWN));
+        assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(Instant.parse("2026-10-02T22:46:13Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertTrue(options.subList(1, 4).stream().allMatch(option -> option.facts().size() == 2
+                && !option.facts().containsKey(ProviderCatalog.Capability.ENTERPRISE_SSO)
+                && !option.facts().containsKey(ProviderCatalog.Capability.JIT)));
+        var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "workos-research-generic-and-upstream-test", options);
+        var report = validator.validateAt(combined, Instant.parse("2026-10-08T05:14:26Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.optionCount());
+        assertEquals(9, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+    }
+
     private void assertUntrusted(CatalogDraftValidation report) {
         assertFalse(report.sourceVerificationPerformed());
         assertFalse(report.approvalGranted());
