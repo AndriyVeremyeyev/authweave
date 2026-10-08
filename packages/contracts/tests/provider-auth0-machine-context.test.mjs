@@ -147,14 +147,14 @@ test("Auth0 machine observations retain the inclusive freshness boundary without
   assert.equal(JSON.stringify(draft), before);
 });
 
-test("Auth0 machine context coexists with six earlier scopes and deterministic inspection does not mutate facts", async () => {
+test("Auth0 machine context coexists with seven other scopes and deterministic inspection does not mutate facts", async () => {
   const originals = drafts.filter((entry) => entry.options[0].providerId === "auth0" && entry !== draft);
   const before = JSON.stringify(originals);
-  assert.equal(originals.length, 5);
+  assert.equal(originals.length, 6);
   const report = await inspectBaselinePack(observed);
   const auth0 = report.options.filter((option) => option.providerId === "auth0");
-  assert.equal(auth0.length, 7);
-  assert.equal(auth0.reduce((count, option) => count + option.facts.length, 0), 22);
+  assert.equal(auth0.length, 8);
+  assert.equal(auth0.reduce((count, option) => count + option.facts.length, 0), 26);
   const earlier = auth0.filter((option) => option.basis !== "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(earlier.every((option) => !option.facts.some((fact) => paths.includes(fact.path))));
   const native = earlier.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");

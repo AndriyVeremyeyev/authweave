@@ -820,6 +820,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/entra-external-id-m2m-addon-machine-clients.v1.json");
         resources.add("scoped/keycloak-26.8.0-browser-authentication-controls.v1.json");
         resources.add("scoped/zitadel-cloud-free-browser-authentication-controls.v1.json");
+        resources.add("scoped/auth0-b2b-free-browser-authentication-controls.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -856,18 +857,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(37, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(120, recordedCount);
-        assertEquals(2396, omittedCount);
+        assertEquals(38, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(124, recordedCount);
+        assertEquals(2460, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 43,
-                ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
+                ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 34), counts);
         assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 31, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T20:18:19Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T20:50:27Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(37, report.optionCount());
-        assertEquals(120, report.factCount());
+        assertEquals(38, report.optionCount());
+        assertEquals(124, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -2664,6 +2665,117 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(8, report.optionCount());
         assertEquals(28, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void auth0FreeAuthenticationDoesNotBorrowPaidMfaOrClaimMandatoryPasskeyJourneys() throws Exception {
+        var json = resource("catalog/baselines/scoped/auth0-b2b-free-browser-authentication-controls.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("auth0-b2b-free-browser-authentication-controls-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("Auth0 Public Cloud", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.MFA), option.facts().keySet());
+        var mfa = option.facts().get(ProviderCatalog.Capability.MFA);
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, mfa.availability());
+        assertTrue(String.join(" ", mfa.conditions()).contains("Free pricing includes passkeys but excludes Pro MFA factors"));
+        assertEquals("/pricing", mfa.evidence().sourceUrl().getPath());
+        var browser = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER;
+        var population = io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation.EXTERNAL_CUSTOMERS;
+        assertEquals(java.util.Set.of(browser), option.authenticationControls().keySet());
+        assertEquals(java.util.Set.of(population), option.authenticationControls().get(browser).keySet());
+        var controls = option.authenticationControls().get(browser).get(population);
+        assertEquals(3, controls.size());
+        var phishing = controls.get(ProviderCatalog.AuthenticationControl.PHISHING_RESISTANCE);
+        var keys = controls.get(ProviderCatalog.AuthenticationControl.NON_EXPORTABLE_KEYS);
+        var step = controls.get(ProviderCatalog.AuthenticationControl.STEP_UP_AUTHENTICATION);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, phishing.availability());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, keys.availability());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, step.availability());
+        assertTrue(controls.values().stream().allMatch(fact -> fact.enforcement() == ProviderCatalog.Support.UNKNOWN));
+        for (var phrase : List.of("must still have passwords enabled", "Organization invitation signup initially uses a password",
+                "progressive enrollment can be delayed", "Journey enforcement remains UNKNOWN")) {
+            assertTrue(String.join(" ", phishing.conditions()).contains(phrase), phrase);
+        }
+        assertTrue(String.join(" ", keys.conditions()).contains("syncing credentials across devices"));
+        for (var phrase : List.of("generic guide does not verify Free-plan factor entitlement", "allowRememberBrowser",
+                "Absent or insufficient evidence must deny", "stronger authentication, not repeating the same login",
+                "amr can be absent after silent authentication or refresh")) {
+            assertTrue(String.join(" ", step.conditions()).contains(phrase), phrase);
+        }
+        assertEquals("/docs/authenticate/database-connections/passkeys/configure-passkey-policy",
+                phishing.evidence().sourceUrl().getPath());
+        assertEquals("/docs/authenticate/database-connections/passkeys", keys.evidence().sourceUrl().getPath());
+        assertEquals("/docs/secure/multi-factor-authentication/step-up-authentication/configure-step-up-authentication-for-web-apps",
+                step.evidence().sourceUrl().getPath());
+        var observed = Instant.parse("2026-10-08T20:50:27Z");
+        for (var fact : CatalogDraftFacts.entries(option).values()) {
+            assertEquals("auth0.com", fact.evidence().sourceUrl().getHost());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertFalse(fact.conditions().isEmpty());
+        }
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.compatibility().clients().isEmpty());
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        var impossible = mapper.readTree(json);
+        ((tools.jackson.databind.node.ObjectNode) impossible.at(
+                "/options/0/authenticationControls/BROWSER/EXTERNAL_CUSTOMERS/NON_EXPORTABLE_KEYS")).put("enforcement", "SUPPORTED");
+        var invalid = validator.validateAt(mapper.treeToValue(impossible, ProviderCatalogDraft.class), observed);
+        assertEquals(CatalogDraftValidation.Status.INVALID_DRAFT, invalid.status());
+        assertTrue(invalid.issues().stream().anyMatch(issue ->
+                issue.code() == CatalogDraftValidation.IssueCode.AUTHENTICATION_ENFORCEMENT_WITHOUT_AVAILABILITY));
+        assertUntrusted(invalid);
+    }
+
+    @Test
+    void auth0FreeAuthenticationFreshnessDoesNotPromoteMfaOrRewriteEvidence() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/auth0-b2b-free-browser-authentication-controls.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T20:50:27Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertEquals(4, report.factCount());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+        }
+    }
+
+    @Test
+    void auth0FreeCustomerAuthenticationDoesNotPopulateSevenOlderScopes() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("auth0.v1.json", "scoped/auth0-b2b-free.v1.json",
+                "scoped/auth0-b2b-free-upstream-okta.v1.json", "scoped/auth0-b2b-free-upstream-entra.v1.json",
+                "scoped/auth0-b2b-free-public-oidc-clients.v1.json", "scoped/auth0-b2b-free-organization-context.v1.json",
+                "scoped/auth0-b2b-free-machine-clients.v1.json", "scoped/auth0-b2b-free-browser-authentication-controls.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(8, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        for (var option : options.subList(0, 7)) {
+            assertTrue(option.authenticationControls().isEmpty());
+            assertFalse(option.facts().containsKey(ProviderCatalog.Capability.MFA));
+        }
+        assertEquals(Instant.parse("2026-10-02T22:07:48Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertTrue(options.getLast().residency().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "auth0-authentication-context-coexistence-test", options), Instant.parse("2026-10-08T20:50:27Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(8, report.optionCount());
+        assertEquals(26, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-b2b-free-browser-authentication-controls-draft-2026.10.08",
+  "options": [
+    {
+      "id": "auth0-b2b-free-browser-authentication-controls",
+      "providerId": "auth0",
+      "product": "Auth0 Public Cloud",
+      "plan": "B2B Free; passkey offer documented, MFA entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No tenant region selected; storage destinations not verified",
+      "configuration": "Local browser customers; Universal Login database passkeys; password fallback; MFA/stronger-step-up unverified",
+      "facts": {
+        "MFA": {
+          "availability": "UNKNOWN",
+          "conditions": [
+            "Select local browser customers on an Auth0 Database Connection with Universal Login passkeys. Do not inherit brokered workforce, native/mobile, M2M, trial, paid or custom-database capabilities.",
+            "Free pricing includes passkeys but excludes Pro MFA factors. Generic MFA factors are subscription-dependent: https://auth0.com/docs/secure/multi-factor-authentication/multi-factor-authentication-factors. Neither guide verifies configurable MFA entitlement for this B2B Free scope.",
+            "Passkey inclusion and a biometric/PIN prompt do not alone verify the project's multifactor capability, independent-factor properties or effective tenant policy. Keep MFA UNKNOWN, not provider-wide UNAVAILABLE; no paid upgrade is proposed.",
+            "The Free offer is not an observed account entitlement, quota or future zero-cost guarantee. No tenant, subscription, account, credential, enrollment, provider call or policy mutation occurred."
+          ],
+          "evidence": {
+            "sourceUrl": "https://auth0.com/pricing",
+            "observedAt": "2026-10-08T20:50:27Z",
+            "summary": "Free pricing includes passkeys and excludes Pro MFA factors. Documented passkeys do not verify configurable MFA entitlement, factor properties or policy for this customer scope; MFA remains UNKNOWN."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {
+        "BROWSER": {
+          "EXTERNAL_CUSTOMERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "Availability is a conditional mechanism-level inference from domain-bound WebAuthn passkeys: https://auth0.com/docs/authenticate/database-connections/passkeys. Bind the intended HTTPS RP/domain and validate authenticator behavior; this is not all MFA or every login.",
+                "Universal Login, Identifier First and compatible database identifiers are prerequisites; disable Classic custom login pages. Custom database without import is Early Access and outside this scope. No deployed settings or tenant entitlement were verified.",
+                "Passkey-enabled database connections must still have passwords enabled. Organization invitation signup initially uses a password; progressive enrollment can be delayed. A passkey toggle or login button does not establish compulsory phishing-resistant authentication.",
+                "Enrollment, password reset, recovery, credential removal, existing SSO and administrator paths require independent bypass review. Journey enforcement remains UNKNOWN. Seven earlier Auth0 scopes, AuthWeave's ZITADEL/BFF and synthetic evaluator are unchanged."
+              ],
+              "evidence": {
+                "sourceUrl": "https://auth0.com/docs/authenticate/database-connections/passkeys/configure-passkey-policy",
+                "observedAt": "2026-10-08T20:50:27Z",
+                "summary": "The configuration guide documents passkey prerequisites, required password fallback and invitation/enrollment exceptions. Mechanism availability is conditional; complete customer-journey enforcement remains UNKNOWN."
+              }
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "UNKNOWN",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "The database passkey guide explicitly describes syncing credentials across devices. A passkey, local biometric/PIN, platform attachment or successful WebAuthn login does not prove a hardware-bound, non-exportable private key.",
+                "Hardware-only enrollment, trusted attestation and enforceable key-protection policy are not verified. Synced, cross-device, existing credential and recovery paths need separate review; keep both fields UNKNOWN, not provider-wide UNSUPPORTED.",
+                "Do not inherit subscription-dependent WebAuthn MFA security-key examples as Free entitlement or infer NIST AAL. No hardware purchase, physical-device test, enrollment, attestation validation or custom login implementation occurred. Residency and other clients/populations remain omitted."
+              ],
+              "evidence": {
+                "sourceUrl": "https://auth0.com/docs/authenticate/database-connections/passkeys",
+                "observedAt": "2026-10-08T20:50:27Z",
+                "summary": "The passkey guide explicitly allows credential synchronization across devices. It does not establish hardware-only/non-exportable key availability or enforcement for the selected Free customer journey."
+              }
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "UNKNOWN",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "The web step-up guide documents Actions requesting MFA and application validation of the ID-token amr claim. MFA configuration is a prerequisite; this generic guide does not verify Free-plan factor entitlement. Stronger-factor availability therefore remains UNKNOWN.",
+                "The example uses an MFA acr_values request, api.multifactor.enable('any') and allowRememberBrowser. Those examples do not prove a selected stronger factor, passkey-only challenge, fresh authentication or an essential-ACR higher-assurance contract.",
+                "Validate signed token issuer/audience/expiry and request binding before trusting claims; independently verify required factor and freshness at the sensitive-operation gate. Absent or insufficient evidence must deny. Step-up means stronger authentication, not repeating the same login.",
+                "The guide warns amr can be absent after silent authentication or refresh. Cached SSO, token refresh, an mfa label or a remember-browser bypass is not evidence of fresh stronger authentication. No Action, protected operation, token or bypass test was executed; enforcement stays UNKNOWN."
+              ],
+              "evidence": {
+                "sourceUrl": "https://auth0.com/docs/secure/multi-factor-authentication/step-up-authentication/configure-step-up-authentication-for-web-apps",
+                "observedAt": "2026-10-08T20:50:27Z",
+                "summary": "The generic web step-up guide documents MFA Actions, validated amr checks and silent/refresh limitations. Free entitlement, selected stronger factors, freshness and operation gating are unverified; both fields remain UNKNOWN."
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

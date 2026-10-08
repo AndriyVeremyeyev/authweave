@@ -149,8 +149,8 @@ test("Auth0 organization context coexists with unchanged protocol, public-client
   const before = JSON.stringify(originals);
   const report = await inspectBaselinePack(observed);
   const auth0 = report.options.filter((option) => option.providerId === "auth0");
-  assert.equal(auth0.length, 7);
-  assert.equal(auth0.reduce((count, option) => count + option.facts.length, 0), 22);
+  assert.equal(auth0.length, 8);
+  assert.equal(auth0.reduce((count, option) => count + option.facts.length, 0), 26);
   const client = auth0.find((option) => option.basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   assert.deepEqual(client.facts.map((fact) => fact.path), ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE", "facts.OIDC"]);
   const native = originals.find((entry) => entry.catalogVersion === "auth0-b2b-free-oidc-scim-draft-2026.10.02");

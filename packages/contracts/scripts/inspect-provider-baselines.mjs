@@ -317,6 +317,31 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
   },
   {
+    file: "auth0-b2b-free-browser-authentication-controls.v1.json",
+    catalogVersion: "auth0-b2b-free-browser-authentication-controls-draft-2026.10.08",
+    scope: {
+      id: "auth0-b2b-free-browser-authentication-controls", providerId: "auth0", product: "Auth0 Public Cloud", deployment: "MANAGED",
+      plan: "B2B Free; passkey offer documented, MFA entitlement unverified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "Local browser customers; Universal Login database passkeys; password fallback; MFA/stronger-step-up unverified",
+    },
+    facts: {
+      MFA: { availability: "UNKNOWN", sourceUrl: "https://auth0.com/pricing" },
+    },
+    authenticationControls: {
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.PHISHING_RESISTANCE": {
+        availability: "SUPPORTED", enforcement: "UNKNOWN", sourceUrl: "https://auth0.com/docs/authenticate/database-connections/passkeys/configure-passkey-policy",
+      },
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.NON_EXPORTABLE_KEYS": {
+        availability: "UNKNOWN", enforcement: "UNKNOWN", sourceUrl: "https://auth0.com/docs/authenticate/database-connections/passkeys",
+      },
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.STEP_UP_AUTHENTICATION": {
+        availability: "UNKNOWN", enforcement: "UNKNOWN", sourceUrl: "https://auth0.com/docs/secure/multi-factor-authentication/step-up-authentication/configure-step-up-authentication-for-web-apps",
+      },
+    },
+    metadata: { basis: "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
+  },
+  {
     file: "auth0-b2b-free-machine-clients.v1.json",
     catalogVersion: "auth0-b2b-free-machine-clients-draft-2026.10.08",
     scope: {

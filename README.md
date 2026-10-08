@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 120 recorded and 2,396 omitted option-paths across 37 distinct
-scopes (2,516 possible addresses). The 79 capability proposals comprise 43 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-five separate compatibility proposals comprise
-thirty-one `SUPPORTED` and four `UNKNOWN`. Six authentication-control records retain
+The current pack has 124 recorded and 2,460 omitted option-paths across 38 distinct
+scopes (2,584 possible addresses). The 80 capability proposals comprise 43 `OPTIONAL`,
+3 `UNAVAILABLE` and 34 `UNKNOWN`; thirty-five separate compatibility proposals comprise
+thirty-one `SUPPORTED` and four `UNKNOWN`. Nine authentication-control records retain
 their own availability/enforcement pairs, not capability or compatibility counts.
 An `UNKNOWN` in either control field appears in `recordedUnknownPaths`.
 All remain `UNREVIEWED`. These are structural
@@ -1939,7 +1939,7 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-seven distinct options and 120 recorded
+`make inspect-provider-baselines` now reports thirty-eight distinct options and 124 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
@@ -1947,8 +1947,8 @@ Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organizat
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
 and Entra External ID Basic), plus five machine-client scopes
 (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
-and Entra External ID with the paid M2M Premium add-on), plus two browser/customer
-authentication-control scopes (release-pinned Keycloak and ZITADEL Cloud Free).
+and Entra External ID with the paid M2M Premium add-on), plus three browser/customer
+authentication-control scopes (release-pinned Keycloak, ZITADEL Cloud Free and Auth0 B2B Free).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2212,6 +2212,33 @@ entitlement or a future cost guarantee.
 Research/native/workforce observations are unchanged; SCIM, enterprise federation,
 machine/BFF/third-party clients, residency and authentication controls are not inherited.
 No tenant, subscription, live integration, approval or AuthWeave provider change occurred.
+
+#### Browser/customer Auth0 authentication-control documentation candidate
+
+A separate [Auth0 authentication draft](services/core-api/src/main/resources/catalog/baselines/scoped/auth0-b2b-free-browser-authentication-controls.v1.json)
+retains `MFA: UNKNOWN`, `PHISHING_RESISTANCE: SUPPORTED/UNKNOWN`, and
+`NON_EXPORTABLE_KEYS`/`STEP_UP_AUTHENTICATION: UNKNOWN/UNKNOWN`, all `UNREVIEWED`.
+It selects local `BROWSER`/`EXTERNAL_CUSTOMERS`, Universal Login and database
+passkeys, without trial, paid, brokered, native, custom-database or machine inheritance.
+The [Free comparison](https://auth0.com/pricing) includes passkeys but excludes
+Pro MFA factors; generic MFA documentation is not verified Free entitlement.
+Passkey inclusion alone does not establish the project's multifactor capability
+or effective policy; `UNKNOWN` is not a provider-wide unavailable claim.
+
+Phishing resistance is a conditional domain-bound WebAuthn mechanism, not a
+complete protected journey. The [configuration guide](https://auth0.com/docs/authenticate/database-connections/passkeys/configure-passkey-policy)
+retains password fallback and invitation/enrollment exceptions. Recovery, credential
+removal, SSO and administrator bypasses are unverified. The
+[passkey guide](https://auth0.com/docs/authenticate/database-connections/passkeys)
+describes credential synchronization, not hardware-only key protection.
+
+The [generic web step-up guide](https://auth0.com/docs/secure/multi-factor-authentication/step-up-authentication/configure-step-up-authentication-for-web-apps)
+requires MFA and validated claims. Its `any` factor/remember-browser example and
+silent/refresh `amr` caveats do not prove Free-plan stronger-factor availability or
+fresh operation gating. Step-up means stronger authentication, not repeated login.
+No tenant, account, subscription, enrollment, Action or live integration was created.
+Seven earlier Auth0 scopes and their observations, runtime ZITADEL/BFF and the
+synthetic evaluator are unchanged; no approval, import, activation or cost guarantee.
 
 #### Machine-scoped Auth0 OAuth API documentation candidate
 
