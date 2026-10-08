@@ -255,6 +255,24 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
+  {
+    file: "workos-authkit-staging-organization-context.v1.json",
+    catalogVersion: "workos-authkit-staging-organization-context-draft-2026.10.08",
+    scope: {
+      id: "workos-authkit-staging-organization-context", providerId: "workos", product: "WorkOS AuthKit", deployment: "MANAGED",
+      plan: "Staging only; organization offer documented, production entitlement unverified",
+      region: "No WorkOS region selected; storage destinations not verified",
+      configuration: "Primary AuthKit staging; first-party organizations; active memberships; app-owned tenant access; no Connect or SCIM",
+    },
+    facts: {},
+    compatibility: {
+      "compatibility.applications.B2B_SAAS": { support: "SUPPORTED", sourceUrl: "https://workos.com/docs/authkit/users-organizations" },
+      "compatibility.applications.PARTNER_PORTAL": { support: "SUPPORTED", sourceUrl: "https://workos.com/docs/authkit/invitations" },
+      "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS": { support: "SUPPORTED", sourceUrl: "https://workos.com/docs/authkit/sessions" },
+      "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER": { support: "SUPPORTED", sourceUrl: "https://workos.com/docs/reference/authkit/organization-membership" },
+    },
+    metadata: { basis: "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
+  },
   ...["okta", "entra"].map((upstream) => ({
     file: `workos-directory-sync-staging-upstream-${upstream}.v1.json`,
     catalogVersion: `workos-directory-sync-staging-upstream-${upstream}-draft-2026.10.08`,

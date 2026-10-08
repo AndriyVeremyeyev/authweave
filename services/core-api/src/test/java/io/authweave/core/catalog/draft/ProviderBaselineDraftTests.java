@@ -810,6 +810,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/workos-connect-staging-public-oidc-clients.v1.json");
         resources.add("scoped/zitadel-cloud-free-organization-context.v1.json");
         resources.add("scoped/auth0-b2b-free-organization-context.v1.json");
+        resources.add("scoped/workos-authkit-staging-organization-context.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -842,18 +843,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(27, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(90, recordedCount);
-        assertEquals(1746, omittedCount);
+        assertEquals(28, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(94, recordedCount);
+        assertEquals(1810, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 36,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 17, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 21, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T14:43:27Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T16:06:12Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(27, report.optionCount());
-        assertEquals(90, report.factCount());
+        assertEquals(28, report.optionCount());
+        assertEquals(94, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1529,6 +1530,119 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(6, report.optionCount());
         assertEquals(20, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"compatibility.applications.B2B_SAAS", "compatibility.applications.PARTNER_PORTAL",
+            "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER"})
+    void workosPrimaryOrganizationContextIsTypedWithoutConnectOrDirectorySyncInheritance(String path) throws Exception {
+        var json = resource("catalog/baselines/scoped/workos-authkit-staging-organization-context.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("workos-authkit-staging-organization-context-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("workos-authkit-staging-organization-context", option.id());
+        assertEquals("workos", option.providerId());
+        assertEquals("WorkOS AuthKit", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Staging only; organization offer documented, production entitlement unverified", option.plan());
+        assertTrue(option.facts().isEmpty());
+        var entries = CatalogDraftFacts.entries(option);
+        assertEquals(4, entries.size());
+        var fact = assertInstanceOf(ProviderCatalogDraft.CompatibilityFact.class, entries.get(path));
+        assertEquals(ProviderCatalog.Support.SUPPORTED, fact.support());
+        assertEquals("workos.com", fact.evidence().sourceUrl().getHost());
+        var sourcePaths = Map.of(
+                "compatibility.applications.B2B_SAAS", "/docs/authkit/users-organizations",
+                "compatibility.applications.PARTNER_PORTAL", "/docs/authkit/invitations",
+                "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "/docs/authkit/sessions",
+                "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "/docs/reference/authkit/organization-membership");
+        assertEquals(sourcePaths.keySet(), entries.keySet());
+        assertEquals(sourcePaths.get(path), fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T16:06:12Z"), fact.evidence().observedAt());
+        var conditions = String.join(" ", fact.conditions());
+        switch (path) {
+            case "compatibility.applications.B2B_SAAS" -> {
+                assertTrue(conditions.contains("testing-only, not customer-facing production"));
+                assertTrue(conditions.contains("not free production SSO or Directory Sync"));
+            }
+            case "compatibility.applications.PARTNER_PORTAL" -> {
+                assertTrue(conditions.contains("another address on the same domain"));
+                assertTrue(conditions.contains("Do not assume exact-recipient approval"));
+                assertTrue(conditions.contains("AuthWeave catalog-curator authority"));
+            }
+            case "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS" -> {
+                assertTrue(conditions.contains("claims do not prove database isolation"));
+                assertTrue(conditions.contains("HTTP JWKS example and issuer spelling"));
+                assertTrue(conditions.contains("Do not borrow Connect keys or token semantics"));
+            }
+            case "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER" -> {
+                assertTrue(conditions.contains("stable environment-scoped WorkOS user_id"));
+                assertTrue(conditions.contains("pending invitations and inactive memberships are not active access"));
+                assertTrue(conditions.contains("Create can reactivate an inactive membership"));
+                assertTrue(conditions.contains("cached JWTs and application sessions need separate enforcement tests"));
+            }
+            default -> fail("Unexpected organization-context path");
+        }
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void workosOrganizationFreshnessRetainsHashWithoutApprovingMembershipOrSessionClaims() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/workos-authkit-staging-organization-context.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T16:06:12Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+    }
+
+    @Test
+    void workosOrganizationContextPreservesResearchDirectorySyncAndConnectScopes() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("workos.v1.json", "scoped/workos-directory-sync-staging.v1.json",
+                "scoped/workos-directory-sync-staging-upstream-okta.v1.json", "scoped/workos-directory-sync-staging-upstream-entra.v1.json",
+                "scoped/workos-connect-staging-public-oidc-clients.v1.json", "scoped/workos-authkit-staging-organization-context.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(6, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().applications().isEmpty()
+                && option.compatibility().tenancy().isEmpty() && option.compatibility().membership().isEmpty()));
+        assertTrue(options.getLast().facts().isEmpty());
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.GROUP_SYNC).availability());
+        assertFalse(options.get(1).facts().containsKey(ProviderCatalog.Capability.OIDC));
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.get(4).facts().keySet());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, options.get(4).compatibility().clients().get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER).support());
+        assertTrue(options.get(4).compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "workos-organization-context-coexistence-test", options), Instant.parse("2026-10-08T16:06:12Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(6, report.optionCount());
+        assertEquals(16, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

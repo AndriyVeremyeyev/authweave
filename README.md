@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 90 recorded and 1,746 omitted option-paths across 27 distinct
-scopes (1,836 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; eighteen separate compatibility proposals comprise
-seventeen `SUPPORTED` and one `UNKNOWN`.
+The current pack has 94 recorded and 1,810 omitted option-paths across 28 distinct
+scopes (1,904 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; twenty-two separate compatibility proposals comprise
+twenty-one `SUPPORTED` and one `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,12 +1937,12 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-seven distinct options and 90 recorded
+`make inspect-provider-baselines` now reports twenty-eight distinct options and 94 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
-Entra External ID Basic and WorkOS AuthKit Connect staging), plus two organization-context
-drafts (ZITADEL Cloud Free and Auth0 B2B Free).
+Entra External ID Basic and WorkOS AuthKit Connect staging), plus three organization-context
+drafts (ZITADEL Cloud Free, Auth0 B2B Free and primary WorkOS AuthKit staging).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2145,6 +2145,42 @@ third-party consent, residency and authentication controls are not inherited.
 Free [staging](https://workos.com/docs/authkit/environments) is not production
 Connect entitlement. No account, billing, SDK, callback or live exchange was verified;
 AuthWeave's ZITADEL/BFF and synthetic evaluator remain unchanged.
+
+#### Organization-scoped WorkOS AuthKit staging candidate
+
+A separate [WorkOS organization-context draft](services/core-api/src/main/resources/catalog/baselines/scoped/workos-authkit-staging-organization-context.v1.json)
+proposes `B2B_SAAS`, `PARTNER_PORTAL`, `MULTI_TENANT_ORGANIZATIONS` and
+`MULTIPLE_ORGANIZATIONS_PER_USER` as conditional `SUPPORTED`, all `UNREVIEWED`.
+This is primary AuthKit, not Connect or Directory Sync. Capabilities, clients,
+populations, residency and controls stay empty; earlier scopes and dates are unchanged.
+
+[Organizations](https://workos.com/docs/authkit/users-organizations) model customer
+workspaces, while the [membership reference](https://workos.com/docs/reference/authkit/organization-membership)
+uses environment-scoped users and explicit statuses. Require active membership;
+pending/inactive is not access. Listing defaults to active records, not a complete
+audit. Creating a membership can reactivate it; reactivation retains roles.
+Those writes need explicit authorization and role review, not automatic retry.
+Documented provider-session effects are not measured cached-JWT or local-session
+enforcement. Live switching/offboarding and tenant-isolation acceptance remain pending.
+
+[Invitations](https://workos.com/docs/authkit/invitations) distinguish organization
+membership from application-wide signup. Corporate-domain organization invitations
+can be accepted by another address in that domain; do not infer exact-recipient
+approval. Partner admission, business permissions and privileged management credentials
+remain application responsibilities, not WorkOS workspace or AuthWeave curator authority.
+
+[Session switching](https://workos.com/docs/authkit/sessions) requires an authorized
+organization context; resource access must still be checked. Reconcile the guide's
+HTTP JWKS example and issuer spelling with the
+[HTTPS/client-specific reference](https://workos.com/docs/reference/authkit/session-tokens)
+before source approval; neither is Connect token evidence.
+Missing or mismatched `org_id`, routing and email do not authorize a tenant.
+
+[Staging](https://workos.com/docs/authkit/environments) is testing-only, with separate
+users, organizations and keys from production. Free staging and the
+[AuthKit allowance](https://workos.com/pricing) do not establish free production SSO,
+Directory Sync or unlimited operating capacity. No account, invitation, membership
+mutation, billing setup, runtime provider switch, source approval or activation occurred.
 
 #### Plan-scoped Entra External ID Basic candidate
 

@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "workos-authkit-staging-organization-context-draft-2026.10.08",
+  "options": [
+    {
+      "id": "workos-authkit-staging-organization-context",
+      "providerId": "workos",
+      "product": "WorkOS AuthKit",
+      "plan": "Staging only; organization offer documented, production entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No WorkOS region selected; storage destinations not verified",
+      "configuration": "Primary AuthKit staging; first-party organizations; active memberships; app-owned tenant access; no Connect or SCIM",
+      "facts": {},
+      "compatibility": {
+        "applications": {
+          "B2B_SAAS": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Model customer workspaces as WorkOS Organizations in one staging environment, with explicit active memberships and application-owned resource authorization. Organization count is not unlimited API usage, capacity, account entitlement or a cost guarantee.",
+              "Per https://workos.com/docs/authkit/environments, staging is testing-only, not customer-facing production. Keys, users, organizations and connections are environment-specific; production requires separate setup and billing review. The AuthKit allowance at https://workos.com/pricing is not free production SSO or Directory Sync.",
+              "Primary AuthKit organization context does not inherit Connect OIDC/SPA claims, Directory Sync SCIM, controls or residency. No account or live acceptance was verified; mutable Cloud evidence is dated, not release-pinned."
+            ],
+            "evidence": {
+              "sourceUrl": "https://workos.com/docs/authkit/users-organizations",
+              "observedAt": "2026-10-08T16:06:12Z",
+              "summary": "The guide models B2B workspaces with Organizations and memberships. Proposed SUPPORTED is conditional staging application context, not a production entitlement or proven resource isolation."
+            }
+          },
+          "PARTNER_PORTAL": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Use organization-specific invitations for partner collaboration, with trusted organization mapping and application-side inviter authorization. An application-wide invitation without an organization is not a partner membership.",
+              "Consumer-domain organization invitations require the exact invited address; corporate-domain invitations can be accepted by another address on the same domain. Do not assume exact-recipient approval; review admission policy and verify the accepting user and intended organization server-side.",
+              "A portal business-admin role is not WorkOS workspace administration, an unrestricted API key or AuthWeave catalog-curator authority. Keep management credentials confidential and scoped. No emails, invitations, privileged API writes or live portal acceptance were performed."
+            ],
+            "evidence": {
+              "sourceUrl": "https://workos.com/docs/authkit/invitations",
+              "observedAt": "2026-10-08T16:06:12Z",
+              "summary": "Organization invitations support collaboration with explicit acceptance and domain-specific recipient rules. Proposed SUPPORTED retains application admission and authorization prerequisites, not automatic exact-recipient approval or admin delegation."
+            }
+          }
+        },
+        "clients": {},
+        "populations": {},
+        "tenancy": {
+          "MULTI_TENANT_ORGANIZATIONS": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "The selected organization appears in org_id when applicable. Bind the validated user and organization to the requested resource tenant; reject missing, unknown or mismatched organization context where tenant access is required. Login selection, branding and email domain are not authorization.",
+              "Switching via refresh with organization_id requires an authorized session; handle failures without retaining the previous tenant's permissions. The application must validate tokens and current resource permissions on requests; organization claims do not prove database isolation.",
+              "Reconcile the guide's HTTP JWKS example and issuer spelling with the HTTPS/client-specific reference at https://workos.com/docs/reference/authkit/session-tokens before approval. Do not borrow Connect keys or token semantics. Tenant-switch negative tests, cached tokens and local-session enforcement remain unverified."
+            ],
+            "evidence": {
+              "sourceUrl": "https://workos.com/docs/authkit/sessions",
+              "observedAt": "2026-10-08T16:06:12Z",
+              "summary": "AuthKit sessions carry selected organization context and support authorized organization switching. Proposed SUPPORTED requires application resource checks and reconciliation of guide/reference details; no live tenant isolation was tested."
+            }
+          }
+        },
+        "membership": {
+          "MULTIPLE_ORGANIZATIONS_PER_USER": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Bind the stable environment-scoped WorkOS user_id to each organization_id membership; zero, one or many memberships are documented. Do not use email alone as membership authority or infer linked identities across connections or staging/production environments.",
+              "Require active membership for resource access; pending invitations and inactive memberships are not active access. Listing defaults to active memberships, so audit reads must request statuses and pagination deliberately rather than assuming completeness.",
+              "Create can reactivate an inactive membership; reactivate retains prior roles. Explicit authorization and role review are required, not a harmless read or retry. Deactivation has documented WorkOS session effects, but cached JWTs and application sessions need separate enforcement tests: https://workos.com/docs/authkit/users-organizations.",
+              "No membership mutation, identity linking, offboarding latency or SCIM/Directory Provisioning bridge was verified. Native membership management is not evidence of protocol, group transport or authentication-control availability."
+            ],
+            "evidence": {
+              "sourceUrl": "https://workos.com/docs/reference/authkit/organization-membership",
+              "observedAt": "2026-10-08T16:06:12Z",
+              "summary": "The canonical membership reference represents multiple user-to-organization relationships and explicit status/lifecycle operations. Proposed SUPPORTED concerns application membership context, not verified provisioning, session enforcement or identity linking."
+            }
+          }
+        }
+      },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}
