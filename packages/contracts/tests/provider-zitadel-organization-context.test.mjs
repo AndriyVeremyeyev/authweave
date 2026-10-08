@@ -146,8 +146,8 @@ test("ZITADEL organization context coexists with unchanged protocol, public-clie
   const before = JSON.stringify(originals);
   const report = await inspectBaselinePack(observed);
   const zitadel = report.options.filter((option) => option.providerId === "zitadel");
-  assert.equal(zitadel.length, 6);
-  assert.equal(zitadel.reduce((count, option) => count + option.facts.length, 0), 22);
+  assert.equal(zitadel.length, 7);
+  assert.equal(zitadel.reduce((count, option) => count + option.facts.length, 0), 24);
   const client = zitadel.find((option) => option.basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   assert.deepEqual(client.facts.map((fact) => fact.path), ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE", "facts.OIDC"]);
   const native = originals.find((entry) => entry.catalogVersion === "zitadel-cloud-free-native-draft-2026.10.02");

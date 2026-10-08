@@ -187,6 +187,25 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
   },
   {
+    file: "zitadel-cloud-free-machine-clients.v1.json",
+    catalogVersion: "zitadel-cloud-free-machine-clients-draft-2026.10.08",
+    scope: {
+      id: "zitadel-cloud-free-machine-clients", providerId: "zitadel", product: "ZITADEL Cloud", deployment: "MANAGED",
+      plan: "Free; service-user offer documented, account entitlement unverified",
+      region: "No Cloud region selected; storage destinations not verified",
+      configuration: "Service-account JWT bearer grant; RS256 key; API project audience/roles; introspection; no PAT or client secret",
+    },
+    facts: {
+      OAUTH2_APIS: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/integrate/token-introspection" },
+    },
+    compatibility: {
+      "compatibility.clients.MACHINE_TO_MACHINE": {
+        support: "SUPPORTED", sourceUrl: "https://zitadel.com/docs/guides/integrate/service-accounts/private-key-jwt",
+      },
+    },
+    metadata: { basis: "MACHINE_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
+  },
+  {
     file: "zitadel-cloud-free-organization-context.v1.json",
     catalogVersion: "zitadel-cloud-free-organization-context-draft-2026.10.08",
     scope: {

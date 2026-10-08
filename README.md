@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 104 recorded and 2,004 omitted option-paths across 31 distinct
-scopes (2,108 possible addresses). The 73 capability proposals comprise 37 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-one separate compatibility proposals comprise
-twenty-seven `SUPPORTED` and four `UNKNOWN`.
+The current pack has 106 recorded and 2,070 omitted option-paths across 32 distinct
+scopes (2,176 possible addresses). The 74 capability proposals comprise 38 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-two separate compatibility proposals comprise
+twenty-eight `SUPPORTED` and four `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,13 +1937,13 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-one distinct options and 104 recorded
+`make inspect-provider-baselines` now reports thirty-two distinct options and 106 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
 Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organization-context
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
-and Entra External ID Basic), plus one Keycloak machine-client scope.
+and Entra External ID Basic), plus two machine-client scopes (Keycloak and ZITADEL Cloud Free).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2045,13 +2045,36 @@ Earlier research/native/workforce scopes and their observations are unchanged.
 No SCIM, machine-client, BFF, residency or authentication-control claims are inherited.
 No account, deployment, source approval or AuthWeave authentication change was performed.
 
+#### Machine-scoped ZITADEL Cloud documentation candidate
+
+A separate [ZITADEL machine-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free-machine-clients.v1.json)
+proposes `OAUTH2_APIS: OPTIONAL` and `MACHINE_TO_MACHINE: SUPPORTED`, both `UNREVIEWED`.
+The [service-account JWT profile](https://zitadel.com/docs/guides/integrate/service-accounts/private-key-jwt)
+exchanges an RS256 assertion through the JWT bearer grant for an access token.
+This is not `client_credentials` with `private_key_jwt` client authentication.
+The guide's overview and concrete request disagree on `client_assertion` versus
+`assertion`; the discrepancy stays explicit rather than being silently reconciled.
+
+The resource API has separate [introspection credentials](https://zitadel.com/docs/guides/integrate/token-introspection/private-key-jwt).
+Grant assertion, API client assertion and returned bearer access token are distinct.
+The token can be opaque or JWT; signing the grant does not establish offline token
+validation. Project audience, assigned roles and service-to-resource authorization
+must be checked independently; neither a scope request nor `active` alone grants access.
+Administrator grants for ZITADEL management are not application API permissions.
+
+The [Free offer](https://zitadel.com/pricing) documents service users, not verified
+account entitlement or a future cost guarantee. Mutable sources are dated, not
+release-pinned. No keys, accounts, grants, live token exchange, deployment or runtime
+enforcement were added. Earlier scopes/dates, AuthWeave's ZITADEL/BFF configuration
+and the synthetic evaluator remain unchanged; no human controls or SCIM are inherited.
+
 #### Organization-scoped ZITADEL Cloud documentation candidate
 
 A separate [ZITADEL organization-context draft](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free-organization-context.v1.json)
 records only four compatibility proposals: `B2B_SAAS`, `PARTNER_PORTAL`,
 `MULTI_TENANT_ORGANIZATIONS` and `MULTIPLE_ORGANIZATIONS_PER_USER`, all conditional
 `SUPPORTED` and `UNREVIEWED`. It has no capability assertions and borrows no
-OIDC, SCIM, public-client or workforce facts from the other five ZITADEL scopes.
+OIDC, SCIM, public-client, machine-client or workforce facts from other ZITADEL scopes.
 
 The [B2B guide](https://zitadel.com/docs/guides/solution-scenarios/b2b) describes
 vendor projects and customer grants. [Organizations](https://zitadel.com/docs/guides/manage/console/organizations-overview)

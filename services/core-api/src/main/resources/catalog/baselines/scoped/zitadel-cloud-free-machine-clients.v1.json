@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-cloud-free-machine-clients-draft-2026.10.08",
+  "options": [{
+    "id": "zitadel-cloud-free-machine-clients",
+    "providerId": "zitadel",
+    "product": "ZITADEL Cloud",
+    "plan": "Free; service-user offer documented, account entitlement unverified",
+    "deployment": "MANAGED",
+    "region": "No Cloud region selected; storage destinations not verified",
+    "configuration": "Service-account JWT bearer grant; RS256 key; API project audience/roles; introspection; no PAT or client secret",
+    "facts": {
+      "OAUTH2_APIS": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Limit this proposal to a non-human service principal presenting the returned access_token to a separately registered resource API. A signed grant assertion is not the API bearer token, OIDC user login, a browser session or delegated end-user access.",
+          "Request the intended resource project audience with urn:zitadel:iam:org:project:id:{projectId}:aud and independently assigned project roles, as described at https://zitadel.com/docs/guides/integrate/retrieve-user-roles. The assertion audience is the ZITADEL authority, not this API audience; a requested scope does not grant a role. Reserved project id zitadel and IAM/ORG administrator roles concern ZITADEL management, not the selected application's authorization.",
+          "Use a separate API application registration to authenticate HTTPS introspection. Its private_key_jwt client_assertion and client_assertion_type authenticate the API, not the machine grant, as documented at https://zitadel.com/docs/guides/integrate/token-introspection/private-key-jwt.",
+          "Check active, trusted issuer, expiry, intended audience and the authorized service principal/project roles/org/resource mapping; fail closed on inactive tokens, errors, missing or foreign context. Token issuance and active alone are not application authorization.",
+          "The access token can be opaque or JWT; do not assume the signed assertion makes it locally verifiable. Introspection requires authorization-server availability; caching, key rotation, role removal and service offboarding need a separately tested lifetime/revocation policy. No immediate revocation, offline-validation performance or token lifespan is guaranteed by documentation examples.",
+          "Cloud documentation is mutable and dated, not release-pinned. This scope does not inherit browser/native clients, organization memberships, workforce federation, SCIM, residency or human authentication controls. No live token issuance, resource enforcement or deployment has been tested."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/integrate/token-introspection",
+          "observedAt": "2026-10-08T17:31:13Z",
+          "summary": "The introspection guide separates API registration from service accounts and accepts opaque or JWT access tokens. OPTIONAL describes a conditional API-token integration proposal, not verified application authorization, deployment or revocation."
+        }
+      }
+    },
+    "compatibility": {
+      "applications": {},
+      "clients": {
+        "MACHINE_TO_MACHINE": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Use a dedicated service account and registered RSA public key, protecting the private key server-side without browser bundles, URLs or logs. Sign RS256 with kid; iss/sub identify the service account and aud identifies the actual ZITADEL instance authority. Respect iat/exp and key expiry; assertion expiry is separate from access-token expiry.",
+            "POST grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer with assertion and required openid to /oauth/v2/token over HTTPS. This selected JWT bearer grant is not client_credentials plus private_key_jwt client authentication. API introspection uses separate application credentials/client_assertion parameters, as described at https://zitadel.com/docs/apis/openidoauth/authn-methods; keep these two principals and request families distinct.",
+            "The grant guide's overview says client_assertion, while its concrete token request uses assertion. The service-account overview at https://zitadel.com/docs/guides/integrate/service-accounts/authenticate-service-accounts also mentions sending JWT/credentials directly to APIs; retain these documentation discrepancies. This proposal follows the detailed exchange: send the returned access_token as Bearer, never the private key or signed grant assertion.",
+            "The Free offer at https://zitadel.com/pricing lists service users/agents, not verified account entitlement, quota headroom or a future zero-cost guarantee. No Cloud region, account, keys, API registration, role assignments, subscription or live requests were created. PAT, shared-secret client_credentials, user delegation and sender-constrained tokens are separate, unassessed configurations."
+          ],
+          "evidence": {
+            "sourceUrl": "https://zitadel.com/docs/guides/integrate/service-accounts/private-key-jwt",
+            "observedAt": "2026-10-08T17:31:13Z",
+            "summary": "The detailed service-account JWT profile guide documents RS256 assertions exchanged with the JWT bearer grant for an access token. SUPPORTED is a scoped documentation proposal; assertion/client_assertion wording discrepancies and untested entitlement remain explicit."
+          }
+        }
+      },
+      "populations": {},
+      "tenancy": {},
+      "membership": {}
+    },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

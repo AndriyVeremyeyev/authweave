@@ -98,8 +98,8 @@ test("Cloud observations keep the inclusive 90-day boundary without rewriting ev
 test("Cloud client scope coexists with research/native/workforce facts without borrowing them", async () => {
   const report = await inspectBaselinePack(observed);
   const zitadel = report.options.filter((option) => option.providerId === "zitadel");
-  assert.equal(zitadel.length, 6);
-  for (const option of zitadel.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
+  assert.equal(zitadel.length, 7);
+  for (const option of zitadel.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
     assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }

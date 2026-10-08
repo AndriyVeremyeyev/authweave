@@ -814,6 +814,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/keycloak-26.8.0-organization-context.v1.json");
         resources.add("scoped/entra-external-id-basic-organization-context.v1.json");
         resources.add("scoped/keycloak-26.8.0-machine-clients.v1.json");
+        resources.add("scoped/zitadel-cloud-free-machine-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -847,18 +848,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(31, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(104, recordedCount);
-        assertEquals(2004, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 37,
+        assertEquals(32, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(106, recordedCount);
+        assertEquals(2070, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 38,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 27, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 28, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T17:11:31Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T17:31:13Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(31, report.optionCount());
-        assertEquals(104, report.factCount());
+        assertEquals(32, report.optionCount());
+        assertEquals(106, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1991,6 +1992,114 @@ class ProviderBaselineDraftTests {
         assertTrue(options.getLast().compatibility().membership().isEmpty());
         var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "keycloak-machine-context-coexistence-test", options), Instant.parse("2026-10-08T17:11:31Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(7, report.optionCount());
+        assertEquals(24, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void zitadelMachineClientsSeparateGrantAssertionsFromApiCredentialsAndResourcePermissions() throws Exception {
+        var json = resource("catalog/baselines/scoped/zitadel-cloud-free-machine-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("zitadel-cloud-free-machine-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("zitadel-cloud-free-machine-clients", option.id());
+        assertEquals("zitadel", option.providerId());
+        assertEquals("ZITADEL Cloud", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Free; service-user offer documented, account entitlement unverified", option.plan());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OAUTH2_APIS), option.facts().keySet());
+        var api = option.facts().get(ProviderCatalog.Capability.OAUTH2_APIS);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, api.availability());
+        var machineType = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.MACHINE_TO_MACHINE;
+        assertEquals(java.util.Set.of(machineType), option.compatibility().clients().keySet());
+        var machine = option.compatibility().clients().get(machineType);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, machine.support());
+        assertEquals("/docs/guides/integrate/token-introspection", api.evidence().sourceUrl().getPath());
+        assertEquals("/docs/guides/integrate/service-accounts/private-key-jwt", machine.evidence().sourceUrl().getPath());
+        var observed = Instant.parse("2026-10-08T17:31:13Z");
+        for (var fact : CatalogDraftFacts.entries(option).values()) {
+            assertEquals("zitadel.com", fact.evidence().sourceUrl().getHost());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertFalse(fact.conditions().isEmpty());
+        }
+        var clientConditions = String.join(" ", machine.conditions());
+        assertTrue(clientConditions.contains("registered RSA public key"));
+        assertTrue(clientConditions.contains("Sign RS256 with kid"));
+        assertTrue(clientConditions.contains("grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer with assertion"));
+        assertTrue(clientConditions.contains("not client_credentials plus private_key_jwt"));
+        assertTrue(clientConditions.contains("separate application credentials/client_assertion"));
+        assertTrue(clientConditions.contains("documentation discrepancies"));
+        assertTrue(clientConditions.contains("returned access_token as Bearer"));
+        assertTrue(clientConditions.contains("not verified account entitlement"));
+        var apiConditions = String.join(" ", api.conditions());
+        assertTrue(apiConditions.contains("not the API bearer token, OIDC user login"));
+        assertTrue(apiConditions.contains("urn:zitadel:iam:org:project:id:{projectId}:aud"));
+        assertTrue(apiConditions.contains("requested scope does not grant a role"));
+        assertTrue(apiConditions.contains("separate API application registration"));
+        assertTrue(apiConditions.contains("fail closed on inactive tokens, errors, missing or foreign context"));
+        assertTrue(apiConditions.contains("active alone are not application authorization"));
+        assertTrue(apiConditions.contains("opaque or JWT"));
+        assertTrue(apiConditions.contains("No immediate revocation"));
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(2, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void zitadelMachineObservationFreshnessDoesNotChangeProposalOrTrust() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/zitadel-cloud-free-machine-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T17:31:13Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+        }
+        assertEquals(ProviderCatalog.Availability.OPTIONAL,
+                draft.options().getFirst().facts().get(ProviderCatalog.Capability.OAUTH2_APIS).availability());
+    }
+
+    @Test
+    void zitadelMachineContextDoesNotPopulateSixEarlierScopesOrInheritScimOrOrganizations() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("zitadel.v1.json", "scoped/zitadel-cloud-free.v1.json",
+                "scoped/zitadel-cloud-free-upstream-okta.v1.json", "scoped/zitadel-cloud-free-upstream-entra.v1.json",
+                "scoped/zitadel-cloud-free-public-oidc-clients.v1.json", "scoped/zitadel-cloud-free-organization-context.v1.json",
+                "scoped/zitadel-cloud-free-machine-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(7, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        var machineType = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.MACHINE_TO_MACHINE;
+        for (var option : options.subList(0, 6)) {
+            assertFalse(option.facts().containsKey(ProviderCatalog.Capability.OAUTH2_APIS));
+            assertFalse(option.compatibility().clients().containsKey(machineType));
+        }
+        assertEquals(Instant.parse("2026-10-02T21:44:10Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OAUTH2_APIS), options.getLast().facts().keySet());
+        assertTrue(options.getLast().compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "zitadel-machine-context-coexistence-test", options), Instant.parse("2026-10-08T17:31:13Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(7, report.optionCount());
         assertEquals(24, report.factCount());
