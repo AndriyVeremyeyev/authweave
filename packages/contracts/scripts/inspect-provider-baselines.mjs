@@ -148,6 +148,24 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
   },
   {
+    file: "zitadel-cloud-free-organization-context.v1.json",
+    catalogVersion: "zitadel-cloud-free-organization-context-draft-2026.10.08",
+    scope: {
+      id: "zitadel-cloud-free-organization-context", providerId: "zitadel", product: "ZITADEL Cloud", deployment: "MANAGED",
+      plan: "Free; organization offer documented, account entitlement unverified",
+      region: "No Cloud region selected; storage destinations not verified",
+      configuration: "Vendor-owned project; customer org grants and cross-org role assignments; app-owned tenant access; no SCIM bridge",
+    },
+    facts: {},
+    compatibility: {
+      "compatibility.applications.B2B_SAAS": { support: "SUPPORTED", sourceUrl: "https://zitadel.com/docs/guides/solution-scenarios/b2b" },
+      "compatibility.applications.PARTNER_PORTAL": { support: "SUPPORTED", sourceUrl: "https://zitadel.com/docs/examples/login/nextjs-b2b" },
+      "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS": { support: "SUPPORTED", sourceUrl: "https://zitadel.com/docs/guides/manage/console/organizations-overview" },
+      "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER": { support: "SUPPORTED", sourceUrl: "https://zitadel.com/docs/concepts/features/external-user-grant" },
+    },
+    metadata: { basis: "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
+  },
+  {
     file: "auth0-b2b-free.v1.json",
     catalogVersion: "auth0-b2b-free-oidc-scim-draft-2026.10.02",
     scope: {

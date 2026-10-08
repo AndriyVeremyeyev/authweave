@@ -98,13 +98,16 @@ test("Cloud observations keep the inclusive 90-day boundary without rewriting ev
 test("Cloud client scope coexists with research/native/workforce facts without borrowing them", async () => {
   const report = await inspectBaselinePack(observed);
   const zitadel = report.options.filter((option) => option.providerId === "zitadel");
-  assert.equal(zitadel.length, 5);
-  for (const option of zitadel.filter((option) => option.basis !== "CLIENT_SCOPED_DOCUMENTATION_DRAFT")) {
+  assert.equal(zitadel.length, 6);
+  for (const option of zitadel.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
     assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }
   assert.deepEqual(inspect().options[0].omittedCapabilities, ["ENTERPRISE_SSO", "GROUP_SYNC", "JIT", "MFA", "OAUTH2_APIS", "SAML", "SCIM", "SOCIAL_LOGIN"]);
   assert.equal(zitadel.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT").facts.find((fact) => fact.path === "facts.SCIM").availability, "UNKNOWN");
+  const organizations = zitadel.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(organizations.facts.length, 4);
+  assert.ok(organizations.facts.every((fact) => fact.path.startsWith("compatibility.") && !fact.path.startsWith("compatibility.clients.")));
 });
 
 test("Cloud context inspection is deterministic across object and condition ordering", () => {

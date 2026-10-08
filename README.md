@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 82 recorded and 1,618 omitted option-paths across 25 distinct
-scopes (1,700 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; ten separate client-context proposals comprise
-nine `SUPPORTED` and one `UNKNOWN`.
+The current pack has 86 recorded and 1,682 omitted option-paths across 26 distinct
+scopes (1,768 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; fourteen separate compatibility proposals comprise
+thirteen `SUPPORTED` and one `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,11 +1937,12 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-five distinct options and 82 recorded
+`make inspect-provider-baselines` now reports twenty-six distinct options and 86 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
-Entra External ID Basic and WorkOS AuthKit Connect staging).
+Entra External ID Basic and WorkOS AuthKit Connect staging), plus one ZITADEL Cloud
+Free organization-context draft.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1985,6 +1986,34 @@ sessions remain untested; external-browser use is a separate RFC 8252 prerequisi
 Earlier research/native/workforce scopes and their observations are unchanged.
 No SCIM, machine-client, BFF, residency or authentication-control claims are inherited.
 No account, deployment, source approval or AuthWeave authentication change was performed.
+
+#### Organization-scoped ZITADEL Cloud documentation candidate
+
+A separate [ZITADEL organization-context draft](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free-organization-context.v1.json)
+records only four compatibility proposals: `B2B_SAAS`, `PARTNER_PORTAL`,
+`MULTI_TENANT_ORGANIZATIONS` and `MULTIPLE_ORGANIZATIONS_PER_USER`, all conditional
+`SUPPORTED` and `UNREVIEWED`. It has no capability assertions and borrows no
+OIDC, SCIM, public-client or workforce facts from the other five ZITADEL scopes.
+
+The [B2B guide](https://zitadel.com/docs/guides/solution-scenarios/b2b) describes
+vendor projects and customer grants. [Organizations](https://zitadel.com/docs/guides/manage/console/organizations-overview)
+provide IAM boundaries, not verified isolation of the consuming application's
+database, APIs or sessions. Login routing or a browser-selected organization
+is not tenant authorization; the app must validate the subject and selected
+tenant/project/grant context.
+
+[External user role assignments](https://zitadel.com/docs/concepts/features/external-user-grant)
+allow one identity to access other organizations' projects without creating
+multiple home accounts. Equal email addresses can represent distinct identities;
+grant removal and local-session enforcement need separate tests. Business roles
+do not confer IAM manager or AuthWeave curator authority.
+
+The [portal example](https://zitadel.com/docs/examples/login/nextjs-b2b) uses server-held
+management credentials; it is not a public SPA/mobile proof or secure production
+default. The [Free offer](https://zitadel.com/pricing) advertises organizations within
+usage quotas, not verified administration/API entitlement or unlimited free usage.
+No account, grant, portal implementation, source approval or live acceptance was added;
+the active evaluator and AuthWeave authentication remain unchanged.
 
 #### Plan-scoped Auth0 documentation candidate
 

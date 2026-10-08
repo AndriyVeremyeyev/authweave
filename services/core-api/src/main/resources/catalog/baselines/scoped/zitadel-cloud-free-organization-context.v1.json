@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-cloud-free-organization-context-draft-2026.10.08",
+  "options": [
+    {
+      "id": "zitadel-cloud-free-organization-context",
+      "providerId": "zitadel",
+      "product": "ZITADEL Cloud",
+      "plan": "Free; organization offer documented, account entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No Cloud region selected; storage destinations not verified",
+      "configuration": "Vendor-owned project; customer org grants and cross-org role assignments; app-owned tenant access; no SCIM bridge",
+      "facts": {},
+      "compatibility": {
+        "applications": {
+          "B2B_SAAS": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Use a vendor-owned project and explicit grants to customer organizations, with bounded project roles and individual user role assignments. Configure the consuming application's tenant model separately; this is an IAM organization design, not implemented SaaS tenancy.",
+              "The Free offer at https://zitadel.com/pricing advertises unlimited organizations within usage quotas; reconcile administrator, API and account limits before source approval. The B2B guide's scalability language is not unlimited usage, a tested entitlement or a future zero-cost guarantee.",
+              "Business roles require application-side authorization; IAM manager roles are separate. No customer provisioning, enterprise connection, protocol/client compatibility, auditability, security-control or production isolation was verified. Cloud sources are mutable and dated, not release-pinned."
+            ],
+            "evidence": {
+              "sourceUrl": "https://zitadel.com/docs/guides/solution-scenarios/b2b",
+              "observedAt": "2026-10-08T14:20:41Z",
+              "summary": "The B2B guide describes customer organizations, shared projects and bounded grants/role assignments. Proposed SUPPORTED is conditional B2B application context, not a complete identity/lifecycle solution or verified Cloud Free account."
+            }
+          },
+          "PARTNER_PORTAL": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Model a vendor-owned portal project with separately granted partner organizations and explicit per-user roles. A portal's business admin role must not silently become ORG_OWNER, PROJECT_OWNER or a catalog-curator role.",
+              "The Next.js example uses a server-held client secret and a service-account PAT for management reads; it is not a public SPA/mobile compatibility proof or a production credential-handling prescription. Minimize management permissions and verify every selected partner organization server-side before exposing data or assignments.",
+              "Review Free-plan usage and management limits separately. The example's broad grants and development settings are not secure production defaults; portal onboarding, privileged writes, session revocation and tenant-isolation acceptance were not tested or implemented."
+            ],
+            "evidence": {
+              "sourceUrl": "https://zitadel.com/docs/examples/login/nextjs-b2b",
+              "observedAt": "2026-10-08T14:20:41Z",
+              "summary": "The server-side B2B portal example displays granted projects and organization-bound user roles. Proposed SUPPORTED retains application authorization, management credentials and account-limit prerequisites; the sample was not executed."
+            }
+          }
+        },
+        "clients": {},
+        "populations": {},
+        "tenancy": {
+          "MULTI_TENANT_ORGANIZATIONS": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Represent each intended customer boundary with an explicit organization-to-application-tenant mapping and vendor-project grant. Limit delegated roles; an organization's IAM data separation does not prove isolation of the consuming SaaS database, APIs or sessions.",
+              "An organization scope or domain discovery can route login settings, but routing alone does not authorize the selected application tenant. Validate current subject, project/grant and selected tenant on the server; do not trust a browser-selected organization ID, email domain or branding as permission.",
+              "No live multi-organization configuration or cross-tenant negative test was performed. Residency, population/client compatibility, hierarchical tenancy, lifecycle enforcement and organization management entitlement remain unverified."
+            ],
+            "evidence": {
+              "sourceUrl": "https://zitadel.com/docs/guides/manage/console/organizations-overview",
+              "observedAt": "2026-10-08T14:20:41Z",
+              "summary": "The organization guide describes multiple organizations in one instance and delegated project access. Proposed SUPPORTED concerns configurable IAM organization context, not observed application resource isolation or verified Free-plan management rights."
+            }
+          }
+        },
+        "membership": {
+          "MULTIPLE_ORGANIZATIONS_PER_USER": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Keep one home organization for the identity record, while external user role assignments grant that same identity access to projects in other organizations. Project grants delegate role management; individual role assignments authorize users. Neither creates a second home identity record.",
+              "For application memberships, bind the stable subject to each explicit tenant/project/grant context and validate access when switching tenants and on subsequent requests. Login organization and identity resource owner are not substitutes for the selected application's membership authorization.",
+              "Per https://zitadel.com/docs/guides/manage/console/users-overview, equal email addresses can belong to different accounts and users remain in one home organization; do not merge identities by email or infer native user migration. Grant removal, offboarding, cached claims and existing local sessions need separate enforcement tests.",
+              "This proposes cross-organization application access using role assignments, not multiple native user owners, arbitrary SaaS membership synchronization, SCIM Group transport or verified lifecycle behavior. Free account/API/admin entitlement and live acceptance remain unresolved."
+            ],
+            "evidence": {
+              "sourceUrl": "https://zitadel.com/docs/concepts/features/external-user-grant",
+              "observedAt": "2026-10-08T14:20:41Z",
+              "summary": "External user role assignments allow one identity to access projects across tenant organizations, independently of project-grant delegation. Proposed SUPPORTED is conditional application membership context, not multiple home organizations or automatic SaaS access enforcement."
+            }
+          }
+        }
+      },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}

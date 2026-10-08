@@ -808,6 +808,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/auth0-b2b-free-public-oidc-clients.v1.json");
         resources.add("scoped/entra-external-id-basic-public-oidc-clients.v1.json");
         resources.add("scoped/workos-connect-staging-public-oidc-clients.v1.json");
+        resources.add("scoped/zitadel-cloud-free-organization-context.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -824,7 +825,11 @@ class ProviderBaselineDraftTests {
             assertTrue(vocabulary.containsAll(recorded), file);
             assertTrue(recorded.stream().allMatch(address -> address.startsWith("facts.")
                     || address.equals("compatibility.clients.BROWSER")
-                    || address.equals("compatibility.clients.NATIVE_MOBILE")), file);
+                    || address.equals("compatibility.clients.NATIVE_MOBILE")
+                    || address.equals("compatibility.applications.B2B_SAAS")
+                    || address.equals("compatibility.applications.PARTNER_PORTAL")
+                    || address.equals("compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS")
+                    || address.equals("compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER")), file);
             var omitted = new java.util.HashSet<>(vocabulary);
             omitted.removeAll(recorded);
             assertTrue(java.util.Collections.disjoint(recorded, omitted), file);
@@ -832,20 +837,22 @@ class ProviderBaselineDraftTests {
             recordedCount += recorded.size();
             omittedCount += omitted.size();
             option.facts().values().forEach(fact -> counts.merge(fact.availability(), 1, Integer::sum));
-            option.compatibility().clients().values().forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
+            CatalogDraftFacts.entries(option).values().stream().filter(ProviderCatalogDraft.CompatibilityFact.class::isInstance)
+                    .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
+                    .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(25, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(82, recordedCount);
-        assertEquals(1618, omittedCount);
+        assertEquals(26, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(86, recordedCount);
+        assertEquals(1682, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 36,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 9, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 13, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T13:50:08Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T14:20:41Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(25, report.optionCount());
-        assertEquals(82, report.factCount());
+        assertEquals(26, report.optionCount());
+        assertEquals(86, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1298,6 +1305,118 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(5, report.optionCount());
         assertEquals(12, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"compatibility.applications.B2B_SAAS", "compatibility.applications.PARTNER_PORTAL",
+            "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER"})
+    void zitadelOrganizationContextUsesTypedCompatibilityWithoutProtocolOrControlInheritance(String path) throws Exception {
+        var json = resource("catalog/baselines/scoped/zitadel-cloud-free-organization-context.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("zitadel-cloud-free-organization-context-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("zitadel-cloud-free-organization-context", option.id());
+        assertEquals("zitadel", option.providerId());
+        assertEquals("ZITADEL Cloud", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Free; organization offer documented, account entitlement unverified", option.plan());
+        assertTrue(option.facts().isEmpty());
+        var entries = CatalogDraftFacts.entries(option);
+        assertEquals(4, entries.size());
+        var fact = assertInstanceOf(ProviderCatalogDraft.CompatibilityFact.class, entries.get(path));
+        assertEquals(ProviderCatalog.Support.SUPPORTED, fact.support());
+        assertEquals("zitadel.com", fact.evidence().sourceUrl().getHost());
+        var sourcePaths = Map.of(
+                "compatibility.applications.B2B_SAAS", "/docs/guides/solution-scenarios/b2b",
+                "compatibility.applications.PARTNER_PORTAL", "/docs/examples/login/nextjs-b2b",
+                "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "/docs/guides/manage/console/organizations-overview",
+                "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "/docs/concepts/features/external-user-grant");
+        assertEquals(sourcePaths.keySet(), entries.keySet());
+        assertEquals(sourcePaths.get(path), fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T14:20:41Z"), fact.evidence().observedAt());
+        var conditions = String.join(" ", fact.conditions());
+        switch (path) {
+            case "compatibility.applications.B2B_SAAS" -> {
+                assertTrue(conditions.contains("IAM manager roles are separate"));
+                assertTrue(conditions.contains("not unlimited usage"));
+            }
+            case "compatibility.applications.PARTNER_PORTAL" -> {
+                assertTrue(conditions.contains("not a public SPA/mobile compatibility proof"));
+                assertTrue(conditions.contains("not secure production defaults"));
+            }
+            case "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS" -> {
+                assertTrue(conditions.contains("routing alone does not authorize the selected application tenant"));
+                assertTrue(conditions.contains("IAM data separation does not prove isolation"));
+            }
+            case "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER" -> {
+                assertTrue(conditions.contains("one home organization"));
+                assertTrue(conditions.contains("do not merge identities by email"));
+                assertTrue(conditions.contains("existing local sessions need separate enforcement tests"));
+            }
+            default -> fail("Unexpected organization-context path");
+        }
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void zitadelOrganizationFreshnessRetainsHashAndDoesNotTurnContextIntoApproval() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/zitadel-cloud-free-organization-context.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T14:20:41Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+        assertTrue(CatalogDraftFacts.entries(draft.options().getFirst()).values().stream()
+                .allMatch(fact -> fact.evidence().observedAt().equals(observed)));
+    }
+
+    @Test
+    void zitadelOrganizationScopeKeepsProtocolClientAndWorkforceDraftsIndependent() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("zitadel.v1.json", "scoped/zitadel-cloud-free.v1.json",
+                "scoped/zitadel-cloud-free-upstream-okta.v1.json", "scoped/zitadel-cloud-free-upstream-entra.v1.json",
+                "scoped/zitadel-cloud-free-public-oidc-clients.v1.json", "scoped/zitadel-cloud-free-organization-context.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(6, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().applications().isEmpty()
+                && option.compatibility().tenancy().isEmpty() && option.compatibility().membership().isEmpty()));
+        assertTrue(options.getLast().facts().isEmpty());
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(ProviderCatalog.Availability.UNAVAILABLE, options.get(1).facts().get(ProviderCatalog.Capability.GROUP_SYNC).availability());
+        assertEquals(Instant.parse("2026-10-02T21:44:10Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.get(4).facts().keySet());
+        assertEquals(2, options.get(4).compatibility().clients().size());
+        assertTrue(options.get(4).compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "zitadel-organization-context-coexistence-test", options), Instant.parse("2026-10-08T14:20:41Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(6, report.optionCount());
+        assertEquals(22, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
