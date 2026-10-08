@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/provider-baseline-inventory.v1.schema.json",
+  "title": "Unreviewed provider baseline schema-path inventory v1",
+  "description": "Structural presence only, not customer requirement coverage or publication authority. Tests replay path partitions and counts against draft v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion", "scope", "policyVersion", "catalogSchemaId", "evaluatedAt",
+    "schemaPathCountPerOption", "optionCount", "optionPathCount", "recordedPathCount", "omittedPathCount",
+    "proposedAvailabilityCounts", "recordedFreshnessCounts", "requirementCoverageEstablished",
+    "sourceVerificationPerformed", "approvalGranted", "writesPerformed", "fullCoverageEstablished",
+    "evaluationReady", "pathVocabulary", "options", "unverifiedBoundaries"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "scope": { "const": "PROVIDER_BASELINE_SCHEMA_PATH_INVENTORY" },
+    "policyVersion": { "const": "provider-baseline-schema-path-inventory-1" },
+    "catalogSchemaId": { "const": "https://authweave.dev/contracts/provider-catalog-draft.v1.schema.json" },
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "schemaPathCountPerOption": { "const": 68 },
+    "optionCount": { "type": "integer", "minimum": 1, "maximum": 20 },
+    "optionPathCount": { "type": "integer", "minimum": 68, "maximum": 1360 },
+    "recordedPathCount": { "$ref": "#/$defs/count" },
+    "omittedPathCount": { "$ref": "#/$defs/count" },
+    "proposedAvailabilityCounts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["OPTIONAL", "MANDATORY", "UNAVAILABLE", "UNKNOWN"],
+      "properties": {
+        "OPTIONAL": { "$ref": "#/$defs/count" }, "MANDATORY": { "$ref": "#/$defs/count" },
+        "UNAVAILABLE": { "$ref": "#/$defs/count" }, "UNKNOWN": { "$ref": "#/$defs/count" }
+      }
+    },
+    "recordedFreshnessCounts": {
+      "type": "object", "additionalProperties": false,
+      "required": ["CURRENT", "STALE", "FUTURE"],
+      "properties": {
+        "CURRENT": { "$ref": "#/$defs/count" }, "STALE": { "$ref": "#/$defs/count" },
+        "FUTURE": { "$ref": "#/$defs/count" }
+      }
+    },
+    "requirementCoverageEstablished": { "const": false },
+    "sourceVerificationPerformed": { "const": false },
+    "approvalGranted": { "const": false },
+    "writesPerformed": { "const": false },
+    "fullCoverageEstablished": { "const": false },
+    "evaluationReady": { "const": false },
+    "pathVocabulary": {
+      "type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["family", "paths"],
+        "properties": { "family": { "$ref": "#/$defs/family" }, "paths": { "$ref": "#/$defs/paths" } }
+      }
+    },
+    "options": {
+      "type": "array", "minItems": 1, "maxItems": 20,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["optionId", "catalogVersion", "recordedPathCount", "omittedPathCount", "recordedUnknownPaths", "families"],
+        "properties": {
+          "optionId": { "$ref": "#/$defs/identifier" }, "catalogVersion": { "$ref": "#/$defs/identifier" },
+          "recordedPathCount": { "type": "integer", "minimum": 0, "maximum": 68 },
+          "omittedPathCount": { "type": "integer", "minimum": 0, "maximum": 68 },
+          "recordedUnknownPaths": { "$ref": "#/$defs/paths" },
+          "families": {
+            "type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true,
+            "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["family", "recordedPaths", "omittedPaths"],
+              "properties": {
+                "family": { "$ref": "#/$defs/family" }, "recordedPaths": { "$ref": "#/$defs/paths" },
+                "omittedPaths": { "$ref": "#/$defs/paths" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "unverifiedBoundaries": {
+      "const": ["COMMERCIAL_SCOPE", "AUDITABILITY", "COST", "LIFECYCLE_ENFORCEMENT", "CONFIGURATION_VERIFICATION", "SOURCE_VERIFICATION", "CURATOR_APPROVAL"]
+    }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0, "maximum": 1360 },
+    "identifier": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+    "family": { "enum": ["CAPABILITY", "COMPATIBILITY", "RESIDENCY", "AUTHENTICATION_CONTROL"] },
+    "paths": {
+      "type": "array", "maxItems": 68, "uniqueItems": true,
+      "items": {
+        "type": "string", "minLength": 1, "maxLength": 120,
+        "pattern": "^(facts\\.[A-Z_0-9]+|compatibility\\.(applications|clients|populations|tenancy|membership)\\.[A-Z_0-9]+|residency\\.[A-Z_0-9]+|authenticationControls\\.[A-Z_0-9]+\\.[A-Z_0-9]+\\.[A-Z_0-9]+)$"
+      }
+    }
+  }
+}

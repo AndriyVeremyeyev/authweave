@@ -1859,6 +1859,33 @@ The active catalog and evaluator remain synthetic. Real-provider baseline comple
 authorized approval/publication and end-user recommendations are still pending.
 No accounts, subscriptions, live provider calls or deployments were added.
 
+#### Schema-path inventory, not baseline readiness
+
+The same command includes `schemaPathInventory`, constrained by a separate
+[inventory v1 schema](packages/contracts/schemas/provider-baseline-inventory.v1.schema.json).
+Policy `provider-baseline-schema-path-inventory-1` derives the draft v1 address
+vocabulary: 9 capabilities, 19 compatibility paths, 4 residency categories and
+36 human authentication-control paths. Each exact option partitions those 68
+addresses into sorted `recordedPaths` and `omittedPaths`. `recordedUnknownPaths`
+distinguishes explicit `UNKNOWN` proposals from omissions; proposed availability
+and recorded freshness have separate aggregate counts. Option identities and
+catalog versions join back to the original scope, conditions and evidence.
+
+The current pack has 67 recorded and 1,293 omitted option-paths across 20 distinct
+scopes (1,360 possible addresses). The recorded proposals comprise 31 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; all remain `UNREVIEWED`. These are structural
+counts, **not a completion percentage**. Addresses may be irrelevant to a particular
+customer profile; omissions do not mean unsupported features or a requirement to
+fill every address. Research, native and upstream scopes never borrow each other's facts.
+
+The closed schema constrains output shape and false authority/readiness flags;
+tests separately replay partitions and arithmetic against the schema and typed
+Core vocabulary. Commercial entitlement, auditability, cost, lifecycle enforcement,
+configuration/source verification and curator approval remain explicit unverified
+boundaries outside this address inventory. `requirementCoverageEstablished`,
+`fullCoverageEstablished` and `evaluationReady` remain false regardless of counts
+or freshness. This output is not a draft import, review decision or activation request.
+
 #### Release-scoped Keycloak documentation candidate
 
 A separate [Keycloak 26.8.0 draft](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0.v1.json)

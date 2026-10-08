@@ -11,6 +11,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import tools.jackson.databind.json.JsonMapper;
 import io.authweave.core.catalog.ProviderCatalog;
+import io.authweave.core.catalog.impact.CatalogFactPathRegressionCases;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -786,6 +787,55 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(4, report.optionCount());
         assertEquals(15, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+    }
+
+    @Test
+    void allBaselineScopesPartitionTheTypedAddressVocabularyWithoutClaimingRequirementCoverage() throws Exception {
+        var resources = new java.util.ArrayList<String>();
+        HOSTS.keySet().stream().sorted().forEach(provider -> resources.add(provider + ".v1.json"));
+        for (var stem : List.of("keycloak-26.8.0", "zitadel-cloud-free", "auth0-b2b-free",
+                "workos-directory-sync-staging", "entra-external-id-basic")) {
+            resources.add("scoped/" + stem + ".v1.json");
+            for (var upstream : List.of("okta", "entra")) {
+                resources.add("scoped/" + stem + "-upstream-" + upstream + ".v1.json");
+            }
+        }
+        var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
+                .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
+        assertEquals(68, vocabulary.size());
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        var counts = new java.util.EnumMap<ProviderCatalog.Availability, Integer>(ProviderCatalog.Availability.class);
+        int recordedCount = 0;
+        int omittedCount = 0;
+        for (var file : resources) {
+            var option = mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class)
+                    .options().getFirst();
+            options.add(option);
+            var recorded = CatalogDraftFacts.entries(option).keySet();
+            assertTrue(vocabulary.containsAll(recorded), file);
+            assertTrue(recorded.stream().allMatch(address -> address.startsWith("facts.")), file);
+            var omitted = new java.util.HashSet<>(vocabulary);
+            omitted.removeAll(recorded);
+            assertTrue(java.util.Collections.disjoint(recorded, omitted), file);
+            assertEquals(68, recorded.size() + omitted.size(), file);
+            recordedCount += recorded.size();
+            omittedCount += omitted.size();
+            option.facts().values().forEach(fact -> counts.merge(fact.availability(), 1, Integer::sum));
+        }
+        assertEquals(20, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(67, recordedCount);
+        assertEquals(1293, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 31,
+                ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
+        var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "baseline-address-inventory-test", options);
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T05:32:34Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(20, report.optionCount());
+        assertEquals(67, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));

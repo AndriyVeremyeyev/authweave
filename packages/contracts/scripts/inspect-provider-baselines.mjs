@@ -22,6 +22,21 @@ const providers = Object.freeze([
   { id: "keycloak", host: "www.keycloak.org", deployment: "SELF_HOSTED" },
 ]);
 const capabilities = Object.keys(schema.$defs.option.properties.facts.properties).sort();
+const inventorySchema = JSON.parse(await readFile(new URL(
+  "../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url,
+), "utf8"));
+const validateInventory = ajv.compile(inventorySchema);
+const pathVocabulary = [
+  ["CAPABILITY", "facts", schema.$defs.option.properties.facts, "fact", 9],
+  ["COMPATIBILITY", "compatibility", schema.$defs.compatibility, "compatibilityFact", 19],
+  ["RESIDENCY", "residency", schema.$defs.option.properties.residency, "residencyFact", 4],
+  ["AUTHENTICATION_CONTROL", "authenticationControls", schema.$defs.authenticationControls, "authenticationControlFact", 36],
+].map(([family, prefix, node, leaf, count]) => {
+  const paths = schemaFactPaths(node, prefix, `#/$defs/${leaf}`).sort();
+  requireCondition(paths.length === count && new Set(paths).size === count,
+    "Review and version the baseline schema-path inventory after schema drift");
+  return { family, paths };
+});
 const windowMs = 90 * 24 * 60 * 60 * 1000;
 const keycloakRelease = Object.freeze({
   version: "26.8.0",
@@ -257,6 +272,68 @@ function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+function schemaFactPaths(node, prefix, leafRef) {
+  if (node.$ref === leafRef) return [prefix];
+  requireCondition(node.type === "object" && node.additionalProperties === false && node.properties && !node.$ref,
+    "Unexpected draft schema node in baseline schema-path inventory");
+  return Object.entries(node.properties).flatMap(([key, child]) => schemaFactPaths(child, `${prefix}.${key}`, leafRef));
+}
+
+function schemaPathInventory(options, evaluatedAt) {
+  const proposedAvailabilityCounts = { OPTIONAL: 0, MANDATORY: 0, UNAVAILABLE: 0, UNKNOWN: 0 };
+  const recordedFreshnessCounts = { CURRENT: 0, STALE: 0, FUTURE: 0 };
+  const entries = options.map((option) => {
+    const recorded = new Set(option.facts.map((fact) => fact.path));
+    requireCondition(recorded.size === option.facts.length, "Duplicate recorded baseline path");
+    const families = pathVocabulary.map(({ family, paths }) => ({
+      family,
+      recordedPaths: paths.filter((address) => recorded.has(address)),
+      omittedPaths: paths.filter((address) => !recorded.has(address)),
+    }));
+    requireCondition(families.reduce((count, family) => count + family.recordedPaths.length, 0) === recorded.size,
+      "Recorded baseline path is outside the draft schema vocabulary");
+    for (const fact of option.facts) {
+      proposedAvailabilityCounts[fact.availability] += 1;
+      recordedFreshnessCounts[fact.freshness] += 1;
+    }
+    return {
+      optionId: option.optionId,
+      catalogVersion: option.catalogVersion,
+      recordedPathCount: recorded.size,
+      omittedPathCount: 68 - recorded.size,
+      recordedUnknownPaths: option.facts.filter((fact) => fact.availability === "UNKNOWN").map((fact) => fact.path).sort(),
+      families,
+    };
+  });
+  const recordedPathCount = entries.reduce((count, option) => count + option.recordedPathCount, 0);
+  const inventory = {
+    schemaVersion: 1,
+    scope: "PROVIDER_BASELINE_SCHEMA_PATH_INVENTORY",
+    policyVersion: "provider-baseline-schema-path-inventory-1",
+    catalogSchemaId: schema.$id,
+    evaluatedAt: evaluatedAt.toISOString(),
+    schemaPathCountPerOption: 68,
+    optionCount: options.length,
+    optionPathCount: options.length * 68,
+    recordedPathCount,
+    omittedPathCount: options.length * 68 - recordedPathCount,
+    proposedAvailabilityCounts,
+    recordedFreshnessCounts,
+    requirementCoverageEstablished: false,
+    sourceVerificationPerformed: false,
+    approvalGranted: false,
+    writesPerformed: false,
+    fullCoverageEstablished: false,
+    evaluationReady: false,
+    pathVocabulary: pathVocabulary.map(({ family, paths }) => ({ family, paths: [...paths] })),
+    options: entries,
+    unverifiedBoundaries: ["COMMERCIAL_SCOPE", "AUDITABILITY", "COST", "LIFECYCLE_ENFORCEMENT",
+      "CONFIGURATION_VERIFICATION", "SOURCE_VERIFICATION", "CURATOR_APPROVAL"],
+  };
+  requireCondition(validateInventory(inventory), `Invalid baseline schema-path inventory: ${ajv.errorsText(validateInventory.errors)}`);
+  return inventory;
+}
+
 function requireInspectionTime(evaluatedAt) {
   requireCondition(evaluatedAt instanceof Date && Number.isFinite(evaluatedAt.getTime()), "Invalid inspection time");
 }
@@ -303,6 +380,7 @@ function inspectOption(draft, option, evaluatedAt, basis) {
 }
 
 function report(scope, options, evaluatedAt) {
+  const sortedOptions = [...options].sort((left, right) => left.optionId.localeCompare(right.optionId));
   return {
     scope,
     evaluatedAt: evaluatedAt.toISOString(),
@@ -313,7 +391,8 @@ function report(scope, options, evaluatedAt) {
     evaluationReady: false,
     optionCount: options.length,
     factCount: options.reduce((count, option) => count + option.facts.length, 0),
-    options: options.sort((left, right) => left.optionId.localeCompare(right.optionId)),
+    options: sortedOptions,
+    schemaPathInventory: schemaPathInventory(sortedOptions, evaluatedAt),
   };
 }
 
