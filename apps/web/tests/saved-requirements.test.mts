@@ -7,6 +7,22 @@ import { assessmentSteps } from "../src/lib/assessment/workflow.ts";
 import { assessmentUiComponents, savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { evaluationContextValues, withEvaluationContextValues } from "../src/lib/assessment/evaluation-context.ts";
 import { guidedScenarios } from "./fixtures/guided-scenarios.mts";
+import { assuranceExpectations, assuranceExpectationLabels } from "../src/lib/assessment/assurance-expectation.ts";
+
+test("saved assurance is appended without renumbering existing Review rows or declaring readiness", () => {
+  const legacyRows = savedRequirementGroups(savedRequirementsFixture())[1].rows!;
+  for (const assurance of assuranceExpectations) {
+    const profile = savedRequirementsFixture(); Object.assign(profile.security, { assurance });
+    const rows = savedRequirementGroups(profile)[1].rows!;
+    assert.deepEqual(rows.slice(0, 9), legacyRows);
+    assert.deepEqual(rows[9], { label: "Assurance expectation (planning label)", value: assuranceExpectationLabels[assurance],
+      state: assurance === "UNKNOWN" ? "not-recorded" : "recorded" });
+    assert.equal(rows.length, 10); assert.equal(JSON.stringify(rows).includes("ready"), false);
+  }
+  const invalid = savedRequirementsFixture(); Object.assign(invalid.security, { assurance: "synthetic-sensitive-invalid" });
+  assert.equal(savedRequirementGroups(invalid)[1].rows, null);
+  assert.equal(JSON.stringify(savedRequirementGroups(invalid)).includes("synthetic-sensitive-invalid"), false);
+});
 
 for (const scenario of guidedScenarios) test(`saved context header identifies ${scenario.key} without guessing or changing the profile`, async () => {
   const components = await assessmentUiComponents();

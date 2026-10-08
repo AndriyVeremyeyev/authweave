@@ -23,6 +23,8 @@ import { factReviewSummaryFixture } from "./fixtures/fact-review-summary.mts";
 import { comparisonAuditFixture, noAuditRequirement } from "./fixtures/comparison-auditability.mts";
 import { auditabilityPreviewByteLimit } from "../src/lib/assessment/auditability-preview.ts";
 import type { AuditabilityValues } from "../src/lib/assessment/auditability.ts";
+import { evaluationContextValues } from "../src/lib/assessment/evaluation-context.ts";
+import { assuranceExpectations } from "../src/lib/assessment/assurance-expectation.ts";
 
 const identity = {
   issuer: "http://localhost:8081",
@@ -534,6 +536,51 @@ test("BFF context update preserves capabilities and uses the existing optimistic
     assert.equal(puts, 0);
     assert.equal(await updatePersonalEvaluationContext(session, assessmentId, 3, values), "saved");
     assert.equal(puts, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;
+    else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = previousToken;
+  }
+});
+
+test("BFF assurance save accepts only the exact acknowledged or preserved planning label", async () => {
+  const previousToken = process.env.AUTHWEAVE_CORE_SERVICE_TOKEN, previousFetch = globalThis.fetch;
+  process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = "synthetic-internal-token-000000000000000000000";
+  const profile = { ...contextProfile, security: { ...contextProfile.security, assurance: "HIGH" } };
+  const values = evaluationContextValues(profile)!;
+  let acknowledgement: "exact" | "different" | "missing" | "malformed" = "exact", puts = 0;
+  let expected = "HIGH";
+  globalThis.fetch = async (input, init) => {
+    assert.ok(String(input).includes(`/assessments/${assessmentId}`));
+    assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error");
+    if (init?.method === "GET") return Response.json({ ...coreAssessment, version: 3, profile });
+    assert.equal(init?.method, "PUT"); puts++;
+    const update = JSON.parse(String(init?.body)); assert.equal(update.expectedVersion, 3);
+    assert.equal(update.profile.security.assurance, expected);
+    assert.deepEqual(update.profile.security.authenticationControls, profile.security.authenticationControls);
+    assert.deepEqual(update.profile.protocols, profile.protocols); assert.deepEqual(update.profile.operations, profile.operations);
+    if (acknowledgement === "different") update.profile.security.assurance = expected === "HIGH" ? "BASELINE" : "HIGH";
+    if (acknowledgement === "missing") delete update.profile.security.assurance;
+    if (acknowledgement === "malformed") update.profile.security.assurance = "synthetic-sensitive-invalid";
+    return Response.json({ ...coreAssessment, version: 4, profile: update.profile });
+  };
+  try {
+    for (const assuranceExpectation of assuranceExpectations) {
+      expected = assuranceExpectation; acknowledgement = "exact";
+      assert.equal(await updatePersonalEvaluationContext(session, assessmentId, 3, { ...values, assuranceExpectation }), "saved");
+      for (const mode of ["different", "missing", "malformed"] as const) {
+        acknowledgement = mode;
+        await assert.rejects(updatePersonalEvaluationContext(session, assessmentId, 3, { ...values, assuranceExpectation }));
+      }
+    }
+    const legacyValues = { ...values }; delete legacyValues.assuranceExpectation;
+    expected = "HIGH"; acknowledgement = "exact";
+    assert.equal(await updatePersonalEvaluationContext(session, assessmentId, 3, legacyValues), "saved");
+    acknowledgement = "different";
+    await assert.rejects(updatePersonalEvaluationContext(session, assessmentId, 3, legacyValues));
+    const before = puts;
+    assert.equal(await updatePersonalEvaluationContext(session, assessmentId, 2, values), "conflict");
+    assert.equal(puts, before);
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN;

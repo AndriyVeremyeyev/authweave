@@ -16,6 +16,28 @@ const fallback = [{ fieldId: null,
 const codes = Array.from({ length: 250 }, (_, index) =>
   String.fromCharCode(65 + Math.floor(index / 26), 65 + index % 26)); // Syntax fixtures, not an ISO registry.
 
+test("assurance diagnostics use fixed field feedback and refuse malformed choices before network IO", async () => {
+  for (const raw of ["", "high", "AAL3", "<script>private-assurance-input</script>", "HIGH "]) {
+    const params = profileFormFixture("context"); params.set("assuranceExpectation", raw);
+    const before = params.toString(), issues = evaluationContextFormIssues(params);
+    assert.deepEqual(issues.map(issue => issue.fieldId), ["context-assuranceExpectation"]);
+    assert.ok(issues[0].message.includes("select one planning label"));
+    assert.equal(issues[0].message.includes("private-assurance-input"), false);
+    let calls = 0;
+    assert.equal(await postProfileSection("context", profileSectionAction("context"), params,
+      async () => { calls++; throw new Error("Unexpected request"); }), "invalid");
+    assert.equal(calls, 0); assert.equal(params.toString(), before);
+  }
+  for (const value of ["BASELINE", "ELEVATED", "HIGH", "UNKNOWN"]) {
+    const params = profileFormFixture("context"); params.set("assuranceExpectation", value);
+    assert.deepEqual(profileFormIssues("context", params), []);
+  }
+  const duplicate = profileFormFixture("context");
+  duplicate.append("assuranceExpectation", "HIGH"); duplicate.append("assuranceExpectation", "HIGH");
+  assert.equal(evaluationContextFormIssues(duplicate)[0].fieldId, "context-assuranceExpectation");
+  assert.throws(() => parseEvaluationContextForm(duplicate));
+});
+
 test("Context keeps blank, whitespace, sorted, partial and syntax-only country semantics unchanged", () => {
   for (const text of ["", " \n ", "US", " CA , US ", "ZZ", "US".padEnd(1024, " "), codes.slice(0, 249).join(",")]) {
     const params = profileFormFixture("context"); params.set("allowedCountries", text);

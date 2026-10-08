@@ -1,4 +1,5 @@
 import { criticalities, type Criticality } from "./capabilities.ts";
+import { assuranceExpectations, assuranceExpectationLabels, type AssuranceExpectation } from "./assurance-expectation.ts";
 
 export const applicationTypes = ["UNKNOWN", "B2B_SAAS", "PARTNER_PORTAL", "PUBLIC_SECTOR_PORTAL",
   "INTERNAL_WORKFORCE", "OTHER"] as const;
@@ -14,6 +15,7 @@ export const complianceTargets = ["SOC_2", "ISO_27001", "HIPAA", "FEDRAMP", "GDP
 export const dataCategories = ["USER_PROFILES", "CREDENTIALS", "AUDIT_LOGS", "BACKUPS"] as const;
 
 export const evaluationContextLabels: Record<string, string> = {
+  ...assuranceExpectationLabels,
   UNKNOWN: "Unknown / not recorded",
   B2B_SAAS: "B2B SaaS", PARTNER_PORTAL: "Partner portal",
   PUBLIC_SECTOR_PORTAL: "Public-sector portal", INTERNAL_WORKFORCE: "Internal workforce application",
@@ -35,6 +37,8 @@ export const evaluationContextLabels: Record<string, string> = {
 };
 
 export type EvaluationContextValues = {
+  // Omission supports older forms without replacing the saved expectation with a default.
+  assuranceExpectation?: AssuranceExpectation;
   applicationType: (typeof applicationTypes)[number];
   clients: (typeof clientTypes)[number][];
   selectedPopulations: (typeof populations)[number][];
@@ -82,6 +86,7 @@ export function evaluationContextValues(profile: Record<string, unknown>): Evalu
   const controls = record(security?.authenticationControls);
   const residency = record(security?.dataResidencyDetails);
   if (!application || !audience || !security || !controls || !residency) return null;
+  if (Object.hasOwn(security, "assurance") && !option(security.assurance, assuranceExpectations)) return null;
   const clients = selected(application.clients, clientTypes);
   const selectedPopulations = selected(audience.populations, populations);
   const selectedComplianceTargets = selected(security.complianceTargets, complianceTargets);
@@ -97,6 +102,7 @@ export function evaluationContextValues(profile: Record<string, unknown>): Evalu
       !option(controls.stepUpAuthentication, criticalities) ||
       !option(security.complianceScopeStatus, complianceScopeStatuses)) return null;
   return {
+    ...(option(security.assurance, assuranceExpectations) ? { assuranceExpectation: security.assurance } : {}),
     applicationType: application.type, clients, selectedPopulations,
     tenancy: audience.tenancy, membership: audience.membership,
     dataResidency: security.dataResidency,
@@ -139,7 +145,7 @@ export function parseEvaluationContextForm(params: URLSearchParams): {
   const allowed = ["expectedVersion", "applicationType", "clients", "selectedPopulations", "tenancy",
     "membership", "dataResidency", "allowedCountries", "selectedDataCategories",
     "browserTokenExposureMinimization", "phishingResistance", "nonExportableKeys",
-    "stepUpAuthentication", "complianceScopeStatus", "selectedComplianceTargets"];
+    "stepUpAuthentication", "complianceScopeStatus", "selectedComplianceTargets", "assuranceExpectation"];
   if ([...params.keys()].some(key => !allowed.includes(key))) throw new InvalidEvaluationContextForm();
   const versions = params.getAll("expectedVersion");
   if (versions.length !== 1 || !/^(0|[1-9][0-9]*)$/.test(versions[0])) {
@@ -148,6 +154,8 @@ export function parseEvaluationContextForm(params: URLSearchParams): {
   const expectedVersion = Number(versions[0]);
   if (!Number.isSafeInteger(expectedVersion)) throw new InvalidEvaluationContextForm();
   const values: EvaluationContextValues = {
+    ...(params.has("assuranceExpectation") ? { assuranceExpectation:
+      single(params, "assuranceExpectation", assuranceExpectations) as AssuranceExpectation } : {}),
     applicationType: single(params, "applicationType", applicationTypes) as EvaluationContextValues["applicationType"],
     clients: many(params, "clients", clientTypes) as EvaluationContextValues["clients"],
     selectedPopulations: many(params, "selectedPopulations", populations) as EvaluationContextValues["selectedPopulations"],
@@ -175,6 +183,10 @@ export function withEvaluationContextValues(profile: Record<string, unknown>,
   const security = copy.security as Record<string, unknown>;
   const controls = security.authenticationControls as Record<string, unknown>;
   const residency = security.dataResidencyDetails as Record<string, unknown>;
+  if (values.assuranceExpectation !== undefined) {
+    if (!option(values.assuranceExpectation, assuranceExpectations)) throw new InvalidEvaluationContextForm();
+    security.assurance = values.assuranceExpectation;
+  }
   application.type = values.applicationType;
   application.clients = [...values.clients];
   audience.populations = [...values.selectedPopulations];
@@ -191,4 +203,12 @@ export function withEvaluationContextValues(profile: Record<string, unknown>,
   controls.stepUpAuthentication = values.stepUpAuthentication;
   if (!evaluationContextValues(copy)) throw new InvalidEvaluationContextForm();
   return copy;
+}
+
+// A successful write must acknowledge the explicit or preserved planning label, not silently drop it.
+export function assuranceExpectationSaveMatches(expected: Record<string, unknown>, saved: Record<string, unknown>): boolean {
+  const expectedValues = evaluationContextValues(expected);
+  const savedValues = evaluationContextValues(saved);
+  return expectedValues !== null && savedValues !== null &&
+    expectedValues.assuranceExpectation === savedValues.assuranceExpectation;
 }

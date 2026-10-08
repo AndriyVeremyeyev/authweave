@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { evaluationContextValues, InvalidEvaluationContextForm, parseEvaluationContextForm,
+import { evaluationContextValues, assuranceExpectationSaveMatches, InvalidEvaluationContextForm, parseEvaluationContextForm,
   withEvaluationContextValues } from "../src/lib/assessment/evaluation-context.ts";
 
 const profile = {
@@ -25,6 +25,58 @@ const valid = new URLSearchParams({
   browserTokenExposureMinimization: "REQUIRED",
   phishingResistance: "NOT_REQUIRED", nonExportableKeys: "NOT_REQUIRED",
   stepUpAuthentication: "NOT_REQUIRED", complianceScopeStatus: "NONE_IDENTIFIED",
+});
+
+test("all assurance planning labels round-trip without deriving or changing independent controls", () => {
+  const source = { ...profile, security: { ...profile.security, assurance: "UNKNOWN", multiFactorAuthentication: "REQUIRED" } };
+  const before = structuredClone(source);
+  for (const expectation of ["BASELINE", "ELEVATED", "HIGH", "UNKNOWN"] as const) {
+    const form = new URLSearchParams(valid); form.set("assuranceExpectation", expectation);
+    const values = parseEvaluationContextForm(form).values;
+    assert.equal(values.assuranceExpectation, expectation);
+    const changed = withEvaluationContextValues(source, values);
+    assert.equal(evaluationContextValues(changed)?.assuranceExpectation, expectation);
+    assert.equal((changed.security as Record<string, unknown>).multiFactorAuthentication, "REQUIRED");
+    assert.deepEqual((changed.security as Record<string, unknown>).authenticationControls,
+      { phishingResistance: "NOT_REQUIRED", nonExportableKeys: "NOT_REQUIRED", stepUpAuthentication: "NOT_REQUIRED" });
+    assert.deepEqual(changed.protocols, source.protocols); assert.deepEqual(changed.operations, source.operations);
+    assert.equal(assuranceExpectationSaveMatches(changed, structuredClone(changed)), true);
+    assert.equal(assuranceExpectationSaveMatches(changed, { ...changed,
+      security: { ...(changed.security as object), assurance: expectation === "HIGH" ? "BASELINE" : "HIGH" } }), false);
+    assert.equal(assuranceExpectationSaveMatches(changed, profile), false);
+  }
+  assert.deepEqual(source, before);
+});
+
+test("older context forms preserve existing assurance and absence is not a guessed default", () => {
+  assert.equal(Object.hasOwn(parseEvaluationContextForm(valid).values, "assuranceExpectation"), false);
+  assert.equal(Object.hasOwn(evaluationContextValues(profile)!, "assuranceExpectation"), false);
+  assert.equal(Object.hasOwn(withEvaluationContextValues(profile, parseEvaluationContextForm(valid).values).security as object, "assurance"), false);
+  for (const assurance of ["BASELINE", "ELEVATED", "HIGH", "UNKNOWN"]) {
+    const source = { ...profile, security: { ...profile.security, assurance } };
+    assert.equal((withEvaluationContextValues(source, parseEvaluationContextForm(valid).values).security as Record<string, unknown>).assurance, assurance);
+    assert.equal(assuranceExpectationSaveMatches(source, structuredClone(source)), true);
+  }
+  assert.equal(assuranceExpectationSaveMatches(profile, profile), true);
+  assert.equal(assuranceExpectationSaveMatches(profile, { ...profile, security: { ...profile.security, assurance: "UNKNOWN" } }), false);
+});
+
+test("assurance rejects blank, duplicated, unrecognized and malformed values without correction", () => {
+  for (const raw of ["", "high", "HIGH ", "AAL3", "synthetic-sensitive-invalid", "UNKNOWN,BASELINE"]) {
+    const form = new URLSearchParams(valid); form.set("assuranceExpectation", raw);
+    assert.throws(() => parseEvaluationContextForm(form), InvalidEvaluationContextForm);
+  }
+  const duplicate = new URLSearchParams(valid);
+  duplicate.append("assuranceExpectation", "HIGH"); duplicate.append("assuranceExpectation", "HIGH");
+  assert.throws(() => parseEvaluationContextForm(duplicate), InvalidEvaluationContextForm);
+  for (const assurance of [undefined, null, 1, [], {}, "", "AAL3"]) {
+    const source = { ...profile, security: { ...profile.security, assurance } };
+    assert.equal(evaluationContextValues(source), null);
+    assert.throws(() => withEvaluationContextValues(source, parseEvaluationContextForm(valid).values));
+    assert.equal(assuranceExpectationSaveMatches(profile, source), false);
+  }
+  assert.throws(() => withEvaluationContextValues(profile, { ...parseEvaluationContextForm(valid).values,
+    assuranceExpectation: "invalid" as "HIGH" }), InvalidEvaluationContextForm);
 });
 valid.append("clients", "BROWSER");
 valid.append("selectedPopulations", "EXTERNAL_CUSTOMERS");

@@ -1,4 +1,5 @@
 import { criticalities } from "@/lib/assessment/capabilities";
+import { assuranceExpectations, assuranceExpectationGuidance } from "@/lib/assessment/assurance-expectation";
 import { AssessmentSectionForm } from "./assessment-section-form";
 import { complianceScopeGuidance, complianceTargetGuidance, contextSecurityGuidance,
   securityLevelGuidance, type ContextGuidance } from "@/lib/assessment/context-guidance";
@@ -77,6 +78,22 @@ export function EvaluationContextEditor({ assessmentId, version, values }: {
             <SelectField name="stepUpAuthentication" label="Stronger authentication for sensitive actions"
               value={values.stepUpAuthentication} choices={criticalities} guide={contextSecurityGuidance.stepUpAuthentication} />
           </div>
+        </section>
+        <section aria-labelledby="context-assurance-heading" className="rounded-xl border border-white/10 p-4 sm:p-5">
+          <h3 id="context-assurance-heading" className="text-lg font-semibold">Assurance expectation to define</h3>
+          <p id="context-assurance-description" className="mt-2 text-sm leading-6 text-slate-400">This is an internal planning label, not an AAL, IAL or FAL level, a security verdict or proof of provider support. It does not change the independent controls above or MFA in Requirements.</p>
+          {values.assuranceExpectation === undefined ?
+            <p className="mt-4 text-sm text-slate-300">This saved profile has no readable assurance expectation. No default has been inferred.</p> : <div className="mt-5">
+              <SelectField name="assuranceExpectation" label="Assurance expectation (planning label)"
+                value={values.assuranceExpectation} choices={assuranceExpectations} descriptionId="context-assurance-description" />
+              <details className="mt-3 text-sm leading-6">
+                <summary className="cursor-pointer text-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">What the assurance labels mean</summary>
+                <dl className="mt-3 space-y-3">{assuranceExpectations.map(expectation => <div key={expectation}>
+                  <dt className="font-medium">{labels[expectation]}</dt><dd className="mt-1 text-slate-300">{assuranceExpectationGuidance[expectation]}</dd>
+                </div>)}</dl>
+                <p className="mt-4 text-xs text-slate-400">Changing this choice only edits the form. Save explicitly to record it; every known label still needs a definition and supporting evidence.</p>
+              </details>
+            </div>}
         </section>
         <section aria-labelledby="context-compliance-heading" className="rounded-xl border border-white/10 p-4 sm:p-5">
           <h3 id="context-compliance-heading" className="text-lg font-semibold">Compliance scope to investigate</h3>

@@ -23,7 +23,7 @@ import { auditabilityPreviewBinding, auditabilityPreviewByteLimit, auditabilityP
   type AuditabilityPreview } from "../assessment/auditability-preview.ts";
 import { comparisonFromCore, type SyntheticComparisonSummary } from "../assessment/comparison.ts";
 import { comparisonEvidenceByteLimit, comparisonEvidenceFromCore, type ComparisonEvidenceSummary } from "../assessment/comparison-provenance.ts";
-import { applicationTypes, clientTypes, populations, evaluationContextValues,
+import { applicationTypes, clientTypes, populations, evaluationContextValues, assuranceExpectationSaveMatches,
   withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
   type PrerequisiteInput, type PrerequisitePreview } from "../assessment/architecture-prerequisites.ts";
@@ -570,7 +570,7 @@ export async function updatePersonalEvaluationContext(
   session: BrowserSession, id: string, expectedVersion: number, values: EvaluationContextValues,
 ): Promise<ProfileUpdateResult> {
   return updatePersonalProfile(session, id, expectedVersion,
-    profile => withEvaluationContextValues(profile, values));
+    profile => withEvaluationContextValues(profile, values), assuranceExpectationSaveMatches);
 }
 
 export async function updatePersonalUsagePlanning(

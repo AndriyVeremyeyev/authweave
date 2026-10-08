@@ -1,7 +1,8 @@
 import { criticalities, type Criticality } from "./capabilities.ts";
 import { clientTypes, populations, complianceScopeStatuses, complianceTargets } from "./evaluation-context.ts";
 
-export const assuranceExpectations = ["BASELINE", "ELEVATED", "HIGH", "UNKNOWN"] as const;
+import { assuranceExpectations } from "./assurance-expectation.ts";
+export { assuranceExpectations } from "./assurance-expectation.ts";
 export type AssurancePlanningValues = {
   clients: typeof clientTypes[number][]; populations: typeof populations[number][];
   assuranceExpectation: typeof assuranceExpectations[number];

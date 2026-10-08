@@ -135,6 +135,7 @@ export async function assessmentUiComponents() {
     .replaceAll('"@/lib/assessment/capability-guidance"', JSON.stringify(new URL("../../src/lib/assessment/capability-guidance.ts", import.meta.url).href))));
   const contextEditor = await import(moduleUrl((await compile("../../src/app/assessments/[id]/evaluation-context-editor.tsx"))
     .replaceAll('"./assessment-section-form"', JSON.stringify(sectionFormUrl))
+    .replaceAll('"@/lib/assessment/assurance-expectation"', JSON.stringify(new URL("../../src/lib/assessment/assurance-expectation.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/capabilities"', JSON.stringify(new URL("../../src/lib/assessment/capabilities.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/evaluation-context"', JSON.stringify(new URL("../../src/lib/assessment/evaluation-context.ts", import.meta.url).href))
     .replaceAll('"@/lib/assessment/context-guidance"', JSON.stringify(new URL("../../src/lib/assessment/context-guidance.ts", import.meta.url).href))));

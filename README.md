@@ -263,14 +263,25 @@ change answers or save the draft. Concept references link to standards or offici
 documentation; they are not evidence of a provider's support, plan or pricing.
 The existing explicit-save and version-conflict behavior is unchanged.
 
-Context groups application/audience, at-rest storage, authentication controls and
-compliance scope separately. Five security fields have expandable examples, limits
+Context groups application/audience, at-rest storage, authentication controls,
+assurance expectation and compliance scope separately. Five security fields have expandable examples, limits
 and team questions. Security-level help reflects the existing partial policies:
 forbidden needs clarification here, rather than implying weaker authentication or
 a country denylist. Compliance help distinguishes the three scope states and six
 target labels, with official concept references. These labels are not a legal
 applicability decision, certification or proof of provider compliance. No answers,
 controls or evidence are inferred, and the same scoped Save form is preserved.
+
+The existing saved `security.assurance` is editable in Context as a planning label:
+Baseline, Elevated, High or Unknown / not recorded. Expandable help explains these
+internal labels; they are not AAL, IAL or FAL levels, a security verdict or evidence
+of provider support. Changing a label does not set MFA, independent controls or
+compliance targets. Only explicit Save records it, using the same session/workspace
+and optimistic-version guards. The Core acknowledgement must match the requested
+or preserved label before success is shown. Older forms that omit the field preserve
+its saved value; missing legacy values are not replaced with a guessed default.
+Review and the saved Markdown requirements brief show the same checked planning
+label; Unknown stays a recorded input gap, not a security exemption.
 
 Audit separates provider-side event scope from export and retention requirements.
 Each of its six criteria has expandable examples, limits and team questions; the

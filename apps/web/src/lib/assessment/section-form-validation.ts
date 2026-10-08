@@ -1,4 +1,5 @@
 import { parseEvaluationContextForm } from "./evaluation-context.ts";
+import { assuranceExpectations } from "./assurance-expectation.ts";
 import { maximumRetentionDays, parseAuditabilityForm } from "./auditability.ts";
 
 export type SectionFormIssue = { fieldId: string | null; message: string };
@@ -8,6 +9,12 @@ const unreadable = (): SectionFormIssue[] => [{ fieldId: null,
 // Presentation only: diagnostics explain an existing parser refusal, never accept a payload.
 export function evaluationContextFormIssues(params: URLSearchParams): SectionFormIssue[] {
   try { parseEvaluationContextForm(params); return []; } catch { /* Explain only known field errors. */ }
+  const expectations = params.getAll("assuranceExpectation");
+  if (params.has("assuranceExpectation") && (expectations.length !== 1 ||
+      !assuranceExpectations.includes(expectations[0] as typeof assuranceExpectations[number]))) {
+    return [{ fieldId: "context-assuranceExpectation",
+      message: "Assurance expectation: select one planning label: Baseline, Elevated, High or Unknown / not recorded. Nothing is inferred or automatically corrected." }];
+  }
   const countries = params.getAll("allowedCountries");
   if (countries.length !== 1) return unreadable();
   const text = countries[0];

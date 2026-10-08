@@ -151,6 +151,7 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     email: null, displayName: null, authenticatedAt: new Date() };
   const sessionId = await createSession(identity, undefined);
   const fixture = savedRequirementsFixture();
+  Object.assign(fixture.security, { assurance: "UNKNOWN" });
   fixture.security.auditability = "UNKNOWN";
   fixture.security.auditabilityRequirements = { selectedCriteria: [], minimumRetentionDays: null };
   let profile: Record<string, unknown> = fixture, version = 0, created = false, raceOnWrite = false;
@@ -202,7 +203,8 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     const contextForm = new URLSearchParams({ expectedVersion: "0", applicationType: scenario.applicationType,
       tenancy: scenario.tenancy, membership: scenario.membership, dataResidency: "UNKNOWN", allowedCountries: "",
       browserTokenExposureMinimization: scenario.tokenExposure, phishingResistance: scenario.phishingResistance,
-      nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN", complianceScopeStatus: "UNKNOWN" });
+      nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN", complianceScopeStatus: "UNKNOWN",
+      assuranceExpectation: "ELEVATED" });
     for (const client of scenario.clients) contextForm.append("clients", client);
     for (const population of scenario.populations) contextForm.append("selectedPopulations", population);
     expectSaved(await evaluationContextRoute(request(`/${id}/evaluation-context`, contextForm), context), "context", 1);
@@ -237,6 +239,8 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     assert.equal(row("application", "Application type")?.value, scenario.expected.application);
     assert.equal(row("application", "User populations")?.value, scenario.expected.users);
     assert.equal(row("application", "Client types")?.value, scenario.expected.clients);
+    assert.equal(row("security", "Assurance expectation (planning label)")?.value, "Elevated");
+    assert.equal((fresh.profile.security as Record<string, unknown>).assurance, "ELEVATED");
     assert.equal(row("auditability", "Minimum retention")?.value, `${scenario.retention} days`);
     assert.equal(row("usage", "Monthly M2M token issuances")?.value, `${scenario.m2mTokens.toLocaleString("en-US")} · Assumed`);
     assert.equal(row("usage", "Enterprise SSO connections")?.state, scenario.ssoConnections === null ? "not-recorded" : "recorded");
@@ -249,6 +253,7 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     assert.equal(exported.status, 200); assert.equal(exported.headers.get("cache-control"), "no-store");
     assert.equal(exported.headers.get("content-disposition"), `attachment; filename="${requirementsBriefFilename(id, 4)}"`);
     const markdown = await exported.text(), readable = markdown.replace(/\\([!-~])/g, "$1");
+    assert.ok(readable.includes("**Assurance expectation (planning label):** Elevated"));
     for (const label of [scenario.expected.application, scenario.expected.users, scenario.expected.clients, `${scenario.retention} days`, scenario.assumption]) assert.ok(readable.includes(label), label);
     assert.ok(markdown.includes("- Saved version: `4`")); assert.equal(markdown.includes(identity.subject), false);
     assert.equal(await (await requirementsBriefRoute(request(`/${id}/requirements-brief`, exportForm), context)).text(), markdown);
@@ -1568,7 +1573,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
     application: { type: "UNKNOWN", clients: [] },
     audience: { populations: [], tenancy: "UNKNOWN", membership: "UNKNOWN" },
     protocols: { federation: { OIDC: "PREFERRED" } },
-    security: { dataResidency: "UNKNOWN", browserTokenExposureMinimization: "UNKNOWN", auditability: "REQUIRED",
+    security: { assurance: "UNKNOWN", dataResidency: "UNKNOWN", browserTokenExposureMinimization: "UNKNOWN", auditability: "REQUIRED",
       auditabilityRequirements: { selectedCriteria: ["AUDIT_LOG_RETENTION"], minimumRetentionDays: 90 },
       dataResidencyDetails: { allowedCountries: [], dataCategories: [] },
       complianceScopeStatus: "UNKNOWN",
@@ -1577,7 +1582,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
         stepUpAuthentication: "UNKNOWN" } },
   };
   const form = new URLSearchParams({
-    expectedVersion: "2", applicationType: "B2B_SAAS", tenancy: "SINGLE_ORGANIZATION",
+    expectedVersion: "2", assuranceExpectation: "HIGH", applicationType: "B2B_SAAS", tenancy: "SINGLE_ORGANIZATION",
     membership: "SINGLE_ORGANIZATION_PER_USER", dataResidency: "REQUIRED",
     allowedCountries: "US, CA",
     browserTokenExposureMinimization: "REQUIRED",
@@ -1596,6 +1601,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
     },
   );
   const calls: string[] = [];
+  let mismatchAcknowledgement = false;
   globalThis.fetch = async (input, init) => {
     calls.push(`${init?.method} ${input}`);
     assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
@@ -1604,6 +1610,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
     const update = JSON.parse(String(init?.body));
     assert.equal(update.expectedVersion, 2);
     assert.equal(update.profile.application.type, "B2B_SAAS");
+    assert.equal(update.profile.security.assurance, "HIGH");
     assert.equal(update.profile.security.browserTokenExposureMinimization, "REQUIRED");
     if (update.profile.security.dataResidencyDetails.allowedCountries.includes("ZZ")) {
       return new Response(null, { status: 422 });
@@ -1611,6 +1618,7 @@ test("evaluation context route accepts only a scoped form from the personal sess
     assert.deepEqual(update.profile.security.dataResidencyDetails,
       { allowedCountries: ["CA", "US"], dataCategories: ["USER_PROFILES", "BACKUPS"] });
     assert.deepEqual(update.profile.protocols, profile.protocols);
+    if (mismatchAcknowledgement) update.profile.security.assurance = "BASELINE";
     return Response.json({ id: assessmentId, workspaceId, status: "DRAFT", version: 3,
       profileSchemaVersion: 6, profile: update.profile });
   };
@@ -1626,6 +1634,13 @@ test("evaluation context route accepts only a scoped form from the personal sess
     malformedResidency.set("allowedCountries", "us, CA");
     assert.equal((await evaluationContextRoute(request("http://localhost:3000", sessionId,
       malformedResidency.toString()), context)).status, 400);
+    assert.equal(calls.length, 0);
+    for (const raw of ["", "AAL3", "high", "HIGH "]) {
+      const malformed = new URLSearchParams(form); malformed.set("assuranceExpectation", raw);
+      assert.equal((await evaluationContextRoute(request("http://localhost:3000", sessionId, malformed.toString()), context)).status, 400);
+    }
+    const duplicate = new URLSearchParams(form); duplicate.append("assuranceExpectation", "HIGH");
+    assert.equal((await evaluationContextRoute(request("http://localhost:3000", sessionId, duplicate.toString()), context)).status, 400);
     assert.equal(calls.length, 0);
     const response = await evaluationContextRoute(request("http://localhost:3000", sessionId), context);
     assert.equal(response.status, 303);
@@ -1645,6 +1660,12 @@ test("evaluation context route accepts only a scoped form from the personal sess
     assert.equal(conflict.headers.get("location"),
       `http://localhost:3000/assessments/${assessmentId}?step=context&contextError=stale`);
     assert.equal(calls.length, 5);
+    mismatchAcknowledgement = true;
+    const mismatched = await evaluationContextRoute(request("http://localhost:3000", sessionId), context);
+    assert.equal(mismatched.status, 503);
+    assert.equal(mismatched.headers.get("cache-control"), "no-store");
+    assert.equal((await mismatched.text()).includes("BASELINE"), false);
+    assert.equal(calls.length, 7);
   } finally {
     await revokeSession(sessionId);
     globalThis.fetch = previous.fetch;

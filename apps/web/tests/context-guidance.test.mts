@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 
 import { criticalities } from "../src/lib/assessment/capabilities.ts";
+import { assuranceExpectations, assuranceExpectationGuidance } from "../src/lib/assessment/assurance-expectation.ts";
 import { contextSecurityGuidance, complianceScopeGuidance, complianceTargetGuidance, securityLevelGuidance } from "../src/lib/assessment/context-guidance.ts";
 import { complianceScopeStatuses, complianceTargets, evaluationContextValues, parseEvaluationContextForm,
   type EvaluationContextValues } from "../src/lib/assessment/evaluation-context.ts";
@@ -11,6 +12,35 @@ import { assessmentUiComponents, savedRequirementsFixture } from "./fixtures/ass
 
 const id = "4640bbac-c20f-476a-a4dc-23efad5ff14f";
 const { EvaluationContextEditor } = await assessmentUiComponents();
+
+test("assurance editor keeps all saved planning labels explicit with one guarded Context save", () => {
+  assert.deepEqual(Object.keys(assuranceExpectationGuidance), [...assuranceExpectations]);
+  for (const applicationType of ["B2B_SAAS", "PUBLIC_SECTOR_PORTAL", "INTERNAL_WORKFORCE"] as const) {
+    for (const assurance of assuranceExpectations) {
+      const profile = savedRequirementsFixture();
+      Object.assign(profile.application, { type: applicationType }); Object.assign(profile.security, { assurance });
+      const before = structuredClone(profile), values = evaluationContextValues(profile)!;
+      const html = render(values), params = formData(html);
+      assert.equal(params.get("assuranceExpectation"), assurance);
+      assert.deepEqual(parseEvaluationContextForm(params), { expectedVersion: 5, values });
+      assert.equal([...html.matchAll(/<select\b/g)].length, 10);
+      assert.equal([...html.matchAll(/<button\b[^>]*type="submit"/g)].length, 1);
+      assert.equal([...html.matchAll(/<details\b/g)].length, 9);
+      assert.equal(/<details[^>]*\bopen\b/.test(html), false);
+      assert.ok(html.includes('for="context-assuranceExpectation"'));
+      assert.ok(html.includes('aria-describedby="context-assurance-description"'));
+      for (const text of ["What the assurance labels mean", "not an AAL, IAL or FAL level",
+        "does not change the independent controls", "Save explicitly", "not a verified assurance level"]) assert.ok(html.includes(text), text);
+      assert.deepEqual(profile, before);
+    }
+  }
+});
+
+test("missing legacy assurance stays absent in the native form rather than selecting Unknown", () => {
+  const html = render(evaluationContextValues(savedRequirementsFixture())!);
+  assert.equal(formData(html).has("assuranceExpectation"), false);
+  assert.ok(html.includes("No default has been inferred"));
+});
 
 function render(values: EvaluationContextValues, version = 5) {
   return renderToStaticMarkup(createElement(EvaluationContextEditor, { assessmentId: id, version, values }));

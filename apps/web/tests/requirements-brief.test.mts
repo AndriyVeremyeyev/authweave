@@ -10,10 +10,23 @@ import { InvalidRequirementsBriefRequest, parseRequirementsBriefForm, requiremen
 import { savedRequirementGroups } from "../src/lib/assessment/saved-requirements.ts";
 import { assessmentUiComponents, savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { guidedScenarios } from "./fixtures/guided-scenarios.mts";
+import { assuranceExpectations, assuranceExpectationLabels } from "../src/lib/assessment/assurance-expectation.ts";
 
 const id = "80000000-0000-4000-8000-000000000001";
 const assessment = (): PersonalAssessment => ({ id, status: "DRAFT", version: 7, profile: savedRequirementsFixture() });
 const unescape = (value: string) => value.replace(/\\([!-~])/g, "$1");
+
+test("saved Markdown brief and Review share the exact assurance planning label including Unknown", () => {
+  for (const assurance of assuranceExpectations) {
+    const input = assessment(); Object.assign(input.profile.security as object, { assurance });
+    const before = structuredClone(input), text = unescape(savedRequirementsMarkdown(input));
+    const row = savedRequirementGroups(input.profile)[1].rows![9];
+    assert.equal(row.value, assuranceExpectationLabels[assurance]);
+    assert.ok(text.includes(`**${row.label}:** ${row.value}`));
+    if (assurance === "UNKNOWN") assert.ok(text.includes("Security and compliance scope / Assurance expectation (planning label): Not recorded"));
+    assert.deepEqual(input, before);
+  }
+});
 
 test("saved brief has a pinned deterministic v1 snapshot, version, status and honest scope", () => {
   const input = assessment(), before = structuredClone(input), text = savedRequirementsMarkdown(input);

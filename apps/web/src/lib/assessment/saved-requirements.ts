@@ -53,6 +53,9 @@ export function savedRequirementGroups(profile: Record<string, unknown>): SavedR
         choice("Stronger authentication for sensitive actions", context.stepUpAuthentication),
         choice("Compliance target scope", context.complianceScopeStatus),
         list("Compliance target labels", context.selectedComplianceTargets, true),
+        ...(context.assuranceExpectation === undefined ? [] : [
+          choice("Assurance expectation (planning label)", context.assuranceExpectation),
+        ]),
       ] : null,
     },
     {
