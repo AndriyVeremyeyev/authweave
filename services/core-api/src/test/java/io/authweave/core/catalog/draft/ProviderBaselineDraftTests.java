@@ -803,11 +803,13 @@ class ProviderBaselineDraftTests {
                 resources.add("scoped/" + stem + "-upstream-" + upstream + ".v1.json");
             }
         }
+        resources.add("scoped/keycloak-26.8.0-public-oidc-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
         var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
         var counts = new java.util.EnumMap<ProviderCatalog.Availability, Integer>(ProviderCatalog.Availability.class);
+        var supportCounts = new java.util.EnumMap<ProviderCatalog.Support, Integer>(ProviderCatalog.Support.class);
         int recordedCount = 0;
         int omittedCount = 0;
         for (var file : resources) {
@@ -816,7 +818,9 @@ class ProviderBaselineDraftTests {
             options.add(option);
             var recorded = CatalogDraftFacts.entries(option).keySet();
             assertTrue(vocabulary.containsAll(recorded), file);
-            assertTrue(recorded.stream().allMatch(address -> address.startsWith("facts.")), file);
+            assertTrue(recorded.stream().allMatch(address -> address.startsWith("facts.")
+                    || address.equals("compatibility.clients.BROWSER")
+                    || address.equals("compatibility.clients.NATIVE_MOBILE")), file);
             var omitted = new java.util.HashSet<>(vocabulary);
             omitted.removeAll(recorded);
             assertTrue(java.util.Collections.disjoint(recorded, omitted), file);
@@ -824,21 +828,100 @@ class ProviderBaselineDraftTests {
             recordedCount += recorded.size();
             omittedCount += omitted.size();
             option.facts().values().forEach(fact -> counts.merge(fact.availability(), 1, Integer::sum));
+            option.compatibility().clients().values().forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(20, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(67, recordedCount);
-        assertEquals(1293, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 31,
+        assertEquals(21, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(70, recordedCount);
+        assertEquals(1358, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 32,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 2), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T05:32:34Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T06:12:22Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(20, report.optionCount());
-        assertEquals(67, report.factCount());
+        assertEquals(21, report.optionCount());
+        assertEquals(70, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"BROWSER", "NATIVE_MOBILE"})
+    void publicOidcClientCompatibilityIsTypedScopedAndNeverReviewed(String client) throws Exception {
+        var json = resource("catalog/baselines/scoped/keycloak-26.8.0-public-oidc-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("keycloak-26.8.0-public-oidc-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("keycloak-26.8.0-public-oidc-clients", option.id());
+        assertEquals(ProviderCatalogDraft.Deployment.SELF_HOSTED, option.deployment());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), option.facts().keySet());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, option.facts().get(ProviderCatalog.Capability.OIDC).availability());
+        var fact = option.compatibility().clients().get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.valueOf(client));
+        assertEquals(ProviderCatalog.Support.SUPPORTED, fact.support());
+        assertFalse(fact.conditions().isEmpty());
+        assertEquals("github.com", fact.evidence().sourceUrl().getHost());
+        assertEquals("/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/"
+                + "docs/guides/securing-apps/partials/oidc/supported-grant-types.adoc", fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T06:12:22Z"), fact.evidence().observedAt());
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(3, report.factCount());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void publicClientObservationsKeepFreshnessSeparateFromProposedSupportAndAuthority() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/keycloak-26.8.0-public-oidc-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T06:12:22Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+        assertTrue(draft.options().getFirst().compatibility().clients().values().stream()
+                .allMatch(fact -> fact.support() == ProviderCatalog.Support.SUPPORTED
+                        && fact.evidence().observedAt().equals(observed)));
+    }
+
+    @Test
+    void publicClientsDoNotPopulateOtherKeycloakScopesOrBorrowScimFacts() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("keycloak.v1.json", "scoped/keycloak-26.8.0.v1.json",
+                "scoped/keycloak-26.8.0-upstream-okta.v1.json", "scoped/keycloak-26.8.0-upstream-entra.v1.json",
+                "scoped/keycloak-26.8.0-public-oidc-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(5, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().clients().isEmpty()));
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.getLast().facts().keySet());
+        assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "keycloak-client-context-coexistence-test", options), Instant.parse("2026-10-08T06:12:22Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(5, report.optionCount());
+        assertEquals(18, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
     }
 
     private void assertUntrusted(CatalogDraftValidation report) {

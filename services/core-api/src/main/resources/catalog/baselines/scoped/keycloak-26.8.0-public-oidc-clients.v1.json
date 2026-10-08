@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "keycloak-26.8.0-public-oidc-clients-draft-2026.10.08",
+  "options": [{
+    "id": "keycloak-26.8.0-public-oidc-clients",
+    "providerId": "keycloak",
+    "product": "Keycloak upstream 26.8.0",
+    "plan": "Upstream release 26.8.0; commercial support not assessed",
+    "deployment": "SELF_HOSTED",
+    "region": "Operator-selected hosting; storage destinations not verified",
+    "configuration": "Public browser/native OIDC clients; code + S256 PKCE; exact redirects; no service accounts, SAML, SCIM or brokers",
+    "facts": {
+      "OIDC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Register separate public clients with Client authentication off, Standard Flow enabled and PKCE method S256; a blank PKCE method does not require PKCE.",
+          "Register narrowly scoped redirect URIs and only the browser origins needed by the integration; no full production redirect wildcard.",
+          "Validate issuer, state, nonce and callback handling in the consuming application; documentation does not demonstrate a configured deployment.",
+          "This public-client scope excludes confidential BFF clients, service-account grants, SAML, SCIM and upstream identity brokers."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/oidc/con-basic-settings.adoc",
+          "observedAt": "2026-10-08T06:12:22Z",
+          "summary": "Release-pinned client settings describe public versus confidential clients, the Standard Flow switch, exact redirect matching, browser origins and an explicit S256 PKCE requirement. This is a configuration proposal, not a deployment check."
+        }
+      }
+    },
+    "compatibility": {
+      "applications": {},
+      "clients": {
+        "BROWSER": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Limit this proposal to a public browser OIDC client using Authorization Code with S256 PKCE and exact registered redirects.",
+            "Keep client credentials out of browser code; test callback, token handling, origin policy and browser restrictions independently.",
+            "Documented browser login does not verify local-session logout, deprovisioning, phishing resistance or a confidential BFF implementation."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/securing-apps/partials/oidc/supported-grant-types.adoc",
+            "observedAt": "2026-10-08T06:12:22Z",
+            "summary": "The release-pinned grant guide describes Authorization Code redirects and identifies web applications as a target. It does not establish application-side security controls or live browser interoperability."
+          }
+        },
+        "NATIVE_MOBILE": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Limit this proposal to a public native/mobile OIDC client using Authorization Code with S256 PKCE; do not treat a distributed client secret as confidential.",
+            "Application prerequisite: use an external user-agent and an OS-bound return URI under RFC 8252, not a credential-capturing embedded WebView.",
+            "Register and test the actual platform callback, issuer/state/nonce validation and token storage; no mobile SDK, OS integration or universal-link ownership has been verified.",
+            "The grant guide's user-agent wording is not evidence that an embedded WebView meets RFC 8252; this proposal does not certify mobile assurance or lifecycle enforcement."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/securing-apps/partials/oidc/supported-grant-types.adoc",
+            "observedAt": "2026-10-08T06:12:22Z",
+            "summary": "The release-pinned grant guide includes native and mobile applications in the Authorization Code use cases. External-browser and callback requirements are explicit application prerequisites, not tested platform compatibility or a mobile SDK guarantee."
+          }
+        }
+      },
+      "populations": {},
+      "tenancy": {},
+      "membership": {}
+    },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

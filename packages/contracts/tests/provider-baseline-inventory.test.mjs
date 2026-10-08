@@ -11,9 +11,10 @@ import {
 
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
-const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8"));
+const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
-const at = new Date("2026-10-08T05:32:34Z");
+const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
+const at = new Date("2026-10-08T06:12:22Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -48,6 +49,8 @@ function assertPartitions(report) {
   assert.equal(result.recordedPathCount + result.omittedPathCount, result.optionPathCount);
   assert.deepEqual(result.options.map((option) => option.optionId), report.options.map((option) => option.optionId));
   const availability = { OPTIONAL: 0, MANDATORY: 0, UNAVAILABLE: 0, UNKNOWN: 0 };
+  const compatibility = { SUPPORTED: 0, UNSUPPORTED: 0, UNKNOWN: 0 };
+  const familyCounts = { CAPABILITY: 0, COMPATIBILITY: 0, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 };
   const freshness = { CURRENT: 0, STALE: 0, FUTURE: 0 };
   for (const entry of result.options) {
     const source = report.options.find((option) => option.optionId === entry.optionId);
@@ -55,7 +58,7 @@ function assertPartitions(report) {
     assert.equal(entry.catalogVersion, source.catalogVersion);
     assert.equal(entry.recordedPathCount, recorded.length);
     assert.equal(entry.omittedPathCount, 68 - recorded.length);
-    assert.deepEqual(entry.recordedUnknownPaths, source.facts.filter((fact) => fact.availability === "UNKNOWN").map((fact) => fact.path).sort());
+    assert.deepEqual(entry.recordedUnknownPaths, source.facts.filter((fact) => fact.availability === "UNKNOWN" || fact.support === "UNKNOWN").map((fact) => fact.path).sort());
     assert.deepEqual(entry.families.map((family) => family.family), expectedVocabulary.map((family) => family.family));
     for (const family of entry.families) {
       const paths = expectedVocabulary.find((vocabulary) => vocabulary.family === family.family).paths;
@@ -63,20 +66,33 @@ function assertPartitions(report) {
       assert.deepEqual(family.omittedPaths, paths.filter((address) => !recorded.includes(address)));
       assert.deepEqual([...family.recordedPaths, ...family.omittedPaths].sort(), paths);
       assert.equal(new Set([...family.recordedPaths, ...family.omittedPaths]).size, paths.length);
+      familyCounts[family.family] += family.recordedPaths.length;
     }
     for (const fact of source.facts) {
       assert.equal(fact.evidenceStatus, "UNREVIEWED");
-      availability[fact.availability] += 1;
+      if (fact.path.startsWith("facts.")) {
+        assert.equal(Object.hasOwn(fact, "support"), false);
+        availability[fact.availability] += 1;
+      } else {
+        assert.equal(Object.hasOwn(fact, "availability"), false);
+        compatibility[fact.support] += 1;
+      }
       freshness[fact.freshness] += 1;
     }
   }
   assert.deepEqual(result.proposedAvailabilityCounts, availability);
+  assert.deepEqual(result.proposedCompatibilityCounts, compatibility);
+  assert.deepEqual(result.recordedFamilyCounts, familyCounts);
+  assert.equal(Object.values(availability).reduce((sum, count) => sum + count, 0), familyCounts.CAPABILITY);
+  assert.equal(Object.values(compatibility).reduce((sum, count) => sum + count, 0), familyCounts.COMPATIBILITY);
+  assert.equal(Object.values(familyCounts).reduce((sum, count) => sum + count, 0), report.factCount);
   assert.deepEqual(result.recordedFreshnessCounts, freshness);
   for (const flag of flags) assert.equal(result[flag], false, flag);
 }
 
-test("inventory v1 enumerates 68 schema addresses, not 68 required customer facts", () => {
-  assert.equal(inventory.policyVersion, "provider-baseline-schema-path-inventory-1");
+test("inventory v2 enumerates 68 schema addresses, not 68 required customer facts", () => {
+  assert.equal(inventory.schemaVersion, 2);
+  assert.equal(inventory.policyVersion, "provider-baseline-schema-path-inventory-2");
   assert.equal(inventory.schemaPathCountPerOption, 68);
   assert.deepEqual(inventory.pathVocabulary, expectedVocabulary);
   assert.deepEqual(expectedVocabulary.map((family) => family.paths.length), [9, 19, 4, 36]);
@@ -88,12 +104,14 @@ test("inventory v1 enumerates 68 schema addresses, not 68 required customer fact
 
 test("the full pack partitions every option independently and replays all aggregate counts", () => {
   assertPartitions(pack);
-  assert.equal(inventory.optionCount, 20);
-  assert.equal(inventory.optionPathCount, 1360);
-  assert.equal(inventory.recordedPathCount, 67);
-  assert.equal(inventory.omittedPathCount, 1293);
-  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 31, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 67, STALE: 0, FUTURE: 0 });
+  assert.equal(inventory.optionCount, 21);
+  assert.equal(inventory.optionPathCount, 1428);
+  assert.equal(inventory.recordedPathCount, 70);
+  assert.equal(inventory.omittedPathCount, 1358);
+  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 32, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
+  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 2, UNSUPPORTED: 0, UNKNOWN: 0 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 68, COMPATIBILITY: 2, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 70, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -110,7 +128,8 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
   const workos = option("workos-directory-sync-staging-scim-events");
   assert.ok(workos.families[0].omittedPaths.includes("facts.OIDC"));
   for (const entry of inventory.options) for (const family of entry.families.slice(1)) {
-    assert.deepEqual(family.recordedPaths, []);
+    assert.deepEqual(family.recordedPaths, entry.optionId === "keycloak-26.8.0-public-oidc-clients" && family.family === "COMPATIBILITY"
+      ? ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE"] : []);
   }
 });
 
@@ -127,10 +146,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 52 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 55 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 67 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 67, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 70 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 70, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);
@@ -177,7 +196,8 @@ test("the closed inventory schema rejects authority claims, unknown properties a
   }
   for (const key of Object.keys(inventory)) reject((value) => { delete value[key]; });
   for (const select of [(value) => value, (value) => value.options[0], (value) => value.options[0].families[0],
-    (value) => value.pathVocabulary[0], (value) => value.proposedAvailabilityCounts, (value) => value.recordedFreshnessCounts]) {
+    (value) => value.pathVocabulary[0], (value) => value.proposedAvailabilityCounts, (value) => value.recordedFreshnessCounts,
+    (value) => value.proposedCompatibilityCounts, (value) => value.recordedFamilyCounts]) {
     reject((value) => { select(value).approved = true; });
   }
   reject((value) => { value.omittedPathCount = -1; });
@@ -187,4 +207,22 @@ test("the closed inventory schema rejects authority claims, unknown properties a
   reject((value) => { value.pathVocabulary[0].paths[0] = "https://example.invalid/fact"; });
   reject((value) => { value.unverifiedBoundaries.pop(); });
   reject((value) => { value.evaluatedAt = "not-a-date"; });
+});
+
+test("inventory v1 remains a distinct capability-only legacy contract, not a silent v2 reinterpretation", () => {
+  const legacy = structuredClone(inventory);
+  legacy.schemaVersion = 1;
+  legacy.policyVersion = "provider-baseline-schema-path-inventory-1";
+  legacy.options = legacy.options.filter((option) => option.optionId !== "keycloak-26.8.0-public-oidc-clients");
+  legacy.optionCount = 20;
+  legacy.optionPathCount = 1360;
+  legacy.recordedPathCount = 67;
+  legacy.omittedPathCount = 1293;
+  legacy.proposedAvailabilityCounts.OPTIONAL = 31;
+  legacy.recordedFreshnessCounts.CURRENT = 67;
+  delete legacy.proposedCompatibilityCounts;
+  delete legacy.recordedFamilyCounts;
+  assert.equal(validateLegacy(legacy), true, ajv.errorsText(validateLegacy.errors));
+  assert.equal(validateLegacy(inventory), false);
+  assert.equal(validate(legacy), false);
 });

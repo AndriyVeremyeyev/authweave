@@ -1862,18 +1862,23 @@ No accounts, subscriptions, live provider calls or deployments were added.
 #### Schema-path inventory, not baseline readiness
 
 The same command includes `schemaPathInventory`, constrained by a separate
-[inventory v1 schema](packages/contracts/schemas/provider-baseline-inventory.v1.schema.json).
-Policy `provider-baseline-schema-path-inventory-1` derives the draft v1 address
+[inventory v2 schema](packages/contracts/schemas/provider-baseline-inventory.v2.schema.json).
+Policy `provider-baseline-schema-path-inventory-2` derives the draft v1 address
 vocabulary: 9 capabilities, 19 compatibility paths, 4 residency categories and
 36 human authentication-control paths. Each exact option partitions those 68
 addresses into sorted `recordedPaths` and `omittedPaths`. `recordedUnknownPaths`
 distinguishes explicit `UNKNOWN` proposals from omissions; proposed availability
-and recorded freshness have separate aggregate counts. Option identities and
+and recorded freshness have separate aggregate counts. V2 separates capability
+`proposedAvailabilityCounts` from context `proposedCompatibilityCounts` and reports
+`recordedFamilyCounts`; `SUPPORTED` is not converted to `OPTIONAL`. The original
+capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseline-inventory.v1.schema.json)
+is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 67 recorded and 1,293 omitted option-paths across 20 distinct
-scopes (1,360 possible addresses). The recorded proposals comprise 31 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; all remain `UNREVIEWED`. These are structural
+The current pack has 70 recorded and 1,358 omitted option-paths across 21 distinct
+scopes (1,428 possible addresses). The 68 capability proposals comprise 32 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; two separate client-context proposals are `SUPPORTED`.
+All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
 fill every address. Research, native and upstream scopes never borrow each other's facts.
@@ -1931,15 +1936,35 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty distinct options and 67 recorded
+`make inspect-provider-baselines` now reports twenty-one distinct options and 70 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
-ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers).
+ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
+plus one public-client-scoped Keycloak draft.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
 Residency, application compatibility, authentication controls, auditability and operating
 costs remain unverified; advertised region choices do not fill storage-country evidence.
 The active evaluator stays synthetic. Full baselines and authorized publication remain pending.
+
+#### Client-scoped Keycloak OIDC documentation candidate
+
+A separate [Keycloak public-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0-public-oidc-clients.v1.json)
+uses the same exact 26.8.0 source commit, without changing earlier research/native/broker
+drafts. It records one `OIDC: OPTIONAL` proposal and two typed compatibility proposals:
+`BROWSER` and `NATIVE_MOBILE: SUPPORTED`, all `UNREVIEWED`. The pinned
+[grant guide](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/guides/securing-apps/partials/oidc/supported-grant-types.adoc)
+describes Authorization Code use for web/native applications. Conditions require
+separate public clients, Standard Flow, S256 PKCE and narrowly registered callbacks;
+a blank PKCE setting is not enforcement.
+
+Native conditions explicitly require an external user-agent under
+[RFC 8252](https://www.rfc-editor.org/rfc/rfc8252.html), not an embedded credential-capturing
+WebView. Platform callbacks, token storage, SDK compatibility and application sessions
+have not been tested. Machine clients, confidential BFF, application/population/tenancy
+compatibility, SCIM, residency and authentication-control evidence are not inherited.
+No integration, account, provider switch or approval was performed; AuthWeave still
+uses ZITADEL and the active evaluator remains synthetic.
 
 #### Plan-scoped Auth0 documentation candidate
 
