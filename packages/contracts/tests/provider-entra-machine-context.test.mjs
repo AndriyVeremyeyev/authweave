@@ -146,14 +146,14 @@ test("Entra machine evidence keeps inclusive freshness and never rewrites observ
   assert.equal(JSON.stringify(draft), before);
 });
 
-test("Entra paid machine context coexists with six Basic/research scopes without changing them", async () => {
+test("Entra paid machine context coexists with seven other scopes without changing them", async () => {
   const originals = drafts.filter((entry) => entry.options[0].providerId === "entra-external-id" && entry !== draft);
   const before = JSON.stringify(originals);
-  assert.equal(originals.length, 5);
+  assert.equal(originals.length, 6);
   const report = await inspectBaselinePack(observed);
   const entra = report.options.filter((option) => option.providerId === "entra-external-id");
-  assert.equal(entra.length, 7);
-  assert.equal(entra.reduce((count, option) => count + option.facts.length, 0), 24);
+  assert.equal(entra.length, 8);
+  assert.equal(entra.reduce((count, option) => count + option.facts.length, 0), 28);
   const earlier = entra.filter((option) => option.basis !== "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(earlier.every((option) => !option.facts.some((fact) => paths.includes(fact.path))));
   assert.ok(earlier.filter((option) => option.basis !== "UNRESOLVED_RESEARCH_SCOPE").every((option) => option.sourcePlan === "Basic MAU"));

@@ -531,6 +531,35 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
   },
   {
+    file: "entra-external-id-basic-browser-authentication-controls.v1.json",
+    catalogVersion: "entra-external-id-basic-browser-authentication-controls-draft-2026.10.08",
+    scope: {
+      id: "entra-external-id-basic-browser-authentication-controls", providerId: "entra-external-id",
+      product: "Microsoft Entra External ID - external tenant", deployment: "MANAGED",
+      plan: "Basic MAU; custom-domain/Front Door costs and authentication-context entitlement unverified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "Standard external tenant; local browser/password users; CA MFA/context and optional passkeys; no workforce/native/M2M",
+    },
+    facts: {
+      MFA: { availability: "OPTIONAL", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-multifactor-authentication-customers" },
+    },
+    authenticationControls: {
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.PHISHING_RESISTANCE": {
+        availability: "SUPPORTED", enforcement: "UNSUPPORTED",
+        sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-sign-in-with-passkey",
+      },
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.NON_EXPORTABLE_KEYS": {
+        availability: "UNKNOWN", enforcement: "UNKNOWN",
+        sourceUrl: "https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-enable-passkey-fido2",
+      },
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.STEP_UP_AUTHENTICATION": {
+        availability: "SUPPORTED", enforcement: "UNKNOWN",
+        sourceUrl: "https://learn.microsoft.com/en-us/entra/identity-platform/developer-guide-conditional-access-authentication-context",
+      },
+    },
+    metadata: { basis: "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
+  },
+  {
     file: "entra-external-id-m2m-addon-machine-clients.v1.json",
     catalogVersion: "entra-external-id-m2m-addon-machine-clients-draft-2026.10.08",
     scope: {

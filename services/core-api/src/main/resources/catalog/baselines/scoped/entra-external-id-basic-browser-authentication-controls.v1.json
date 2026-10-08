@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "entra-external-id-basic-browser-authentication-controls-draft-2026.10.08",
+  "options": [
+    {
+      "id": "entra-external-id-basic-browser-authentication-controls",
+      "providerId": "entra-external-id",
+      "product": "Microsoft Entra External ID - external tenant",
+      "plan": "Basic MAU; custom-domain/Front Door costs and authentication-context entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No tenant region selected; storage destinations not verified",
+      "configuration": "Standard external tenant; local browser/password users; CA MFA/context and optional passkeys; no workforce/native/M2M",
+      "facts": {
+        "MFA": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Select standard external-tenant local email/password or username/password browser customers. No workforce B2B guests, Azure AD B2C, native authentication APIs, upstream federation, SCIM or paid M2M behavior is inherited.",
+            "Conditional Access can require MFA for an app or authentication context. Password plus email OTP is a documented route; email OTP used as first factor cannot also be the second factor. Email OTP is not phishing resistance. Policy exclusions and effective enrollment remain unverified; OPTIONAL is not observed compulsory use.",
+            "Basic MAU has a documented free allowance: https://learn.microsoft.com/en-us/entra/external-id/customers/faq-customers. Tenant subscription, quota and entitlement are unverified; SMS has separate charges and is excluded. No tenant, account, subscription, credential, enrollment, custom domain, Azure resource or policy was created."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-multifactor-authentication-customers",
+            "observedAt": "2026-10-08T21:34:08Z",
+            "summary": "External-tenant documentation describes configurable MFA with password plus email OTP and Conditional Access targets. This proposes an optional mechanism, not mandatory use, verified entitlement or phishing protection."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {
+        "BROWSER": {
+          "EXTERNAL_CUSTOMERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNSUPPORTED",
+              "conditions": [
+                "Conditional availability covers domain-bound FIDO2 passkeys for local password accounts, a WebAuthn browser, completed MFA and app-built credential management. It does not cover email-OTP-first, social/federated users, embedded webviews or native authentication APIs.",
+                "UNSUPPORTED enforcement is scoped to requiring phishing-resistant MFA through external-tenant Conditional Access authentication strengths: Microsoft explicitly says this route is unavailable. Requiring generic MFA does not require passkeys. This is not a provider-wide rejection of every possible application-owned control.",
+                "Passkeys require a custom URL domain. The documented Azure Front Door route incurs separate charges: https://learn.microsoft.com/en-us/entra/external-id/customers/concept-custom-url-domain. No paid infrastructure was selected; included passkey authentication is not a zero-total-cost promise. Enrollment, recovery, fallback and existing sessions need independent review."
+              ],
+              "evidence": {
+                "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-sign-in-with-passkey",
+                "observedAt": "2026-10-08T21:34:08Z",
+                "summary": "The external-tenant guide documents passkey availability but explicitly rules out Conditional Access authentication-strength enforcement. Availability depends on domain and enrollment prerequisites; neither field certifies a tested customer journey."
+              }
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "UNKNOWN",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "The external-tenant passkey guide references passkey profiles and permits device-bound and synced types: https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-sign-in-with-passkey. Device-bound labeling alone does not establish the project's hardware-backed non-exportability requirement.",
+                "Profiles can restrict types, require attestation and filter AAGUIDs. Attestation validates make/model; trusted metadata and hardware key-protection evidence for a selected authenticator remain unverified. Without attestation an AAGUID is not strict assurance; registration-time attestation changes do not block previously registered unattested credentials.",
+                "Overlapping profiles, pre-existing credentials, fallback and recovery need independent review. External tenants lack the workforce authentication-strength requirement route; no Authenticator/workforce policy is imported. Keep both fields UNKNOWN, not provider-wide UNSUPPORTED. No physical key, attestation validation or hardware purchase occurred."
+              ],
+              "evidence": {
+                "sourceUrl": "https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-enable-passkey-fido2",
+                "observedAt": "2026-10-08T21:34:08Z",
+                "summary": "The profile reference linked by the external-tenant guide documents type, attestation and key restrictions, including legacy-credential caveats. A hardware-backed non-exportable mechanism and complete enforcement are not verified."
+              }
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "Conditional availability is a password-to-MFA elevation for a sensitive user operation using Conditional Access authentication context, not prompt=login, max_age, refresh, or repeating the same factor. The external-tenant MFA guide explicitly documents this route: https://learn.microsoft.com/en-us/entra/external-id/customers/concept-multifactor-authentication-customers.",
+                "Map the protected operation to this tenant's authentication context, require an effective MFA policy and handle an insufficient_claims challenge with essential acrs. An acrs value can be issued without an attached policy; claim presence alone is not stronger-factor proof.",
+                "Verify signed issuer/audience/expiry, user/session and callback binding, exact acrs mapping, applicable policy and required factor freshness at the server operation gate. Missing, malformed, future or insufficient evidence must deny. MFA satisfied earlier does not guarantee a new prompt or hardware/phishing protection.",
+                "The shared developer guide states P1 licensing and a Free-edition limitation while external-tenant guides list authentication context. Selected Basic MAU entitlement and effective policy remain unresolved; enforcement stays UNKNOWN. No license purchase, tenant configuration, token challenge or bypass test occurred; AuthWeave's ZITADEL/BFF and synthetic evaluator are unchanged."
+              ],
+              "evidence": {
+                "sourceUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/developer-guide-conditional-access-authentication-context",
+                "observedAt": "2026-10-08T21:34:08Z",
+                "summary": "The guide applies to external tenants and describes claims-challenge step-up for user operations, including acrs issuance without a policy. A documented mechanism is conditional; entitlement, effective policy and operation enforcement are unverified."
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

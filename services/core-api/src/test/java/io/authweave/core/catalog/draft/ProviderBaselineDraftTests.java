@@ -822,6 +822,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/zitadel-cloud-free-browser-authentication-controls.v1.json");
         resources.add("scoped/auth0-b2b-free-browser-authentication-controls.v1.json");
         resources.add("scoped/workos-authkit-staging-browser-authentication-controls.v1.json");
+        resources.add("scoped/entra-external-id-basic-browser-authentication-controls.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -858,18 +859,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(39, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(128, recordedCount);
-        assertEquals(2524, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 44,
+        assertEquals(40, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(132, recordedCount);
+        assertEquals(2588, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 45,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 34), counts);
         assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 31, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T21:09:22Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T21:34:08Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(39, report.optionCount());
-        assertEquals(128, report.factCount());
+        assertEquals(40, report.optionCount());
+        assertEquals(132, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -2893,6 +2894,129 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(8, report.optionCount());
         assertEquals(22, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void entraCustomerAuthenticationSeparatesPasskeyAvailabilityFromExternalTenantPolicyLimits() throws Exception {
+        var json = resource("catalog/baselines/scoped/entra-external-id-basic-browser-authentication-controls.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("entra-external-id-basic-browser-authentication-controls-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("Microsoft Entra External ID - external tenant", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.MFA), option.facts().keySet());
+        var mfa = option.facts().get(ProviderCatalog.Capability.MFA);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, mfa.availability());
+        assertTrue(String.join(" ", mfa.conditions()).contains("email OTP used as first factor cannot also be the second factor"));
+        assertTrue(String.join(" ", mfa.conditions()).contains("SMS has separate charges and is excluded"));
+        assertEquals("/en-us/entra/external-id/customers/concept-multifactor-authentication-customers",
+                mfa.evidence().sourceUrl().getPath());
+        var browser = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER;
+        var population = io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation.EXTERNAL_CUSTOMERS;
+        assertEquals(java.util.Set.of(browser), option.authenticationControls().keySet());
+        assertEquals(java.util.Set.of(population), option.authenticationControls().get(browser).keySet());
+        var controls = option.authenticationControls().get(browser).get(population);
+        assertEquals(3, controls.size());
+        var phishing = controls.get(ProviderCatalog.AuthenticationControl.PHISHING_RESISTANCE);
+        var keys = controls.get(ProviderCatalog.AuthenticationControl.NON_EXPORTABLE_KEYS);
+        var step = controls.get(ProviderCatalog.AuthenticationControl.STEP_UP_AUTHENTICATION);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, phishing.availability());
+        assertEquals(ProviderCatalog.Support.UNSUPPORTED, phishing.enforcement());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, keys.availability());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, keys.enforcement());
+        assertEquals(ProviderCatalog.Support.SUPPORTED, step.availability());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, step.enforcement());
+        for (var phrase : List.of("external-tenant Conditional Access authentication strengths",
+                "Requiring generic MFA does not require passkeys", "Azure Front Door route incurs separate charges",
+                "not a zero-total-cost promise", "not a provider-wide rejection")) {
+            assertTrue(String.join(" ", phishing.conditions()).contains(phrase), phrase);
+        }
+        for (var phrase : List.of("hardware-backed non-exportability", "Attestation validates make/model",
+                "registration-time attestation changes do not block previously registered unattested credentials")) {
+            assertTrue(String.join(" ", keys.conditions()).contains(phrase), phrase);
+        }
+        for (var phrase : List.of("password-to-MFA elevation", "insufficient_claims challenge with essential acrs",
+                "acrs value can be issued without an attached policy", "required factor freshness at the server operation gate",
+                "Missing, malformed, future or insufficient evidence must deny", "P1 licensing and a Free-edition limitation",
+                "Basic MAU entitlement and effective policy remain unresolved")) {
+            assertTrue(String.join(" ", step.conditions()).contains(phrase), phrase);
+        }
+        assertEquals("/en-us/entra/external-id/customers/how-to-sign-in-with-passkey", phishing.evidence().sourceUrl().getPath());
+        assertEquals("/en-us/entra/identity/authentication/how-to-enable-passkey-fido2", keys.evidence().sourceUrl().getPath());
+        assertEquals("/en-us/entra/identity-platform/developer-guide-conditional-access-authentication-context",
+                step.evidence().sourceUrl().getPath());
+        var observed = Instant.parse("2026-10-08T21:34:08Z");
+        for (var fact : CatalogDraftFacts.entries(option).values()) {
+            assertEquals("learn.microsoft.com", fact.evidence().sourceUrl().getHost());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertFalse(fact.conditions().isEmpty());
+        }
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.compatibility().clients().isEmpty());
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        var impossible = mapper.readTree(json);
+        ((tools.jackson.databind.node.ObjectNode) impossible.at(
+                "/options/0/authenticationControls/BROWSER/EXTERNAL_CUSTOMERS/NON_EXPORTABLE_KEYS")).put("enforcement", "SUPPORTED");
+        var invalid = validator.validateAt(mapper.treeToValue(impossible, ProviderCatalogDraft.class), observed);
+        assertEquals(CatalogDraftValidation.Status.INVALID_DRAFT, invalid.status());
+        assertTrue(invalid.issues().stream().anyMatch(issue ->
+                issue.code() == CatalogDraftValidation.IssueCode.AUTHENTICATION_ENFORCEMENT_WITHOUT_AVAILABILITY));
+        assertUntrusted(invalid);
+    }
+
+    @Test
+    void entraAuthenticationFreshnessDoesNotPromoteUnknownControlsOrEraseScopedNegatives() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/entra-external-id-basic-browser-authentication-controls.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T21:34:08Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertEquals(4, report.factCount());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+        }
+    }
+
+    @Test
+    void entraCustomerAuthenticationDoesNotPopulateSevenEarlierResearchFederationOrPaidMachineScopes() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("entra-external-id.v1.json", "scoped/entra-external-id-basic.v1.json",
+                "scoped/entra-external-id-basic-upstream-okta.v1.json", "scoped/entra-external-id-basic-upstream-entra.v1.json",
+                "scoped/entra-external-id-basic-public-oidc-clients.v1.json", "scoped/entra-external-id-basic-organization-context.v1.json",
+                "scoped/entra-external-id-m2m-addon-machine-clients.v1.json",
+                "scoped/entra-external-id-basic-browser-authentication-controls.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(8, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        for (var option : options.subList(0, 7)) {
+            assertTrue(option.authenticationControls().isEmpty());
+            assertFalse(option.facts().containsKey(ProviderCatalog.Capability.MFA));
+        }
+        assertEquals(Instant.parse("2026-10-02T23:12:01Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertTrue(options.get(6).plan().contains("M2M Premium add-on"));
+        assertTrue(options.getLast().plan().contains("custom-domain/Front Door costs"));
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertTrue(options.getLast().residency().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "entra-authentication-context-coexistence-test", options), Instant.parse("2026-10-08T21:34:08Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(8, report.optionCount());
+        assertEquals(28, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

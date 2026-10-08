@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 128 recorded and 2,524 omitted option-paths across 39 distinct
-scopes (2,652 possible addresses). The 81 capability proposals comprise 44 `OPTIONAL`,
+The current pack has 132 recorded and 2,588 omitted option-paths across 40 distinct
+scopes (2,720 possible addresses). The 82 capability proposals comprise 45 `OPTIONAL`,
 3 `UNAVAILABLE` and 34 `UNKNOWN`; thirty-five separate compatibility proposals comprise
-thirty-one `SUPPORTED` and four `UNKNOWN`. Twelve authentication-control records retain
+thirty-one `SUPPORTED` and four `UNKNOWN`. Fifteen authentication-control records retain
 their own availability/enforcement pairs, not capability or compatibility counts.
 An `UNKNOWN` in either control field appears in `recordedUnknownPaths`.
 All remain `UNREVIEWED`. These are structural
@@ -1939,7 +1939,7 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-nine distinct options and 128 recorded
+`make inspect-provider-baselines` now reports forty distinct options and 132 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
@@ -1947,9 +1947,9 @@ Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organizat
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
 and Entra External ID Basic), plus five machine-client scopes
 (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
-and Entra External ID with the paid M2M Premium add-on), plus four browser/customer
+and Entra External ID with the paid M2M Premium add-on), plus five browser/customer
 authentication-control scopes (release-pinned Keycloak, ZITADEL Cloud Free, Auth0 B2B Free
-and primary WorkOS AuthKit staging).
+and primary WorkOS AuthKit staging, plus Entra External ID Basic).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2456,6 +2456,41 @@ users, organizations and keys from production. Free staging and the
 [AuthKit allowance](https://workos.com/pricing) do not establish free production SSO,
 Directory Sync or unlimited operating capacity. No account, invitation, membership
 mutation, billing setup, runtime provider switch, source approval or activation occurred.
+
+#### Browser/customer Entra External ID authentication-control candidate
+
+The separate [Entra authentication draft](services/core-api/src/main/resources/catalog/baselines/scoped/entra-external-id-basic-browser-authentication-controls.v1.json)
+selects standard external-tenant local password accounts, not workforce guests,
+Azure AD B2C, native authentication APIs, federation or paid M2M. `MFA: OPTIONAL`
+is a configurable proposal, not observed compulsory use. All four records are
+`UNREVIEWED`; earlier scopes and their evidence dates remain unchanged.
+
+[External-tenant MFA](https://learn.microsoft.com/en-us/entra/external-id/customers/concept-multifactor-authentication-customers)
+can use password plus email OTP; OTP as first factor cannot also serve as second
+factor. SMS charges are excluded. Generic MFA does not establish phishing resistance.
+[Customer passkeys](https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-sign-in-with-passkey)
+conditionally support that mechanism, but external-tenant Conditional Access cannot
+require phishing-resistant MFA through authentication strengths. The pair is
+`SUPPORTED/UNSUPPORTED`, with the negative limited to that policy route, not every
+possible application-owned control. Passkeys need a custom URL domain and
+app-built credential management. [The documented Front Door route](https://learn.microsoft.com/en-us/entra/external-id/customers/concept-custom-url-domain)
+incurs separate charges; included passkey authentication is not free infrastructure.
+
+`NON_EXPORTABLE_KEYS: UNKNOWN/UNKNOWN` preserves hardware-proof gaps.
+[Passkey profiles](https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-enable-passkey-fido2),
+referenced by the external-tenant guide, permit type/attestation/AAGUID restrictions.
+Device-bound labeling and model attestation are not verified hardware key protection;
+registration-only attestation changes do not reject earlier unattested credentials.
+No workforce authentication-strength or Authenticator behavior is imported.
+
+`STEP_UP_AUTHENTICATION: SUPPORTED/UNKNOWN` is conditional password-to-MFA elevation
+at a sensitive operation. [Authentication context](https://learn.microsoft.com/en-us/entra/identity-platform/developer-guide-conditional-access-authentication-context)
+uses a claims challenge and exact `acrs` mapping, but an unprotected context can also
+produce the claim. Effective policy, signed-token/session binding and factor freshness
+must be checked at the server gate. The shared guide's P1/Free-edition wording needs
+reconciliation with external-tenant feature documentation; Basic entitlement remains
+unverified. No tenant, subscription, paid domain, Azure resource, key, policy change
+or live test was created. ZITADEL/BFF, UI and the synthetic evaluator are unchanged.
 
 #### Paid-add-on-scoped Entra External ID machine-client candidate
 
