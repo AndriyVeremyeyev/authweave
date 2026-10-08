@@ -20,7 +20,7 @@ help:
 		'  make check-web-auth-db  Run isolated web session integration tests against local PostgreSQL' \
 		'  make check-guided-bff  Test three BFF assessment flows with a real Core HTTP server and a temporary database' \
 		'  make check-browser   Run isolated production browser/OIDC E2E (build and Chromium required; ports 3000/8080/8081 must be free)' \
-		'  make check-browser-zitadel  Explicit local Alice/Bob interoperability check (existing ZITADEL lab required; ports 3000/8080 must be free)' \
+		'  make check-browser-zitadel  Explicit local ZITADEL desktop/mobile guided flows (existing Alice/Bob and lab required; ports 3000/8080 must be free)' \
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make inspect-provider-baselines  Inspect unreviewed provider research drafts offline; no activation' \

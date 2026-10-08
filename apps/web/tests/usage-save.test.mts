@@ -128,5 +128,5 @@ test("the UI freezes a pending submission and requires explicit discard before l
   assert.ok(source.includes("originally loaded in this tab, not the current server version"));
   for (const unsupported of ["localStorage", "sessionStorage", "router.refresh", "setInterval", ".requestSubmit("]) assert.equal(source.includes(unsupported), false);
   const workflow = await readFile(new URL("../src/app/assessments/[id]/assessment-workflow.tsx", import.meta.url), "utf8");
-  assert.ok(workflow.includes("if (saving.current) return;")); assert.ok(workflow.includes("!dirty.current && !saving.current"));
+  assert.ok(workflow.includes("if (!ready || saving.current) return;")); assert.ok(workflow.includes("!dirty.current && !saving.current"));
 });

@@ -1,12 +1,16 @@
 "use client";
 
-import { createContext, useContext, useEffect, useReducer, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useReducer, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { assessmentSteps, workflowTransition, type AssessmentStep } from "@/lib/assessment/workflow";
 
 const AssessmentNavigation = createContext<((step: AssessmentStep, button: HTMLButtonElement) => void) | null>(null);
 const AssessmentSave = createContext<{ setSaving: (busy: boolean) => void; isSaving: () => boolean; allowReload: () => void } | null>(null);
 export function useAssessmentSave() { return useContext(AssessmentSave); }
+
+const subscribe = () => () => {};
+const clientSnapshot = () => true;
+const serverSnapshot = () => false;
 
 // Server-rendered cards use the same in-memory navigation and dirty guard as the sidebar.
 export function AssessmentStepButton({ step, children }: { step: AssessmentStep; children: ReactNode }) {
@@ -25,6 +29,8 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
   const router = useRouter();
   const dirty = useRef(false);
   const saving = useRef(false);
+  // JavaScript-only controls stay disabled in server HTML and during hydration.
+  const ready = useSyncExternalStore(subscribe, clientSnapshot, serverSnapshot);
   const [savePending, setSavePending] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -59,7 +65,7 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
   }, [state.step]);
 
   function navigate(target: AssessmentStep, button: HTMLButtonElement) {
-    if (saving.current) return;
+    if (!ready || saving.current) return;
     sourceButton.current = button;
     dispatch({ type: "navigate", step: target });
   }
@@ -81,8 +87,8 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
   return (
     <div className="mt-8 grid items-start gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
       <aside className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 lg:sticky lg:top-6">
-        <button type="button" disabled={savePending} onClick={event => {
-          if (saving.current) return;
+        <button type="button" disabled={!ready || savePending} onClick={event => {
+          if (!ready || saving.current) return;
           sourceButton.current = event.currentTarget;
           if (dirty.current) dispatch({ type: "leave" });
           else router.push("/assessments");
@@ -95,7 +101,7 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
           <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-1">
             {assessmentSteps.map((item, position) => (
               <li key={item.id}>
-                <button type="button" disabled={savePending} aria-current={state.step === item.id ? "step" : undefined}
+                <button type="button" disabled={!ready || savePending} aria-current={state.step === item.id ? "step" : undefined}
                   aria-controls="assessment-step-panel" onClick={event => navigate(item.id, event.currentTarget)}
                   className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left text-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-200 ${state.step === item.id
                     ? "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
@@ -145,13 +151,13 @@ export function AssessmentWorkflow({ initialStep, panels, editable }: {
             isSaving: () => saving.current,
             // Release only for a checked acknowledgement or explicit discard-and-reload.
             allowReload: () => { dirty.current = false; saving.current = false; setSavePending(false); dispatch({ type: "submit" }); },
-          }}><AssessmentNavigation.Provider value={navigate}>{panels[state.step]}</AssessmentNavigation.Provider></AssessmentSave.Provider>
+          }}><AssessmentNavigation.Provider value={ready ? navigate : null}>{panels[state.step]}</AssessmentNavigation.Provider></AssessmentSave.Provider>
         </div>
         <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/10 pt-6">
-          <button type="button" disabled={index === 0 || savePending}
+          <button type="button" disabled={!ready || index === 0 || savePending}
             onClick={event => navigate(assessmentSteps[index - 1].id, event.currentTarget)}
             className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-200 hover:border-cyan-200 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">← Previous</button>
-          <button type="button" disabled={savePending} onClick={event => navigate(index < assessmentSteps.length - 1 ? assessmentSteps[index + 1].id : "comparison", event.currentTarget)}
+          <button type="button" disabled={!ready || savePending} onClick={event => navigate(index < assessmentSteps.length - 1 ? assessmentSteps[index + 1].id : "comparison", event.currentTarget)}
             className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-100 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">
             {index < assessmentSteps.length - 1 ? `Next: ${assessmentSteps[index + 1].short} →` : "Return to comparison →"}
           </button>

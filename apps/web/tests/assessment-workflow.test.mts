@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createElement } from "react";
+import { createElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { assessmentUiComponents } from "./fixtures/assessment-ui.mts";
 import { assessmentSteps, assessmentStepFromQuery, workflowTransition,
@@ -96,4 +96,14 @@ test("workflow renders one labelled panel, seven keyboard buttons and honest sav
   const readOnly = renderToStaticMarkup(createElement(component.AssessmentWorkflow, { initialStep: "context", panels, editable: false }));
   assert.ok(readOnly.includes("Showing a read-only saved assessment"));
   assert.equal(readOnly.includes("There is no autosave"), false);
+});
+
+test("server-rendered workflow disables JavaScript-only navigation before hydration", async () => {
+  const component = await assessmentUiComponents();
+  const panels: Record<string, ReactNode> = Object.fromEntries(assessmentSteps.map(step => [step.id, `Saved ${step.id} controls`]));
+  panels.context = createElement(component.AssessmentStepButton, { step: "review" }, "Review shortcut");
+  const html = renderToStaticMarkup(createElement(component.AssessmentWorkflow, { initialStep: "context", panels, editable: true }));
+  const buttons = [...html.matchAll(/<button\b[^>]*>/g)].map(match => match[0]);
+  assert.equal(buttons.length, 13); // Exit, seven steps, shortcut, previous/next, two dialog controls.
+  assert.ok(buttons.slice(0, 11).every(button => button.includes('disabled=""')));
 });

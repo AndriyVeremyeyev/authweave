@@ -1,6 +1,6 @@
-import { readFile } from "node:fs/promises";
-import { test, expect, type Page, type Locator } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { guidedScenarios, guidedScenarioForms } from "../fixtures/guided-scenarios.mts";
+import { createGuidedAssessment as create, guidedStep as step, saveGuidedForm as save, runGuidedScenario } from "../guided-browser-flow.mts";
 
 test.beforeAll(() => {
   expect(process.env.AUTHWEAVE_TEST_BROWSER).toBe("synthetic-browser-core-v1");
@@ -27,107 +27,42 @@ async function login(page: Page, subject: string) {
   return cookie.value;
 }
 
-async function create(page: Page) {
-  await page.getByRole("button", { name: "Create assessment draft", exact: true }).click();
-  await expect(page).toHaveURL(/\/assessments\/[0-9a-f-]{36}$/);
-  await expect(page.getByRole("heading", { name: "Your identity decision", exact: true })).toBeVisible();
-  return new URL(page.url()).pathname;
-}
-
-async function step(page: Page, name: string, id: string) {
-  const button = page.getByRole("navigation", { name: "Assessment steps" }).getByRole("button", { name, exact: true });
-  await button.click(); await expect(button).toHaveAttribute("aria-current", "step");
-  await expect(page).toHaveURL(new RegExp(`[?&]step=${id}(?:&|$)`));
-}
-
-async function inputs(form: Locator, values: URLSearchParams) {
-  // Open explanations using actual controls so hidden input groups become browser-editable.
-  const closed = form.locator("details:not([open]) > summary");
-  while (await closed.count()) await closed.first().click();
-  const names = [...new Set([...values.keys()].filter(name => name !== "expectedVersion"))];
-  // Checkbox choices can enable dependent controls (for example retention days).
-  const checkboxes: string[] = [], other: string[] = [];
-  for (const name of names) {
-    ((await form.locator(`[name="${name}"]`).first().getAttribute("type")) === "checkbox" ? checkboxes : other).push(name);
-  }
-  for (const name of [...checkboxes, ...other]) {
-    const fields = form.locator(`[name="${name}"]`), entries = values.getAll(name);
-    const tag = await fields.first().evaluate(field => field.tagName);
-    if (tag === "SELECT") await fields.selectOption(entries[0]);
-    else if (await fields.first().getAttribute("type") === "checkbox") {
-      for (const field of await fields.all()) await field.setChecked(entries.includes((await field.getAttribute("value"))!));
-    } else {
-      expect(await fields.count()).toBe(entries.length);
-      for (let index = 0; index < entries.length; index++) await fields.nth(index).fill(entries[index]);
-    }
-  }
-}
-
-async function save(page: Page, assessment: string, path: string, values: URLSearchParams, version: number) {
-  const form = page.locator(`form[action="/api${assessment}/${path}"]`);
-  await expect(form.locator('[name="expectedVersion"]')).toHaveValue(String(version - 1));
-  await inputs(form, values);
-  const response = page.waitForResponse(response => new URL(response.url()).pathname === `/api${assessment}/${path}`);
-  await form.getByRole("button", { name: /^Save / }).click();
-  expect((await response).status()).toBe(200);
-  await expect(page.getByText(`Saved version ${version}`, { exact: true }).first()).toBeVisible();
-  await expect(page.locator(`form[action="/api${assessment}/${path}"] [name="expectedVersion"]`)).toHaveValue(String(version));
-}
-
 async function logout(page: Page) {
   await page.goto("/account"); await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL("http://localhost:3000/");
   expect((await page.context().cookies()).some(cookie => cookie.name === "authweave-session-local")).toBe(false);
 }
 
-function literal(value: string) {
-  return Array.from(value, character => {
-    const code = character.charCodeAt(0);
-    return (code >= 33 && code <= 47) || (code >= 58 && code <= 64) || (code >= 91 && code <= 96) ||
-      (code >= 123 && code <= 126) ? `\\${character}` : character;
-  }).join("").replaceAll("\n", "\n  ");
+async function delayedHydration(page: Page, assessment: string) {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  let scripts = 0;
+  const chunks = /\/_next\/static\/.*\.js(?:\?.*)?$/;
+  await page.route(chunks, async route => { scripts++; await held; await route.continue(); });
+  try {
+    await page.goto(assessment, { waitUntil: "commit" });
+    const buttons = page.getByRole("navigation", { name: "Assessment steps" }).getByRole("button");
+    await expect(buttons).toHaveCount(7);
+    for (const button of await buttons.all()) await expect(button).toBeDisabled();
+    await expect(page.getByRole("button", { name: "← Your assessments", exact: true })).toBeDisabled();
+    // Native progressive form submission must remain available before hydration.
+    await expect(page.getByRole("button", { name: "Save application context", exact: true })).toBeEnabled();
+    await expect.poll(() => scripts).toBeGreaterThan(0);
+  } finally { release(); }
+  await expect(page.getByRole("navigation", { name: "Assessment steps" }).getByRole("button", { name: "Requirements", exact: true })).toBeEnabled();
+  await page.unroute(chunks);
 }
 
 for (const scenario of guidedScenarios) test(`guided ${scenario.key}: five browser saves, Review, brief and saved previews`, async ({ page }, info) => {
   await login(page, `synthetic-browser-${info.project.name}-${scenario.key}`);
-  const assessment = await create(page), forms = guidedScenarioForms(scenario);
-  await save(page, assessment, "evaluation-context", forms.context, 1);
-  await step(page, "Requirements", "capabilities"); await save(page, assessment, "capabilities", forms.capabilities, 2);
-  await step(page, "Audit", "auditability"); await save(page, assessment, "auditability", forms.auditability, 3);
-  await step(page, "Usage", "usage"); await save(page, assessment, "operational-preferences", forms.operations, 4);
-  await save(page, assessment, "usage-planning", forms.usage, 5);
-  await step(page, "Review", "review");
-  const rows = page.locator('section[aria-labelledby^="saved-"] dl > div');
-  await expect(rows).toHaveCount(37);
-  for (const [label, expected] of [["Application type", scenario.expected.application], ["User populations", scenario.expected.users],
-    ["Client types", scenario.expected.clients], ["Minimum retention", `${scenario.retention} days`]]) {
-    await expect(rows.filter({ has: page.locator("dt", { hasText: new RegExp(`^${label}$`) }) }).locator("dd > span").first()).toHaveText(expected);
-  }
-  const displayed = await rows.evaluateAll(rows => rows.map(row => ({ label: row.querySelector("dt")!.textContent!,
-    value: row.querySelector("dd > span")!.textContent!, state: row.querySelector("dd > span:last-child")!.textContent! })));
-  const downloaded = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download saved brief (.md)", exact: true }).click();
-  const download = await downloaded;
-  expect(download.suggestedFilename()).toBe(`authweave-requirements-${assessment.split("/").at(-1)}-v5.md`);
-  const markdown = await readFile((await download.path())!, "utf8");
-  expect(markdown).toContain("- Saved version: `5`");
-  for (const row of displayed) expect(markdown).toContain(`- **${row.label}:** ${literal(row.value)} — ${row.state}.`);
-  await step(page, "Comparison", "comparison");
-  await expect(page.getByRole("heading", { name: "Understand each option", exact: true })).toBeVisible();
-  await expect(page.locator('[id^="comparison-option-"]')).toHaveCount(3);
-  await step(page, "Architecture", "architecture");
-  await expect(page.getByRole("heading", { name: "Understand the patterns before choosing", exact: true })).toBeVisible();
-  await expect(page.locator('[id^="architecture-pattern-"]')).toHaveCount(5);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-  await page.goto("/assessments");
-  await expect(page.getByRole("link", { name: /Open assessment/ }).first()).toBeVisible();
+  await runGuidedScenario(page, scenario);
   await logout(page);
 });
 
 test("dirty guard, stale tab, ownership, reauthentication, logout and invalid nonce fail closed", async ({ page, browser }, info) => {
   const subject = `synthetic-browser-${info.project.name}-security-owner`;
   const originalCookie = await login(page, subject), assessment = await create(page);
-  const stale = await page.context().newPage(); await stale.goto(assessment);
+  const stale = await page.context().newPage(); await delayedHydration(stale, assessment);
   await page.locator('select[name="applicationType"]').selectOption("B2B_SAAS");
   await page.getByRole("navigation", { name: "Assessment steps" }).getByRole("button", { name: "Review", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Keep your unsaved changes?" });

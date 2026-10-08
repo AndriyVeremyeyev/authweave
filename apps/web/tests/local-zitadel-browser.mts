@@ -5,6 +5,7 @@ import { opaqueHash } from "../src/lib/auth/session-policy.ts";
 import { BrowserRuntime, browserApp } from "./browser-runtime.mts";
 import { localIssuer, readLocalZitadelConfiguration } from "./local-zitadel-config.mts";
 import { guidedScenarioForms, guidedScenarios } from "./fixtures/guided-scenarios.mts";
+import { runGuidedScenario } from "./guided-browser-flow.mts";
 
 // No Playwright reporter/trace/screenshot: assertion errors and call logs can contain secrets.
 let stage = "explicit opt-in";
@@ -101,10 +102,13 @@ try {
   progress("start isolated production app");
   await runtime.startWeb(web, true);
   browser = await chromium.launch();
-  const assessments: string[] = [];
-  let blockedRequests = 0;
+  const assessments: string[][] = [];
+  let blockedRequests = 0, guidedRuns = 0;
   for (const [index, user] of users.entries()) {
-    const context = await browser.newContext({ baseURL: browserApp, viewport: { width: 1440, height: 1000 }, serviceWorkers: "block" });
+    const device = index === 0 ? "desktop" : "mobile";
+    const context = await browser.newContext({ baseURL: browserApp, serviceWorkers: "block", acceptDownloads: true,
+      viewport: index === 0 ? { width: 1440, height: 1000 } : { width: 390, height: 844 },
+      isMobile: index === 1, hasTouch: index === 1 });
     contexts.push(context);
     await context.route("**/*", route => {
       const url = new URL(route.request().url());
@@ -128,17 +132,14 @@ try {
     assert.equal(identity.rows[0].issuer, localIssuer); assert.equal(identity.rows[0].email, user.login);
     assert.equal(identity.rows[0].display_name, user.name);
     assert.equal(identity.rows[0].curator_project_id, null); assert.equal(identity.rows[0].curator_org_id, null);
-    progress(index === 0 ? "Alice save and curator denial" : "Bob save and curator denial");
-    await page.getByRole("button", { name: "Create assessment draft", exact: true }).click();
-    await page.waitForURL(/\/assessments\/[0-9a-f-]{36}$/);
-    const assessment = new URL(page.url()).pathname; assessments.push(assessment);
-    const saved = await context.request.post(`/api${assessment}/evaluation-context`, {
-      headers: { Origin: browserApp, Accept: "application/json" },
-      form: Object.fromEntries(guidedScenarioForms(guidedScenarios[0]).context),
-    });
-    assert.equal(saved.status(), 200);
-    await page.goto(assessment);
-    assert.equal(await page.locator('input[name="expectedVersion"]').first().inputValue(), "1");
+    const personal: string[] = []; assessments.push(personal);
+    for (const scenario of guidedScenarios) {
+      await page.goto("/account");
+      personal.push(await runGuidedScenario(page, scenario, value => progress(`${device} ${scenario.key}: ${value}`),
+        value => { detail = value; }));
+      guidedRuns++;
+    }
+    progress(index === 0 ? "Alice curator denial" : "Bob curator denial");
     await page.goto("/catalog/review");
     await page.getByRole("region", { name: "Curator access unavailable" }).waitFor();
     await page.getByText("This account does not have the scoped AuthWeave catalog curator role.", { exact: true }).waitFor();
@@ -156,15 +157,23 @@ try {
     const revoked = await fetch(`${browserApp}/account`, { headers: { Cookie: `authweave-session-local=${original}` },
       signal: AbortSignal.timeout(5000) });
     assert.ok((await revoked.text()).includes("You are not signed in."));
-    await page.goto(assessment); await page.getByRole("heading", { name: "Your identity decision", exact: true }).waitFor();
+    for (const assessment of personal) {
+      await page.goto(assessment); await page.getByRole("heading", { name: "Your identity decision", exact: true }).waitFor();
+      assert.equal(await page.locator('input[name="expectedVersion"]').first().inputValue(), "5");
+    }
   }
   progress("bidirectional cross-user read and write denial");
   for (let index = 0; index < 2; index++) {
-    const context = contexts[index], page = context.pages()[0], other = assessments[1 - index];
-    assert.equal((await page.goto(other))!.status(), 404);
-    const denied = await context.request.post(`/api${other}/evaluation-context`, { headers: { Origin: browserApp, Accept: "application/json" },
-      form: { ...Object.fromEntries(guidedScenarioForms(guidedScenarios[0]).context), expectedVersion: "1" } });
-    assert.equal(denied.status(), 404);
+    const context = contexts[index], page = context.pages()[0];
+    for (const other of assessments[1 - index]) {
+      assert.equal((await page.goto(other))!.status(), 404);
+      const denied = await context.request.post(`/api${other}/evaluation-context`, { headers: { Origin: browserApp, Accept: "application/json" },
+        form: { ...Object.fromEntries(guidedScenarioForms(guidedScenarios[0]).context), expectedVersion: "5" } });
+      assert.equal(denied.status(), 404);
+    }
+    await page.goto("/assessments");
+    const listed = await page.locator('ul[aria-label="Saved assessments"] a').evaluateAll(links => links.map(link => link.getAttribute("href")));
+    assert.deepEqual([...listed].sort(), [...assessments[index]].sort());
   }
   progress("local logout and revoked access");
   for (const [index, context] of contexts.entries()) {
@@ -172,11 +181,12 @@ try {
     const value = await appSession(context);
     await signOut(page);
     assert.ok(!(await context.cookies(browserApp)).some(cookie => cookie.name === "authweave-session-local"));
-    await page.goto(assessments[index]); await page.waitForURL(`${browserApp}/account`);
+    await page.goto(assessments[index][0]); await page.waitForURL(`${browserApp}/account`);
     const revoked = await fetch(`${browserApp}/account`, { headers: { Cookie: `authweave-session-local=${value}` },
       signal: AbortSignal.timeout(5000) });
     assert.ok((await revoked.text()).includes("You are not signed in."));
   }
+  assert.equal(guidedRuns, 6); assert.equal(new Set(assessments.flat()).size, 6);
   assert.equal(authorizations, 4); assert.equal(callbacks, 4); assert.equal(blockedRequests, 0); assert.ok(!databaseInterrupted);
   success = true;
 } catch {
@@ -202,4 +212,4 @@ try {
     console.error("Real ZITADEL browser cleanup was not confirmed; inspect owned test processes locally.");
   }
 }
-if (success) console.log("Real ZITADEL browser: 2 users passed; 4 PKCE logins/callbacks, 2 same-account rotations, bidirectional isolation, curator denial and logout verified.");
+if (success) console.log("Real ZITADEL browser: 2 users passed; 6 guided desktop/mobile flows, 30 form saves, 37 Review/brief rows per flow; 4 PKCE logins/callbacks, 2 same-account rotations, bidirectional isolation, curator denial and logout verified.");

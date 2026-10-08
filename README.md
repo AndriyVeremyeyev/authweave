@@ -2990,9 +2990,12 @@ CI builds without OIDC configuration; `/account` must remain request-time rather
 than cache a build-time authentication-unavailable screen.
 The three synthetic scenarios run at desktop and mobile widths through OIDC sign-in,
 five actual form saves, all 37 Review/downloaded-brief rows, fictional Comparison,
-Architecture and sign-out. Failure paths cover dirty-step stay/discard, a stale tab,
+Architecture, saved-list resume and sign-out. SCIM/SSO labels and horizontal overflow
+are checked as well. Failure paths cover dirty-step stay/discard, a stale tab,
 cross-user read/write denial, CSRF, same-account session rotation, a rejected different
-account, invalid nonce and callback replay. SQL checks exact revisions/audit counts,
+account, invalid nonce and callback replay. A delayed-JavaScript check verifies that
+step/list navigation is disabled until hydration while native Save remains available;
+early clicks after a save/reload must not be silently lost. SQL checks exact revisions/audit counts,
 session cleanup and absence of workspaces for rejected identities.
 
 The test-only OIDC protocol double checks PKCE S256 and one-use codes and returns
@@ -3016,20 +3019,28 @@ Alice/Bob passwords from existing ignored mode-600, non-symlink files. Passwords
 entered into the pinned Login V2 UI, never passed to the application server. Fresh
 browser contexts use real authorization/callback routes and PKCE, not injected
 sessions. Real Core and a new Testcontainers application database remain isolated
-from owner app data and named volumes. Two desktop flows verify profile claims,
-draft creation and one BFF context save each, same-account password reauthentication,
-session rotation with unchanged identity/workspace, revoked old cookies, bidirectional
-cross-user read/write 404, curator denial and logout with ZITADEL's `End Session`
-confirmation. SQL checks two version-1 assessments with two revisions/events each
-and no remaining application sessions or login transactions.
+from owner app data and named volumes. Alice uses desktop Chromium (1440 x 1000);
+Bob uses mobile Chromium emulation (390 x 844, touch enabled), not a physical device.
+Each completes the three synthetic B2B, citizen and workforce scenarios through
+five actual form saves, all 37 Review/downloaded-brief rows, fictional Comparison,
+Architecture and saved-list resume using the same UI assertions as the protocol-double
+suite. SCIM/SSO labels and horizontal overflow are checked throughout these screens.
+Both flows also verify profile claims, same-account password reauthentication,
+session rotation with unchanged identity/workspace, revoked old cookies, cross-user
+read/write 404 for all six assessments, personal-list isolation, curator denial and
+logout with ZITADEL's `End Session` confirmation. SQL checks six version-5 assessments
+with six revisions/events each, three assessments per workspace, and no remaining
+application sessions or login transactions. Reauthentication, previews, downloads,
+resume and denied writes must not add revisions/events.
 
 Only checkpoint names and safe status counters are printed: browser debug output,
 application server logs, screenshots, traces, videos and error objects are disabled
 for this credential-bearing check. Browser traffic outside the two exact loopback
 origins is blocked. Cleanup stops only owned temporary app resources; the identity
-lab is left running until `make auth-down`, which preserves its volumes. This is not
-full real-provider guided/mobile coverage, a curator grant, a cloud check or owner
-understanding. Provider authentication events may be recorded in the local IdP.
+lab is left running until `make auth-down`, which preserves its volumes. This covers
+the existing synthetic guided scenarios with real local authentication, not verified
+provider facts, a curator grant, a cloud check, physical-device/accessibility conformance
+or owner understanding. Provider authentication events may be recorded in the local IdP.
 
 The fact-path report concurrency regression observes actual PostgreSQL blocking,
 uncommitted visibility and report-number allocation with both a normal and a

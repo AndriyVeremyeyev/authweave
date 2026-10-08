@@ -24,6 +24,7 @@ test("workflow exit and navigation handlers preserve edits, restore focus and bl
   const originals = new Map(["window", "requestAnimationFrame"].map(name => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const react = moduleUrl(`export { createContext } from ${JSON.stringify(import.meta.resolve("react"))};
     export function useContext() { return globalThis[${JSON.stringify(slot)}].context; }
+    export function useSyncExternalStore(subscribe,snapshot,serverSnapshot) { return globalThis[${JSON.stringify(slot)}].hydrated ? snapshot() : serverSnapshot(); }
     export function useState(initial) { const s=globalThis[${JSON.stringify(slot)}], i=s.cursor++; if(!(i in s.states))s.states[i]=initial; return [s.states[i], value=>{s.states[i]=value;}]; }
     export function useReducer(reducer, initial) { const s=globalThis[${JSON.stringify(slot)}], i=s.cursor++; if(!(i in s.states))s.states[i]=initial; return [s.states[i], event=>{s.states[i]=reducer(s.states[i],event);}]; }
     export function useRef(initial) { const s=globalThis[${JSON.stringify(slot)}], i=s.refCursor++; return s.refs[i] ??= {current:initial}; }
@@ -47,7 +48,7 @@ test("workflow exit and navigation handlers preserve edits, restore focus and bl
     const dialog = { open: false, showModal() { this.open = true; opens++; }, close() { this.open = false; } };
     const sourceButton = { focus() { sourceFocus++; } };
     const memory = { cursor: 0, refCursor: 0, effectCursor: 0, states: [] as unknown[], refs: [] as unknown[],
-      effects: [] as { cleanup?: () => void }[], queue: [] as (() => void)[], context: null as unknown,
+      effects: [] as { cleanup?: () => void }[], queue: [] as (() => void)[], context: null as unknown, hydrated: false,
       router: { push(path: string) { destinations.push(path); } } };
     globals[slot] = memory;
     const location = { href: "http://localhost:3000/assessments/00000000-0000-0000-0000-000000000001?step=context&contextError=invalid&editError=stale&auditError=locked&usageError=invalid&operationsError=stale" };
@@ -65,6 +66,7 @@ test("workflow exit and navigation handlers preserve edits, restore focus and bl
       (tree.find(node => node.type === "dialog")!.props.ref as { current: unknown }).current = dialog;
       (tree.find(node => node.props.id === "assessment-step-heading")!.props.ref as { current: unknown }).current = { focus() { headingFocus++; } };
       for (const effect of memory.queue.splice(0)) effect();
+      memory.hydrated = true;
     }
     function button(text: string) { return tree.find(node => node.type === "button" && node.props.children === text)!; }
     function click(text: string) { clickHandler(button(text))({ currentTarget: sourceButton }); }
@@ -86,6 +88,10 @@ test("workflow exit and navigation handlers preserve edits, restore focus and bl
   try {
     for (const { id: step } of assessmentSteps.filter(step => step.input)) {
       const fixture = mount(step);
+      assert.equal(fixture.button("← Your assessments").props.disabled, true);
+      fixture.click("← Your assessments"); // The pre-effect handler cannot leave before readiness.
+      assert.deepEqual(fixture.destinations, []);
+      fixture.render(); assert.equal(fixture.button("← Your assessments").props.disabled, false);
       assert.equal(fixture.unloadBlocked(), false);
       fixture.edit(); fixture.render(); assert.equal(fixture.unloadBlocked(), true);
       fixture.click("← Your assessments"); fixture.render();

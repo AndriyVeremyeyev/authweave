@@ -56,6 +56,7 @@ class LocalZitadelBrowserIT extends PostgresIntegrationTest {
             var output = Files.readString(log);
             assertEquals(0, process.exitValue(), output);
             assertTrue(output.contains("Real ZITADEL browser: 2 users passed"), output);
+            assertTrue(output.contains("6 guided desktop/mobile flows, 30 form saves, 37 Review/brief rows per flow"), output);
             System.out.println(output);
         } finally {
             if (process.isAlive()) {
@@ -84,10 +85,15 @@ class LocalZitadelBrowserIT extends PostgresIntegrationTest {
                     """)) {
                 int count = 0;
                 while (rows.next()) {
-                    assertEquals(1, rows.getLong("lock_version"));
-                    assertEquals(2, rows.getInt("revisions")); assertEquals(2, rows.getInt("events")); count++;
+                    assertEquals(5, rows.getLong("lock_version"));
+                    assertEquals(6, rows.getInt("revisions")); assertEquals(6, rows.getInt("events")); count++;
                 }
-                assertEquals(2, count);
+                assertEquals(6, count);
+            }
+            try (var rows = sql.executeQuery("SELECT count(*) FROM core.assessments GROUP BY workspace_id")) {
+                int workspaces = 0;
+                while (rows.next()) { assertEquals(3, rows.getInt(1)); workspaces++; }
+                assertEquals(2, workspaces);
             }
         }
     }
