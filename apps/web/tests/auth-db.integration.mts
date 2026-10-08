@@ -41,7 +41,7 @@ import { savedRequirementGroups } from "../src/lib/assessment/saved-requirements
 import { operationalPreferenceFields, operationalPreferenceLabels } from "../src/lib/assessment/operational-preferences.ts";
 import { relatedComparisonInput } from "../src/lib/assessment/comparison-presentation.ts";
 import { savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
-import { guidedScenarios } from "./fixtures/guided-scenarios.mts";
+import { guidedScenarios, guidedScenarioForms } from "./fixtures/guided-scenarios.mts";
 import { profileFormFixture, profileSectionAction, profileSaveFixtureId } from "./fixtures/profile-save.mts";
 import { acknowledgementProfile, acknowledgementSections, acknowledgementWriters, reverseProfileObjectsAndSets } from "./fixtures/profile-acknowledgement.mts";
 import { postProfileSection } from "../src/lib/assessment/profile-save.ts";
@@ -283,35 +283,14 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     const createdResponse = await createAssessmentRoute(request(""));
     assert.equal(createdResponse.status, 303);
     assert.equal(createdResponse.headers.get("location"), `http://localhost:3000/assessments/${id}`);
-    const contextForm = new URLSearchParams({ expectedVersion: "0", applicationType: scenario.applicationType,
-      tenancy: scenario.tenancy, membership: scenario.membership, dataResidency: "UNKNOWN", allowedCountries: "",
-      browserTokenExposureMinimization: scenario.tokenExposure, phishingResistance: scenario.phishingResistance,
-      nonExportableKeys: "UNKNOWN", stepUpAuthentication: "UNKNOWN", complianceScopeStatus: "UNKNOWN",
-      assuranceExpectation: "ELEVATED" });
-    for (const client of scenario.clients) contextForm.append("clients", client);
-    for (const population of scenario.populations) contextForm.append("selectedPopulations", population);
+    const { context: contextForm, capabilities, auditability: audit, operations, usage } = guidedScenarioForms(scenario);
     expectSaved(await evaluationContextRoute(request(`/${id}/evaluation-context`, contextForm), context), "context", 1);
     const savedContext = structuredClone({ application: profile.application, audience: profile.audience });
-    const capabilities = new URLSearchParams({ expectedVersion: "1" });
-    const capabilityInputs: Readonly<Record<string, string>> = scenario.capabilities;
-    for (const field of capabilityFields) capabilities.set(field.capability, capabilityInputs[field.capability] ?? "UNKNOWN");
     expectSaved(await updateCapabilitiesRoute(request(`/${id}/capabilities`, capabilities), context), "capabilities", 2);
     const savedCapabilities = structuredClone({ protocols: profile.protocols, provisioning: profile.provisioning });
-    const audit = new URLSearchParams({ expectedVersion: "2", criticality: "REQUIRED", minimumRetentionDays: String(scenario.retention) });
-    for (const criterion of scenario.audit) audit.append("selectedCriteria", criterion);
     expectSaved(await auditabilityRoute(request(`/${id}/auditability`, audit), context), "auditability", 3);
     const savedSecurity = structuredClone(profile.security);
-    const operations = new URLSearchParams({ expectedVersion: "3", ...scenario.operations });
     expectSaved(await operationalPreferencesRoute(request(`/${id}/operational-preferences`, operations), context), "usage", 4);
-    const usage = new URLSearchParams({ expectedVersion: "4", scopeDescription: `Synthetic ${scenario.key}: first-year monthly forecast` });
-    for (let index = 0; index < 10; index++) usage.append("assumption", index === 0 ? scenario.assumption : "");
-    for (const metric of ["MONTHLY_ACTIVE_USERS", "ENTERPRISE_SSO_CONNECTIONS", "MONTHLY_M2M_TOKEN_ISSUANCES", "PEAK_HUMAN_LOGINS_PER_SECOND"]) {
-      usage.set(`basis_${metric}`, "UNKNOWN"); usage.set(`value_${metric}`, "");
-    }
-    for (const [metric, value] of [["MONTHLY_ACTIVE_USERS", scenario.monthlyUsers], ["ENTERPRISE_SSO_CONNECTIONS", scenario.ssoConnections],
-      ["MONTHLY_M2M_TOKEN_ISSUANCES", scenario.m2mTokens], ["PEAK_HUMAN_LOGINS_PER_SECOND", scenario.peakLogins]] as const) {
-      if (value !== null) { usage.set(`basis_${metric}`, "ASSUMED"); usage.set(`value_${metric}`, String(value)); }
-    }
     expectSaved(await usagePlanningRoute(request(`/${id}/usage-planning`, usage), context), "usage", 5);
     assert.deepEqual({ application: profile.application, audience: profile.audience }, savedContext);
     assert.deepEqual({ protocols: profile.protocols, provisioning: profile.provisioning }, savedCapabilities);

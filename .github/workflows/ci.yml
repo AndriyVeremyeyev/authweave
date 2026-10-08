@@ -122,6 +122,8 @@ jobs:
       - name: Run web authentication database integration tests
         working-directory: apps/web
         run: npm ci && npm run test:auth-db
+      - name: Test three guided BFF flows against real Core HTTP and isolated PostgreSQL
+        run: ./mvnw --batch-mode --no-transfer-progress -Dtest=GuidedAssessmentBffIT test
       - name: Stop jOOQ code generation database
         if: always()
         working-directory: ${{ github.workspace }}

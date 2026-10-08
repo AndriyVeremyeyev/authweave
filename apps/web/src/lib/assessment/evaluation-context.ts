@@ -69,7 +69,8 @@ function option<T extends string>(value: unknown, choices: readonly T[]): value 
 function selected<T extends string>(value: unknown, choices: readonly T[]): T[] | null {
   if (!Array.isArray(value) || value.some(item => !option(item, choices)) ||
       new Set(value).size !== value.length) return null;
-  return value as T[];
+  // These are domain sets. Display in the declared option order, not Core's Set serialization order.
+  return choices.filter(item => value.includes(item));
 }
 
 function countries(value: unknown): string[] | null {

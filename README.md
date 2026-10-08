@@ -2962,6 +2962,19 @@ captured MVC request/response payloads against the shared JSON Schemas using AJV
 requires `make setup-contracts` and Node.js as well as Java and Docker. The same check
 runs in CI; `make check-contracts` separately validates OpenAPI and synthetic fixtures.
 
+`make check-guided-bff` (also included in `make check` and CI) submits the three
+synthetic guided scenarios through the actual BFF route handlers to a real Core
+HTTP server, with authorization filters and separate Core/web PostgreSQL runtime
+roles. Testcontainers supplies a fresh database and random loopback ports; local
+`.env`, app data, IdP and named volumes are not used. Install web dependencies first
+with `make setup-web`. It verifies creation, five saves and native no-ops, all six
+saved previews, temporary architecture/lifecycle requests, all 37 Review/brief rows,
+stale writes, cross-user denial and the exact revision/audit counts. Sessions are
+synthetic test setup, not an OIDC login or browser E2E test. Saved context sets use
+the declared option order for display (countries use code order), so Core's unordered
+set serialization cannot reorder Review, list labels or the brief; ordered usage
+assumptions, stored profiles and verdicts are unchanged.
+
 The fact-path report concurrency regression observes actual PostgreSQL blocking,
 uncommitted visibility and report-number allocation with both a normal and a
 saturated connection pool. Its separate same-role observer is test-only, not a

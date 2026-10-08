@@ -663,7 +663,8 @@ function assessmentListContext(value: unknown): PersonalAssessmentListItem["cont
         input.some(item => typeof item !== "string" || !choices.includes(item as T))) {
       throw new Error("Core assessment list response is invalid");
     }
-    return [...input] as T[];
+    // Keep list labels consistent with saved Context/Review across Core JVMs.
+    return choices.filter(item => input.includes(item));
   };
   if (Object.keys(context).length !== 3 ||
       Object.keys(context).some(key => !["applicationType", "clients", "userPopulations"].includes(key)) ||

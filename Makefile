@@ -4,7 +4,7 @@ AI_WORKER_PYTHON ?= .venv/bin/python
 PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-ai setup-contracts \
-	check check-policy check-core check-web check-web-auth-db check-ai check-contracts \
+	check check-policy check-core check-web check-web-auth-db check-guided-bff check-ai check-contracts \
 	setup-auth setup-core-service-token check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
 	inspect-provider-baselines generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact store-catalog-regression store-catalog-bootstrap-impact dev-core dev-web dev-ai
 
@@ -17,6 +17,7 @@ help:
 		'  make check-core      Run Core API tests with Testcontainers' \
 		'  make check-web       Lint, test and build the web application' \
 		'  make check-web-auth-db  Run isolated web session integration tests against local PostgreSQL' \
+		'  make check-guided-bff  Test three BFF assessment flows with a real Core HTTP server and a temporary database' \
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make inspect-provider-baselines  Inspect unreviewed provider research drafts offline; no activation' \
@@ -59,7 +60,7 @@ setup-ai:
 setup-contracts:
 	cd packages/contracts && npm ci
 
-check: check-policy check-auth-config check-core check-web check-ai check-contracts
+check: check-policy check-auth-config check-core check-web check-ai check-contracts check-guided-bff
 
 inspect-provider-baselines:
 	node packages/contracts/scripts/inspect-provider-baselines.mjs
@@ -110,6 +111,10 @@ check-web:
 check-web-auth-db:
 	@. ./infra/.env; export AUTHWEAVE_WEB_DB_PASSWORD AUTHWEAVE_POSTGRES_DB AUTHWEAVE_POSTGRES_PORT; \
 		cd apps/web; exec npm run test:auth-db
+
+# No local .env, IdP, app database or named volume is used by this target.
+check-guided-bff:
+	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress -Dtest=GuidedAssessmentBffIT test
 
 check-ai:
 	cd services/ai-worker && $(AI_WORKER_PYTHON) -m ruff check . && $(AI_WORKER_PYTHON) -m pytest
