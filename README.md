@@ -248,9 +248,12 @@ independent preview reads start together: comparison evidence, architecture,
 usage, operations, auditability and assurance/compliance. Every read keeps its
 existing saved-version/input binding and response guard. Unreadable input sections
 skip only their dependent reads; each rejection uses its own fixed unavailable
-state without hiding other previews or the saved profile. The page still awaits
-the applicable reads before rendering; this removes their sequential waterfall,
-not the existing per-read deadlines. No retry, cache, default result or write is added.
+state without hiding other previews or the saved profile. Saved context, editors
+and the Review overview render without waiting for these reads. Each preview has
+its own loading state for the saved version and streams in independently; a slow
+preview does not hold back the other sections. Session and canonical-profile gates
+remain before this protected frame. Existing per-read deadlines are unchanged;
+no retry, cache, default result or write is added.
 
 Requirements explains all nine capabilities next to their saved selections, with
 expandable use cases, limits and questions to discuss with your team. A separate

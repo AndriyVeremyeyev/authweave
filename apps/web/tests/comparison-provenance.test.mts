@@ -132,5 +132,6 @@ test("actual Comparison UI renders sources as escaped text, separates all gaps a
   assert.ok(datedHtml.includes("&lt;script&gt;not-a-script&lt;/script&gt;")); assert.equal(datedHtml.includes("<script>"), false);
   assert.equal(/href="https:\/\/[^"]+\.invalid/u.test(datedHtml), false);
   const page = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
-  assert.ok(page.includes("readComparisonEvidence(session, id, assessment.version, auditValues)")); assert.ok(page.includes("evidence={comparisonEvidence}"));
+  const previews = await readFile(new URL("../src/app/assessments/[id]/saved-previews.tsx", import.meta.url), "utf8");
+  assert.ok(page.includes("readComparisonEvidence(session, id, assessment.version, auditValues)")); assert.ok(previews.includes("evidence={preview.evidence}"));
 });

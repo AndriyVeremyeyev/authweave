@@ -13,6 +13,7 @@ import { provenanceFixture, provenanceBinding } from "./fixtures/comparison-prov
 import { operationsPlanningFromCore, type OperationsPlanningValues } from "../src/lib/assessment/operations-planning.ts";
 import { operationsFixture, operationsProfile, operationsValues } from "./fixtures/operations-planning.mts";
 import { assessmentUiComponents, comparisonUiFixture, savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
+import { savedPreviewComponents } from "./fixtures/saved-previews.mts";
 import { auditabilityAssessmentId as id, auditabilityWorkspaceId as workspaceId, auditabilityBinding as binding,
   auditabilityFixture, auditabilityInput, replaceAuditabilityCheck } from "./fixtures/auditability-preview.mts";
 
@@ -349,10 +350,13 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     export const UsagePlanningEditor = state.UsagePlanningEditor;
     export const AuditabilityPreflight = state.AuditabilityPreflight, AuditabilityPreflightUnavailable = state.AuditabilityPreflightUnavailable;`;
   const shim = `data:text/javascript;base64,${Buffer.from(shimSource).toString("base64")}`;
+  const previews = await savedPreviewComponents({ ...await import(shim) });
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
   let compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext,
     jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022 } }).outputText
-    .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
+    .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
+    .replaceAll('"react"', JSON.stringify(import.meta.resolve("react")))
+    .replaceAll('"./saved-previews"', JSON.stringify(previews.url));
   for (const name of ["next/link", "next/headers", "next/navigation", "@/lib/auth/config", "@/lib/auth/core-client",
     "@/lib/auth/session-policy", "@/lib/auth/store", "./weighted-preview", "./evaluation-context-editor", "./architecture-patterns",
     "./usage-planning-editor", "./usage-planning-preflight", "./operations-planning", "./assurance-compliance-planning", "./operational-preferences-editor", "./auditability-editor", "./auditability-preflight", "./assessment-workflow", "./saved-requirements-overview", "./comparison-section", "./saved-context-summary", "./saved-requirements-export", "./capability-editor", "./provisioning-lifecycle"]) {
@@ -363,7 +367,8 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
       JSON.stringify(new URL(`../src/lib/assessment/${name}.ts`, import.meta.url).href));
   }
   try {
-    const page = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+    const actualPage = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+    const page = { default: async (...args: unknown[]) => previews.resolve(await actualPage.default(...args)) };
     const props = { params: Promise.resolve({ id }), searchParams: Promise.resolve({ step: "auditability" }) };
     const html = renderToStaticMarkup(await page.default(props));
     assert.ok(html.includes("Identity auditability capability preview")); assert.equal(state.reads, 1);

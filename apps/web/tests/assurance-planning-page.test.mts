@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { assurancePlanningValues } from "../src/lib/assessment/assurance-compliance-planning.ts";
 import { readPersonalAssurancePlanning } from "../src/lib/auth/core-client.ts";
 import { assessmentUiComponents } from "./fixtures/assessment-ui.mts";
+import { savedPreviewComponents } from "./fixtures/saved-previews.mts";
 import { assuranceAt, assuranceWorkspaceId, assuranceAssessmentId, assuranceProfile, assuranceFixture } from "./fixtures/assurance-compliance-planning.mts";
 
 type NodeView = { type: unknown; props: Record<string, unknown> };
@@ -36,10 +37,12 @@ test("Personal page gates assurance on a live session, keeps its saved-version R
     operationsPlanningValues: () => null, auditabilityValues: () => null, assessmentStepFromQuery: () => "review",
   };
   globals[slot] = dependencies;
+  const previews = await savedPreviewComponents(dependencies);
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
     .replace(/import\s+([\s\S]*?)\s+from\s+"([^"]+)";/g, (whole: string, bindings: string, specifier: string) => {
-      if (specifier === "react/jsx-runtime") return whole.replace('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
+      if (specifier === "react/jsx-runtime" || specifier === "react") return whole.replace(JSON.stringify(specifier), JSON.stringify(import.meta.resolve(specifier)));
+      if (specifier === "./saved-previews") return whole.replace(JSON.stringify(specifier), JSON.stringify(previews.url));
       const names = bindings.startsWith("{") ? bindings.slice(1, -1).split(",").map(name => name.trim().split(/\s+as\s+/)[0]) : [];
       for (const name of names) if (!Object.hasOwn(dependencies, name)) dependencies[name] = () => null;
       if (!names.length && !Object.hasOwn(dependencies, bindings)) dependencies[bindings] = () => null;
@@ -48,7 +51,7 @@ test("Personal page gates assurance on a live session, keeps its saved-version R
       return whole.replace(JSON.stringify(specifier), JSON.stringify(moduleUrl(body)));
     });
   const { default: Page } = await import(moduleUrl(compiled));
-  const render = () => Page({ params: Promise.resolve({ id: assuranceAssessmentId }), searchParams: Promise.resolve({ step: "review" }) });
+  const render = async () => previews.resolve(await Page({ params: Promise.resolve({ id: assuranceAssessmentId }), searchParams: Promise.resolve({ step: "review" }) }));
   const review = (tree: unknown) => {
     const workflow = nodes(tree).find(node => node.type === components.AssessmentWorkflow); assert.ok(workflow);
     assert.equal(workflow.props.initialStep, "review"); return (workflow.props.panels as Record<string, unknown>).review;

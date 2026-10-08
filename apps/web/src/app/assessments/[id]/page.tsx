@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
@@ -14,21 +15,19 @@ import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalU
   type PersonalAssessment } from "@/lib/auth/core-client";
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession, type BrowserSession } from "@/lib/auth/store";
-import { WeightedPreviewForm } from "./weighted-preview";
 import { EvaluationContextEditor } from "./evaluation-context-editor";
-import { ArchitecturePatterns } from "./architecture-patterns";
 import { ProvisioningLifecycle } from "./provisioning-lifecycle";
 import { UsagePlanningEditor } from "./usage-planning-editor";
-import { UsagePlanningPreflight } from "./usage-planning-preflight";
-import { OperationsPlanning, OperationsPlanningUnavailable } from "./operations-planning";
-import { AssuranceCompliancePlanning, AssuranceCompliancePlanningUnavailable } from "./assurance-compliance-planning";
+import { OperationsPlanningUnavailable } from "./operations-planning";
+import { AssuranceCompliancePlanningUnavailable } from "./assurance-compliance-planning";
 import { OperationalPreferencesEditor } from "./operational-preferences-editor";
 import { AuditabilityEditor } from "./auditability-editor";
-import { AuditabilityPreflight, AuditabilityPreflightUnavailable } from "./auditability-preflight";
+import { AuditabilityPreflightUnavailable } from "./auditability-preflight";
+import { ComparisonPreview, ArchitecturePreview, UsagePreview, OperationsPreview, AuditPreview, AssurancePreview,
+  PreviewPending, PreviewUnavailable } from "./saved-previews";
 import { assessmentStepFromQuery } from "@/lib/assessment/workflow";
 import { AssessmentWorkflow } from "./assessment-workflow";
 import { SavedRequirementsOverview } from "./saved-requirements-overview";
-import { ComparisonSection } from "./comparison-section";
 import { SavedContextSummary } from "./saved-context-summary";
 import { SavedRequirementsExport } from "./saved-requirements-export";
 import { CapabilityEditor } from "./capability-editor";
@@ -100,16 +99,12 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
 
   // Independent, version-bound reads start together only after the live session and saved profile are resolved.
   // Catch each read separately: unavailable or rejected previews never erase other sections or infer a result.
-  const [comparisonPreview, patterns, usagePreview, operationsPreview, auditPreview, assurancePreview] = await Promise.all([
-    auditValues ? readComparisonEvidence(session, id, assessment.version, auditValues).catch(() => null) : null,
-    contextValues ? readPersonalArchitecturePatterns(session, id, assessment.version, contextValues).catch(() => null) : null,
-    usageValues ? readPersonalUsagePlanning(session, id, assessment.version, usageValues).catch(() => null) : null,
-    operationsValues ? readPersonalOperationsPlanning(session, id, assessment.version, operationsValues).catch(() => null) : null,
-    auditValues ? readPersonalAuditability(session, id, assessment.version, auditValues).catch(() => null) : null,
-    assuranceValues ? readPersonalAssurancePlanning(session, id, assessment.version, assuranceValues).catch(() => null) : null,
-  ]);
-  const comparison = comparisonPreview?.comparison ?? null;
-  const comparisonEvidence = comparisonPreview?.evidence;
+  const comparisonPreview = auditValues ? readComparisonEvidence(session, id, assessment.version, auditValues).catch(() => null) : null;
+  const patterns = contextValues ? readPersonalArchitecturePatterns(session, id, assessment.version, contextValues).catch(() => null) : null;
+  const usagePreview = usageValues ? readPersonalUsagePlanning(session, id, assessment.version, usageValues).catch(() => null) : null;
+  const operationsPreview = operationsValues ? readPersonalOperationsPlanning(session, id, assessment.version, operationsValues).catch(() => null) : null;
+  const auditPreview = auditValues ? readPersonalAuditability(session, id, assessment.version, auditValues).catch(() => null) : null;
+  const assurancePreview = assuranceValues ? readPersonalAssurancePlanning(session, id, assessment.version, assuranceValues).catch(() => null) : null;
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 text-slate-100 sm:px-8 sm:py-14">
@@ -143,7 +138,8 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
             {assessment.status !== "DRAFT" ? <ReadOnlyStep /> : auditValues
               ? <AuditabilityEditor assessmentId={assessment.id} version={assessment.version} values={auditValues} />
               : <UnreadableStep name="Audit" />}
-            {auditPreview ? <AuditabilityPreflight preview={auditPreview} /> : <AuditabilityPreflightUnavailable />}
+            {auditPreview ? <Suspense fallback={<PreviewPending name="Auditability preview" version={assessment.version} />}>
+              <AuditPreview result={auditPreview} /></Suspense> : <AuditabilityPreflightUnavailable />}
           </>,
           usage: <>
             <StepError error={query.operationsError} messages={operationsErrors} />
@@ -154,19 +150,23 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
             {assessment.status !== "DRAFT" ? <ReadOnlyStep /> : usageValues
               ? <UsagePlanningEditor assessmentId={assessment.id} version={assessment.version} values={usageValues} />
               : <UnreadableStep name="Usage" />}
-            {usagePreview ? <UsagePlanningPreflight preview={usagePreview} /> : <PreviewUnavailable name="Usage input check" />}
-            {operationsPreview ? <OperationsPlanning preview={operationsPreview} /> : <OperationsPlanningUnavailable />}
+            {usagePreview ? <Suspense fallback={<PreviewPending name="Usage input check" version={assessment.version} />}>
+              <UsagePreview result={usagePreview} /></Suspense> : <PreviewUnavailable name="Usage input check" />}
+            {operationsPreview ? <Suspense fallback={<PreviewPending name="Operations planning preview" version={assessment.version} />}>
+              <OperationsPreview result={operationsPreview} /></Suspense> : <OperationsPlanningUnavailable />}
           </>,
           review: <>
             <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"}
               exportPanel={<SavedRequirementsExport assessmentId={assessment.id} version={assessment.version} />} />
-            {assurancePreview ? <AssuranceCompliancePlanning preview={assurancePreview} editable={assessment.status === "DRAFT"} /> : <AssuranceCompliancePlanningUnavailable />}
+            {assurancePreview ? <Suspense fallback={<PreviewPending name="Assurance and compliance preview" version={assessment.version} />}>
+              <AssurancePreview result={assurancePreview} editable={assessment.status === "DRAFT"} /></Suspense> : <AssuranceCompliancePlanningUnavailable />}
           </>,
-          comparison: comparison ? <ComparisonSection comparison={comparison} evidence={comparisonEvidence} profile={assessment.profile} editable={assessment.status === "DRAFT"}
-            preferencePreview={preferred.length > 0 ? <WeightedPreviewForm key={`${assessment.id}-${comparison.assessmentVersion}`}
-              assessmentId={assessment.id} version={comparison.assessmentVersion} preferred={preferred} /> : null} /> : <PreviewUnavailable name="Synthetic comparison" />,
+          comparison: comparisonPreview ? <Suspense fallback={<PreviewPending name="Synthetic comparison" version={assessment.version} />}>
+            <ComparisonPreview result={comparisonPreview} assessmentId={assessment.id} profile={assessment.profile}
+              editable={assessment.status === "DRAFT"} preferred={preferred} /></Suspense> : <PreviewUnavailable name="Synthetic comparison" />,
           architecture: <>
-            {patterns ? <ArchitecturePatterns preview={patterns} assessmentId={assessment.id} /> : <PreviewUnavailable name="Architecture pattern preflight" />}
+            {patterns ? <Suspense fallback={<PreviewPending name="Architecture pattern preflight" version={assessment.version} />}>
+              <ArchitecturePreview result={patterns} assessmentId={assessment.id} /></Suspense> : <PreviewUnavailable name="Architecture pattern preflight" />}
             {values ? <ProvisioningLifecycle key={`${assessment.id}-${assessment.version}`} assessmentId={assessment.id} version={assessment.version}
               requirements={{ scim: values.SCIM, justInTimeProvisioning: values.JIT, groupSynchronization: values.GROUP_SYNC }} />
               : <PreviewUnavailable name="Provisioning design inputs" />}
@@ -193,11 +193,6 @@ function ReadOnlyStep() {
 
 function UnreadableStep({ name }: { name: string }) {
   return <p role="alert" className="mt-6 rounded-xl border border-amber-700 p-5 text-sm text-amber-100">{name} editing is unavailable because this profile cannot be read safely. Other steps remain available.</p>;
-}
-
-function PreviewUnavailable({ name }: { name: string }) {
-  return <section className="mt-6 rounded-xl border border-amber-700 p-5"><h3 className="font-semibold">{name} unavailable</h3>
-    <p className="mt-2 text-sm text-slate-300">Your saved assessment is still available. Try reloading this page later.</p></section>;
 }
 
 function Unavailable() {

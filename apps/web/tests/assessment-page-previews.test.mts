@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { renderToStaticMarkup } from "react-dom/server";
+import { createElement, type ReactNode } from "react";
+import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { capabilityFields, capabilityValues } from "../src/lib/assessment/capabilities.ts";
 import { evaluationContextValues } from "../src/lib/assessment/evaluation-context.ts";
@@ -12,6 +13,7 @@ import { auditabilityValues } from "../src/lib/assessment/auditability.ts";
 import { assessmentStepFromQuery } from "../src/lib/assessment/workflow.ts";
 import { savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { operationsProfile } from "./fixtures/operations-planning.mts";
+import { savedPreviewComponents } from "./fixtures/saved-previews.mts";
 
 const readers = ["readComparisonEvidence", "readPersonalArchitecturePatterns", "readPersonalUsagePlanning",
   "readPersonalOperationsPlanning", "readPersonalAuditability", "readPersonalAssurancePlanning"] as const;
@@ -30,7 +32,7 @@ function deferred<T>() {
 }
 const moduleUrl = (source: string) => `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
 
-async function harness() {
+async function harness(display: Record<string, unknown> = {}) {
   const slot = `__authweave_parallel_page_${crypto.randomUUID()}`, globals = globalThis as unknown as Record<string, unknown>;
   const session = { workspaceId: "70000000-0000-4000-8000-000000000001", issuer: "http://localhost:8081", subject: "synthetic-preview-owner" };
   const assessment = { id: "80000000-0000-4000-8000-000000000001", version: 2, status: "DRAFT",
@@ -54,16 +56,19 @@ async function harness() {
     readPersonalAssessment: async (owner: unknown, id: unknown) => {
       assert.equal(owner, session); assert.equal(id, assessment.id); events.push("assessment"); return profileGate.promise;
     }, redirect: (path: string) => { throw new Error(`redirect:${path}`); }, notFound: () => { throw new Error("not-found"); },
+    ...display,
   };
   for (const name of readers) deps[name] = async (...args: unknown[]) => {
     events.push(name); calls.push({ name, args }); return gates[name].promise;
   };
+  const previews = await savedPreviewComponents(deps);
   globals[slot] = deps;
   const source = await readFile(new URL("../src/app/assessments/[id]/page.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext,
     target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
     .replace(/import\s+([\s\S]*?)\s+from\s+"([^"]+)";/g, (whole: string, bindings: string, specifier: string) => {
-      if (specifier === "react/jsx-runtime") return whole.replace('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")));
+      if (specifier === "react/jsx-runtime" || specifier === "react") return whole.replace(JSON.stringify(specifier), JSON.stringify(import.meta.resolve(specifier)));
+      if (specifier === "./saved-previews") return whole.replace(JSON.stringify(specifier), JSON.stringify(previews.url));
       const names = bindings.startsWith("{") ? bindings.slice(1, -1).split(",").map(name => name.trim().split(/\s+as\s+/)[0]) : [];
       for (const name of names.length ? names : [bindings]) if (!Object.hasOwn(deps, name)) deps[name] = () => null;
       const body = names.length ? names.map(name => `export const ${name} = globalThis[${JSON.stringify(slot)}][${JSON.stringify(name)}];`).join("\n")
@@ -83,7 +88,7 @@ async function harness() {
     return workflow.props.panels as Record<string, unknown>;
   };
   const component = (panel: unknown, name: string) => nodes(panel).find(node => node.type === deps[name]);
-  return { session, assessment, events, calls, gates, results, deps, sessionGate, profileGate, queryGate, start, drain, unlock, settle, panels, component,
+  return { session, assessment, events, calls, gates, results, deps, sessionGate, profileGate, queryGate, start, drain, unlock, settle, panels, component, resolve: previews.resolve,
     async cleanup() { unlock(); settle(); await work?.catch(() => {}); delete globals[slot]; } };
 }
 
@@ -102,13 +107,28 @@ test("all six page previews start concurrently only after live session, canonica
       assert.equal(call.args[0], h.session); assert.equal(call.args[1], h.assessment.id); assert.equal(call.args[2], 2);
       assert.deepEqual(call.args[3], expected[index]);
     }
-    let complete = false; void work.then(() => { complete = true; });
+    let returned = false; void work.then(() => { returned = true; }); await h.drain();
+    assert.equal(returned, true, "saved frame must not wait for any preview result");
+    const shell = await work, pendingPanels = h.panels(shell);
+    assert.ok(h.component(pendingPanels.auditability, "AuditabilityEditor"));
+    assert.ok(h.component(pendingPanels.usage, "UsagePlanningEditor"));
+    assert.ok(h.component(pendingPanels.review, "SavedRequirementsOverview"));
+    assert.ok(h.component(pendingPanels.architecture, "ProvisioningLifecycle"));
+    assert.equal(h.component(pendingPanels.comparison, "WeightedPreviewForm"), undefined);
+    assert.equal(nodes(shell).filter(node => node.type === h.deps.PreviewPending).length, 6);
     // Complete out of order: no result/metadata may be associated with the wrong preview.
     for (const name of [...readers].reverse().slice(0, -1)) h.gates[name].resolve(h.results[name]);
-    await h.drain(); assert.equal(complete, false); h.gates.readComparisonEvidence.resolve(h.results.readComparisonEvidence);
-    const panels = h.panels(await work);
+    await h.drain(); h.gates.readComparisonEvidence.resolve(h.results.readComparisonEvidence);
+    const panels = h.panels(await h.resolve(shell));
     assert.equal(h.component(panels.comparison, "ComparisonSection")!.props.comparison, h.results.readComparisonEvidence.comparison);
     assert.equal(h.component(panels.comparison, "ComparisonSection")!.props.evidence, h.results.readComparisonEvidence.evidence);
+    assert.equal(h.component(panels.comparison, "ComparisonSection")!.props.profile, h.assessment.profile);
+    assert.equal(h.component(panels.comparison, "ComparisonSection")!.props.editable, true);
+    const weights = h.component(panels.comparison, "WeightedPreviewForm")!;
+    assert.equal(weights.props.assessmentId, h.assessment.id); assert.equal(weights.props.version, 2);
+    const savedCapabilities = capabilityValues(h.assessment.profile)!;
+    assert.deepEqual(weights.props.preferred, capabilityFields.filter(field => savedCapabilities[field.capability] === "PREFERRED")
+      .map(field => ({ capability: field.capability, label: field.label })));
     for (const [step, name, reader] of [["architecture", "ArchitecturePatterns", "readPersonalArchitecturePatterns"],
       ["usage", "UsagePlanningPreflight", "readPersonalUsagePlanning"], ["usage", "OperationsPlanning", "readPersonalOperationsPlanning"],
       ["auditability", "AuditabilityPreflight", "readPersonalAuditability"], ["review", "AssuranceCompliancePlanning", "readPersonalAssurancePlanning"]] as const) {
@@ -118,6 +138,46 @@ test("all six page previews start concurrently only after live session, canonica
   } finally { await h.cleanup(); }
 });
 
+test("sibling Usage previews stream independently while saved editors render before either response", async () => {
+  const h = await harness({
+    UsagePlanningEditor: () => createElement("p", null, "Saved usage editor"),
+    UsagePlanningPreflight: () => createElement("p", null, "Completed usage preview"),
+    OperationsPlanning: () => createElement("p", null, "Completed operations preview"),
+  });
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+  try {
+    h.unlock(); const shell = await h.start();
+    const errors: unknown[] = [];
+    // The real workflow uses a host container. A bare Fragment root is buffered by React's renderer.
+    const stream = await renderToReadableStream(createElement("div", null, h.panels(shell).usage as ReactNode),
+      { signal: AbortSignal.timeout(10_000), onError: error => { errors.push(error); } });
+    reader = stream.getReader(); const decoder = new TextDecoder();
+    const initial = await reader.read(); assert.equal(initial.done, false);
+    const initialHtml = decoder.decode(initial.value).replace(/<!--[\s\S]*?-->/g, "");
+    assert.ok(initialHtml.includes("Saved usage editor"));
+    assert.ok(initialHtml.includes("Usage input check loading"));
+    assert.ok(initialHtml.includes("Operations planning preview loading"));
+    assert.equal(initialHtml.includes("Completed usage preview"), false);
+    assert.equal(initialHtml.includes("Completed operations preview"), false);
+    h.gates.readPersonalOperationsPlanning.resolve(h.results.readPersonalOperationsPlanning);
+    const operations = decoder.decode((await reader.read()).value);
+    assert.ok(operations.includes("Completed operations preview"));
+    assert.equal(operations.includes("Completed usage preview"), false);
+    h.gates.readPersonalUsagePlanning.resolve(h.results.readPersonalUsagePlanning);
+    const usage = decoder.decode((await reader.read()).value);
+    assert.ok(usage.includes("Completed usage preview"));
+    assert.equal((await reader.read()).done, true); assert.deepEqual(errors, []);
+  } finally { h.settle(); await reader?.cancel(); await h.cleanup(); }
+});
+
+test("pending previews announce only the saved version, without an outcome, retry, default or mutation control", async () => {
+  const dependencies: Record<string, unknown> = {}, { components } = await savedPreviewComponents(dependencies);
+  const html = renderToStaticMarkup(createElement(components.PreviewPending, { name: "Synthetic comparison", version: 7 }));
+  assert.ok(html.includes('role="status"')); assert.ok(html.includes('aria-live="polite"')); assert.ok(html.includes('aria-busy="true"'));
+  assert.ok(html.includes("Synthetic comparison loading")); assert.ok(html.includes("Checking saved version 7"));
+  assert.equal(/<form|<button|<input|<select|eligible|PASSES_CHECKED_REQUIREMENTS|recommended|retry/i.test(html), false);
+});
+
 test("each rejected page preview uses only its own fixed fallback while all other reads continue", async () => {
   for (const failed of readers) {
     const h = await harness();
@@ -125,7 +185,7 @@ test("each rejected page preview uses only its own fixed fallback while all othe
       h.unlock(); const work = h.start(); await h.drain(); assert.equal(h.calls.length, 6);
       h.gates[failed].reject(new Error("Private upstream credential <script>must not appear</script>"));
       for (const name of readers) if (name !== failed) h.gates[name].resolve(h.results[name]);
-      const panels = h.panels(await work);
+      const panels = h.panels(await h.resolve(await work));
       const placements = [
         ["comparison", "ComparisonSection", "readComparisonEvidence", "Synthetic comparison unavailable"],
         ["architecture", "ArchitecturePatterns", "readPersonalArchitecturePatterns", "Architecture pattern preflight unavailable"],
@@ -154,12 +214,15 @@ test("an early preview rejection is contained even while an unrelated response i
   const h = await harness();
   try {
     h.unlock(); const work = h.start(); await h.drain(); assert.equal(h.calls.length, 6);
-    let complete = false; void work.then(() => { complete = true; });
+    const shell = await work;
     h.gates.readComparisonEvidence.reject(new Error("Private comparison failure"));
     for (const name of readers) if (!["readComparisonEvidence", "readPersonalAuditability"].includes(name)) h.gates[name].resolve(h.results[name]);
-    await h.drain(); assert.equal(complete, false); assert.equal(h.calls.length, 6);
+    await h.drain(); assert.equal(h.calls.length, 6);
+    const comparison = await h.resolve(h.panels(shell).comparison);
+    assert.ok(renderToStaticMarkup(comparison as never).includes("Synthetic comparison unavailable"));
+    assert.ok(h.component(h.panels(shell).auditability, "AuditPreview"));
     h.gates.readPersonalAuditability.resolve(h.results.readPersonalAuditability);
-    const panels = h.panels(await work);
+    const panels = h.panels(await h.resolve(shell));
     assert.ok(renderToStaticMarkup(panels.comparison as never).includes("Synthetic comparison unavailable"));
     assert.ok(h.component(panels.auditability, "AuditabilityPreflight"));
   } finally { await h.cleanup(); }
@@ -173,7 +236,8 @@ test("unreadable saved sections do not start their preview or infer substitute i
       const expected = section === "application" ? ["readComparisonEvidence", "readPersonalUsagePlanning", "readPersonalOperationsPlanning", "readPersonalAuditability"]
         : section === "security" ? ["readPersonalUsagePlanning", "readPersonalOperationsPlanning"]
           : ["readComparisonEvidence", "readPersonalArchitecturePatterns", "readPersonalAuditability", "readPersonalAssurancePlanning"];
-      assert.deepEqual(h.calls.map(call => call.name), expected); h.settle(); const panels = h.panels(await work);
+      assert.deepEqual(h.calls.map(call => call.name), expected); h.settle(); const panels = h.panels(await h.resolve(await work));
+      assert.equal(nodes(await work).filter(node => node.type === h.deps.PreviewPending).length, expected.length);
       assert.ok(h.component(panels.review, "SavedRequirementsOverview"));
       assert.equal(h.calls.length, expected.length);
     } finally { await h.cleanup(); }
@@ -207,7 +271,7 @@ test("archived assessments retain read-only placement when every parallel previe
   try {
     h.assessment.status = "ARCHIVED"; h.unlock(); const work = h.start(); await h.drain();
     for (const name of readers) h.gates[name].reject(new Error("Private unavailable result"));
-    const tree = await work, panels = h.panels(tree);
+    const tree = await h.resolve(await work), panels = h.panels(tree);
     for (const [step, editor] of [["context", "EvaluationContextEditor"], ["capabilities", "CapabilityEditor"],
       ["auditability", "AuditabilityEditor"], ["usage", "UsagePlanningEditor"], ["usage", "OperationalPreferencesEditor"]]) {
       assert.equal(Boolean(h.component(panels[step], editor)), false);
