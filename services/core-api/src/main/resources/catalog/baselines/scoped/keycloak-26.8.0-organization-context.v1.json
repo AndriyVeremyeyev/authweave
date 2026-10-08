@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "keycloak-26.8.0-organization-context-draft-2026.10.08",
+  "options": [{
+    "id": "keycloak-26.8.0-organization-context",
+    "providerId": "keycloak",
+    "product": "Keycloak upstream 26.8.0",
+    "plan": "Upstream release 26.8.0; commercial support not assessed",
+    "deployment": "SELF_HOSTED",
+    "region": "Operator-selected hosting; storage destinations not verified",
+    "configuration": "One realm; Organizations enabled; explicit unmanaged memberships; organization scope; app-owned tenant access; no SCIM",
+    "facts": {},
+    "compatibility": {
+      "applications": {
+        "B2B_SAAS": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Represent customer organizations within one realm with Organizations enabled in Realm Settings. This is not a realm-per-customer architecture, independent issuers or proven isolation of application data.",
+            "Use explicit unmanaged memberships for shared realm identities in this scope. Application resource authorization must bind a validated realm user to the requested customer organization; identity-first routing or an email domain is not authorization.",
+            "Release-pinned documentation does not verify a running deployment, hosting capacity, operating cost or commercial support. OIDC/SAML clients, brokers, SCIM, group synchronization, controls and residency are not inherited from other Keycloak drafts."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/intro.adoc",
+            "observedAt": "2026-10-08T16:26:23Z",
+            "summary": "The release-pinned introduction describes customer and business-partner organizations and B2B multi-tenancy within a realm. Proposed SUPPORTED is conditional application context, not verified resource isolation or a deployment recommendation."
+          }
+        },
+        "PARTNER_PORTAL": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Use organization-specific invitations or explicit addition of existing realm users, with trusted organization mapping and application-side inviter authorization. Existing users confirm joining; a new account must use the invited email address. A pending or expired invitation is not membership.",
+            "Accepted invitations are deleted from the invitation store, so its listing is not a durable acceptance audit. Keep application audit evidence separately. Review the configured return URL; an absent URL returns to the Account Console, not an application tenant selector.",
+            "The pinned guide's invitation API examples use /orgs, while release RealmAdminResource routes organizations: https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/services/src/main/java/org/keycloak/services/resources/admin/RealmAdminResource.java. Reconcile with the release Admin REST API before implementation.",
+            "A portal business-admin role is not unrestricted Keycloak realm administration or AuthWeave catalog-curator authority. Scope privileged membership operations server-side; no emails, invitations, administrative writes or live partner acceptance were performed."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/managing-members.adoc",
+            "observedAt": "2026-10-08T16:26:23Z",
+            "summary": "The release-pinned member guide documents invitations for existing and new realm users, invitation expiry and removal after acceptance. Proposed SUPPORTED retains application admission, privileged-operation and audit prerequisites; guide/API path differences remain explicit."
+          }
+        }
+      },
+      "clients": {},
+      "populations": {},
+      "tenancy": {
+        "MULTI_TENANT_ORGANIZATIONS": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Request the optional organization scope and configure its Organization Membership mapper. Organization id and attributes are omitted by default; explicitly enable Add organization id and use a trusted realm-scoped organization-id mapping rather than treating an alias or email as authority.",
+            "organization selects one membership, prompting when several exist; organization:<alias> can request specific memberships and organization:* includes all memberships. Multiple specific scopes are documented, but mixed scope formats are rejected. A multi-organization claim is not a single active tenant.",
+            "Validate tokens and bind the requested resource tenant to an authorized organization membership on every request. Reject missing, foreign or unknown organization context and failed switches without retaining old tenant permissions. Membership claims do not prove database isolation.",
+            "Test token issuance, selection, refresh, membership removal and cached JWT/local-session enforcement separately. This documentation-only scope does not verify tenant isolation, logout or production readiness."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/mapping-organization-claims.adoc",
+            "observedAt": "2026-10-08T16:26:23Z",
+            "summary": "The release-pinned claim guide defines optional organization scopes, selection and multiple-membership token mappings. IDs require an explicit mapper setting; proposed SUPPORTED does not turn a token's organization set into application tenant authorization."
+          }
+        }
+      },
+      "membership": {
+        "MULTIPLE_ORGANIZATIONS_PER_USER": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Bind one realm user identifier to explicit memberships in one or more organizations. Select unmanaged memberships for independently existing shared identities in this scope; email is not membership authority or evidence of linked accounts across realms.",
+            "Removing an unmanaged membership or its organization leaves the realm account; removing a managed membership or organization deletes the managed realm account. Changing unmanaged to managed changes lifecycle ownership and can affect access to other organizations; it requires explicit authorization and review, not a harmless retry.",
+            "Disabled organizations do not necessarily disable unmanaged realm users: they can still authenticate, without that disabled organization's token metadata. Check https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/managing-organization.adoc; application resource permissions, cached JWTs and local sessions need separate enforcement tests.",
+            "LDAP users with import mode disabled cannot join organizations through the documented membership path. Explicit realm memberships are not SCIM or external group synchronization, and no live membership mutation or offboarding acceptance was verified."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/managing-members.adoc",
+            "observedAt": "2026-10-08T16:26:23Z",
+            "summary": "The release-pinned guide describes realm users belonging to one or more organizations and distinguishes managed from unmanaged lifecycle ownership, including deletion and LDAP-import limitations. Proposed SUPPORTED is explicit unmanaged multi-membership context, not verified provisioning or revocation."
+          }
+        }
+      }
+    },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

@@ -83,6 +83,27 @@ const scopedBaselines = Object.freeze([
     }])),
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
   },
+  {
+    file: "keycloak-26.8.0-organization-context.v1.json",
+    catalogVersion: "keycloak-26.8.0-organization-context-draft-2026.10.08",
+    scope: {
+      id: "keycloak-26.8.0-organization-context", providerId: "keycloak",
+      product: `Keycloak upstream ${keycloakRelease.version}`, deployment: "SELF_HOSTED",
+      plan: "Upstream release 26.8.0; commercial support not assessed",
+      region: "Operator-selected hosting; storage destinations not verified",
+      configuration: "One realm; Organizations enabled; explicit unmanaged memberships; organization scope; app-owned tenant access; no SCIM",
+    },
+    facts: {},
+    compatibility: Object.fromEntries(Object.entries({
+      "compatibility.applications.B2B_SAAS": "intro.adoc",
+      "compatibility.applications.PARTNER_PORTAL": "managing-members.adoc",
+      "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS": "mapping-organization-claims.adoc",
+      "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER": "managing-members.adoc",
+    }).map(([factPath, file]) => [factPath, {
+      support: "SUPPORTED", sourceUrl: `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/docs/documentation/server_admin/topics/organizations/${file}`,
+    }])),
+    metadata: { basis: "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
+  },
   ...["okta", "entra"].map((upstream) => ({
     file: `keycloak-26.8.0-upstream-${upstream}.v1.json`,
     catalogVersion: `keycloak-26.8.0-upstream-${upstream}-draft-2026.10.08`,

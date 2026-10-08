@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 94 recorded and 1,810 omitted option-paths across 28 distinct
-scopes (1,904 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; twenty-two separate compatibility proposals comprise
-twenty-one `SUPPORTED` and one `UNKNOWN`.
+The current pack has 98 recorded and 1,874 omitted option-paths across 29 distinct
+scopes (1,972 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; twenty-six separate compatibility proposals comprise
+twenty-five `SUPPORTED` and one `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,12 +1937,12 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-eight distinct options and 94 recorded
+`make inspect-provider-baselines` now reports twenty-nine distinct options and 98 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
-Entra External ID Basic and WorkOS AuthKit Connect staging), plus three organization-context
-drafts (ZITADEL Cloud Free, Auth0 B2B Free and primary WorkOS AuthKit staging).
+Entra External ID Basic and WorkOS AuthKit Connect staging), plus four organization-context
+drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging and Keycloak 26.8.0).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1968,6 +1968,38 @@ have not been tested. Machine clients, confidential BFF, application/population/
 compatibility, SCIM, residency and authentication-control evidence are not inherited.
 No integration, account, provider switch or approval was performed; AuthWeave still
 uses ZITADEL and the active evaluator remains synthetic.
+
+#### Organization-scoped Keycloak documentation candidate
+
+A separate [Keycloak organization-context draft](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0-organization-context.v1.json)
+uses the same exact upstream 26.8.0 commit. It proposes `SUPPORTED` for `B2B_SAAS`,
+`PARTNER_PORTAL`, `MULTI_TENANT_ORGANIZATIONS` and `MULTIPLE_ORGANIZATIONS_PER_USER`;
+all remain `UNREVIEWED`. Its one-realm scope requires
+[Organizations enabled](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/managing-organization.adoc)
+and explicit unmanaged memberships. It is not realm-per-customer isolation.
+
+The [member guide](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/managing-members.adoc)
+distinguishes account ownership: removing unmanaged membership preserves the realm
+account, while removing managed membership can delete it. Switching membership
+type is a privileged lifecycle change, not a harmless retry. Disabling an
+organization does not necessarily disable an unmanaged user's realm login.
+Non-imported LDAP users cannot use the documented organization-membership path.
+
+Invitation acceptance is not a durable invitation-list audit: accepted records
+are deleted. The guide's `/orgs` API examples must be reconciled with the pinned
+release's `/organizations` route before implementation. Portal business roles
+must not imply unrestricted realm administration.
+
+The [claim guide](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/mapping-organization-claims.adoc)
+defines optional organization scopes and selection. IDs require an explicit
+mapper setting; an all-membership claim is not one active tenant. The application
+must validate tokens and resource permissions, including rejected switches and
+missing or foreign organization context.
+
+Capabilities, clients, populations, residency and controls stay empty; earlier
+scopes and observations are unchanged. No Keycloak deployment, administrative
+write, invitation, hosting purchase or live isolation test was performed.
+AuthWeave still uses ZITADEL; the active evaluator remains synthetic.
 
 #### Client-scoped ZITADEL Cloud OIDC documentation candidate
 

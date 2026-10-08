@@ -811,6 +811,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/zitadel-cloud-free-organization-context.v1.json");
         resources.add("scoped/auth0-b2b-free-organization-context.v1.json");
         resources.add("scoped/workos-authkit-staging-organization-context.v1.json");
+        resources.add("scoped/keycloak-26.8.0-organization-context.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -843,18 +844,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(28, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(94, recordedCount);
-        assertEquals(1810, omittedCount);
+        assertEquals(29, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(98, recordedCount);
+        assertEquals(1874, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 36,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 21, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 25, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T16:06:12Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T16:26:23Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(28, report.optionCount());
-        assertEquals(94, report.factCount());
+        assertEquals(29, report.optionCount());
+        assertEquals(98, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1643,6 +1644,124 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(6, report.optionCount());
         assertEquals(16, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"compatibility.applications.B2B_SAAS", "compatibility.applications.PARTNER_PORTAL",
+            "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER"})
+    void keycloakOrganizationContextIsReleasePinnedWithoutScimOrResourceAuthorizationInheritance(String path) throws Exception {
+        var json = resource("catalog/baselines/scoped/keycloak-26.8.0-organization-context.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("keycloak-26.8.0-organization-context-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("keycloak-26.8.0-organization-context", option.id());
+        assertEquals("keycloak", option.providerId());
+        assertEquals("Keycloak upstream 26.8.0", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.SELF_HOSTED, option.deployment());
+        assertEquals("Upstream release 26.8.0; commercial support not assessed", option.plan());
+        assertTrue(option.facts().isEmpty());
+        var entries = CatalogDraftFacts.entries(option);
+        assertEquals(4, entries.size());
+        var fact = assertInstanceOf(ProviderCatalogDraft.CompatibilityFact.class, entries.get(path));
+        assertEquals(ProviderCatalog.Support.SUPPORTED, fact.support());
+        assertEquals("github.com", fact.evidence().sourceUrl().getHost());
+        var sourcePaths = Map.of(
+                "compatibility.applications.B2B_SAAS", "intro.adoc",
+                "compatibility.applications.PARTNER_PORTAL", "managing-members.adoc",
+                "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "mapping-organization-claims.adoc",
+                "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "managing-members.adoc");
+        assertEquals(sourcePaths.keySet(), entries.keySet());
+        assertEquals("/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/organizations/"
+                + sourcePaths.get(path), fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T16:26:23Z"), fact.evidence().observedAt());
+        var conditions = String.join(" ", fact.conditions());
+        switch (path) {
+            case "compatibility.applications.B2B_SAAS" -> {
+                assertTrue(conditions.contains("one realm with Organizations enabled"));
+                assertTrue(conditions.contains("not a realm-per-customer architecture, independent issuers"));
+                assertTrue(conditions.contains("email domain is not authorization"));
+                assertTrue(conditions.contains("operating cost or commercial support"));
+            }
+            case "compatibility.applications.PARTNER_PORTAL" -> {
+                assertTrue(conditions.contains("new account must use the invited email address"));
+                assertTrue(conditions.contains("not a durable acceptance audit"));
+                assertTrue(conditions.contains("API examples use /orgs"));
+                assertTrue(conditions.contains("AuthWeave catalog-curator authority"));
+            }
+            case "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS" -> {
+                assertTrue(conditions.contains("Organization id and attributes are omitted by default"));
+                assertTrue(conditions.contains("mixed scope formats are rejected"));
+                assertTrue(conditions.contains("multi-organization claim is not a single active tenant"));
+                assertTrue(conditions.contains("claims do not prove database isolation"));
+            }
+            case "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER" -> {
+                assertTrue(conditions.contains("Select unmanaged memberships"));
+                assertTrue(conditions.contains("removing a managed membership or organization deletes the managed realm account"));
+                assertTrue(conditions.contains("Disabled organizations do not necessarily disable unmanaged realm users"));
+                assertTrue(conditions.contains("LDAP users with import mode disabled cannot join organizations"));
+            }
+            default -> fail("Unexpected organization-context path");
+        }
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void keycloakOrganizationFreshnessKeepsContentHashWithoutGrantingReview() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/keycloak-26.8.0-organization-context.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T16:26:23Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+    }
+
+    @Test
+    void keycloakOrganizationScopeKeepsResearchNativeScimPublicClientAndWorkforceOptionsIndependent() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("keycloak.v1.json", "scoped/keycloak-26.8.0.v1.json",
+                "scoped/keycloak-26.8.0-upstream-okta.v1.json", "scoped/keycloak-26.8.0-upstream-entra.v1.json",
+                "scoped/keycloak-26.8.0-public-oidc-clients.v1.json", "scoped/keycloak-26.8.0-organization-context.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(6, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().applications().isEmpty()
+                && option.compatibility().tenancy().isEmpty() && option.compatibility().membership().isEmpty()));
+        assertTrue(options.getLast().facts().isEmpty());
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(Instant.parse("2026-10-02T21:20:39Z"), options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        for (var option : options.subList(2, 4)) {
+            assertEquals(ProviderCatalog.Availability.UNKNOWN, option.facts().get(ProviderCatalog.Capability.SCIM).availability());
+        }
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.get(4).facts().keySet());
+        assertTrue(options.get(4).compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "keycloak-organization-context-coexistence-test", options), Instant.parse("2026-10-08T16:26:23Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(6, report.optionCount());
+        assertEquals(22, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
