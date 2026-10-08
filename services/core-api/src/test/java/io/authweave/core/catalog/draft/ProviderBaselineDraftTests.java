@@ -818,6 +818,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/auth0-b2b-free-machine-clients.v1.json");
         resources.add("scoped/workos-connect-staging-machine-clients.v1.json");
         resources.add("scoped/entra-external-id-m2m-addon-machine-clients.v1.json");
+        resources.add("scoped/keycloak-26.8.0-browser-authentication-controls.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -839,7 +840,10 @@ class ProviderBaselineDraftTests {
                     || address.equals("compatibility.applications.B2B_SAAS")
                     || address.equals("compatibility.applications.PARTNER_PORTAL")
                     || address.equals("compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS")
-                    || address.equals("compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER")), file);
+                    || address.equals("compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER")
+                    || address.equals("authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.PHISHING_RESISTANCE")
+                    || address.equals("authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.NON_EXPORTABLE_KEYS")
+                    || address.equals("authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.STEP_UP_AUTHENTICATION")), file);
             var omitted = new java.util.HashSet<>(vocabulary);
             omitted.removeAll(recorded);
             assertTrue(java.util.Collections.disjoint(recorded, omitted), file);
@@ -851,18 +855,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(35, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(112, recordedCount);
-        assertEquals(2268, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 41,
+        assertEquals(36, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(116, recordedCount);
+        assertEquals(2332, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 42,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
         assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 31, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T19:00:07Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T19:33:03Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(35, report.optionCount());
-        assertEquals(112, report.factCount());
+        assertEquals(36, report.optionCount());
+        assertEquals(116, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -2442,6 +2446,118 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(7, report.optionCount());
         assertEquals(24, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void keycloakAuthenticationControlsSeparateMfaAvailabilityFromScopedEnforcementAndDeviceAssurance() throws Exception {
+        var json = resource("catalog/baselines/scoped/keycloak-26.8.0-browser-authentication-controls.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("keycloak-26.8.0-browser-authentication-controls-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("keycloak-26.8.0-browser-authentication-controls", option.id());
+        assertEquals("Keycloak upstream 26.8.0", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.SELF_HOSTED, option.deployment());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.MFA), option.facts().keySet());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, option.facts().get(ProviderCatalog.Capability.MFA).availability());
+        var browser = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER;
+        var population = io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation.EXTERNAL_CUSTOMERS;
+        assertEquals(java.util.Set.of(browser), option.authenticationControls().keySet());
+        assertEquals(java.util.Set.of(population), option.authenticationControls().get(browser).keySet());
+        var controls = option.authenticationControls().get(browser).get(population);
+        assertEquals(java.util.Set.of(ProviderCatalog.AuthenticationControl.PHISHING_RESISTANCE,
+                ProviderCatalog.AuthenticationControl.NON_EXPORTABLE_KEYS,
+                ProviderCatalog.AuthenticationControl.STEP_UP_AUTHENTICATION), controls.keySet());
+        var phishing = controls.get(ProviderCatalog.AuthenticationControl.PHISHING_RESISTANCE);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, phishing.availability());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, phishing.enforcement());
+        var keys = controls.get(ProviderCatalog.AuthenticationControl.NON_EXPORTABLE_KEYS);
+        assertEquals(ProviderCatalog.Support.UNKNOWN, keys.availability());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, keys.enforcement());
+        var step = controls.get(ProviderCatalog.AuthenticationControl.STEP_UP_AUTHENTICATION);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, step.availability());
+        assertEquals(ProviderCatalog.Support.SUPPORTED, step.enforcement());
+        assertTrue(String.join(" ", phishing.conditions()).contains("initial enrollment, password reset, recovery"));
+        assertTrue(String.join(" ", keys.conditions()).contains("both synced and device-bound passkeys"));
+        var stepConditions = String.join(" ", step.conditions());
+        for (var phrase : List.of("essential acr", "acr_values is non-essential", "unachievable essential level returns an error",
+                "before the sensitive operation", "expired implicit level can yield acr=0",
+                "acr client scope/mapper", "not NIST AAL certifications", "does not gate application business operations automatically")) {
+            assertTrue(stepConditions.contains(phrase), phrase);
+        }
+        var sourceRoot = "/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/authentication/";
+        assertEquals(sourceRoot + "webauthn.adoc", phishing.evidence().sourceUrl().getPath());
+        assertEquals(sourceRoot + "passkeys.adoc", keys.evidence().sourceUrl().getPath());
+        assertEquals(sourceRoot + "flows.adoc", step.evidence().sourceUrl().getPath());
+        var observed = Instant.parse("2026-10-08T19:33:03Z");
+        for (var fact : CatalogDraftFacts.entries(option).values()) {
+            assertEquals("github.com", fact.evidence().sourceUrl().getHost());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertFalse(fact.conditions().isEmpty());
+        }
+        assertEquals(4, CatalogDraftFacts.entries(option).size());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        var impossible = mapper.readTree(json);
+        ((tools.jackson.databind.node.ObjectNode) impossible.at(
+                "/options/0/authenticationControls/BROWSER/EXTERNAL_CUSTOMERS/NON_EXPORTABLE_KEYS")).put("enforcement", "SUPPORTED");
+        var invalid = validator.validateAt(mapper.treeToValue(impossible, ProviderCatalogDraft.class), observed);
+        assertEquals(CatalogDraftValidation.Status.INVALID_DRAFT, invalid.status());
+        assertTrue(invalid.issues().stream().anyMatch(issue ->
+                issue.code() == CatalogDraftValidation.IssueCode.AUTHENTICATION_ENFORCEMENT_WITHOUT_AVAILABILITY));
+        assertUntrusted(invalid);
+    }
+
+    @Test
+    void keycloakAuthenticationFreshnessKeepsTypedUnknownEnforcementAndStableEvidence() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/keycloak-26.8.0-browser-authentication-controls.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T19:33:03Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertEquals(4, report.factCount());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+        }
+    }
+
+    @Test
+    void keycloakBrowserCustomerControlsDoNotPopulateSevenOlderScopesOrOtherClientPopulations() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("keycloak.v1.json", "scoped/keycloak-26.8.0.v1.json",
+                "scoped/keycloak-26.8.0-upstream-okta.v1.json", "scoped/keycloak-26.8.0-upstream-entra.v1.json",
+                "scoped/keycloak-26.8.0-public-oidc-clients.v1.json", "scoped/keycloak-26.8.0-organization-context.v1.json",
+                "scoped/keycloak-26.8.0-machine-clients.v1.json", "scoped/keycloak-26.8.0-browser-authentication-controls.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(8, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        for (var option : options.subList(0, 7)) {
+            assertTrue(option.authenticationControls().isEmpty());
+            assertFalse(option.facts().containsKey(ProviderCatalog.Capability.MFA));
+        }
+        assertEquals(Instant.parse("2026-10-02T21:20:39Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertTrue(options.getLast().residency().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "keycloak-authentication-context-coexistence-test", options), Instant.parse("2026-10-08T19:33:03Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(8, report.optionCount());
+        assertEquals(28, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

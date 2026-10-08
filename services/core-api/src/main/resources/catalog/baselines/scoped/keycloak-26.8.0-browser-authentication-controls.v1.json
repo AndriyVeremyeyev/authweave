@@ -1,0 +1,92 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "keycloak-26.8.0-browser-authentication-controls-draft-2026.10.08",
+  "options": [
+    {
+      "id": "keycloak-26.8.0-browser-authentication-controls",
+      "providerId": "keycloak",
+      "product": "Keycloak upstream 26.8.0",
+      "plan": "Upstream release 26.8.0; commercial support not assessed",
+      "deployment": "SELF_HOSTED",
+      "region": "Operator-selected hosting; storage destinations not verified",
+      "configuration": "Local browser customers; password/WebAuthn 2FA and OIDC LoA step-up; no broker; device-key assurance unverified",
+      "facts": {
+        "MFA": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Select local browser customer authentication using password plus WebAuthn as a second factor; enable registration and bind the intended browser flow. This is not native/mobile, passwordless, brokered or machine authentication.",
+            "The documented default Conditional 2FA only challenges users with a registered credential and permits alternative factors. Require the WebAuthn execution and 2FA subflow, disable OTP alternatives and verify all covered users enroll. OPTIONAL describes a configurable mechanism, not mandatory deployment.",
+            "MFA availability does not prove phishing-resistant enforcement, non-exportable keys, recovery safety or an assurance level. Those three controls have separate client/population-scoped proposals and conditions.",
+            "No Keycloak installation, realm/client/flow mutation, credentials, enrollment, live calls or hosting spend occurred. All seven earlier Keycloak scopes and evidence dates remain separate; the active evaluator is synthetic."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/authentication/webauthn.adoc",
+            "observedAt": "2026-10-08T19:33:03Z",
+            "summary": "The release-pinned guide describes WebAuthn as a second factor with registration and required-flow settings. OPTIONAL is a local-browser configuration proposal, not evidence of deployed MFA, secure recovery or a verified assurance level."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {
+        "BROWSER": {
+          "EXTERNAL_CUSTOMERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "Availability is a conditional mechanism-level inference from RP-bound WebAuthn, not a claim that every Keycloak login or MFA method resists phishing. Configure HTTPS origin/RP ID, approved algorithms and User Verification Required; test the actual browser and authenticator. Protocol context: https://www.w3.org/TR/webauthn-2/.",
+                "The guide distinguishes default Alternative WebAuthn/OTP in Conditional 2FA from Required WebAuthn with OTP disabled and a Required 2FA subflow. This proposal requires the latter, plus registration for every covered local browser customer. Merely enabling WebAuthn or default enrollment does not establish compulsory use.",
+                "Enforcement remains UNKNOWN for the complete selected customer journey: initial enrollment, password reset, recovery, alternate login, existing SSO cookie, credential removal and administrator actions require independent bypass tests. The stronger flow must be bound to the correct client and population; no deployment or recovery policy was checked.",
+                "Passkey UI availability or required mediation is not the same as an enforced authentication flow. Do not inherit broker/home-IdP assurance, native/mobile controls, machine credentials or AAL certification. Application sessions and resource authorization remain separate; AuthWeave's ZITADEL/BFF and synthetic evaluator are unchanged."
+              ],
+              "evidence": {
+                "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/authentication/webauthn.adoc",
+                "observedAt": "2026-10-08T19:33:03Z",
+                "summary": "The release-pinned guide describes WebAuthn RP operation and distinguishes optional/conditional 2FA from required WebAuthn. Phishing-resistance availability is a conditional mechanism inference; complete enrollment/recovery/session enforcement remains UNKNOWN and untested."
+              }
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "UNKNOWN",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "The release-pinned passkey guide permits both synced and device-bound passkeys. Neither the passkey label nor successful WebAuthn login establishes a non-exportable, hardware-bound private key. This selected realm has no verified authenticator model, key-protection evidence or device policy.",
+                "WebAuthn attachment, discoverable credentials and user verification are not proof of non-exportability. Trusted attestation, Acceptable AAGUIDs, trust anchors and independently reviewed authenticator key-protection evidence would be separate prerequisites; no allowlist, certificates, hardware certification or physical device was verified.",
+                "Default attestation None cannot be treated as a trustworthy authenticator model identifier. Restricting registration alone does not prove existing credentials, recovery or cross-device/synced paths meet the same policy. Keep both availability and enforcement UNKNOWN, not provider-wide UNSUPPORTED.",
+                "No security key purchase, account, hardware enrollment or device test occurred. Hosting countries, SCIM lifecycle, customer membership, API authorization and human assurance levels are not inherited."
+              ],
+              "evidence": {
+                "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/authentication/passkeys.adoc",
+                "observedAt": "2026-10-08T19:33:03Z",
+                "summary": "The exact-release guide explicitly permits synced and device-bound passkeys. It does not establish non-exportable hardware keys for the selected customer scope; availability and enforcement remain UNKNOWN rather than inventing device assurance or provider-wide non-support."
+              }
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "SUPPORTED",
+              "enforcement": "SUPPORTED",
+              "conditions": [
+                "Select OIDC browser step-up with coherent ascending Conditional Level Of Authentication subflows and an explicit ACR-to-LoA mapping. Bind the intended flow to the client. The guide's OTP example is not evidence of phishing-resistant WebAuthn step-up; composition with the selected WebAuthn flow remains untested.",
+                "Request the mapped level as essential acr through the claims parameter. Simple acr_values is non-essential; a default level does not require the desired sensitive-operation level. The guide states that an unachievable essential level returns an error. SUPPORTED enforcement is a conditional protocol proposal, not a configured application guarantee.",
+                "Check trusted ID Token issuer/signature/audience/nonce and the returned acr against the application's required level before the sensitive operation. Browser request parameters can be altered; a login redirect or merely requesting a level is not authorization. Preserve the required-level policy server-side and bind the result to the correct session and operation.",
+                "Set an explicit LoA Max Age: an unexpired level may be reused; 0 limits that level to the current authentication. An expired implicit level can yield acr=0 without active reauthentication. Verify the acr client scope/mapper and handle missing, low or unknown acr fail closed; local LoA numbers are not NIST AAL certifications.",
+                "Test cancellation, unsupported levels, SSO reuse, factor changes and application-session freshness independently. Keycloak flow enforcement does not gate application business operations automatically. No live login, policy change, browser/device acceptance or sensitive-operation enforcement was tested."
+              ],
+              "evidence": {
+                "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/authentication/flows.adoc",
+                "observedAt": "2026-10-08T19:33:03Z",
+                "summary": "The release-pinned OIDC step-up guide documents essential ACR failure, level mapping/reuse, Max Age and the ACR mapper. Availability and enforcement are conditional protocol proposals requiring independent token, session and application-operation checks; no live assurance is established."
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

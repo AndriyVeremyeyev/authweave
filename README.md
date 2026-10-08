@@ -1875,10 +1875,12 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 112 recorded and 2,268 omitted option-paths across 35 distinct
-scopes (2,380 possible addresses). The 77 capability proposals comprise 41 `OPTIONAL`,
+The current pack has 116 recorded and 2,332 omitted option-paths across 36 distinct
+scopes (2,448 possible addresses). The 78 capability proposals comprise 42 `OPTIONAL`,
 3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-five separate compatibility proposals comprise
-thirty-one `SUPPORTED` and four `UNKNOWN`.
+thirty-one `SUPPORTED` and four `UNKNOWN`. Three authentication-control records retain
+their own availability/enforcement pairs, not capability or compatibility counts.
+An `UNKNOWN` in either control field appears in `recordedUnknownPaths`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,7 +1939,7 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-five distinct options and 112 recorded
+`make inspect-provider-baselines` now reports thirty-six distinct options and 116 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
@@ -1945,7 +1947,8 @@ Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organizat
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
 and Entra External ID Basic), plus five machine-client scopes
 (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
-and Entra External ID with the paid M2M Premium add-on).
+and Entra External ID with the paid M2M Premium add-on), plus one release-pinned
+Keycloak browser/customer authentication-control scope.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1971,6 +1974,37 @@ have not been tested. Machine clients, confidential BFF, application/population/
 compatibility, SCIM, residency and authentication-control evidence are not inherited.
 No integration, account, provider switch or approval was performed; AuthWeave still
 uses ZITADEL and the active evaluator remains synthetic.
+
+#### Browser/customer-scoped Keycloak authentication-control candidate
+
+The separate [Keycloak authentication draft](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0-browser-authentication-controls.v1.json)
+records `MFA: OPTIONAL` and three controls limited to `BROWSER`/
+`EXTERNAL_CUSTOMERS`. All remain `UNREVIEWED`, with sources pinned to the same
+26.8.0 commit as the earlier candidates. Other clients/populations and the seven
+earlier Keycloak scopes do not inherit these records.
+
+[WebAuthn](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/authentication/webauthn.adoc)
+provides a conditional phishing-resistant mechanism proposal, not verified journey
+enforcement: availability is `SUPPORTED`, enforcement `UNKNOWN`. Required WebAuthn,
+registration, RP/origin policy and disabled weaker alternatives differ from the
+default conditional/alternative 2FA flow. Enrollment, recovery, existing SSO,
+credential removal and application sessions still need bypass tests.
+
+[Passkeys](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/authentication/passkeys.adoc)
+can be synced or device-bound. Neither passkey support, required UI mediation nor
+successful authentication proves non-exportable keys; both fields remain `UNKNOWN`.
+Authenticator attestation/key-protection evidence and existing-credential policy
+would require separate review.
+
+[OIDC step-up](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/authentication/flows.adoc)
+proposes availability/enforcement `SUPPORTED` conditionally on coherent LoA mapping,
+essential `acr` requests, explicit Max Age and validated returned claims.
+Non-essential `acr_values`, SSO reuse and `acr=0` are not substitutes for checking
+the required level before an application operation. The guide's OTP example does
+not demonstrate phishing-resistant WebAuthn composition, and local LoA is not a
+certified assurance level. No installation, accounts, flow changes, devices,
+spending or live acceptance tests occurred; ZITADEL/BFF and the synthetic evaluator
+remain unchanged.
 
 #### Machine-scoped Keycloak OAuth API documentation candidate
 

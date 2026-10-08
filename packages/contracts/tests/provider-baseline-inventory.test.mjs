@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-08T19:00:07Z");
+const at = new Date("2026-10-08T19:33:03Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -58,7 +58,8 @@ function assertPartitions(report) {
     assert.equal(entry.catalogVersion, source.catalogVersion);
     assert.equal(entry.recordedPathCount, recorded.length);
     assert.equal(entry.omittedPathCount, 68 - recorded.length);
-    assert.deepEqual(entry.recordedUnknownPaths, source.facts.filter((fact) => fact.availability === "UNKNOWN" || fact.support === "UNKNOWN").map((fact) => fact.path).sort());
+    assert.deepEqual(entry.recordedUnknownPaths, source.facts.filter((fact) => fact.availability === "UNKNOWN" || fact.support === "UNKNOWN"
+      || fact.enforcement === "UNKNOWN").map((fact) => fact.path).sort());
     assert.deepEqual(entry.families.map((family) => family.family), expectedVocabulary.map((family) => family.family));
     for (const family of entry.families) {
       const paths = expectedVocabulary.find((vocabulary) => vocabulary.family === family.family).paths;
@@ -73,9 +74,13 @@ function assertPartitions(report) {
       if (fact.path.startsWith("facts.")) {
         assert.equal(Object.hasOwn(fact, "support"), false);
         availability[fact.availability] += 1;
-      } else {
+      } else if (fact.path.startsWith("compatibility.")) {
         assert.equal(Object.hasOwn(fact, "availability"), false);
         compatibility[fact.support] += 1;
+      } else {
+        assert.ok(fact.path.startsWith("authenticationControls."));
+        assert.equal(Object.hasOwn(fact, "support"), false);
+        for (const value of [fact.availability, fact.enforcement]) assert.ok(["SUPPORTED", "UNSUPPORTED", "UNKNOWN"].includes(value));
       }
       freshness[fact.freshness] += 1;
     }
@@ -104,14 +109,14 @@ test("inventory v2 enumerates 68 schema addresses, not 68 required customer fact
 
 test("the full pack partitions every option independently and replays all aggregate counts", () => {
   assertPartitions(pack);
-  assert.equal(inventory.optionCount, 35);
-  assert.equal(inventory.optionPathCount, 2380);
-  assert.equal(inventory.recordedPathCount, 112);
-  assert.equal(inventory.omittedPathCount, 2268);
-  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 41, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
+  assert.equal(inventory.optionCount, 36);
+  assert.equal(inventory.optionPathCount, 2448);
+  assert.equal(inventory.recordedPathCount, 116);
+  assert.equal(inventory.omittedPathCount, 2332);
+  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 42, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
   assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 31, UNSUPPORTED: 0, UNKNOWN: 4 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 77, COMPATIBILITY: 35, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 112, STALE: 0, FUTURE: 0 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 78, COMPATIBILITY: 35, RESIDENCY: 0, AUTHENTICATION_CONTROL: 3 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 116, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -146,7 +151,11 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
         ? ["compatibility.applications.B2B_SAAS", "compatibility.applications.PARTNER_PORTAL",
           "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS"]
         : basis === "MACHINE_SCOPED_DOCUMENTATION_DRAFT" ? ["compatibility.clients.MACHINE_TO_MACHINE"] : [];
-    assert.deepEqual(family.recordedPaths, family.family === "COMPATIBILITY" ? expectedContext : []);
+    const expectedControls = basis === "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"
+      ? ["NON_EXPORTABLE_KEYS", "PHISHING_RESISTANCE", "STEP_UP_AUTHENTICATION"]
+        .map((control) => `authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.${control}`) : [];
+    assert.deepEqual(family.recordedPaths, family.family === "COMPATIBILITY" ? expectedContext
+      : family.family === "AUTHENTICATION_CONTROL" ? expectedControls : []);
   }
 });
 
@@ -163,10 +172,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 97 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 101 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 112 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 112, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 116 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 116, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);
@@ -234,7 +243,8 @@ test("inventory v1 remains a distinct capability-only legacy contract, not a sil
   legacy.schemaVersion = 1;
   legacy.policyVersion = "provider-baseline-schema-path-inventory-1";
   legacy.options = legacy.options.filter((entry) =>
-    !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT"].includes(
+    !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT",
+      "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"].includes(
       pack.options.find((option) => option.optionId === entry.optionId).basis));
   legacy.optionCount = 20;
   legacy.optionPathCount = 1360;

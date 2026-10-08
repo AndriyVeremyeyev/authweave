@@ -92,9 +92,10 @@ test("client-context observations retain the inclusive 90-day boundary and never
 test("public client context does not populate research, native SCIM or workforce broker options", async () => {
   const report = await inspectBaselinePack(observed);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
-  assert.equal(keycloak.length, 7);
+  assert.equal(keycloak.length, 8);
   for (const option of keycloak.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT",
-    "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
+    "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT",
+    "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
     assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }

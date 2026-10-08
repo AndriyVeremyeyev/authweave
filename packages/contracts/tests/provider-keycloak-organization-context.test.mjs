@@ -158,8 +158,8 @@ test("Keycloak organization context coexists with research, native SCIM, public 
   const originals = drafts.filter((entry) => entry.options[0].providerId === "keycloak" && entry !== draft);
   const before = JSON.stringify(originals);
   const keycloak = (await inspectBaselinePack(observed)).options.filter((option) => option.providerId === "keycloak");
-  assert.equal(keycloak.length, 7);
-  assert.equal(keycloak.reduce((count, option) => count + option.facts.length, 0), 24);
+  assert.equal(keycloak.length, 8);
+  assert.equal(keycloak.reduce((count, option) => count + option.facts.length, 0), 28);
   const native = keycloak.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(native.facts.every((fact) => fact.availability === "OPTIONAL" && fact.path.startsWith("facts.")));
   assert.equal(native.facts.find((fact) => fact.path === "facts.SCIM").evidence.observedAt, "2026-10-02T21:20:39Z");
