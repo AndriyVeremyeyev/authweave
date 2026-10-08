@@ -54,7 +54,7 @@ test("unreadable sections are separate, have no inferred row count and cannot le
     volumes: { MONTHLY_ACTIVE_USERS: { basis: "OBSERVED", value: -1 } } } };
   const html = summary(savedRequirementGroups(profile));
   assert.deepEqual(targets(html), ["saved-security-input-4", "saved-security-input-7", "saved-security-input-8",
-    "saved-capabilities-input-2", "saved-capabilities-input-6", "saved-capabilities-input-7", "saved-usage-heading"]);
+    "saved-capabilities-input-2", "saved-capabilities-input-6", "saved-capabilities-input-7", "saved-usage-heading", "saved-operations-heading"]);
   assert.ok(html.includes("Cannot inspect these saved sections")); assert.ok(html.includes("No field count or missing answer is inferred"));
   assert.equal(html.includes("Usage assumptions ·"), false); assert.equal(html.includes("synthetic-private"), false);
 });
@@ -64,7 +64,7 @@ test("all-unreadable and all-recorded views remain honest rather than declaring 
   assert.ok(unreadable.includes("No saved cards can be read safely"));
   assert.equal(unreadable.includes("No Not recorded or Needs definition labels"), false);
   assert.equal((unreadable.match(/<details/g) ?? []).length, 0);
-  assert.deepEqual(targets(unreadable), ["saved-application-heading", "saved-security-heading", "saved-capabilities-heading", "saved-auditability-heading", "saved-usage-heading"]);
+  assert.deepEqual(targets(unreadable), ["saved-application-heading", "saved-security-heading", "saved-capabilities-heading", "saved-auditability-heading", "saved-usage-heading", "saved-operations-heading"]);
   const groups = savedRequirementGroups(savedRequirementsFixture()).map(group => ({ ...group,
     rows: group.rows!.map(row => ({ ...row, state: "recorded" as const })),
   }));
@@ -95,7 +95,7 @@ for (const scenario of guidedScenarios) test(`${scenario.key} saved questions li
     assert.equal((html.match(new RegExp(`id="${id}"`, "g")) ?? []).length, 1);
     assert.ok(html.includes(`id="${id}" tabindex="-1"`));
   }
-  assert.equal((html.match(/id="saved-[a-z]+-input-[0-9]+"/g) ?? []).length, 32);
+  assert.equal((html.match(/id="saved-[a-z]+-input-[0-9]+"/g) ?? []).length, 36);
   groups.forEach(group => group.rows!.forEach((row, index) => assert.equal(links.includes(savedInputRowId(group, index)), row.state !== "recorded")));
   assert.equal(html.includes("<form"), false); assert.deepEqual(profile, before);
 });

@@ -358,15 +358,25 @@ unrecorded; Other still needs definition. An unreadable context shows a bounded
 notice without hiding the remaining assessment sections. This summary is not a
 validation, applicability or readiness result.
 
-Review shows five read-only cards from the existing saved editor projections:
+Review shows six read-only cards from the existing saved editor projections:
 application/audience, security/compliance scope, identity capabilities, provider
-auditability and usage assumptions. Unknown or empty inputs remain visibly
+auditability, usage assumptions and operational preferences. Unknown or empty inputs remain visibly
 unrecorded; "Other" needs definition, explicit not-required stays distinct, and
 observed zero usage is not substituted for missing usage. Cards offer scoped
 navigation back to the editors without starting a write. Unreadable sections show
 a bounded unavailable notice instead of inferred answers. These display labels are
 not Core validation errors, applicability rules or a completeness/readiness score;
 other profile fields remain available in the saved JSON.
+
+The operational card shows the four saved choices already editable in Usage:
+identity hosting preference, application deployment target, team identity expertise
+and budget sensitivity. Unknown and Undecided remain unrecorded; explicit No hosting
+preference is an answer, not a missing value. Its projection is independent of usage
+quantities, so an unreadable quantity cannot hide readable preferences and vice versa.
+These are owner-stated planning inputs, not verified capacity, an IdP location,
+provider eligibility, a spending cap or a claim that a service is free. Editing
+returns to Usage through the existing guarded step navigation; read-only assessments
+do not show an edit action. All previous saved row IDs remain unchanged.
 
 Review groups its existing "Not recorded" and "Needs definition" display labels
 into a compact saved-input discussion list. Native links focus the exact saved
@@ -378,7 +388,8 @@ label is a new validation error or a completeness/readiness conclusion. Full car
 editor navigation and independent Core checks remain unchanged.
 
 Review also offers **Download saved brief (.md)**: a deterministic, version-bound
-Markdown export of those five saved input sections and their display gaps. The
+Markdown export of those six saved input sections and their display gaps, labelled
+`authweave-saved-requirements-brief-v2` for the expanded scope. The
 same-origin, session-scoped BFF re-reads the assessment and rejects a stale page
 version before downloading; it does not write the assessment or store an export.
 Free text remains literal, output is bounded and responses are not cached. This

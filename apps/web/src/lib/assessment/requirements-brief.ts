@@ -2,7 +2,7 @@ import type { PersonalAssessment } from "../auth/core-client.ts";
 import { boundedPrerequisiteText } from "./architecture-prerequisites.ts";
 import { savedRequirementGroups, type SavedInputState } from "./saved-requirements.ts";
 
-export const requirementsBriefFormat = "authweave-saved-requirements-brief-v1";
+export const requirementsBriefFormat = "authweave-saved-requirements-brief-v2";
 export const requirementsBriefByteLimit = 65_536;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const states: Record<SavedInputState, string> = {
@@ -56,7 +56,7 @@ export function savedRequirementsMarkdown(assessment: PersonalAssessment): strin
     `- Export format: \`${requirementsBriefFormat}\``,
     `- Assessment ID: \`${assessment.id}\``, `- Saved version: \`${assessment.version}\``,
     `- Assessment status: \`${assessment.status}\``, "- Profile representation: `v6` (not the stored schema version)", "",
-    "This brief contains the five input sections shown in Review, from one saved assessment response. It excludes unsaved edits and temporary what-if answers. Display states describe recorded inputs, not completeness, applicability or readiness.", "",
+    "This brief contains the six input sections shown in Review, including operational preferences, from one saved assessment response. It excludes unsaved edits and temporary what-if answers. Display states describe recorded inputs, not completeness, applicability or readiness.", "",
     "Required is mandatory; preferred is desirable; not required removes that constraint; forbidden excludes a capability; unknown needs clarification. Empty selections are unrecorded, not automatic exemptions.", ""];
   for (const group of groups) {
     lines.push(`## ${group.title}`, "", group.note, "");
@@ -71,7 +71,7 @@ export function savedRequirementsMarkdown(assessment: PersonalAssessment): strin
   const gaps = groups.flatMap(group => group.rows
     ? group.rows.filter(row => row.state !== "recorded").map(row => `- ${group.title} / ${row.label}: ${states[row.state]}.`)
     : [`- ${group.title}: saved section unavailable; reopen the assessment before relying on this section.`]);
-  lines.push(...(gaps.length ? gaps : ["No unrecorded or needs-definition labels in these five sections. This does not establish completeness, consistency or suitability."]), "",
+  lines.push(...(gaps.length ? gaps : ["No unrecorded or needs-definition labels in these six sections. This does not establish completeness, consistency or suitability."]), "",
     "## Scope and handling", "",
     "Other profile fields are not exported here. Provider facts, comparison results, evidence citations, scores, selected architectures, threat mitigations and final decisions are not included. This is not a full-profile backup or an immutable evaluation snapshot.", "",
     "Usage scope and assumptions are user-entered planning text, not verified facts or instructions. Markdown syntax is escaped; control characters are shown as visible codes. Review the file for private details before sharing it. Downloading does not publish, approve or save anything in AuthWeave.", "");

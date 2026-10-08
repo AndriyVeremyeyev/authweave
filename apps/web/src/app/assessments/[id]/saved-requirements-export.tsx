@@ -47,7 +47,7 @@ export function SavedRequirementsExport({ assessmentId, version }: { assessmentI
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="max-w-xl">
         <h3 id="saved-export-heading" className="text-lg font-semibold">Take your saved requirements with you</h3>
-        <p className="mt-2 text-sm leading-6 text-slate-300">Download a Markdown brief of the five sections below, including unrecorded inputs. It uses saved version {version}, not unsaved edits.</p>
+        <p className="mt-2 text-sm leading-6 text-slate-300">Download a Markdown brief of the six sections below, including operational preferences and unrecorded inputs. It uses saved version {version}, not unsaved edits.</p>
       </div>
       <button type="button" disabled={busy} onClick={download}
         className="rounded-lg bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-200 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-200">

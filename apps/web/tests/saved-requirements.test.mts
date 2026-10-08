@@ -46,13 +46,13 @@ test("saved context header preserves unknown, empty and Other without leaking ma
   assert.ok(render().includes("cannot be read safely")); assert.equal(render().includes("synthetic-sensitive-invalid"), false);
 });
 
-test("saved overview reads only the five bounded existing editor groups without mutating the profile", () => {
+test("saved overview reads only the six bounded existing editor groups without mutating the profile", () => {
   const profile = savedRequirementsFixture();
   const before = structuredClone(profile);
   const groups = savedRequirementGroups(profile);
   assert.deepEqual(groups.map(group => [group.id, group.step]), [["application", "context"], ["security", "context"],
-    ["capabilities", "capabilities"], ["auditability", "auditability"], ["usage", "usage"]]);
-  assert.deepEqual(groups.map(group => group.rows?.length), [5, 9, 9, 3, 6]);
+    ["capabilities", "capabilities"], ["auditability", "auditability"], ["usage", "usage"], ["operations", "usage"]]);
+  assert.deepEqual(groups.map(group => group.rows?.length), [5, 9, 9, 3, 6, 4]);
   assert.deepEqual(profile, before);
   assert.equal(groups[0].rows?.[0].value, "B2B SaaS");
   assert.equal(groups[1].rows?.[1].value, "CA, US");
@@ -132,8 +132,8 @@ test("overview renders saved version, honest labels, safe text and scoped naviga
       : createElement("p", {}, `Synthetic ${step.id}`)]));
   const html = renderToStaticMarkup(createElement(component.AssessmentWorkflow, { initialStep: "review", panels, editable: true }));
   assert.ok(html.includes("Saved version 7 · Read-only overview"));
-  assert.equal((html.match(/<h3 /g) ?? []).length, 6);
-  assert.equal((html.match(/id="saved-(application|security|capabilities|auditability|usage)-heading"/g) ?? []).length, 5);
+  assert.equal((html.match(/<h3 /g) ?? []).length, 7);
+  assert.equal((html.match(/id="saved-(application|security|capabilities|auditability|usage|operations)-heading"/g) ?? []).length, 6);
   assert.equal((html.match(/<form/g) ?? []).length, 0);
   assert.ok(html.includes("Not recorded")); assert.ok(html.includes("not validation errors"));
   assert.ok(html.includes("Edit identity requirements →")); assert.ok(html.includes("Explore comparison →"));

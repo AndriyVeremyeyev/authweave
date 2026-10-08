@@ -28,13 +28,13 @@ test("saved Markdown brief and Review share the exact assurance planning label i
   }
 });
 
-test("saved brief has a pinned deterministic v1 snapshot, version, status and honest scope", () => {
+test("saved brief has a pinned deterministic v2 snapshot, version, status and honest scope", () => {
   const input = assessment(), before = structuredClone(input), text = savedRequirementsMarkdown(input);
   assert.equal(text, savedRequirementsMarkdown(input)); assert.deepEqual(input, before);
-  assert.equal(createHash("sha256").update(text).digest("hex"), "a775ae1aaa777d98a8f7f8ea6af3ad415f41189d232f86148aa72c1ad811036b");
+  assert.equal(createHash("sha256").update(text).digest("hex"), "df15350f5580b18d7fd8beaa9ae84d025582a4430bca031943258d150c4e7bb2");
   assert.ok(text.includes(`- Assessment ID: \`${id}\``)); assert.ok(text.includes("- Saved version: `7`"));
   assert.ok(text.includes("- Assessment status: `DRAFT`")); assert.ok(text.endsWith("\n"));
-  assert.equal((text.match(/^## /gm) ?? []).length, 7);
+  assert.equal((text.match(/^## /gm) ?? []).length, 8);
   for (const label of ["Not an ADR", "unsaved edits", "not completeness, applicability or readiness", "not a full-profile backup", "Review the file for private details"]) assert.ok(text.includes(label), label);
   assert.equal(text.includes("workspaceId"), false); assert.equal(text.includes("recommendedProvider"), false);
 });
@@ -134,6 +134,7 @@ test("download reader uses only the fixed same-origin BFF endpoint and binds the
       await assert.rejects(requestSavedRequirementsBrief(id, 7));
     }
     for (const content of [markdown.replace("- Saved version: `7`", "- Saved version: `8`"),
+      markdown.replace("authweave-saved-requirements-brief-v2", "authweave-saved-requirements-brief-v1"),
       markdown.replace(id, "80000000-0000-4000-8000-000000000002"), "<html>private</html>", "x".repeat(requirementsBriefByteLimit + 1)]) {
       globalThis.fetch = async () => new Response(content, { headers });
       await assert.rejects(requestSavedRequirementsBrief(id, 7));

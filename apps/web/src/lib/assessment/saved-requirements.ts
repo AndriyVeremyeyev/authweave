@@ -2,6 +2,8 @@ import { capabilityFields, capabilityValues } from "./capabilities.ts";
 import { evaluationContextLabels as labels, evaluationContextValues } from "./evaluation-context.ts";
 import { auditCriteria, auditabilityValues } from "./auditability.ts";
 import { usageMetrics, usagePlanningValues } from "./usage-planning.ts";
+import { operationalPreferencesValues, type OperationsInputs } from "./operations-planning.ts";
+import { operationalPreferenceFields, operationalPreferenceLabels } from "./operational-preferences.ts";
 
 export type SavedInputState = "recorded" | "not-recorded" | "needs-definition";
 export type SavedInput = { label: string; value: string; state: SavedInputState };
@@ -31,6 +33,7 @@ export function savedRequirementGroups(profile: Record<string, unknown>): SavedR
   const capabilities = capabilityValues(profile);
   const audit = auditabilityValues(profile);
   const usage = usagePlanningValues(profile);
+  const operations = operationalPreferencesValues(profile);
   return [
     {
       id: "application", title: "Application and audience", step: "context", action: "Edit application context",
@@ -87,6 +90,14 @@ export function savedRequirementGroups(profile: Record<string, unknown>): SavedR
         }),
         list("Recorded assumptions", usage.assumptions),
       ] : null,
+    },
+    {
+      id: "operations", title: "Operational preferences", step: "usage", action: "Edit operational preferences",
+      note: "These are owner-stated preferences, not provider eligibility, verified team capacity, IdP location or a spending cap. No price or budget fit is calculated.",
+      rows: operations ? (Object.keys(operationalPreferenceFields) as (keyof OperationsInputs)[]).map(key => ({
+        label: operationalPreferenceFields[key].label, value: operationalPreferenceLabels[operations[key]],
+        state: operations[key] === "UNKNOWN" || operations[key] === "UNDECIDED" ? "not-recorded" : "recorded",
+      })) : null,
     },
   ];
 }

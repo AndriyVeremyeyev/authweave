@@ -38,6 +38,7 @@ import { POST as recordBootstrapRoute } from "../src/app/api/catalog-bootstrap-r
 import { GET as readBootstrapRoute } from "../src/app/api/catalog-bootstrap-reviews/[id]/route.ts";
 import { capabilityFields } from "../src/lib/assessment/capabilities.ts";
 import { savedRequirementGroups } from "../src/lib/assessment/saved-requirements.ts";
+import { operationalPreferenceFields, operationalPreferenceLabels } from "../src/lib/assessment/operational-preferences.ts";
 import { relatedComparisonInput } from "../src/lib/assessment/comparison-presentation.ts";
 import { savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { guidedScenarios } from "./fixtures/guided-scenarios.mts";
@@ -152,6 +153,7 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
   const sessionId = await createSession(identity, undefined);
   const fixture = savedRequirementsFixture();
   Object.assign(fixture.security, { assurance: "UNKNOWN" });
+  Object.assign(fixture.operations, { hosting: "UNKNOWN", deploymentTarget: "UNDECIDED", identityExpertise: "UNKNOWN", budgetSensitivity: "UNKNOWN" });
   fixture.security.auditability = "UNKNOWN";
   fixture.security.auditabilityRequirements = { selectedCriteria: [], minimumRetentionDays: null };
   let profile: Record<string, unknown> = fixture, version = 0, created = false, raceOnWrite = false;
@@ -218,7 +220,9 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     for (const criterion of scenario.audit) audit.append("selectedCriteria", criterion);
     expectSaved(await auditabilityRoute(request(`/${id}/auditability`, audit), context), "auditability", 3);
     const savedSecurity = structuredClone(profile.security);
-    const usage = new URLSearchParams({ expectedVersion: "3", scopeDescription: `Synthetic ${scenario.key}: first-year monthly forecast` });
+    const operations = new URLSearchParams({ expectedVersion: "3", ...scenario.operations });
+    expectSaved(await operationalPreferencesRoute(request(`/${id}/operational-preferences`, operations), context), "usage", 4);
+    const usage = new URLSearchParams({ expectedVersion: "4", scopeDescription: `Synthetic ${scenario.key}: first-year monthly forecast` });
     for (let index = 0; index < 10; index++) usage.append("assumption", index === 0 ? scenario.assumption : "");
     for (const metric of ["MONTHLY_ACTIVE_USERS", "ENTERPRISE_SSO_CONNECTIONS", "MONTHLY_M2M_TOKEN_ISSUANCES", "PEAK_HUMAN_LOGINS_PER_SECOND"]) {
       usage.set(`basis_${metric}`, "UNKNOWN"); usage.set(`value_${metric}`, "");
@@ -227,13 +231,13 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
       ["MONTHLY_M2M_TOKEN_ISSUANCES", scenario.m2mTokens], ["PEAK_HUMAN_LOGINS_PER_SECOND", scenario.peakLogins]] as const) {
       if (value !== null) { usage.set(`basis_${metric}`, "ASSUMED"); usage.set(`value_${metric}`, String(value)); }
     }
-    expectSaved(await usagePlanningRoute(request(`/${id}/usage-planning`, usage), context), "usage", 4);
+    expectSaved(await usagePlanningRoute(request(`/${id}/usage-planning`, usage), context), "usage", 5);
     assert.deepEqual({ application: profile.application, audience: profile.audience }, savedContext);
     assert.deepEqual({ protocols: profile.protocols, provisioning: profile.provisioning }, savedCapabilities);
-    assert.deepEqual(profile.security, savedSecurity); assert.deepEqual(writes, [0, 1, 2, 3]);
+    assert.deepEqual(profile.security, savedSecurity); assert.deepEqual(writes, [0, 1, 2, 3, 4]);
 
     const live = await touchSession(sessionId); assert.ok(live);
-    const fresh = await readPersonalAssessment(live, id); assert.ok(fresh); assert.equal(fresh.version, 4);
+    const fresh = await readPersonalAssessment(live, id); assert.ok(fresh); assert.equal(fresh.version, 5);
     const groups = savedRequirementGroups(fresh.profile);
     const row = (group: string, label: string) => groups.find(item => item.id === group)?.rows?.find(item => item.label === label);
     assert.equal(row("application", "Application type")?.value, scenario.expected.application);
@@ -241,6 +245,10 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     assert.equal(row("application", "Client types")?.value, scenario.expected.clients);
     assert.equal(row("security", "Assurance expectation (planning label)")?.value, "Elevated");
     assert.equal((fresh.profile.security as Record<string, unknown>).assurance, "ELEVATED");
+    for (const key of ["hosting", "deploymentTarget", "identityExpertise", "budgetSensitivity"] as const) {
+      assert.equal((fresh.profile.operations as Record<string, unknown>)[key], scenario.operations[key]);
+      assert.equal(row("operations", operationalPreferenceFields[key].label)?.value, operationalPreferenceLabels[scenario.operations[key]]);
+    }
     assert.equal(row("auditability", "Minimum retention")?.value, `${scenario.retention} days`);
     assert.equal(row("usage", "Monthly M2M token issuances")?.value, `${scenario.m2mTokens.toLocaleString("en-US")} · Assumed`);
     assert.equal(row("usage", "Enterprise SSO connections")?.state, scenario.ssoConnections === null ? "not-recorded" : "recorded");
@@ -248,28 +256,31 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key} saves prese
     assert.equal(relatedComparisonInput("protocols.enterpriseSingleSignOn", groups)?.rows?.[0].value, scenario.expected.sso);
 
     const beforeExport = structuredClone(profile);
-    const exportForm = new URLSearchParams({ expectedVersion: "4" });
+    const exportForm = new URLSearchParams({ expectedVersion: "5" });
     const exported = await requirementsBriefRoute(request(`/${id}/requirements-brief`, exportForm), context);
     assert.equal(exported.status, 200); assert.equal(exported.headers.get("cache-control"), "no-store");
-    assert.equal(exported.headers.get("content-disposition"), `attachment; filename="${requirementsBriefFilename(id, 4)}"`);
+    assert.equal(exported.headers.get("content-disposition"), `attachment; filename="${requirementsBriefFilename(id, 5)}"`);
     const markdown = await exported.text(), readable = markdown.replace(/\\([!-~])/g, "$1");
     assert.ok(readable.includes("**Assurance expectation (planning label):** Elevated"));
+    for (const key of ["hosting", "deploymentTarget", "identityExpertise", "budgetSensitivity"] as const) {
+      assert.ok(readable.includes(`**${operationalPreferenceFields[key].label}:** ${operationalPreferenceLabels[scenario.operations[key]]}`));
+    }
     for (const label of [scenario.expected.application, scenario.expected.users, scenario.expected.clients, `${scenario.retention} days`, scenario.assumption]) assert.ok(readable.includes(label), label);
-    assert.ok(markdown.includes("- Saved version: `4`")); assert.equal(markdown.includes(identity.subject), false);
+    assert.ok(markdown.includes("- Saved version: `5`")); assert.ok(markdown.includes("authweave-saved-requirements-brief-v2")); assert.equal(markdown.includes(identity.subject), false);
     assert.equal(await (await requirementsBriefRoute(request(`/${id}/requirements-brief`, exportForm), context)).text(), markdown);
-    assert.equal((await requirementsBriefRoute(request(`/${id}/requirements-brief`, new URLSearchParams({ expectedVersion: "3" })), context)).status, 409);
-    assert.equal(version, 4); assert.deepEqual(writes, [0, 1, 2, 3]); assert.deepEqual(profile, beforeExport);
+    assert.equal((await requirementsBriefRoute(request(`/${id}/requirements-brief`, new URLSearchParams({ expectedVersion: "4" })), context)).status, 409);
+    assert.equal(version, 5); assert.deepEqual(writes, [0, 1, 2, 3, 4]); assert.deepEqual(profile, beforeExport);
 
     const beforeConflict = structuredClone(profile), writeCount = writes.length;
     capabilities.set("SCIM", "PREFERRED"); // This form still carries saved version 1.
     const stale = await updateCapabilitiesRoute(request(`/${id}/capabilities`, capabilities), context);
     assert.equal(stale.headers.get("location"), `http://localhost:3000/assessments/${id}?step=capabilities&editError=stale`);
-    assert.equal(version, 4); assert.equal(writes.length, writeCount); assert.deepEqual(profile, beforeConflict);
-    capabilities.set("expectedVersion", "4"); raceOnWrite = true;
+    assert.equal(version, 5); assert.equal(writes.length, writeCount); assert.deepEqual(profile, beforeConflict);
+    capabilities.set("expectedVersion", "5"); raceOnWrite = true;
     const raced = await updateCapabilitiesRoute(request(`/${id}/capabilities`, capabilities), context);
     assert.equal(raced.headers.get("location"), `http://localhost:3000/assessments/${id}?step=capabilities&editError=stale`);
     assert.equal((await raced.text()).includes("Private upstream"), false);
-    assert.equal(version, 5); assert.equal(writes.length, writeCount);
+    assert.equal(version, 6); assert.equal(writes.length, writeCount);
     assert.deepEqual(profile, { ...beforeConflict, operations: { ...beforeConflict.operations as Record<string, unknown>, hosting: "MANAGED" } });
     await revokeSession(sessionId);
     const callCount = calls.length;

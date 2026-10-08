@@ -440,7 +440,10 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
     const unreadableUsage = renderToStaticMarkup(await page.default(usageProps));
     assert.ok(unreadableUsage.includes("Usage editing is unavailable"));
     assert.ok(!unreadableUsage.includes("Save usage inputs"));
-    Object.assign(assessment, { profile: savedRequirementsFixture() });
+    const legacyEditorProfile = savedRequirementsFixture();
+    // Keep the explicit missing-operational-preferences case independent of the full Review fixture.
+    Object.assign(legacyEditorProfile, { operations: { usagePlanning: legacyEditorProfile.operations.usagePlanning } });
+    Object.assign(assessment, { profile: legacyEditorProfile });
     const requirements = renderToStaticMarkup(await page.default(requirementsProps));
     assert.ok(requirements.includes("How to choose a requirement level"));
     assert.ok(requirements.includes(`action="/api/assessments/${id}/capabilities"`));

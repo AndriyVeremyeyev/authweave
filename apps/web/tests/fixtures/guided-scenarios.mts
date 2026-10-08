@@ -8,6 +8,7 @@ export const guidedScenarios = [
     audit: ["AUTHENTICATION_FAILURE_EVENTS", "AUDIT_LOG_RETENTION"], retention: 180,
     monthlyUsers: 100, ssoConnections: null, m2mTokens: 0, peakLogins: null,
     assumption: "Synthetic forecast; no M2M clients in this scenario",
+    operations: { hosting: "MANAGED", deploymentTarget: "AZURE", identityExpertise: "MODERATE", budgetSensitivity: "HIGH" },
     expected: { application: "B2B SaaS", users: "External customers", clients: "Browser", scim: "Required", sso: "Preferred" },
   },
   {
@@ -18,6 +19,7 @@ export const guidedScenarios = [
     audit: ["AUTHENTICATION_SUCCESS_EVENTS", "AUTHENTICATION_FAILURE_EVENTS", "AUDIT_LOG_RETENTION"], retention: 90,
     monthlyUsers: 1000, ssoConnections: 0, m2mTokens: 0, peakLogins: 5,
     assumption: "Synthetic forecast; no enterprise customer IdP connections or M2M clients",
+    operations: { hosting: "NO_PREFERENCE", deploymentTarget: "ON_PREMISES", identityExpertise: "ADVANCED", budgetSensitivity: "HIGH" },
     expected: { application: "Public-sector portal", users: "Citizens", clients: "Browser", scim: "Not required", sso: "Not required" },
   },
   {
@@ -29,6 +31,7 @@ export const guidedScenarios = [
     audit: ["ADMINISTRATIVE_CHANGE_EVENTS", "PROVISIONING_CHANGE_EVENTS", "AUDIT_LOG_RETENTION"], retention: 30,
     monthlyUsers: 250, ssoConnections: 1, m2mTokens: 5000, peakLogins: 2,
     assumption: "Synthetic workforce IdP and workload-token forecast, not observed traffic",
+    operations: { hosting: "SELF_HOSTED", deploymentTarget: "MULTI_CLOUD", identityExpertise: "ADVANCED", budgetSensitivity: "MODERATE" },
     expected: { application: "Internal workforce application", users: "Contractors, Employees", clients: "Browser, Machine to machine",
       scim: "Unknown / not recorded", sso: "Required" },
   },

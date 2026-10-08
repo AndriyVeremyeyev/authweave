@@ -17,7 +17,8 @@ export function savedRequirementsFixture() {
       authenticationControls: { phishingResistance: "UNKNOWN", nonExportableKeys: "NOT_REQUIRED", stepUpAuthentication: "PREFERRED" },
       auditability: "REQUIRED", auditabilityRequirements: {
         selectedCriteria: ["AUTHENTICATION_SUCCESS_EVENTS", "AUDIT_LOG_RETENTION"], minimumRetentionDays: 30 as number | null } },
-    operations: { usagePlanning: { scopeDescription: "Fictional B2B partner portal", assumptions: ["Pilot traffic only"],
+    operations: { hosting: "MANAGED", deploymentTarget: "AZURE", identityExpertise: "MODERATE", budgetSensitivity: "HIGH",
+      usagePlanning: { scopeDescription: "Fictional B2B partner portal", assumptions: ["Pilot traffic only"],
       volumes: { MONTHLY_ACTIVE_USERS: { basis: "ASSUMED", value: 250 },
         MONTHLY_M2M_TOKEN_ISSUANCES: { basis: "OBSERVED", value: 0 } } } },
   };

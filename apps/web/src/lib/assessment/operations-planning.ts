@@ -58,14 +58,20 @@ function object(value: unknown): Record<string, unknown> | null {
 function choice(value: unknown, choices: readonly string[]): boolean { return typeof value === "string" && choices.includes(value); }
 function invalid(): never { throw new Error("Invalid operations planning preview"); }
 
-/** Read saved inputs only. No defaults for missing fields or invented usage quantities. */
-export function operationsPlanningValues(profile: Record<string, unknown>): OperationsPlanningValues | null {
-  const ops = object(profile.operations), planning = usagePlanningValues(profile);
-  if (!ops || !planning || Object.keys(ops).length !== 5 ||
+/** Project the four saved choices independently of the separately edited usage payload. */
+export function operationalPreferencesValues(profile: Record<string, unknown>): OperationsInputs | null {
+  const ops = object(profile.operations);
+  if (!ops || Object.keys(ops).length !== 5 || !Object.hasOwn(ops, "usagePlanning") ||
       !choice(ops.hosting, hostingPreferences) || !choice(ops.deploymentTarget, deploymentTargets) ||
       !choice(ops.identityExpertise, identityExpertiseLevels) || !choice(ops.budgetSensitivity, budgetSensitivities)) return null;
-  return { inputs: { hosting: ops.hosting, deploymentTarget: ops.deploymentTarget,
-    identityExpertise: ops.identityExpertise, budgetSensitivity: ops.budgetSensitivity } as OperationsInputs, usagePlanning: planning };
+  return { hosting: ops.hosting, deploymentTarget: ops.deploymentTarget,
+    identityExpertise: ops.identityExpertise, budgetSensitivity: ops.budgetSensitivity } as OperationsInputs;
+}
+
+/** Read saved inputs only. No defaults for missing fields or invented usage quantities. */
+export function operationsPlanningValues(profile: Record<string, unknown>): OperationsPlanningValues | null {
+  const inputs = operationalPreferencesValues(profile), planning = usagePlanningValues(profile);
+  return inputs && planning ? { inputs, usagePlanning: planning } : null;
 }
 
 export function operationsPlanningBinding(workspaceId: string, assessmentId: string, expectedVersion: number,
