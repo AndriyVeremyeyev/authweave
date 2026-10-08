@@ -34,9 +34,12 @@ make setup
 The setup command generates local database passwords only when `infra/.env` does not
 already exist. It never overwrites an existing environment file.
 
-Start PostgreSQL and run all local checks:
+Install the pinned Chromium test browser, start PostgreSQL and run all local checks.
+Stop local development and identity servers first: the isolated browser check needs
+ports 3000, 8080 and 8081 free, and refuses to replace existing services.
 
 ```shell
+make setup-browser
 make infra-up
 make check
 ```
@@ -2974,6 +2977,26 @@ synthetic test setup, not an OIDC login or browser E2E test. Saved context sets 
 the declared option order for display (countries use code order), so Core's unordered
 set serialization cannot reorder Review, list labels or the brief; ordered usage
 assumptions, stored profiles and verdicts are unchanged.
+
+`make check-browser` (also in `make check` and CI) runs eight Chromium E2E cases
+against an isolated production Next.js standalone build, real Core HTTP and fresh
+Testcontainers PostgreSQL. Run `make check-web` and `make setup-browser` first.
+The three synthetic scenarios run at desktop and mobile widths through OIDC sign-in,
+five actual form saves, all 37 Review/downloaded-brief rows, fictional Comparison,
+Architecture and sign-out. Failure paths cover dirty-step stay/discard, a stale tab,
+cross-user read/write denial, CSRF, same-account session rotation, a rejected different
+account, invalid nonce and callback replay. SQL checks exact revisions/audit counts,
+session cleanup and absence of workspaces for rejected identities.
+
+The test-only OIDC protocol double checks PKCE S256 and one-use codes and returns
+signed synthetic ID Tokens; the browser uses the actual login/callback/session routes,
+not injected cookies or fabricated application sessions. A loopback proxy forwards
+the fixed BFF Core origin to the random test server without bypassing its filters.
+Local `.env` files, real ZITADEL users, app data, named volumes and external services
+are not used. Both loopback address families are checked for busy ports; cleanup
+stops only owned processes. Browser screenshots on failure remain ignored and traces
+are disabled. This does not prove real-ZITADEL interoperability, curator grants,
+owner understanding, accessibility conformance or hosted security readiness.
 
 The fact-path report concurrency regression observes actual PostgreSQL blocking,
 uncommitted visibility and report-number allocation with both a normal and a

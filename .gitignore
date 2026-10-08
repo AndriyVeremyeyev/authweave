@@ -18,3 +18,5 @@
 node_modules/
 __pycache__/
 coverage/
+apps/web/test-results/
+apps/web/playwright-report/

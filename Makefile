@@ -3,8 +3,8 @@ SHELL := /bin/sh
 AI_WORKER_PYTHON ?= .venv/bin/python
 PYTHON ?= python3.13
 
-.PHONY: help setup setup-env setup-web setup-ai setup-contracts \
-	check check-policy check-core check-web check-web-auth-db check-guided-bff check-ai check-contracts \
+.PHONY: help setup setup-env setup-web setup-browser setup-ai setup-contracts \
+	check check-policy check-core check-web check-web-auth-db check-guided-bff check-browser check-ai check-contracts \
 	setup-auth setup-core-service-token check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
 	inspect-provider-baselines generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact store-catalog-regression store-catalog-bootstrap-impact dev-core dev-web dev-ai
 
@@ -12,12 +12,14 @@ help:
 	@printf '%s\n' \
 		'AuthWeave development commands:' \
 		'  make setup           Install local project dependencies' \
+		'  make setup-browser   Install the project-pinned Chromium test browser' \
 		'  make check           Run every local validation command' \
 		'  make check-policy    Check public files for Cyrillic text' \
 		'  make check-core      Run Core API tests with Testcontainers' \
 		'  make check-web       Lint, test and build the web application' \
 		'  make check-web-auth-db  Run isolated web session integration tests against local PostgreSQL' \
 		'  make check-guided-bff  Test three BFF assessment flows with a real Core HTTP server and a temporary database' \
+		'  make check-browser   Run isolated production browser/OIDC E2E (build and Chromium required; ports 3000/8080/8081 must be free)' \
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make inspect-provider-baselines  Inspect unreviewed provider research drafts offline; no activation' \
@@ -53,6 +55,9 @@ setup-env:
 setup-web:
 	cd apps/web && npm ci
 
+setup-browser:
+	cd apps/web && npx playwright install chromium
+
 setup-ai:
 	$(PYTHON) -m venv services/ai-worker/.venv
 	services/ai-worker/.venv/bin/python -m pip install --disable-pip-version-check -e "services/ai-worker[dev]"
@@ -60,7 +65,7 @@ setup-ai:
 setup-contracts:
 	cd packages/contracts && npm ci
 
-check: check-policy check-auth-config check-core check-web check-ai check-contracts check-guided-bff
+check: check-policy check-auth-config check-core check-web check-ai check-contracts check-guided-bff check-browser
 
 inspect-provider-baselines:
 	node packages/contracts/scripts/inspect-provider-baselines.mjs
@@ -115,6 +120,9 @@ check-web-auth-db:
 # No local .env, IdP, app database or named volume is used by this target.
 check-guided-bff:
 	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress -Dtest=GuidedAssessmentBffIT test
+
+check-browser:
+	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress -Dtest=GuidedAssessmentBrowserIT test
 
 check-ai:
 	cd services/ai-worker && $(AI_WORKER_PYTHON) -m ruff check . && $(AI_WORKER_PYTHON) -m pytest
