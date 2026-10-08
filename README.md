@@ -1875,9 +1875,9 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 73 recorded and 1,423 omitted option-paths across 22 distinct
-scopes (1,496 possible addresses). The 69 capability proposals comprise 33 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; four separate client-context proposals are `SUPPORTED`.
+The current pack has 76 recorded and 1,488 omitted option-paths across 23 distinct
+scopes (1,564 possible addresses). The 70 capability proposals comprise 34 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; six separate client-context proposals are `SUPPORTED`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1936,10 +1936,10 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-two distinct options and 73 recorded
+`make inspect-provider-baselines` now reports twenty-three distinct options and 76 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
-plus two public-client-scoped drafts (Keycloak and ZITADEL Cloud Free).
+plus three public-client-scoped drafts (Keycloak, ZITADEL Cloud Free and Auth0 B2B Free).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2007,6 +2007,27 @@ integration are explicit limitations. SAML and the other omitted capabilities re
 unassessed, not unavailable. No region, compatibility, security-control or full cost
 coverage is inferred. The fixed offline inspection retains the original unknown Auth0
 research option separately; neither option is approved or activated.
+
+#### Client-scoped Auth0 OIDC documentation candidate
+
+A separate [Auth0 public-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/auth0-b2b-free-public-oidc-clients.v1.json)
+records `OIDC: OPTIONAL` and `BROWSER`/`NATIVE_MOBILE: SUPPORTED`, all `UNREVIEWED`.
+Its first-party SPA/Native scope requires separate registrations, public token
+authentication, exact callbacks and
+[code with S256 PKCE](https://auth0.com/docs/get-started/authentication-and-authorization-flow/authorization-code-flow-with-pkce/add-login-using-the-authorization-code-flow-with-pkce).
+Application-type labels alone do not prove the actual configuration.
+
+Native conditions preserve the [callback impersonation caveat](https://auth0.com/docs/secure/security-guidance/measures-against-app-impersonation):
+prefer claimed HTTPS Universal/App Links, verify ownership and retain applicable
+non-verifiable-callback confirmation. PKCE is not callback-ownership evidence.
+External-browser use is a separate RFC 8252 prerequisite. SDKs, browser privacy,
+token storage and local sessions remain untested. Mutable sources are dated,
+not release-pinned; the [Free offer](https://auth0.com/pricing) is not verified
+entitlement or a future cost guarantee.
+
+Research/native/workforce observations are unchanged; SCIM, enterprise federation,
+machine/BFF/third-party clients, residency and authentication controls are not inherited.
+No tenant, subscription, live integration, approval or AuthWeave provider change occurred.
 
 #### Staging-scoped WorkOS Directory Sync candidate
 

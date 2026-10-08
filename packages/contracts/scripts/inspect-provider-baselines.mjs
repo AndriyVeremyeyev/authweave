@@ -165,6 +165,28 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
   },
   {
+    file: "auth0-b2b-free-public-oidc-clients.v1.json",
+    catalogVersion: "auth0-b2b-free-public-oidc-clients-draft-2026.10.08",
+    scope: {
+      id: "auth0-b2b-free-public-oidc-clients", providerId: "auth0", product: "Auth0 Public Cloud", deployment: "MANAGED",
+      plan: "B2B Free; documented offer, no account entitlement verified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "First-party public SPA/Native OIDC; code/S256 PKCE, token auth none, exact callbacks; no BFF, M2M, SCIM or brokers",
+    },
+    facts: {
+      OIDC: { availability: "OPTIONAL", sourceUrl: "https://auth0.com/docs/get-started/authentication-and-authorization-flow/authorization-code-flow-with-pkce/add-login-using-the-authorization-code-flow-with-pkce" },
+    },
+    compatibility: {
+      "compatibility.clients.BROWSER": {
+        support: "SUPPORTED", sourceUrl: "https://auth0.com/docs/get-started/auth0-overview/create-applications/single-page-web-apps",
+      },
+      "compatibility.clients.NATIVE_MOBILE": {
+        support: "SUPPORTED", sourceUrl: "https://auth0.com/docs/secure/security-guidance/measures-against-app-impersonation",
+      },
+    },
+    metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
+  },
+  {
     file: "workos-directory-sync-staging.v1.json",
     catalogVersion: "workos-directory-sync-staging-draft-2026.10.02",
     scope: {

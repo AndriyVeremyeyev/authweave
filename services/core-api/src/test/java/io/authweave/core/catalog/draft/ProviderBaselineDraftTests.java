@@ -805,6 +805,7 @@ class ProviderBaselineDraftTests {
         }
         resources.add("scoped/keycloak-26.8.0-public-oidc-clients.v1.json");
         resources.add("scoped/zitadel-cloud-free-public-oidc-clients.v1.json");
+        resources.add("scoped/auth0-b2b-free-public-oidc-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -831,18 +832,18 @@ class ProviderBaselineDraftTests {
             option.facts().values().forEach(fact -> counts.merge(fact.availability(), 1, Integer::sum));
             option.compatibility().clients().values().forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(22, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(73, recordedCount);
-        assertEquals(1423, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 33,
+        assertEquals(23, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(76, recordedCount);
+        assertEquals(1488, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 34,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 4), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 6), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T06:37:37Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T06:56:20Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(22, report.optionCount());
-        assertEquals(73, report.factCount());
+        assertEquals(23, report.optionCount());
+        assertEquals(76, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1004,6 +1005,94 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(5, report.optionCount());
         assertEquals(18, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"BROWSER", "NATIVE_MOBILE"})
+    void auth0PublicClientsKeepFirstPartyScopeAndUnverifiedCallbackControls(String client) throws Exception {
+        var json = resource("catalog/baselines/scoped/auth0-b2b-free-public-oidc-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("auth0-b2b-free-public-oidc-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("auth0-b2b-free-public-oidc-clients", option.id());
+        assertEquals("auth0", option.providerId());
+        assertEquals("Auth0 Public Cloud", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("B2B Free; documented offer, no account entitlement verified", option.plan());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), option.facts().keySet());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, option.facts().get(ProviderCatalog.Capability.OIDC).availability());
+        var fact = option.compatibility().clients().get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.valueOf(client));
+        assertNotNull(fact);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, fact.support());
+        assertEquals("auth0.com", fact.evidence().sourceUrl().getHost());
+        assertEquals(client.equals("BROWSER") ? "/docs/get-started/auth0-overview/create-applications/single-page-web-apps"
+                : "/docs/secure/security-guidance/measures-against-app-impersonation", fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T06:56:20Z"), fact.evidence().observedAt());
+        assertTrue(option.facts().get(ProviderCatalog.Capability.OIDC).conditions().stream()
+                .anyMatch(condition -> condition.contains("token_endpoint_auth_method none")));
+        if (client.equals("NATIVE_MOBILE")) {
+            assertTrue(fact.conditions().stream().anyMatch(condition -> condition.contains("PKCE alone does not prevent")));
+            assertTrue(fact.conditions().stream().anyMatch(condition -> condition.contains("retain end-user confirmation")));
+        }
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(3, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void auth0PublicClientFreshnessDoesNotRefreshEvidenceOrPromoteSupport() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/auth0-b2b-free-public-oidc-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T06:56:20Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+        assertTrue(draft.options().getFirst().compatibility().clients().values().stream()
+                .allMatch(fact -> fact.support() == ProviderCatalog.Support.SUPPORTED
+                        && fact.evidence().observedAt().equals(observed)));
+    }
+
+    @Test
+    void auth0ClientsDoNotInheritNativeScimOrWorkforceBrokerClaims() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("auth0.v1.json", "scoped/auth0-b2b-free.v1.json",
+                "scoped/auth0-b2b-free-upstream-okta.v1.json", "scoped/auth0-b2b-free-upstream-entra.v1.json",
+                "scoped/auth0-b2b-free-public-oidc-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(5, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().clients().isEmpty()));
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.getLast().facts().keySet());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "auth0-client-context-coexistence-test", options), Instant.parse("2026-10-08T06:56:20Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(5, report.optionCount());
+        assertEquals(16, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

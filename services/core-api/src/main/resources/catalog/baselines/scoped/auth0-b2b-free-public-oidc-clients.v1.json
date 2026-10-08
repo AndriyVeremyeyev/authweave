@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-b2b-free-public-oidc-clients-draft-2026.10.08",
+  "options": [{
+    "id": "auth0-b2b-free-public-oidc-clients",
+    "providerId": "auth0",
+    "product": "Auth0 Public Cloud",
+    "plan": "B2B Free; documented offer, no account entitlement verified",
+    "deployment": "MANAGED",
+    "region": "No tenant region selected; storage destinations not verified",
+    "configuration": "First-party public SPA/Native OIDC; code/S256 PKCE, token auth none, exact callbacks; no BFF, M2M, SCIM or brokers",
+    "facts": {
+      "OIDC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Register separate first-party SPA and Native applications with Authorization Code enabled; verify token_endpoint_auth_method none for each public client rather than inferring it from the application-type label.",
+          "Use response_type code, openid scope and a fresh S256 PKCE verifier/challenge; validate issuer, state, nonce, ID-token signature and audience in the consuming application.",
+          "Configure narrowly registered callbacks and only required browser origins under https://auth0.com/docs/get-started/applications/application-settings; do not use production redirect wildcards.",
+          "The B2B Free offer at https://auth0.com/pricing is a scope reference, not tested account entitlement, a trial benefit or a future zero-cost guarantee; Cloud sources are mutable and dated, not release-pinned.",
+          "This scope excludes confidential BFF clients, M2M/API grants, third-party registrations, SAML, inbound SCIM and upstream enterprise brokers."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/get-started/authentication-and-authorization-flow/authorization-code-flow-with-pkce/add-login-using-the-authorization-code-flow-with-pkce",
+          "observedAt": "2026-10-08T06:56:20Z",
+          "summary": "The dated login guide describes Native/SPA registration, allowed callbacks, Authorization Code, S256 PKCE and openid scope for ID tokens. It proposes downstream OIDC login, not verified tenant configuration or Free entitlement."
+        }
+      }
+    },
+    "compatibility": {
+      "applications": {},
+      "clients": {
+        "BROWSER": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Limit this proposal to a first-party public SPA using code/S256 PKCE and token authentication none; never ship a confidential client secret in browser code.",
+            "Enable at least one intended login connection for the SPA; configuring that connection does not establish enterprise SSO, SCIM or population/tenancy compatibility.",
+            "Test callback/origin policy, token storage and browser privacy restrictions independently; refresh-token rotation and local-session logout are not inferred from documented SPA registration.",
+            "Application registration does not prove deployment behavior or an implemented SDK; this scope is not AuthWeave's confidential Next.js BFF."
+          ],
+          "evidence": {
+            "sourceUrl": "https://auth0.com/docs/get-started/auth0-overview/create-applications/single-page-web-apps",
+            "observedAt": "2026-10-08T06:56:20Z",
+            "summary": "The dated SPA guide describes a distinct browser application registration and enabling a login connection. Flow and application prerequisites remain explicit; no browser interoperability or session enforcement was tested."
+          }
+        },
+        "NATIVE_MOBILE": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Limit this proposal to a first-party public Native mobile OIDC client with code/S256 PKCE and token authentication none; register it separately from the SPA.",
+            "Application prerequisite: use an external user-agent under RFC 8252 (https://www.rfc-editor.org/rfc/rfc8252.html), not a credential-capturing embedded WebView.",
+            "Prefer claimed HTTPS Universal Links/App Links and verify platform association and callback ownership; PKCE alone does not prevent a malicious app from initiating its own login through a shared custom URI scheme.",
+            "If a non-verifiable callback is necessary, retain end-user confirmation and verify its actual behavior; a configured prompt is not evidence of verified callback ownership.",
+            "Test issuer/state/nonce, token storage and SDK integration independently; no mobile SDK, OS association, phishing-resistance control or local-session lifecycle was verified."
+          ],
+          "evidence": {
+            "sourceUrl": "https://auth0.com/docs/secure/security-guidance/measures-against-app-impersonation",
+            "observedAt": "2026-10-08T06:56:20Z",
+            "summary": "The dated native-login guide describes code with PKCE, recommends claimed HTTPS callbacks and explains custom-scheme impersonation and conditional user confirmation. These are configuration prerequisites, not tested mobile assurance."
+          }
+        }
+      },
+      "populations": {},
+      "tenancy": {},
+      "membership": {}
+    },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}
