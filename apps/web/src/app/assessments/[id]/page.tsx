@@ -5,16 +5,13 @@ import { notFound, redirect } from "next/navigation";
 import { capabilityFields, capabilityValues } from "@/lib/assessment/capabilities";
 import { evaluationContextValues } from "@/lib/assessment/evaluation-context";
 import { usagePlanningValues } from "@/lib/assessment/usage-planning";
-import { operationsPlanningValues, type OperationsPlanningPreview } from "@/lib/assessment/operations-planning";
+import { operationsPlanningValues } from "@/lib/assessment/operations-planning";
 import { assurancePlanningValues } from "@/lib/assessment/assurance-compliance-planning";
 import { auditabilityValues } from "@/lib/assessment/auditability";
-import type { AuditabilityPreview } from "@/lib/assessment/auditability-preview";
 import { authConfiguration } from "@/lib/auth/config";
 import { readPersonalArchitecturePatterns, readPersonalAssessment, readPersonalUsagePlanning, readPersonalAuditability, readPersonalOperationsPlanning, readPersonalAssurancePlanning,
   readComparisonEvidence,
-  type ArchitecturePatternPreflightSummary,
-  type PersonalAssessment, type SyntheticComparisonSummary,
-  type UsagePlanningPreflightSummary } from "@/lib/auth/core-client";
+  type PersonalAssessment } from "@/lib/auth/core-client";
 import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession, type BrowserSession } from "@/lib/auth/store";
 import { WeightedPreviewForm } from "./weighted-preview";
@@ -35,7 +32,6 @@ import { ComparisonSection } from "./comparison-section";
 import { SavedContextSummary } from "./saved-context-summary";
 import { SavedRequirementsExport } from "./saved-requirements-export";
 import { CapabilityEditor } from "./capability-editor";
-import type { ComparisonProvenance } from "@/lib/assessment/comparison-provenance";
 
 export const runtime = "nodejs";
 
@@ -99,59 +95,21 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
   const operationsValues = operationsPlanningValues(assessment.profile);
   const auditValues = auditabilityValues(assessment.profile);
   const assuranceValues = assurancePlanningValues(assessment.profile);
-  // Start this independent saved-input read alongside existing previews; never cache or infer a fallback result.
-  const assurancePreviewPromise = assuranceValues ? readPersonalAssurancePlanning(session, id, assessment.version, assuranceValues).catch(() => null) : Promise.resolve(null);
   const preferred = values ? capabilityFields.filter(field => values[field.capability] === "PREFERRED")
     .map(field => ({ capability: field.capability, label: field.label })) : [];
 
-  let comparison: SyntheticComparisonSummary | null = null;
-  let comparisonEvidence: ComparisonProvenance[] | undefined;
-  try {
-    if (auditValues) {
-      const preview = await readComparisonEvidence(session, id, assessment.version, auditValues);
-      comparison = preview.comparison; comparisonEvidence = preview.evidence;
-    }
-  } catch {
-    // Keep the private assessment readable if the diagnostic comparison is unavailable.
-  }
-
-  let patterns: ArchitecturePatternPreflightSummary | null = null;
-  if (contextValues) {
-    try {
-      patterns = await readPersonalArchitecturePatterns(session, id, assessment.version, contextValues);
-    } catch {
-      // Keep the assessment and provider comparison readable if this separate preflight is unavailable.
-    }
-  }
-
-  let usagePreview: UsagePlanningPreflightSummary | null = null;
-  if (usageValues) {
-    try {
-      usagePreview = await readPersonalUsagePlanning(session, id, assessment.version, usageValues);
-    } catch {
-      // Keep the assessment and other independent previews readable if this input check is unavailable.
-    }
-  }
-
-  let operationsPreview: OperationsPlanningPreview | null = null;
-  if (operationsValues) {
-    try {
-      operationsPreview = await readPersonalOperationsPlanning(session, id, assessment.version, operationsValues);
-    } catch {
-      // Never infer an operating model or cost from stale, malformed or unavailable results.
-    }
-  }
-
-  let auditPreview: AuditabilityPreview | null = null;
-  if (auditValues) {
-    try {
-      auditPreview = await readPersonalAuditability(session, id, assessment.version, auditValues);
-    } catch {
-      // A stale, malformed or unavailable preview must not block the assessment or infer a result.
-    }
-  }
-
-  const assurancePreview = await assurancePreviewPromise;
+  // Independent, version-bound reads start together only after the live session and saved profile are resolved.
+  // Catch each read separately: unavailable or rejected previews never erase other sections or infer a result.
+  const [comparisonPreview, patterns, usagePreview, operationsPreview, auditPreview, assurancePreview] = await Promise.all([
+    auditValues ? readComparisonEvidence(session, id, assessment.version, auditValues).catch(() => null) : null,
+    contextValues ? readPersonalArchitecturePatterns(session, id, assessment.version, contextValues).catch(() => null) : null,
+    usageValues ? readPersonalUsagePlanning(session, id, assessment.version, usageValues).catch(() => null) : null,
+    operationsValues ? readPersonalOperationsPlanning(session, id, assessment.version, operationsValues).catch(() => null) : null,
+    auditValues ? readPersonalAuditability(session, id, assessment.version, auditValues).catch(() => null) : null,
+    assuranceValues ? readPersonalAssurancePlanning(session, id, assessment.version, assuranceValues).catch(() => null) : null,
+  ]);
+  const comparison = comparisonPreview?.comparison ?? null;
+  const comparisonEvidence = comparisonPreview?.evidence;
 
   return (
     <main className="mx-auto max-w-6xl px-5 py-10 text-slate-100 sm:px-8 sm:py-14">

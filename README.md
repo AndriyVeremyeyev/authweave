@@ -243,6 +243,15 @@ are blocked during a section save. Browser reload/close keeps its native warning
 Successful saves and known validation/version conflicts return to the relevant
 step. The step URL remembers location, not unsaved answers or completion.
 
+After the live browser session and canonical saved profile are resolved, six
+independent preview reads start together: comparison evidence, architecture,
+usage, operations, auditability and assurance/compliance. Every read keeps its
+existing saved-version/input binding and response guard. Unreadable input sections
+skip only their dependent reads; each rejection uses its own fixed unavailable
+state without hiding other previews or the saved profile. The page still awaits
+the applicable reads before rendering; this removes their sequential waterfall,
+not the existing per-read deadlines. No retry, cache, default result or write is added.
+
 Requirements explains all nine capabilities next to their saved selections, with
 expandable use cases, limits and questions to discuss with your team. A separate
 guide distinguishes all five requirement levels, including not-required versus

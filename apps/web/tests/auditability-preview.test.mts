@@ -288,7 +288,7 @@ test("personal pages accept canonical UUIDs, bind current inputs, isolate previe
       assert.equal(version, 2); assert.deepEqual(values, auditabilityInput);
       if (state.fail) throw new Error("synthetic upstream credential must not appear");
       return auditabilityPreviewFromCore(auditabilityFixture(), binding);
-    }, comparison: (session: typeof identity, assessmentId: string, version: number, values: AuditabilityValues) => {
+    }, comparison: async (session: typeof identity, assessmentId: string, version: number, values: AuditabilityValues) => {
       state.comparisonReads++; assert.deepEqual(session, identity); assert.equal(assessmentId, id);
       assert.equal(version, assessment.version); assert.equal(values.criticality, assessment.profile.security.auditability);
       if (!state.comparison) throw new Error("Private comparison upstream token must not appear");
