@@ -351,6 +351,25 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
   },
+  {
+    file: "entra-external-id-basic-organization-context.v1.json",
+    catalogVersion: "entra-external-id-basic-organization-context-draft-2026.10.08",
+    scope: {
+      id: "entra-external-id-basic-organization-context", providerId: "entra-external-id",
+      product: "Microsoft Entra External ID - external tenant", deployment: "MANAGED",
+      plan: "Basic MAU; customer-organization entitlement and billing unverified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "Standard external tenant; CIAM; app-owned org/membership model unverified; no workforce guests, Graph bridge or SCIM",
+    },
+    facts: {},
+    compatibility: {
+      "compatibility.applications.B2B_SAAS": { support: "SUPPORTED", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/overview-customers-ciam" },
+      "compatibility.applications.PARTNER_PORTAL": { support: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-manage-admin-accounts" },
+      "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS": { support: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/tenant-configurations" },
+      "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER": { support: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support" },
+    },
+    metadata: { basis: "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
+  },
   ...["okta", "entra"].map((upstream) => ({
     file: `entra-external-id-basic-upstream-${upstream}.v1.json`,
     catalogVersion: `entra-external-id-basic-upstream-${upstream}-draft-2026.10.08`,

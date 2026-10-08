@@ -812,6 +812,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/auth0-b2b-free-organization-context.v1.json");
         resources.add("scoped/workos-authkit-staging-organization-context.v1.json");
         resources.add("scoped/keycloak-26.8.0-organization-context.v1.json");
+        resources.add("scoped/entra-external-id-basic-organization-context.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -844,18 +845,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(29, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(98, recordedCount);
-        assertEquals(1874, omittedCount);
+        assertEquals(30, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(102, recordedCount);
+        assertEquals(1938, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 36,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 25, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 26, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T16:26:23Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T16:45:49Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(29, report.optionCount());
-        assertEquals(98, report.factCount());
+        assertEquals(30, report.optionCount());
+        assertEquals(102, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1759,6 +1760,130 @@ class ProviderBaselineDraftTests {
         assertTrue(options.get(4).compatibility().membership().isEmpty());
         var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "keycloak-organization-context-coexistence-test", options), Instant.parse("2026-10-08T16:26:23Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(6, report.optionCount());
+        assertEquals(22, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"compatibility.applications.B2B_SAAS", "compatibility.applications.PARTNER_PORTAL",
+            "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER"})
+    void entraOrganizationContextKeepsCustomerLoginDistinctFromUnknownAdmissionAndMembership(String path) throws Exception {
+        var json = resource("catalog/baselines/scoped/entra-external-id-basic-organization-context.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("entra-external-id-basic-organization-context-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("entra-external-id-basic-organization-context", option.id());
+        assertEquals("entra-external-id", option.providerId());
+        assertEquals("Microsoft Entra External ID - external tenant", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Basic MAU; customer-organization entitlement and billing unverified", option.plan());
+        assertTrue(option.facts().isEmpty());
+        var entries = CatalogDraftFacts.entries(option);
+        assertEquals(4, entries.size());
+        var fact = assertInstanceOf(ProviderCatalogDraft.CompatibilityFact.class, entries.get(path));
+        assertEquals(path.equals("compatibility.applications.B2B_SAAS")
+                ? ProviderCatalog.Support.SUPPORTED : ProviderCatalog.Support.UNKNOWN, fact.support());
+        assertEquals("learn.microsoft.com", fact.evidence().sourceUrl().getHost());
+        var sourcePaths = Map.of(
+                "compatibility.applications.B2B_SAAS", "/en-us/entra/external-id/customers/overview-customers-ciam",
+                "compatibility.applications.PARTNER_PORTAL", "/en-us/entra/external-id/customers/how-to-manage-admin-accounts",
+                "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "/en-us/entra/external-id/tenant-configurations",
+                "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "/en-us/entra/external-id/customers/reference-group-app-roles-support");
+        assertEquals(sourcePaths.keySet(), entries.keySet());
+        assertEquals(sourcePaths.get(path), fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T16:45:49Z"), fact.evidence().observedAt());
+        var conditions = String.join(" ", fact.conditions());
+        switch (path) {
+            case "compatibility.applications.B2B_SAAS" -> {
+                assertTrue(conditions.contains("SUPPORTED is application-type context"));
+                assertTrue(conditions.contains("not native customer-organization membership"));
+                assertTrue(conditions.contains("separate from a workforce tenant"));
+                assertTrue(conditions.contains("not verified account entitlement"));
+            }
+            case "compatibility.applications.PARTNER_PORTAL" -> {
+                assertTrue(conditions.contains("for administration, not customer sign-in"));
+                assertTrue(conditions.contains("incompatible with customer user flows"));
+                assertTrue(conditions.contains("UNKNOWN remains until an application-owned partner admission"));
+                assertTrue(conditions.contains("AuthWeave catalog-curator authority"));
+            }
+            case "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS" -> {
+                assertTrue(conditions.contains("directory is not one SaaS customer organization"));
+                assertTrue(conditions.contains("not evidence that application multi-tenancy is unsupported"));
+                assertTrue(conditions.contains("tid identifies the sign-in directory"));
+                assertTrue(conditions.contains("failed switches without retaining old tenant permissions"));
+            }
+            case "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER" -> {
+                assertTrue(conditions.contains("UNKNOWN is not absence of all group or membership APIs"));
+                assertTrue(conditions.contains("roles are application-specific and groups are directory-scoped"));
+                assertTrue(conditions.contains("Microsoft Graph, while the RBAC guide shows admin-center procedures"));
+                assertTrue(conditions.contains("app-specific sub values are not interchangeable"));
+            }
+            default -> fail("Unexpected organization-context path");
+        }
+        assertEquals(3, entries.values().stream().map(ProviderCatalogDraft.CompatibilityFact.class::cast)
+                .filter(entry -> entry.support() == ProviderCatalog.Support.UNKNOWN).count());
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"UNKNOWN\"", "\"support\": \"UNKNOWN\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void entraOrganizationFreshnessPreservesHashAndUnknownCompatibilityWithoutGrantingReview() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/entra-external-id-basic-organization-context.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T16:45:49Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertEquals(3, CatalogDraftFacts.entries(draft.options().getFirst()).values().stream()
+                    .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
+                    .filter(fact -> fact.support() == ProviderCatalog.Support.UNKNOWN).count());
+            assertUntrusted(report);
+        }
+    }
+
+    @Test
+    void entraOrganizationScopeKeepsResearchNativeProtocolsPublicClientsAndWorkforceBrokersIndependent() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("entra-external-id.v1.json", "scoped/entra-external-id-basic.v1.json",
+                "scoped/entra-external-id-basic-upstream-okta.v1.json", "scoped/entra-external-id-basic-upstream-entra.v1.json",
+                "scoped/entra-external-id-basic-public-oidc-clients.v1.json", "scoped/entra-external-id-basic-organization-context.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(6, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().applications().isEmpty()
+                && option.compatibility().tenancy().isEmpty() && option.compatibility().membership().isEmpty()));
+        assertTrue(options.getLast().facts().isEmpty());
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.OIDC).availability());
+        assertEquals(Instant.parse("2026-10-02T23:12:01Z"), options.get(1).facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        for (var option : options.subList(1, 4)) {
+            assertEquals(ProviderCatalog.Availability.UNKNOWN, option.facts().get(ProviderCatalog.Capability.SCIM).availability());
+            assertEquals(ProviderCatalog.Availability.UNKNOWN, option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).availability());
+        }
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.get(4).facts().keySet());
+        assertTrue(options.get(4).compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "entra-organization-context-coexistence-test", options), Instant.parse("2026-10-08T16:45:49Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(6, report.optionCount());
         assertEquals(22, report.factCount());

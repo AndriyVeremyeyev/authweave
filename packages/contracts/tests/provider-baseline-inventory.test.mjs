@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-08T16:26:23Z");
+const at = new Date("2026-10-08T16:45:49Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -104,14 +104,14 @@ test("inventory v2 enumerates 68 schema addresses, not 68 required customer fact
 
 test("the full pack partitions every option independently and replays all aggregate counts", () => {
   assertPartitions(pack);
-  assert.equal(inventory.optionCount, 29);
-  assert.equal(inventory.optionPathCount, 1972);
-  assert.equal(inventory.recordedPathCount, 98);
-  assert.equal(inventory.omittedPathCount, 1874);
+  assert.equal(inventory.optionCount, 30);
+  assert.equal(inventory.optionPathCount, 2040);
+  assert.equal(inventory.recordedPathCount, 102);
+  assert.equal(inventory.omittedPathCount, 1938);
   assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 36, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
-  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 25, UNSUPPORTED: 0, UNKNOWN: 1 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 72, COMPATIBILITY: 26, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 98, STALE: 0, FUTURE: 0 });
+  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 26, UNSUPPORTED: 0, UNKNOWN: 4 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 72, COMPATIBILITY: 30, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 102, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -131,6 +131,13 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
   assert.deepEqual(connect.recordedUnknownPaths, ["compatibility.clients.BROWSER"]);
   assert.ok(connect.families[1].recordedPaths.includes("compatibility.clients.BROWSER"));
   assert.ok(connect.families[1].omittedPaths.includes("compatibility.clients.MACHINE_TO_MACHINE"));
+  const entraOrganizations = option("entra-external-id-basic-organization-context");
+  assert.deepEqual(entraOrganizations.recordedUnknownPaths, [
+    "compatibility.applications.PARTNER_PORTAL",
+    "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER",
+    "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS",
+  ]);
+  assert.deepEqual(entraOrganizations.families[0].recordedPaths, []);
   for (const entry of inventory.options) for (const family of entry.families.slice(1)) {
     const basis = pack.options.find((option) => option.optionId === entry.optionId).basis;
     const expectedContext = basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT"
@@ -155,10 +162,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 83 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 87 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 98 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 98, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 102 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 102, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);

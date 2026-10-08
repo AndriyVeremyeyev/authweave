@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "entra-external-id-basic-organization-context-draft-2026.10.08",
+  "options": [{
+    "id": "entra-external-id-basic-organization-context",
+    "providerId": "entra-external-id",
+    "product": "Microsoft Entra External ID - external tenant",
+    "plan": "Basic MAU; customer-organization entitlement and billing unverified",
+    "deployment": "MANAGED",
+    "region": "No tenant region selected; storage destinations not verified",
+    "configuration": "Standard external tenant; CIAM; app-owned org/membership model unverified; no workforce guests, Graph bridge or SCIM",
+    "facts": {},
+    "compatibility": {
+      "applications": {
+        "B2B_SAAS": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Limit this proposal to business-customer authentication in a standard external tenant with registered applications and customer sign-up/sign-in user flows. SUPPORTED is application-type context, not native customer-organization membership, resource isolation or full B2B readiness.",
+            "The external directory stores customer accounts and is separate from a workforce tenant. Define and review application-owned customer organization IDs, admissions and resource permissions before using login for SaaS tenant access.",
+            "Basic MAU allowance is not verified account entitlement, production capacity or a zero-cost guarantee. Cloud sources are mutable and dated, not release-pinned; no account, subscription or live application integration was created.",
+            "This organization-context scope does not inherit OIDC/SAML, public-client, workforce-broker, SCIM, group synchronization, controls or residency assertions from other Entra drafts."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/overview-customers-ciam",
+            "observedAt": "2026-10-08T16:45:49Z",
+            "summary": "The external-tenant overview explicitly targets consumer and business-customer apps with a customer directory and user flows. Proposed SUPPORTED covers that application category only; customer organization and membership boundaries remain separate unresolved proposals."
+          }
+        },
+        "PARTNER_PORTAL": {
+          "support": "UNKNOWN",
+          "conditions": [
+            "The documented Invite external user preview is for administration, not customer sign-in to CIAM apps, and is incompatible with customer user flows. Do not use tenant-admin guest invitations as partner enrollment or application organization membership.",
+            "The general table at https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers mentions invitations, but its authentication section and the admin guide restrict this path. Preserve that distinction rather than promoting the broad wording to portal support.",
+            "UNKNOWN remains until an application-owned partner admission, trusted organization mapping and scoped business-admin workflow are specified and verified. It does not mean every possible custom portal or invitation implementation is unsupported.",
+            "A partner business-admin role is not an Entra directory administrator or AuthWeave catalog-curator authority. No directory roles, Graph grants, invitation emails or privileged membership operations were performed."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-manage-admin-accounts",
+            "observedAt": "2026-10-08T16:45:49Z",
+            "summary": "The external-tenant admin guide limits guest invitations to administration and explicitly excludes customer CIAM user flows. That boundary does not establish a customer partner-portal admission or membership model, so the selected application context stays UNKNOWN rather than UNSUPPORTED."
+          }
+        }
+      },
+      "clients": {},
+      "populations": {},
+      "tenancy": {
+        "MULTI_TENANT_ORGANIZATIONS": {
+          "support": "UNKNOWN",
+          "conditions": [
+            "One external identity directory is not one SaaS customer organization. Directory tenant IDs, branding, email domains and self-entered attributes must not become authority for access to a customer's application resources.",
+            "External-tenant app registrations use single-directory accounts per https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers. That account type is not evidence that application multi-tenancy is unsupported; workforce any-directory registration, cross-tenant synchronization and multitenant organizations are outside this scope.",
+            "Review the actual external-tenant token profile using https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference: tid identifies the sign-in directory, not an application customer organization. Validate tokens and bind a stable directory-scoped user to an application-owned organization; generic common-endpoint examples are not the selected CIAM authority.",
+            "UNKNOWN remains until organization mapping, tenant selection and resource authorization are defined and tested. Reject missing, foreign or unknown context and failed switches without retaining old tenant permissions; no live tenant isolation or database enforcement was verified."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/tenant-configurations",
+            "observedAt": "2026-10-08T16:45:49Z",
+            "summary": "The tenant guide distinguishes an external CIAM directory from workforce collaboration. It does not define the selected application's multiple customer-organization boundary; proposed UNKNOWN avoids conflating identity-directory tenancy with SaaS resource authorization."
+          }
+        }
+      },
+      "membership": {
+        "MULTIPLE_ORGANIZATIONS_PER_USER": {
+          "support": "UNKNOWN",
+          "conditions": [
+            "Security-group CRUD, group memberships and app-role assignments are documented, but an explicit customer-organization model and its multiple-membership lifecycle are not established for this configuration. UNKNOWN is not absence of all group or membership APIs.",
+            "Application roles are application-specific and groups are directory-scoped per https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-use-app-roles-customers. Neither a role nor membership in several security groups automatically proves membership in several business organizations.",
+            "The support table limits group app-role assignment and adding group claims to Microsoft Graph, while the RBAC guide shows admin-center procedures. Reconcile these paths with the deployed tenant before approval; no Graph bridge, permissions grant or verified group-claim completeness is selected.",
+            "Choose a trusted directory-scoped user key, not email or idp-based cross-tenant identity linking; app-specific sub values are not interchangeable across registrations. Define membership status, roles, admission, removal and cached JWT/local-session enforcement separately.",
+            "No membership changes, identity linking, invitations or offboarding acceptance were tested. App-owned mappings remain unverified and do not inherit native inbound SCIM, GROUP_SYNC or workforce guest lifecycle claims."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support",
+            "observedAt": "2026-10-08T16:45:49Z",
+            "summary": "The external-tenant support table documents group and role management, including Graph-only paths. Those primitives do not establish the selected application's customer-organization memberships, admission or lifecycle enforcement; the compatibility proposal remains UNKNOWN."
+          }
+        }
+      }
+    },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

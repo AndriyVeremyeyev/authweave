@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 98 recorded and 1,874 omitted option-paths across 29 distinct
-scopes (1,972 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; twenty-six separate compatibility proposals comprise
-twenty-five `SUPPORTED` and one `UNKNOWN`.
+The current pack has 102 recorded and 1,938 omitted option-paths across 30 distinct
+scopes (2,040 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty separate compatibility proposals comprise
+twenty-six `SUPPORTED` and four `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,12 +1937,13 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-nine distinct options and 98 recorded
+`make inspect-provider-baselines` now reports thirty distinct options and 102 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
-Entra External ID Basic and WorkOS AuthKit Connect staging), plus four organization-context
-drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging and Keycloak 26.8.0).
+Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organization-context
+drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
+and Entra External ID Basic).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2266,6 +2267,46 @@ Mutable sources and the Basic MAU allowance do not prove deployment or free oper
 Previous scopes/dates are unchanged; SCIM, brokers, BFF/M2M/API grants, residency and
 authentication controls are not inherited. No accounts, grants, subscriptions,
 approval or AuthWeave authentication configuration changed.
+
+#### Organization-scoped Entra External ID documentation candidate
+
+A separate [Entra organization-context draft](services/core-api/src/main/resources/catalog/baselines/scoped/entra-external-id-basic-organization-context.v1.json)
+proposes `B2B_SAAS: SUPPORTED` only as business-customer application context.
+`PARTNER_PORTAL`, `MULTI_TENANT_ORGANIZATIONS` and
+`MULTIPLE_ORGANIZATIONS_PER_USER` remain explicit `UNKNOWN` proposals, not
+`UNSUPPORTED` features. All four records are `UNREVIEWED`.
+
+The [CIAM overview](https://learn.microsoft.com/en-us/entra/external-id/customers/overview-customers-ciam)
+describes an external customer directory, registered apps and customer user flows.
+It does not establish the selected application's organization or membership model.
+Single-directory registration is not proof that application multi-tenancy is
+unsupported; [external and workforce tenants](https://learn.microsoft.com/en-us/entra/external-id/tenant-configurations)
+are different identity-directory configurations.
+
+The [admin guide](https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-manage-admin-accounts)
+limits guest invitations to administration, excluding customer CIAM user flows.
+The broader invitations wording in the
+[feature table](https://learn.microsoft.com/en-us/entra/external-id/customers/concept-supported-features-customers)
+must not become partner admission or business-admin delegation.
+A custom portal needs a separately reviewed application-owned enrollment and
+organization mapping; no guest invitation or directory-role assignment was made.
+
+[Groups and app roles](https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support)
+are management primitives, not verified customer-organization memberships.
+The support table's Graph-only paths and the
+[RBAC guide's portal procedures](https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-use-app-roles-customers)
+need reconciliation against the actual tenant. No Graph bridge or complete group
+claim is assumed. The [token reference](https://learn.microsoft.com/en-us/entra/identity-platform/id-token-claims-reference)
+defines directory `tid` and app-specific subjects, not the application's customer
+organization. Email and self-entered attributes do not authorize access to a SaaS
+customer tenant; validate tokens and bind a trusted user to the application's
+organization and resource permissions.
+
+Facts, clients, populations, residency and controls stay empty; earlier Entra scopes
+and observations are unchanged. Mutable Cloud evidence and a Basic MAU allowance
+are not account entitlement or a zero-cost guarantee. No account, subscription,
+membership write or live isolation test was performed. AuthWeave still uses ZITADEL;
+the active evaluator remains synthetic and full baselines/publication remain pending.
 
 #### Upstream workforce compatibility candidates for Auth0
 

@@ -122,11 +122,17 @@ test("Entra public clients coexist with unchanged research/native/workforce entr
   const before = JSON.stringify(originals);
   const report = await inspectBaselinePack(observed);
   const entra = report.options.filter((option) => option.providerId === "entra-external-id");
-  assert.equal(entra.length, 5);
-  for (const option of entra.filter((option) => option.basis !== "CLIENT_SCOPED_DOCUMENTATION_DRAFT")) {
+  assert.equal(entra.length, 6);
+  for (const option of entra.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT",
+    "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
     assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }
+  const organizations = entra.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
+  assert.ok(organizations.facts.every((fact) => fact.path.startsWith("compatibility.")
+    && !fact.path.startsWith("compatibility.clients.")));
+  assert.deepEqual(organizations.omittedCapabilities, ["ENTERPRISE_SSO", "GROUP_SYNC", "JIT", "MFA",
+    "OAUTH2_APIS", "OIDC", "SAML", "SCIM", "SOCIAL_LOGIN"]);
   assert.deepEqual(inspect().options[0].omittedCapabilities, ["ENTERPRISE_SSO", "GROUP_SYNC", "JIT", "MFA", "OAUTH2_APIS", "SAML", "SCIM", "SOCIAL_LOGIN"]);
   const native = originals.find((entry) => entry.catalogVersion === "entra-external-id-basic-draft-2026.10.02");
   assert.equal(native.options[0].facts.OIDC.evidence.observedAt, "2026-10-02T23:12:01Z");

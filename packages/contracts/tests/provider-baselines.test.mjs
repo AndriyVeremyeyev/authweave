@@ -919,14 +919,14 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-08T16:26:23Z");
+  const at = new Date("2026-10-08T16:45:49Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 29);
-  assert.equal(report.factCount, 98);
+  assert.equal(report.optionCount, 30);
+  assert.equal(report.factCount, 102);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 24);
+  assert.equal(report.scopedDraftOptionCount, 25);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 6);
   assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 6);
@@ -1007,8 +1007,15 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.ok(workosPairs.every((option) => option.sourcePlan === "Staging" && option.facts.length === 2
     && option.facts.every((fact) => fact.availability === "OPTIONAL")));
   const entra = report.options.filter((option) => option.providerId === "entra-external-id");
-  assert.equal(entra.length, 5);
-  assert.equal(new Set(entra.map((option) => option.optionId)).size, 5);
+  assert.equal(entra.length, 6);
+  assert.equal(new Set(entra.map((option) => option.optionId)).size, 6);
+  const entraOrganizations = entra.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(entraOrganizations.sourcePlan, "Basic MAU");
+  assert.equal(entraOrganizations.facts.length, 4);
+  assert.ok(entraOrganizations.facts.every((fact) => fact.path.startsWith("compatibility.")));
+  assert.equal(entraOrganizations.facts.find((fact) => fact.path === "compatibility.applications.B2B_SAAS").support, "SUPPORTED");
+  assert.ok(entraOrganizations.facts.filter((fact) => fact.path !== "compatibility.applications.B2B_SAAS")
+    .every((fact) => fact.support === "UNKNOWN"));
   const entraResearch = entra.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE");
   assert.ok(entraResearch.facts.every((fact) => fact.availability === "UNKNOWN"));
   assert.equal(entraResearch.facts.some((fact) => fact.path === "facts.SAML"), false);
@@ -1069,7 +1076,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 98);
+  assert.equal(JSON.parse(run.stdout).factCount, 102);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");
