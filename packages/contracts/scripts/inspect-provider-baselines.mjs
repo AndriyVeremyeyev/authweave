@@ -427,6 +427,26 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
   },
   {
+    file: "entra-external-id-m2m-addon-machine-clients.v1.json",
+    catalogVersion: "entra-external-id-m2m-addon-machine-clients-draft-2026.10.08",
+    scope: {
+      id: "entra-external-id-m2m-addon-machine-clients", providerId: "entra-external-id",
+      product: "Microsoft Entra External ID - external tenant", deployment: "MANAGED",
+      plan: "Basic MAU + M2M Premium add-on; transaction billing, entitlement unverified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "Standard external tenant; paid M2M add-on; confidential client_credentials/secret Post; custom API v2 app roles",
+    },
+    facts: {
+      OAUTH2_APIS: { availability: "OPTIONAL", sourceUrl: "https://learn.microsoft.com/en-us/entra/identity-platform/claims-validation" },
+    },
+    compatibility: {
+      "compatibility.clients.MACHINE_TO_MACHINE": {
+        support: "SUPPORTED", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/overview-customers-ciam",
+      },
+    },
+    metadata: { basis: "MACHINE_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU + M2M Premium add-on" },
+  },
+  {
     file: "entra-external-id-basic-organization-context.v1.json",
     catalogVersion: "entra-external-id-basic-organization-context-draft-2026.10.08",
     scope: {

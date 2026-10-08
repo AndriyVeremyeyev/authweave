@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 110 recorded and 2,202 omitted option-paths across 34 distinct
-scopes (2,312 possible addresses). The 76 capability proposals comprise 40 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-four separate compatibility proposals comprise
-thirty `SUPPORTED` and four `UNKNOWN`.
+The current pack has 112 recorded and 2,268 omitted option-paths across 35 distinct
+scopes (2,380 possible addresses). The 77 capability proposals comprise 41 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-five separate compatibility proposals comprise
+thirty-one `SUPPORTED` and four `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,14 +1937,15 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-four distinct options and 110 recorded
+`make inspect-provider-baselines` now reports thirty-five distinct options and 112 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
 Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organization-context
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
-and Entra External ID Basic), plus four machine-client scopes
-(Keycloak, ZITADEL Cloud Free, Auth0 B2B Free and WorkOS AuthKit Connect staging).
+and Entra External ID Basic), plus five machine-client scopes
+(Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
+and Entra External ID with the paid M2M Premium add-on).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2329,6 +2330,33 @@ users, organizations and keys from production. Free staging and the
 [AuthKit allowance](https://workos.com/pricing) do not establish free production SSO,
 Directory Sync or unlimited operating capacity. No account, invitation, membership
 mutation, billing setup, runtime provider switch, source approval or activation occurred.
+
+#### Paid-add-on-scoped Entra External ID machine-client candidate
+
+The separate [Entra M2M draft](services/core-api/src/main/resources/catalog/baselines/scoped/entra-external-id-m2m-addon-machine-clients.v1.json)
+proposes `OAUTH2_APIS: OPTIONAL` and `MACHINE_TO_MACHINE: SUPPORTED`, both
+`UNREVIEWED`. The [external-tenant overview](https://learn.microsoft.com/en-us/entra/external-id/customers/overview-customers-ciam)
+requires the M2M Premium add-on; [billing](https://learn.microsoft.com/en-us/entra/external-id/external-identities-pricing)
+is transaction-based, separate from Basic MAU. Free interactive-user allowances do
+not establish free machine authentication. This is a comparison candidate, not a
+billing setup or a proposal to change AuthWeave's ZITADEL/BFF authentication.
+
+The selected confidential backend uses `client_credentials`/`client_secret_post`
+and one custom API's `/.default`, with preassigned application roles and admin consent,
+not delegated user permissions or dynamically narrowed roles. Certificates, federated
+credentials, ACL-only authorization and generic workforce/common endpoints are outside
+scope. The API explicitly selects v2 access tokens; a v2 endpoint alone does not
+select their version. Trusted metadata/signature, exact issuer, API audience, lifetime,
+external-directory `tid`, registered `azp`, configured `idtyp=app` and required roles
+must be checked. Missing app-only identity or role-less tokens fail closed.
+The directory `tid` is not a customer organization ID: resource authorization and
+customer isolation remain application-owned and untested.
+
+Cloud observations are dated, not release-pinned. The six earlier Entra scopes and
+their evidence dates are unchanged; no SCIM, human membership, MFA or residency is
+inherited. No account, tenant, subscription, credentials, grants, payment or live
+exchange was created. Exact entitlement/cost and cached-token offboarding behavior
+need separate review; paid testing requires a separate owner decision.
 
 #### Plan-scoped Entra External ID Basic candidate
 

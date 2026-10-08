@@ -919,14 +919,14 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-08T18:39:35Z");
+  const at = new Date("2026-10-08T19:00:07Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 34);
-  assert.equal(report.factCount, 110);
+  assert.equal(report.optionCount, 35);
+  assert.equal(report.factCount, 112);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 29);
+  assert.equal(report.scopedDraftOptionCount, 30);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 7);
   assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 7);
@@ -1007,8 +1007,11 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.ok(workosPairs.every((option) => option.sourcePlan === "Staging" && option.facts.length === 2
     && option.facts.every((fact) => fact.availability === "OPTIONAL")));
   const entra = report.options.filter((option) => option.providerId === "entra-external-id");
-  assert.equal(entra.length, 6);
-  assert.equal(new Set(entra.map((option) => option.optionId)).size, 6);
+  assert.equal(entra.length, 7);
+  assert.equal(new Set(entra.map((option) => option.optionId)).size, 7);
+  const entraMachine = entra.find((option) => option.basis === "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(entraMachine.sourcePlan, "Basic MAU + M2M Premium add-on");
+  assert.deepEqual(entraMachine.facts.map((fact) => fact.path), ["compatibility.clients.MACHINE_TO_MACHINE", "facts.OAUTH2_APIS"]);
   const entraOrganizations = entra.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(entraOrganizations.sourcePlan, "Basic MAU");
   assert.equal(entraOrganizations.facts.length, 4);
@@ -1076,7 +1079,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 110);
+  assert.equal(JSON.parse(run.stdout).factCount, 112);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

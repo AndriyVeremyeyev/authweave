@@ -168,8 +168,8 @@ test("Entra organization context coexists with research, native protocols, publi
   const originals = drafts.filter((entry) => entry.options[0].providerId === "entra-external-id" && entry !== draft);
   const before = JSON.stringify(originals);
   const entra = (await inspectBaselinePack(observed)).options.filter((option) => option.providerId === "entra-external-id");
-  assert.equal(entra.length, 6);
-  assert.equal(entra.reduce((count, option) => count + option.facts.length, 0), 22);
+  assert.equal(entra.length, 7);
+  assert.equal(entra.reduce((count, option) => count + option.facts.length, 0), 24);
   const native = entra.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(native.facts.find((fact) => fact.path === "facts.SCIM").availability, "UNKNOWN");
   assert.equal(native.facts.find((fact) => fact.path === "facts.GROUP_SYNC").availability, "UNKNOWN");

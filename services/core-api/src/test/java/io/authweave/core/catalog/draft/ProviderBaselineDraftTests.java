@@ -817,6 +817,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/zitadel-cloud-free-machine-clients.v1.json");
         resources.add("scoped/auth0-b2b-free-machine-clients.v1.json");
         resources.add("scoped/workos-connect-staging-machine-clients.v1.json");
+        resources.add("scoped/entra-external-id-m2m-addon-machine-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -850,18 +851,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(34, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(110, recordedCount);
-        assertEquals(2202, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 40,
+        assertEquals(35, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(112, recordedCount);
+        assertEquals(2268, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 41,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 30, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 31, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T18:39:35Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T19:00:07Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(34, report.optionCount());
-        assertEquals(110, report.factCount());
+        assertEquals(35, report.optionCount());
+        assertEquals(112, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -2332,6 +2333,115 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(7, report.optionCount());
         assertEquals(18, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void entraMachineClientsRequirePaidAddonAndSeparateAppRolesFromCustomerResourceAuthorization() throws Exception {
+        var json = resource("catalog/baselines/scoped/entra-external-id-m2m-addon-machine-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("entra-external-id-m2m-addon-machine-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("entra-external-id-m2m-addon-machine-clients", option.id());
+        assertEquals("entra-external-id", option.providerId());
+        assertEquals("Microsoft Entra External ID - external tenant", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Basic MAU + M2M Premium add-on; transaction billing, entitlement unverified", option.plan());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OAUTH2_APIS), option.facts().keySet());
+        var api = option.facts().get(ProviderCatalog.Capability.OAUTH2_APIS);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, api.availability());
+        var machineType = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.MACHINE_TO_MACHINE;
+        assertEquals(java.util.Set.of(machineType), option.compatibility().clients().keySet());
+        var machine = option.compatibility().clients().get(machineType);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, machine.support());
+        assertEquals("/en-us/entra/identity-platform/claims-validation", api.evidence().sourceUrl().getPath());
+        assertEquals("/en-us/entra/external-id/customers/overview-customers-ciam", machine.evidence().sourceUrl().getPath());
+        var observed = Instant.parse("2026-10-08T19:00:07Z");
+        for (var fact : CatalogDraftFacts.entries(option).values()) {
+            assertEquals("learn.microsoft.com", fact.evidence().sourceUrl().getHost());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertFalse(fact.conditions().isEmpty());
+        }
+        var clientConditions = String.join(" ", machine.conditions());
+        for (var phrase : List.of("M2M Premium add-on", "not Basic-only free MAU", "client_secret_post only",
+                "Delegated user permissions do not apply", "not a dynamic per-request subset",
+                "no refresh token", "transaction-based and separate from Basic MAU",
+                "does not include free machine authentication", "separate owner decision",
+                "Do not copy generic workforce/common endpoints", "payment or live call")) {
+            assertTrue(clientConditions.contains(phrase), phrase);
+        }
+        var apiConditions = String.join(" ", api.conditions());
+        for (var phrase : List.of("requestedAccessTokenVersion=2", "endpoint version alone does not determine",
+                "API client ID audience", "Reject Graph, ID, foreign-resource and v1 tokens",
+                "registered machine azp", "optional idtyp=app", "reject missing or user values",
+                "not infer app-only identity solely", "tid is not a customer organization ID",
+                "must reject them", "assignment requirements", "independently authorize",
+                "Do not promise immediate rejection", "synthetic evaluator remain unchanged")) {
+            assertTrue(apiConditions.contains(phrase), phrase);
+        }
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(2, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void entraMachineObservationFreshnessDoesNotPromotePaidEntitlementOrApproval() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/entra-external-id-m2m-addon-machine-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T19:00:07Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+        }
+        assertEquals(ProviderCatalog.Availability.OPTIONAL,
+                draft.options().getFirst().facts().get(ProviderCatalog.Capability.OAUTH2_APIS).availability());
+    }
+
+    @Test
+    void entraPaidMachineScopeDoesNotPopulateSixEarlierBasicAndResearchScopes() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("entra-external-id.v1.json", "scoped/entra-external-id-basic.v1.json",
+                "scoped/entra-external-id-basic-upstream-okta.v1.json", "scoped/entra-external-id-basic-upstream-entra.v1.json",
+                "scoped/entra-external-id-basic-public-oidc-clients.v1.json", "scoped/entra-external-id-basic-organization-context.v1.json",
+                "scoped/entra-external-id-m2m-addon-machine-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(7, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        var machineType = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.MACHINE_TO_MACHINE;
+        for (var option : options.subList(0, 6)) {
+            assertFalse(option.facts().containsKey(ProviderCatalog.Capability.OAUTH2_APIS));
+            assertFalse(option.compatibility().clients().containsKey(machineType));
+            assertFalse(option.plan().contains("M2M Premium add-on"));
+        }
+        assertEquals(Instant.parse("2026-10-02T23:12:01Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OAUTH2_APIS), options.getLast().facts().keySet());
+        assertTrue(options.getLast().compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "entra-machine-context-coexistence-test", options), Instant.parse("2026-10-08T19:00:07Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(7, report.optionCount());
+        assertEquals(24, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "entra-external-id-m2m-addon-machine-clients-draft-2026.10.08",
+  "options": [
+    {
+      "id": "entra-external-id-m2m-addon-machine-clients",
+      "providerId": "entra-external-id",
+      "product": "Microsoft Entra External ID - external tenant",
+      "plan": "Basic MAU + M2M Premium add-on; transaction billing, entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No tenant region selected; storage destinations not verified",
+      "configuration": "Standard external tenant; paid M2M add-on; confidential client_credentials/secret Post; custom API v2 app roles",
+      "facts": {
+        "OAUTH2_APIS": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Select an application-owned API with requestedAccessTokenVersion=2; the token endpoint version alone does not determine the access-token version. Use resource-specific v2 metadata, trusted signing keys, allowed algorithms, exact issuer, API client ID audience and lifetime validation. Reject Graph, ID, foreign-resource and v1 tokens in this selected scope. Actual external-tenant metadata and claims remain untested. Source: https://learn.microsoft.com/en-us/entra/identity-platform/access-tokens.",
+            "Require the expected external-directory tid, registered machine azp and explicit app-only identity policy. Select the optional idtyp=app claim and reject missing or user values; do not infer app-only identity solely from an absent scp or present roles claim. Configure and verify this claim before approval. Signed client identity does not grant access to application data.",
+            "Require the API's assigned application roles for each operation, then independently authorize the machine against application-owned organization/resource records. The external-directory tid is not a customer organization ID; reject missing, unknown or cross-organization access. Human group membership, email, user roles and upstream federation are not machine permissions.",
+            "Entra can issue role-less app-only tokens for ACL-based APIs. This selected app-role proposal must reject them; enable assignment requirements and verify role enforcement independently. A successful exchange, decoded JWT or /.default request is not authorization. ACL-only authorization is outside scope. Source: https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow.",
+            "Credential rotation, consent/role removal, service offboarding and cached-token expiry need separate fail-closed tests. Do not promise immediate rejection of issued access tokens. No API validation, claim configuration, isolation or revocation was tested; residency, SCIM, human MFA and customer membership are not inherited. AuthWeave authentication and its synthetic evaluator remain unchanged."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/identity-platform/claims-validation",
+            "observedAt": "2026-10-08T19:00:07Z",
+            "summary": "Microsoft documents API audience, tenant, subject and app-only identity checks. OPTIONAL is an unreviewed custom API v2 app-role proposal, conditional on external-tenant M2M add-on setup and independent resource authorization; no live enforcement or isolation is established."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {
+          "MACHINE_TO_MACHINE": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Use a standard-mode External ID external tenant with the M2M Premium add-on explicitly selected. This is a paid comparison scope, not Basic-only free MAU, a trial entitlement, a workforce tenant or Azure AD B2C. Client-secret and certificate M2M are documented; this proposal selects only a confidential backend with a shared secret.",
+              "Send grant_type=client_credentials, client_id, a URL-encoded client_secret and scope=<API application ID URI>/.default in an HTTPS form body to the selected external tenant's trusted token endpoint; choose client_secret_post only. Never expose secrets in source, browser/mobile bundles, URLs or logs. Certificate assertions, federated credentials, Basic and mTLS are outside scope. Source: https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow.",
+              "Expose least-privilege application roles on the custom API and assign/admin-consent them to the client. Delegated user permissions do not apply. /.default targets one resource and the preconfigured grant, not a dynamic per-request subset of individual roles. External-tenant registration, assignment and consent are prerequisites, not completed setup. Source: https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow.",
+              "Use the returned access_token as Bearer within its validated expiry; cache it safely and obtain a new token through client_credentials when required. This selected grant has no refresh token, human login, ID Token, redirect, BFF session or customer membership. Token acquisition and response behavior are untested. Source: https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow.",
+              "M2M add-on charges are transaction-based and separate from Basic MAU. A free interactive-user allowance does not include free machine authentication. Exact rates, quotas, subscription linkage and tenant entitlement remain unverified; no zero-cost production promise. Do not enable billing or make paid test exchanges without a separate owner decision. Source: https://learn.microsoft.com/en-us/entra/external-id/external-identities-pricing.",
+              "Cloud sources are mutable and observation-dated, not release-pinned. Do not copy generic workforce/common endpoints or assume customer user-flow login settings configure machine access. No account, tenant, subscription, application, secret, app-role grant, payment or live call was created. The six earlier Entra scopes and their observedAt values stay separate."
+            ],
+            "evidence": {
+              "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/overview-customers-ciam",
+              "observedAt": "2026-10-08T19:00:07Z",
+              "summary": "The external-tenant overview documents client-credentials M2M with a client secret or certificate and requires the M2M Premium add-on. SUPPORTED is a conditional paid-add-on documentation proposal, not Basic-only free entitlement or tested integration."
+            }
+          }
+        },
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}

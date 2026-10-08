@@ -122,9 +122,9 @@ test("Entra public clients coexist with unchanged research/native/workforce entr
   const before = JSON.stringify(originals);
   const report = await inspectBaselinePack(observed);
   const entra = report.options.filter((option) => option.providerId === "entra-external-id");
-  assert.equal(entra.length, 6);
+  assert.equal(entra.length, 7);
   for (const option of entra.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT",
-    "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
+    "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
     assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }
