@@ -147,14 +147,14 @@ test("WorkOS machine observations keep the inclusive freshness boundary without 
   assert.equal(JSON.stringify(draft), before);
 });
 
-test("WorkOS machine context coexists with six earlier scopes and deterministic inspection does not mutate them", async () => {
+test("WorkOS machine context coexists with seven other scopes and deterministic inspection does not mutate them", async () => {
   const originals = drafts.filter((entry) => entry.options[0].providerId === "workos" && entry !== draft);
   const before = JSON.stringify(originals);
-  assert.equal(originals.length, 5);
+  assert.equal(originals.length, 6);
   const report = await inspectBaselinePack(observed);
   const workos = report.options.filter((option) => option.providerId === "workos");
-  assert.equal(workos.length, 7);
-  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 18);
+  assert.equal(workos.length, 8);
+  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 22);
   const earlier = workos.filter((option) => option.basis !== "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(earlier.every((option) => !option.facts.some((fact) => paths.includes(fact.path))));
   const native = earlier.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");

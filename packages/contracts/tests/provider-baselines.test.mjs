@@ -919,14 +919,14 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-08T20:50:27Z");
+  const at = new Date("2026-10-08T21:09:22Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 38);
-  assert.equal(report.factCount, 124);
+  assert.equal(report.optionCount, 39);
+  assert.equal(report.factCount, 128);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 33);
+  assert.equal(report.scopedDraftOptionCount, 34);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 8);
   assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 8);
@@ -999,8 +999,15 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.equal(auth0.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT")
     .facts.find((fact) => fact.path === "facts.SCIM").availability, "OPTIONAL");
   const workos = report.options.filter((option) => option.providerId === "workos");
-  assert.equal(workos.length, 7);
-  assert.equal(new Set(workos.map((option) => option.optionId)).size, 7);
+  assert.equal(workos.length, 8);
+  assert.equal(new Set(workos.map((option) => option.optionId)).size, 8);
+  const workosAuthentication = workos.find((option) => option.basis === "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(workosAuthentication.sourcePlan, "Staging");
+  assert.equal(workosAuthentication.product, "WorkOS AuthKit");
+  assert.equal(Object.hasOwn(workosAuthentication, "sourceRelease"), false);
+  assert.equal(Object.hasOwn(workosAuthentication, "sourceCommit"), false);
+  assert.equal(workosAuthentication.facts.length, 4);
+  assert.equal(workosAuthentication.facts.filter((fact) => fact.path.startsWith("authenticationControls.")).length, 3);
   const workosOrganizations = workos.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(workosOrganizations.sourcePlan, "Staging");
   assert.equal(workosOrganizations.product, "WorkOS AuthKit");
@@ -1097,7 +1104,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 124);
+  assert.equal(JSON.parse(run.stdout).factCount, 128);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

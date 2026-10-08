@@ -412,6 +412,31 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
   {
+    file: "workos-authkit-staging-browser-authentication-controls.v1.json",
+    catalogVersion: "workos-authkit-staging-browser-authentication-controls-draft-2026.10.08",
+    scope: {
+      id: "workos-authkit-staging-browser-authentication-controls", providerId: "workos", product: "WorkOS AuthKit", deployment: "MANAGED",
+      plan: "Staging only; hosted MFA/passkey offer documented, production entitlement unverified",
+      region: "No WorkOS region selected; storage destinations not verified",
+      configuration: "Primary AuthKit staging; local browser customers; hosted TOTP/passkeys; WorkOS domain; no SSO, Connect or Directory Sync",
+    },
+    facts: {
+      MFA: { availability: "OPTIONAL", sourceUrl: "https://workos.com/docs/authkit/mfa" },
+    },
+    authenticationControls: {
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.PHISHING_RESISTANCE": {
+        availability: "SUPPORTED", enforcement: "UNKNOWN", sourceUrl: "https://workos.com/docs/authkit/passkeys",
+      },
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.NON_EXPORTABLE_KEYS": {
+        availability: "UNKNOWN", enforcement: "UNKNOWN", sourceUrl: "https://workos.com/docs/widgets-api/authentication",
+      },
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.STEP_UP_AUTHENTICATION": {
+        availability: "UNKNOWN", enforcement: "UNKNOWN", sourceUrl: "https://workos.com/docs/authkit/reauthentication",
+      },
+    },
+    metadata: { basis: "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
+  },
+  {
     file: "workos-connect-staging-machine-clients.v1.json",
     catalogVersion: "workos-connect-staging-machine-clients-draft-2026.10.08",
     scope: {

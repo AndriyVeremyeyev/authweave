@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "workos-authkit-staging-browser-authentication-controls-draft-2026.10.08",
+  "options": [
+    {
+      "id": "workos-authkit-staging-browser-authentication-controls",
+      "providerId": "workos",
+      "product": "WorkOS AuthKit",
+      "plan": "Staging only; hosted MFA/passkey offer documented, production entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No WorkOS region selected; storage destinations not verified",
+      "configuration": "Primary AuthKit staging; local browser customers; hosted TOTP/passkeys; WorkOS domain; no SSO, Connect or Directory Sync",
+      "facts": {
+        "MFA": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Select local non-SSO browser customers using primary hosted AuthKit in staging. This is not AuthKit Connect, Directory Sync, native/mobile, brokered workforce or the standalone SMS MFA API.",
+            "Hosted MFA uses authenticator-app TOTP. Required mode covers new and existing non-SSO users, but a configurable method is not an observed mandatory policy. TOTP is not equivalent to phishing resistance.",
+            "SSO users are exempt from hosted MFA. Organization MFA applies to the selected organization for non-SSO members: https://workos.com/docs/authkit/organization-policies. Effective environment/organization settings and user context remain unverified.",
+            "Staging is offered for no-cost testing: https://workos.com/docs/authkit/environments. Account entitlement, quotas and future costs are unverified; production billing, enterprise connections and paid custom domains are not included. No account, subscription, credential, enrollment, environment or policy was created."
+          ],
+          "evidence": {
+            "sourceUrl": "https://workos.com/docs/authkit/mfa",
+            "observedAt": "2026-10-08T21:09:22Z",
+            "summary": "The hosted AuthKit guide documents configurable TOTP MFA and Required mode for non-SSO users. OPTIONAL is a mechanism proposal, not observed compulsory use, SSO coverage or verified account entitlement."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {
+        "BROWSER": {
+          "EXTERNAL_CUSTOMERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "Availability is a conditional mechanism-level inference from domain-bound WebAuthn passkeys, not every login or all MFA. Bind the intended HTTPS WorkOS staging RP/domain and validate the authenticator and browser; user verification is documented, not observed.",
+                "Progressive enrollment is off by default and can be skipped, including future reminders. Required MFA accepts a passkey with user verification instead of a separate TOTP challenge; this is not a passkey-only policy or a hardware-key/AAL guarantee.",
+                "Password, Magic Auth and TOTP alternatives need independent policy review. Enrollment, password reset, recovery, administrator credential removal and existing SSO/session paths do not establish complete journey protection; enforcement remains UNKNOWN.",
+                "Staging uses WorkOS domains; custom domains are production-only: https://workos.com/docs/authkit/environments. Domain migration can invalidate credentials. No paid domain was selected. Seven earlier WorkOS scopes, AuthWeave's ZITADEL/BFF and synthetic evaluator are unchanged."
+              ],
+              "evidence": {
+                "sourceUrl": "https://workos.com/docs/authkit/passkeys",
+                "observedAt": "2026-10-08T21:09:22Z",
+                "summary": "The hosted passkey guide documents WebAuthn, domain binding, skippable enrollment and user verification satisfying MFA. Mechanism availability is conditional; mandatory customer-journey phishing protection remains UNKNOWN."
+              }
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "UNKNOWN",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "The Widgets API documents passkey registration options and verification but does not establish a hardware-only attestation policy for this hosted-login staging scope. A passkey label, biometric/PIN or user verification is not proof of a non-exportable private key.",
+                "Synced, cross-device, existing credential and recovery paths require independent key-protection review. Trusted authenticator metadata, key protection and enforceable enrollment restrictions are unverified; keep both fields UNKNOWN, not provider-wide UNSUPPORTED.",
+                "Hosted login and authenticated Widgets account management are distinct surfaces. Widgets registration/deletion require elevatedAccessToken; the token name and opaque registration options do not certify stronger authentication or hardware protection. No Widgets integration, attestation validation, purchase or physical-device test occurred."
+              ],
+              "evidence": {
+                "sourceUrl": "https://workos.com/docs/widgets-api/authentication",
+                "observedAt": "2026-10-08T21:09:22Z",
+                "summary": "The Widgets API describes registration/verification and elevated-token account management, not verified hardware-only key protection in hosted AuthKit staging. Non-exportable availability and enforcement remain UNKNOWN."
+              }
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "UNKNOWN",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "The reauthentication guide documents max_age and an access-token auth_time advanced by active authentication, not refresh. AuthKit chooses a password, MFA factor or upstream SSO method; fresh sign-in alone does not establish requesting and verifying stronger authentication.",
+                "The project defines step-up as stronger authentication, not repeating the same login. No selected stronger-factor contract or essential-ACR higher-assurance enforcement is verified for primary AuthKit staging; availability remains UNKNOWN, not provider-wide UNSUPPORTED.",
+                "Independently validate signed issuer/audience/expiry, session/user and callback state binding, auth_time and required factor freshness at the sensitive-operation gate. Missing, malformed, future or insufficient evidence must deny; a decoded timestamp, token refresh or UI redirect is not operation authorization.",
+                "The guide's step-up terminology describes recency, not automatic NIST AAL, hardware protection or Keycloak LoA. No protected operation, challenge, token validation or bypass test was executed. Stronger-factor enforcement stays UNKNOWN; no Connect or standalone MFA API behavior is inherited."
+              ],
+              "evidence": {
+                "sourceUrl": "https://workos.com/docs/authkit/reauthentication",
+                "observedAt": "2026-10-08T21:09:22Z",
+                "summary": "The guide documents recent reauthentication with max_age/auth_time and provider-selected methods, which can include password re-entry. A stronger-factor request/proof and sensitive-operation gate are unverified; both fields remain UNKNOWN."
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

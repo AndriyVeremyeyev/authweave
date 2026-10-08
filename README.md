@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 124 recorded and 2,460 omitted option-paths across 38 distinct
-scopes (2,584 possible addresses). The 80 capability proposals comprise 43 `OPTIONAL`,
+The current pack has 128 recorded and 2,524 omitted option-paths across 39 distinct
+scopes (2,652 possible addresses). The 81 capability proposals comprise 44 `OPTIONAL`,
 3 `UNAVAILABLE` and 34 `UNKNOWN`; thirty-five separate compatibility proposals comprise
-thirty-one `SUPPORTED` and four `UNKNOWN`. Nine authentication-control records retain
+thirty-one `SUPPORTED` and four `UNKNOWN`. Twelve authentication-control records retain
 their own availability/enforcement pairs, not capability or compatibility counts.
 An `UNKNOWN` in either control field appears in `recordedUnknownPaths`.
 All remain `UNREVIEWED`. These are structural
@@ -1939,7 +1939,7 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-eight distinct options and 124 recorded
+`make inspect-provider-baselines` now reports thirty-nine distinct options and 128 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
@@ -1947,8 +1947,9 @@ Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organizat
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
 and Entra External ID Basic), plus five machine-client scopes
 (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
-and Entra External ID with the paid M2M Premium add-on), plus three browser/customer
-authentication-control scopes (release-pinned Keycloak, ZITADEL Cloud Free and Auth0 B2B Free).
+and Entra External ID with the paid M2M Premium add-on), plus four browser/customer
+authentication-control scopes (release-pinned Keycloak, ZITADEL Cloud Free, Auth0 B2B Free
+and primary WorkOS AuthKit staging).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2355,6 +2356,34 @@ third-party consent, residency and authentication controls are not inherited.
 Free [staging](https://workos.com/docs/authkit/environments) is not production
 Connect entitlement. No account, billing, SDK, callback or live exchange was verified;
 AuthWeave's ZITADEL/BFF and synthetic evaluator remain unchanged.
+
+#### Browser/customer WorkOS AuthKit staging authentication-control candidate
+
+A separate [WorkOS authentication draft](services/core-api/src/main/resources/catalog/baselines/scoped/workos-authkit-staging-browser-authentication-controls.v1.json)
+proposes `MFA: OPTIONAL`, `PHISHING_RESISTANCE: SUPPORTED/UNKNOWN` and
+`NON_EXPORTABLE_KEYS`/`STEP_UP_AUTHENTICATION: UNKNOWN/UNKNOWN`, all `UNREVIEWED`.
+Its local `BROWSER`/`EXTERNAL_CUSTOMERS` scope uses primary hosted AuthKit, not Connect,
+Directory Sync, native clients, brokered workforce or the standalone SMS MFA API.
+[Hosted MFA](https://workos.com/docs/authkit/mfa) uses TOTP, excludes SSO users and
+does not by itself prove the effective required policy.
+[Organization MFA](https://workos.com/docs/authkit/organization-policies) is context-bound.
+
+[Passkey](https://workos.com/docs/authkit/passkeys) availability is a conditional
+WebAuthn mechanism, not a passkey-only journey. User verification can satisfy MFA;
+enrollment can be skipped and weaker alternatives/recovery need independent review.
+[Staging](https://workos.com/docs/authkit/environments) uses WorkOS domains and is
+testing-only; production custom domains/billing are outside this scope.
+The [Widgets API](https://workos.com/docs/widgets-api/authentication) documents separate
+authenticated credential-management operations. Its token labels and opaque registration
+options do not verify a hardware-only key policy or stronger authentication.
+
+The [reauthentication guide](https://workos.com/docs/authkit/reauthentication) documents
+`max_age` and `auth_time`, but AuthKit can choose password re-entry. Freshness is not
+proof of a stronger factor under this project's step-up definition. Signed claims,
+factor evidence and a fail-closed sensitive-operation gate remain unverified.
+No account, subscription, environment, credential, hardware or live integration was
+created. Seven older WorkOS scopes and observations, runtime ZITADEL/BFF and the
+synthetic evaluator are unchanged. No approval, import, activation or future cost guarantee.
 
 #### Machine-scoped WorkOS Connect staging candidate
 

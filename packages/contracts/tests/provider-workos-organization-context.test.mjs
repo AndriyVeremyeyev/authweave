@@ -154,8 +154,8 @@ test("WorkOS primary organization context coexists with research, Connect and Di
   const before = JSON.stringify(originals);
   const report = await inspectBaselinePack(observed);
   const workos = report.options.filter((option) => option.providerId === "workos");
-  assert.equal(workos.length, 7);
-  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 18);
+  assert.equal(workos.length, 8);
+  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 22);
   const connect = workos.find((option) => option.basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(connect.product, "WorkOS AuthKit Connect");
   assert.deepEqual(connect.facts.map((fact) => fact.path), ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE", "facts.OIDC"]);

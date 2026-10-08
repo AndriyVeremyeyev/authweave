@@ -821,6 +821,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/keycloak-26.8.0-browser-authentication-controls.v1.json");
         resources.add("scoped/zitadel-cloud-free-browser-authentication-controls.v1.json");
         resources.add("scoped/auth0-b2b-free-browser-authentication-controls.v1.json");
+        resources.add("scoped/workos-authkit-staging-browser-authentication-controls.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -857,18 +858,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(38, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(124, recordedCount);
-        assertEquals(2460, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 43,
+        assertEquals(39, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(128, recordedCount);
+        assertEquals(2524, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 44,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 34), counts);
         assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 31, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T20:50:27Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T21:09:22Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(38, report.optionCount());
-        assertEquals(124, report.factCount());
+        assertEquals(39, report.optionCount());
+        assertEquals(128, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -2776,6 +2777,122 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(8, report.optionCount());
         assertEquals(26, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void workosPrimaryStagingAuthenticationKeepsMfaSeparateFromJourneyHardwareAndStrongerStepUp() throws Exception {
+        var json = resource("catalog/baselines/scoped/workos-authkit-staging-browser-authentication-controls.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("workos-authkit-staging-browser-authentication-controls-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("WorkOS AuthKit", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.MFA), option.facts().keySet());
+        var mfa = option.facts().get(ProviderCatalog.Capability.MFA);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, mfa.availability());
+        assertTrue(String.join(" ", mfa.conditions()).contains("SSO users are exempt"));
+        assertTrue(String.join(" ", mfa.conditions()).contains("standalone SMS MFA API"));
+        assertEquals("/docs/authkit/mfa", mfa.evidence().sourceUrl().getPath());
+        var browser = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER;
+        var population = io.authweave.core.assessment.domain.profile.AudienceRequirements.UserPopulation.EXTERNAL_CUSTOMERS;
+        assertEquals(java.util.Set.of(browser), option.authenticationControls().keySet());
+        assertEquals(java.util.Set.of(population), option.authenticationControls().get(browser).keySet());
+        var controls = option.authenticationControls().get(browser).get(population);
+        assertEquals(3, controls.size());
+        var phishing = controls.get(ProviderCatalog.AuthenticationControl.PHISHING_RESISTANCE);
+        var keys = controls.get(ProviderCatalog.AuthenticationControl.NON_EXPORTABLE_KEYS);
+        var step = controls.get(ProviderCatalog.AuthenticationControl.STEP_UP_AUTHENTICATION);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, phishing.availability());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, keys.availability());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, step.availability());
+        assertTrue(controls.values().stream().allMatch(fact -> fact.enforcement() == ProviderCatalog.Support.UNKNOWN));
+        for (var phrase : List.of("off by default and can be skipped", "not a passkey-only policy",
+                "custom domains are production-only", "enforcement remains UNKNOWN")) {
+            assertTrue(String.join(" ", phishing.conditions()).contains(phrase), phrase);
+        }
+        assertTrue(String.join(" ", keys.conditions()).contains("elevatedAccessToken"));
+        assertTrue(String.join(" ", keys.conditions()).contains("distinct surfaces"));
+        for (var phrase : List.of("max_age", "auth_time advanced by active authentication, not refresh",
+                "chooses a password, MFA factor or upstream SSO method", "stronger authentication, not repeating the same login",
+                "Missing, malformed, future or insufficient evidence must deny", "Stronger-factor enforcement stays UNKNOWN")) {
+            assertTrue(String.join(" ", step.conditions()).contains(phrase), phrase);
+        }
+        assertEquals("/docs/authkit/passkeys", phishing.evidence().sourceUrl().getPath());
+        assertEquals("/docs/widgets-api/authentication", keys.evidence().sourceUrl().getPath());
+        assertEquals("/docs/authkit/reauthentication", step.evidence().sourceUrl().getPath());
+        var observed = Instant.parse("2026-10-08T21:09:22Z");
+        for (var fact : CatalogDraftFacts.entries(option).values()) {
+            assertEquals("workos.com", fact.evidence().sourceUrl().getHost());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertFalse(fact.conditions().isEmpty());
+        }
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.compatibility().clients().isEmpty());
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        var impossible = mapper.readTree(json);
+        ((tools.jackson.databind.node.ObjectNode) impossible.at(
+                "/options/0/authenticationControls/BROWSER/EXTERNAL_CUSTOMERS/NON_EXPORTABLE_KEYS")).put("enforcement", "SUPPORTED");
+        var invalid = validator.validateAt(mapper.treeToValue(impossible, ProviderCatalogDraft.class), observed);
+        assertEquals(CatalogDraftValidation.Status.INVALID_DRAFT, invalid.status());
+        assertTrue(invalid.issues().stream().anyMatch(issue ->
+                issue.code() == CatalogDraftValidation.IssueCode.AUTHENTICATION_ENFORCEMENT_WITHOUT_AVAILABILITY));
+        assertUntrusted(invalid);
+    }
+
+    @Test
+    void workosStagingAuthenticationFreshnessDoesNotPromoteControlsOrRewriteEvidence() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/workos-authkit-staging-browser-authentication-controls.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T21:09:22Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertEquals(4, report.factCount());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+        }
+    }
+
+    @Test
+    void workosStagingHostedAuthenticationDoesNotPopulateSevenOlderProductScopes() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("workos.v1.json", "scoped/workos-directory-sync-staging.v1.json",
+                "scoped/workos-directory-sync-staging-upstream-okta.v1.json", "scoped/workos-directory-sync-staging-upstream-entra.v1.json",
+                "scoped/workos-connect-staging-public-oidc-clients.v1.json", "scoped/workos-authkit-staging-organization-context.v1.json",
+                "scoped/workos-connect-staging-machine-clients.v1.json", "scoped/workos-authkit-staging-browser-authentication-controls.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(8, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        for (var option : options.subList(0, 7)) {
+            assertTrue(option.authenticationControls().isEmpty());
+            assertFalse(option.facts().containsKey(ProviderCatalog.Capability.MFA));
+        }
+        assertEquals(Instant.parse("2026-10-02T22:46:13Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals("WorkOS Directory Sync", options.get(1).product());
+        assertEquals("WorkOS AuthKit Connect", options.get(4).product());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, options.get(4).compatibility().clients().get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER).support());
+        assertEquals("WorkOS AuthKit", options.getLast().product());
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertTrue(options.getLast().residency().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "workos-authentication-context-coexistence-test", options), Instant.parse("2026-10-08T21:09:22Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(8, report.optionCount());
+        assertEquals(22, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
