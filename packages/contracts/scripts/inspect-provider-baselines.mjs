@@ -126,6 +126,28 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
   },
   {
+    file: "zitadel-cloud-free-public-oidc-clients.v1.json",
+    catalogVersion: "zitadel-cloud-free-public-oidc-clients-draft-2026.10.08",
+    scope: {
+      id: "zitadel-cloud-free-public-oidc-clients", providerId: "zitadel", product: "ZITADEL Cloud", deployment: "MANAGED",
+      plan: "Free; documented offer, no account entitlement verified",
+      region: "No Cloud region selected; storage destinations not verified",
+      configuration: "Public User Agent/Native OIDC; code + S256 PKCE; exact callbacks; no BFF, API grants, SAML, SCIM or brokers",
+    },
+    facts: {
+      OIDC: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/integrate/login/oidc/login-users" },
+    },
+    compatibility: {
+      "compatibility.clients.BROWSER": {
+        support: "SUPPORTED", sourceUrl: "https://zitadel.com/docs/guides/manage/console/applications-overview",
+      },
+      "compatibility.clients.NATIVE_MOBILE": {
+        support: "SUPPORTED", sourceUrl: "https://zitadel.com/docs/guides/integrate/login/oidc/oauth-recommended-flows",
+      },
+    },
+    metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
+  },
+  {
     file: "auth0-b2b-free.v1.json",
     catalogVersion: "auth0-b2b-free-oidc-scim-draft-2026.10.02",
     scope: {

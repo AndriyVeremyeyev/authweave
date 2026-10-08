@@ -1875,9 +1875,9 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 70 recorded and 1,358 omitted option-paths across 21 distinct
-scopes (1,428 possible addresses). The 68 capability proposals comprise 32 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; two separate client-context proposals are `SUPPORTED`.
+The current pack has 73 recorded and 1,423 omitted option-paths across 22 distinct
+scopes (1,496 possible addresses). The 69 capability proposals comprise 33 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; four separate client-context proposals are `SUPPORTED`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1936,10 +1936,10 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-one distinct options and 70 recorded
+`make inspect-provider-baselines` now reports twenty-two distinct options and 73 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
-plus one public-client-scoped Keycloak draft.
+plus two public-client-scoped drafts (Keycloak and ZITADEL Cloud Free).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1965,6 +1965,24 @@ have not been tested. Machine clients, confidential BFF, application/population/
 compatibility, SCIM, residency and authentication-control evidence are not inherited.
 No integration, account, provider switch or approval was performed; AuthWeave still
 uses ZITADEL and the active evaluator remains synthetic.
+
+#### Client-scoped ZITADEL Cloud OIDC documentation candidate
+
+A separate [ZITADEL Cloud public-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free-public-oidc-clients.v1.json)
+records `OIDC: OPTIONAL` and `BROWSER`/`NATIVE_MOBILE: SUPPORTED` proposals, all
+`UNREVIEWED`. The [application guide](https://zitadel.com/docs/guides/manage/console/applications-overview)
+and [flow guide](https://zitadel.com/docs/guides/integrate/login/oidc/oauth-recommended-flows)
+distinguish public User Agent/Native clients from confidential Web and API clients.
+Conditions require separate registrations, exact callbacks and
+[code with S256 PKCE](https://zitadel.com/docs/guides/integrate/login/oidc/login-users).
+
+The [Free offer](https://zitadel.com/pricing) is not verified account entitlement or
+a future cost guarantee. Mutable sources are dated, not release-pinned. Production
+redirect/Development Mode behavior, SDKs, native callback ownership and application
+sessions remain untested; external-browser use is a separate RFC 8252 prerequisite.
+Earlier research/native/workforce scopes and their observations are unchanged.
+No SCIM, machine-client, BFF, residency or authentication-control claims are inherited.
+No account, deployment, source approval or AuthWeave authentication change was performed.
 
 #### Plan-scoped Auth0 documentation candidate
 

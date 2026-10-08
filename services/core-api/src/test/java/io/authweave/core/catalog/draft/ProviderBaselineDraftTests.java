@@ -804,6 +804,7 @@ class ProviderBaselineDraftTests {
             }
         }
         resources.add("scoped/keycloak-26.8.0-public-oidc-clients.v1.json");
+        resources.add("scoped/zitadel-cloud-free-public-oidc-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -830,18 +831,18 @@ class ProviderBaselineDraftTests {
             option.facts().values().forEach(fact -> counts.merge(fact.availability(), 1, Integer::sum));
             option.compatibility().clients().values().forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(21, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(70, recordedCount);
-        assertEquals(1358, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 32,
+        assertEquals(22, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(73, recordedCount);
+        assertEquals(1423, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 33,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 2), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T06:12:22Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T06:37:37Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(21, report.optionCount());
-        assertEquals(70, report.factCount());
+        assertEquals(22, report.optionCount());
+        assertEquals(73, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -917,6 +918,89 @@ class ProviderBaselineDraftTests {
         assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
         var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "keycloak-client-context-coexistence-test", options), Instant.parse("2026-10-08T06:12:22Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(5, report.optionCount());
+        assertEquals(18, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"BROWSER", "NATIVE_MOBILE"})
+    void cloudPublicClientsAreTypedWithoutBorrowingSelfHostedOrNativeScimClaims(String client) throws Exception {
+        var json = resource("catalog/baselines/scoped/zitadel-cloud-free-public-oidc-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("zitadel-cloud-free-public-oidc-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("zitadel-cloud-free-public-oidc-clients", option.id());
+        assertEquals("zitadel", option.providerId());
+        assertEquals("ZITADEL Cloud", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Free; documented offer, no account entitlement verified", option.plan());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), option.facts().keySet());
+        var fact = option.compatibility().clients().get(
+                io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.valueOf(client));
+        assertNotNull(fact);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, fact.support());
+        assertEquals("zitadel.com", fact.evidence().sourceUrl().getHost());
+        assertEquals(client.equals("BROWSER") ? "/docs/guides/manage/console/applications-overview"
+                : "/docs/guides/integrate/login/oidc/oauth-recommended-flows", fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T06:37:37Z"), fact.evidence().observedAt());
+        assertTrue(option.facts().get(ProviderCatalog.Capability.OIDC).conditions().stream()
+                .anyMatch(condition -> condition.contains("mutable and dated, not release-pinned")));
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(3, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void cloudClientFreshnessDoesNotRefreshDatesOrConferAuthority() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/zitadel-cloud-free-public-oidc-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T06:37:37Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+        assertTrue(draft.options().getFirst().compatibility().clients().values().stream()
+                .allMatch(fact -> fact.support() == ProviderCatalog.Support.SUPPORTED
+                        && fact.evidence().observedAt().equals(observed)));
+    }
+
+    @Test
+    void cloudClientsKeepResearchNativeAndWorkforceScopesSeparate() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("zitadel.v1.json", "scoped/zitadel-cloud-free.v1.json",
+                "scoped/zitadel-cloud-free-upstream-okta.v1.json", "scoped/zitadel-cloud-free-upstream-entra.v1.json",
+                "scoped/zitadel-cloud-free-public-oidc-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(5, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().clients().isEmpty()));
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.getLast().facts().keySet());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "zitadel-client-context-coexistence-test", options), Instant.parse("2026-10-08T06:37:37Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(5, report.optionCount());
         assertEquals(18, report.factCount());

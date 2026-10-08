@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-cloud-free-public-oidc-clients-draft-2026.10.08",
+  "options": [{
+    "id": "zitadel-cloud-free-public-oidc-clients",
+    "providerId": "zitadel",
+    "product": "ZITADEL Cloud",
+    "plan": "Free; documented offer, no account entitlement verified",
+    "deployment": "MANAGED",
+    "region": "No Cloud region selected; storage destinations not verified",
+    "configuration": "Public User Agent/Native OIDC; code + S256 PKCE; exact callbacks; no BFF, API grants, SAML, SCIM or brokers",
+    "facts": {
+      "OIDC": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Use Authorization Code with openid scope, a fresh verifier and code_challenge_method S256; the documented PKCE exchange uses client_id and code_verifier, not a distributed client secret.",
+          "Register separate User Agent and Native applications with exact callbacks; validate issuer, state, nonce and tokens in the consuming application.",
+          "Cloud documentation is mutable and dated, not release-pinned; actual application settings, deployed behavior and Free-account entitlement have not been verified.",
+          "The Free offer at https://zitadel.com/pricing is a scope reference, not a future cost guarantee; this public-client scope excludes confidential BFF, API/service-account grants, SAML, SCIM and upstream brokers."
+        ],
+        "evidence": {
+          "sourceUrl": "https://zitadel.com/docs/guides/integrate/login/oidc/login-users",
+          "observedAt": "2026-10-08T06:37:37Z",
+          "summary": "The dated OIDC guide recommends code flow and PKCE, documents S256 challenges, registered callbacks, state/nonce and a client_id/code_verifier token exchange. This proposes configuration, not verified Cloud deployment or entitlement."
+        }
+      }
+    },
+    "compatibility": {
+      "applications": {},
+      "clients": {
+        "BROWSER": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Limit this proposal to a public User Agent SPA with code and S256 PKCE; keep client credentials out of browser code.",
+            "Use exact registered redirects and narrowly configured origins; test production HTTPS and Development Mode restrictions rather than relying on development wildcards.",
+            "Browser callback/token handling, origin policy, local-session logout and lifecycle enforcement remain untested; this is not AuthWeave's confidential Next.js BFF."
+          ],
+          "evidence": {
+            "sourceUrl": "https://zitadel.com/docs/guides/manage/console/applications-overview",
+            "observedAt": "2026-10-08T06:37:37Z",
+            "summary": "The dated application guide identifies User Agent as client-side SPA and recommends code with PKCE; it describes redirect checks, development-mode restrictions and origins. No live browser integration has been tested."
+          }
+        },
+        "NATIVE_MOBILE": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Limit this proposal to a public Native mobile client with code and S256 PKCE, separate from User Agent, Web and API registrations; a distributed secret is not confidential.",
+            "Application prerequisite: use an external user-agent and a platform-bound return URI under RFC 8252 (https://www.rfc-editor.org/rfc/rfc8252.html), not a credential-capturing embedded WebView.",
+            "Verify the actual OS callback and production Development Mode/redirect policy; custom schemes and passkey app links in the application guide do not prove callback ownership or mobile assurance.",
+            "Test issuer/state/nonce, token storage and SDK integration independently; no mobile SDK, platform association, passkey control or application-session enforcement has been verified."
+          ],
+          "evidence": {
+            "sourceUrl": "https://zitadel.com/docs/guides/integrate/login/oidc/oauth-recommended-flows",
+            "observedAt": "2026-10-08T06:37:37Z",
+            "summary": "The dated flow guide classifies native/mobile clients as public and recommends code with PKCE, separately from confidential Web and machine clients. External-browser and callback prerequisites are not evidence of tested platform compatibility."
+          }
+        }
+      },
+      "populations": {},
+      "tenancy": {},
+      "membership": {}
+    },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

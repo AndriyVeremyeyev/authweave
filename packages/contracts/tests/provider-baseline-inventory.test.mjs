@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-08T06:12:22Z");
+const at = new Date("2026-10-08T06:37:37Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -104,14 +104,14 @@ test("inventory v2 enumerates 68 schema addresses, not 68 required customer fact
 
 test("the full pack partitions every option independently and replays all aggregate counts", () => {
   assertPartitions(pack);
-  assert.equal(inventory.optionCount, 21);
-  assert.equal(inventory.optionPathCount, 1428);
-  assert.equal(inventory.recordedPathCount, 70);
-  assert.equal(inventory.omittedPathCount, 1358);
-  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 32, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
-  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 2, UNSUPPORTED: 0, UNKNOWN: 0 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 68, COMPATIBILITY: 2, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 70, STALE: 0, FUTURE: 0 });
+  assert.equal(inventory.optionCount, 22);
+  assert.equal(inventory.optionPathCount, 1496);
+  assert.equal(inventory.recordedPathCount, 73);
+  assert.equal(inventory.omittedPathCount, 1423);
+  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 33, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
+  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 4, UNSUPPORTED: 0, UNKNOWN: 0 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 69, COMPATIBILITY: 4, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 73, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -128,7 +128,8 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
   const workos = option("workos-directory-sync-staging-scim-events");
   assert.ok(workos.families[0].omittedPaths.includes("facts.OIDC"));
   for (const entry of inventory.options) for (const family of entry.families.slice(1)) {
-    assert.deepEqual(family.recordedPaths, entry.optionId === "keycloak-26.8.0-public-oidc-clients" && family.family === "COMPATIBILITY"
+    const clientScoped = pack.options.find((option) => option.optionId === entry.optionId).basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT";
+    assert.deepEqual(family.recordedPaths, clientScoped && family.family === "COMPATIBILITY"
       ? ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE"] : []);
   }
 });
@@ -146,10 +147,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 55 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 58 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 70 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 70, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 73 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 73, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);
@@ -213,7 +214,8 @@ test("inventory v1 remains a distinct capability-only legacy contract, not a sil
   const legacy = structuredClone(inventory);
   legacy.schemaVersion = 1;
   legacy.policyVersion = "provider-baseline-schema-path-inventory-1";
-  legacy.options = legacy.options.filter((option) => option.optionId !== "keycloak-26.8.0-public-oidc-clients");
+  legacy.options = legacy.options.filter((entry) =>
+    pack.options.find((option) => option.optionId === entry.optionId).basis !== "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   legacy.optionCount = 20;
   legacy.optionPathCount = 1360;
   legacy.recordedPathCount = 67;
