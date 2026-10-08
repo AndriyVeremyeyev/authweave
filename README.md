@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 86 recorded and 1,682 omitted option-paths across 26 distinct
-scopes (1,768 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; fourteen separate compatibility proposals comprise
-thirteen `SUPPORTED` and one `UNKNOWN`.
+The current pack has 90 recorded and 1,746 omitted option-paths across 27 distinct
+scopes (1,836 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; eighteen separate compatibility proposals comprise
+seventeen `SUPPORTED` and one `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,16 +1937,16 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports twenty-six distinct options and 86 recorded
+`make inspect-provider-baselines` now reports twenty-seven distinct options and 90 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
-Entra External ID Basic and WorkOS AuthKit Connect staging), plus one ZITADEL Cloud
-Free organization-context draft.
+Entra External ID Basic and WorkOS AuthKit Connect staging), plus two organization-context
+drafts (ZITADEL Cloud Free and Auth0 B2B Free).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
-Residency, application compatibility, authentication controls, auditability and operating
+Residency, full application compatibility, authentication controls, auditability and operating
 costs remain unverified; advertised region choices do not fill storage-country evidence.
 The active evaluator stays synthetic. Full baselines and authorized publication remain pending.
 
@@ -2059,6 +2059,39 @@ entitlement or a future cost guarantee.
 Research/native/workforce observations are unchanged; SCIM, enterprise federation,
 machine/BFF/third-party clients, residency and authentication controls are not inherited.
 No tenant, subscription, live integration, approval or AuthWeave provider change occurred.
+
+#### Organization-scoped Auth0 documentation candidate
+
+A separate [Auth0 organization-context draft](services/core-api/src/main/resources/catalog/baselines/scoped/auth0-b2b-free-organization-context.v1.json)
+proposes four typed `SUPPORTED` contexts: `B2B_SAAS`, `PARTNER_PORTAL`,
+`MULTI_TENANT_ORGANIZATIONS` and `MULTIPLE_ORGANIZATIONS_PER_USER`. All remain
+`UNREVIEWED`; capabilities, clients, populations, residency and controls are empty.
+It represents multiple customer organizations within one Auth0 tenant using
+first-party Universal Login and explicit memberships, not multiple Auth0 tenants.
+The [organization guide](https://auth0.com/docs/manage-users/organizations/organizations-overview)
+requires a deliberate shared-connection identity model; equal emails or separate
+connection accounts are not automatically the same identity.
+
+The [Free offer](https://auth0.com/pricing) advertises five Organizations, not
+unlimited customers. Actual B2B entitlement, connection/API quotas, paid organization
+roles, self-service and optional per-application access require separate review.
+No Free RBAC entitlement, trial benefit or future zero-cost guarantee is inferred.
+The [membership role API](https://auth0.com/docs/api/management/v2/organizations/get-organization-member-roles)
+documents multiple memberships but does not establish Free role management.
+
+Following the [token guidance](https://auth0.com/docs/manage-users/organizations/using-tokens),
+the application must validate the trusted `org_id` and segment resource access.
+Membership/login is not product entitlement or database isolation. Browser selection,
+email, branding and routing are not sufficient authorization. Auto-membership through
+an enabled connection needs its own admission-policy review; switching, cached tokens
+and session/offboarding enforcement still need live negative tests.
+
+Partner business-admin permissions are not Dashboard, privileged Management API or
+AuthWeave curator permissions. [Partner administration](https://auth0.com/docs/manage-users/organizations)
+requires application work and confidential management credentials; it is not evidence
+of public-client support, SCIM synchronization or secure production acceptance.
+Earlier scopes and observations are unchanged. No account, membership, subscription,
+live integration, approval, evaluator activation or AuthWeave provider change occurred.
 
 #### Staging-scoped WorkOS Directory Sync candidate
 

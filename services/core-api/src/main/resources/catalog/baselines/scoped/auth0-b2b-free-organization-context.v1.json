@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-b2b-free-organization-context-draft-2026.10.08",
+  "options": [
+    {
+      "id": "auth0-b2b-free-organization-context",
+      "providerId": "auth0",
+      "product": "Auth0 Public Cloud",
+      "plan": "B2B Free; bounded Organizations offer, account entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No tenant region selected; storage destinations not verified",
+      "configuration": "One Auth0 tenant; first-party Universal Login; shared identity, explicit memberships; app-owned tenant access",
+      "facts": {},
+      "compatibility": {
+        "applications": {
+          "B2B_SAAS": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Represent business customers as Organizations within one Auth0 tenant, with explicit memberships and enabled application/organization connections. Require Universal Login; Classic Login and Lock.js are outside this scope.",
+              "The current https://auth0.com/pricing Free offer advertises five Organizations, not unlimited customer capacity. Confirm B2B account entitlements, connection and API quotas before approval; neither a trial nor paid RBAC per Organization is assumed.",
+              "Business permissions and resource isolation remain application responsibilities. Generic organization documentation does not verify a Free account, production acceptance, protocol/client compatibility, provisioning, controls or zero future costs. Mutable Cloud evidence is dated, not release-pinned."
+            ],
+            "evidence": {
+              "sourceUrl": "https://auth0.com/docs/manage-users/organizations/organizations-overview",
+              "observedAt": "2026-10-08T14:43:27Z",
+              "summary": "The organization guide describes B2B applications, connection models and Universal Login limitations. Proposed SUPPORTED is conditional application context, not verified Free-plan entitlement or a complete tenant-isolation solution."
+            }
+          },
+          "PARTNER_PORTAL": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Map each partner boundary to an explicit Organization and application membership. The overview supports representing partners; a working portal, delegated administration UI and onboarding workflow were not implemented or tested.",
+              "A partner business admin role must not become an Auth0 Dashboard/Management API administrator or an AuthWeave catalog-curator. Keep privileged management credentials server-side in a confidential client with least privilege; never expose a Management API token to public clients.",
+              "Confirm Free quotas and any paid organization-role, self-service or per-application entitlement separately. Do not infer M2M, public-client support, SCIM, auditability or security enforcement from a general Organizations example."
+            ],
+            "evidence": {
+              "sourceUrl": "https://auth0.com/docs/manage-users/organizations",
+              "observedAt": "2026-10-08T14:43:27Z",
+              "summary": "Auth0 describes partner membership and application-built administration through Organizations APIs. Proposed SUPPORTED retains confidential management and application authorization prerequisites, not automatic admin authority or verified Free self-service features."
+            }
+          }
+        },
+        "clients": {},
+        "populations": {},
+        "tenancy": {
+          "MULTI_TENANT_ORGANIZATIONS": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Use one Auth0 tenant with multiple Organizations, not a separate Auth0 tenant per customer. Bind trusted org_id values to application tenants; authenticate with the selected organization context and validate issuer, audience and the expected organization.",
+              "For APIs, validate the access token's org_id against the authorized resource tenant on every request and segment data accordingly. Login routing, branding, email domain or a browser-selected organization ID alone is not authorization; reject missing, unknown or mismatched context where organization access is required.",
+              "Default organization membership/application login does not establish product entitlement or database isolation. Optional per-application access needs separate feature/plan review. Tenant-switch negative tests, cached claims, local sessions and offboarding enforcement remain untested."
+            ],
+            "evidence": {
+              "sourceUrl": "https://auth0.com/docs/manage-users/organizations/using-tokens",
+              "observedAt": "2026-10-08T14:43:27Z",
+              "summary": "The token guide requires trusted organization validation and API data segmentation. Proposed SUPPORTED describes organization context, not proven tenant isolation, verified application entitlements or automatic session revocation."
+            }
+          }
+        },
+        "membership": {
+          "MULTIPLE_ORGANIZATIONS_PER_USER": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Assign the same stable tenant user ID to each intended Organization; https://auth0.com/docs/manage-users/organizations/organizations-overview describes shared identity through a shared connection and explicit memberships. Separate connection accounts are not automatically one identity; do not merge users by email.",
+              "Keep authorization bound to the active Organization. The roles endpoint explicitly separates memberships, but its role examples are not evidence of Free-plan RBAC entitlement; use an application-owned permission model in this scope.",
+              "Direct assignments require an existing tenant user. Auto-membership under https://auth0.com/docs/manage-users/organizations/configure-organizations/grant-just-in-time-membership adds users logging in through an enabled connection; review that admission policy separately, not as arbitrary partner approval or SCIM synchronization.",
+              "Switching organizations and removing membership require separate resource, cached-token and local-session enforcement tests. No live memberships, account linking, role assignment, cross-tenant negative acceptance or lifecycle guarantee was established."
+            ],
+            "evidence": {
+              "sourceUrl": "https://auth0.com/docs/api/management/v2/organizations/get-organization-member-roles",
+              "observedAt": "2026-10-08T14:43:27Z",
+              "summary": "The API reference explicitly permits a user in multiple Organizations and returns only roles for the requested membership. Proposed SUPPORTED concerns membership context, not Free role management or merged identities across connections."
+            }
+          }
+        }
+      },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}

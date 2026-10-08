@@ -205,6 +205,24 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
   },
   {
+    file: "auth0-b2b-free-organization-context.v1.json",
+    catalogVersion: "auth0-b2b-free-organization-context-draft-2026.10.08",
+    scope: {
+      id: "auth0-b2b-free-organization-context", providerId: "auth0", product: "Auth0 Public Cloud", deployment: "MANAGED",
+      plan: "B2B Free; bounded Organizations offer, account entitlement unverified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "One Auth0 tenant; first-party Universal Login; shared identity, explicit memberships; app-owned tenant access",
+    },
+    facts: {},
+    compatibility: {
+      "compatibility.applications.B2B_SAAS": { support: "SUPPORTED", sourceUrl: "https://auth0.com/docs/manage-users/organizations/organizations-overview" },
+      "compatibility.applications.PARTNER_PORTAL": { support: "SUPPORTED", sourceUrl: "https://auth0.com/docs/manage-users/organizations" },
+      "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS": { support: "SUPPORTED", sourceUrl: "https://auth0.com/docs/manage-users/organizations/using-tokens" },
+      "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER": { support: "SUPPORTED", sourceUrl: "https://auth0.com/docs/api/management/v2/organizations/get-organization-member-roles" },
+    },
+    metadata: { basis: "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
+  },
+  {
     file: "workos-directory-sync-staging.v1.json",
     catalogVersion: "workos-directory-sync-staging-draft-2026.10.02",
     scope: {

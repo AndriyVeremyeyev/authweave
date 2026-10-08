@@ -110,8 +110,10 @@ test("Auth0 public clients coexist with unchanged research/native/workforce clai
   const before = JSON.stringify(originalDrafts);
   const report = await inspectBaselinePack(observed);
   const auth0 = report.options.filter((option) => option.providerId === "auth0");
-  assert.equal(auth0.length, 5);
-  for (const option of auth0.filter((option) => option.basis !== "CLIENT_SCOPED_DOCUMENTATION_DRAFT")) {
+  assert.equal(auth0.length, 6);
+  const organizations = auth0.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
+  assert.ok(organizations.facts.every((fact) => fact.path.startsWith("compatibility.") && !fact.path.startsWith("compatibility.clients.")));
+  for (const option of auth0.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
     assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }

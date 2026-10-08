@@ -809,6 +809,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/entra-external-id-basic-public-oidc-clients.v1.json");
         resources.add("scoped/workos-connect-staging-public-oidc-clients.v1.json");
         resources.add("scoped/zitadel-cloud-free-organization-context.v1.json");
+        resources.add("scoped/auth0-b2b-free-organization-context.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -841,18 +842,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(26, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(86, recordedCount);
-        assertEquals(1682, omittedCount);
+        assertEquals(27, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(90, recordedCount);
+        assertEquals(1746, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 36,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 13, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 17, ProviderCatalog.Support.UNKNOWN, 1), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T14:20:41Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T14:43:27Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(26, report.optionCount());
-        assertEquals(86, report.factCount());
+        assertEquals(27, report.optionCount());
+        assertEquals(90, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1417,6 +1418,117 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(6, report.optionCount());
         assertEquals(22, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"compatibility.applications.B2B_SAAS", "compatibility.applications.PARTNER_PORTAL",
+            "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER"})
+    void auth0OrganizationContextUsesTypedMembershipWithoutBorrowingFreeRoleOrScimEntitlement(String path) throws Exception {
+        var json = resource("catalog/baselines/scoped/auth0-b2b-free-organization-context.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("auth0-b2b-free-organization-context-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("auth0-b2b-free-organization-context", option.id());
+        assertEquals("auth0", option.providerId());
+        assertEquals("Auth0 Public Cloud", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("B2B Free; bounded Organizations offer, account entitlement unverified", option.plan());
+        assertTrue(option.facts().isEmpty());
+        var entries = CatalogDraftFacts.entries(option);
+        assertEquals(4, entries.size());
+        var fact = assertInstanceOf(ProviderCatalogDraft.CompatibilityFact.class, entries.get(path));
+        assertEquals(ProviderCatalog.Support.SUPPORTED, fact.support());
+        assertEquals("auth0.com", fact.evidence().sourceUrl().getHost());
+        var sourcePaths = Map.of(
+                "compatibility.applications.B2B_SAAS", "/docs/manage-users/organizations/organizations-overview",
+                "compatibility.applications.PARTNER_PORTAL", "/docs/manage-users/organizations",
+                "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "/docs/manage-users/organizations/using-tokens",
+                "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "/docs/api/management/v2/organizations/get-organization-member-roles");
+        assertEquals(sourcePaths.keySet(), entries.keySet());
+        assertEquals(sourcePaths.get(path), fact.evidence().sourceUrl().getPath());
+        assertEquals(Instant.parse("2026-10-08T14:43:27Z"), fact.evidence().observedAt());
+        var conditions = String.join(" ", fact.conditions());
+        switch (path) {
+            case "compatibility.applications.B2B_SAAS" -> {
+                assertTrue(conditions.contains("Require Universal Login"));
+                assertTrue(conditions.contains("five Organizations, not unlimited customer capacity"));
+                assertTrue(conditions.contains("neither a trial nor paid RBAC per Organization is assumed"));
+            }
+            case "compatibility.applications.PARTNER_PORTAL" -> {
+                assertTrue(conditions.contains("AuthWeave catalog-curator"));
+                assertTrue(conditions.contains("never expose a Management API token to public clients"));
+            }
+            case "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS" -> {
+                assertTrue(conditions.contains("org_id against the authorized resource tenant on every request"));
+                assertTrue(conditions.contains("does not establish product entitlement or database isolation"));
+            }
+            case "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER" -> {
+                assertTrue(conditions.contains("same stable tenant user ID"));
+                assertTrue(conditions.contains("do not merge users by email"));
+                assertTrue(conditions.contains("not evidence of Free-plan RBAC entitlement"));
+            }
+            default -> fail("Unexpected organization-context path");
+        }
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, fact.evidence().observedAt());
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void auth0OrganizationFreshnessPreservesHashAndNeverGrantsApproval() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/auth0-b2b-free-organization-context.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T14:43:27Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var expected = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertUntrusted(report);
+        }
+    }
+
+    @Test
+    void auth0OrganizationContextCoexistsWithOriginalProtocolClientAndUpstreamScopes() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("auth0.v1.json", "scoped/auth0-b2b-free.v1.json",
+                "scoped/auth0-b2b-free-upstream-okta.v1.json", "scoped/auth0-b2b-free-upstream-entra.v1.json",
+                "scoped/auth0-b2b-free-public-oidc-clients.v1.json", "scoped/auth0-b2b-free-organization-context.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(6, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().applications().isEmpty()
+                && option.compatibility().tenancy().isEmpty() && option.compatibility().membership().isEmpty()));
+        assertTrue(options.getLast().facts().isEmpty());
+        assertTrue(options.getLast().compatibility().clients().isEmpty());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, options.get(1).facts().get(ProviderCatalog.Capability.GROUP_SYNC).availability());
+        assertEquals(Instant.parse("2026-10-02T22:07:48Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.get(4).facts().keySet());
+        assertEquals(2, options.get(4).compatibility().clients().size());
+        assertTrue(options.get(4).compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "auth0-organization-context-coexistence-test", options), Instant.parse("2026-10-08T14:43:27Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(6, report.optionCount());
+        assertEquals(20, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
