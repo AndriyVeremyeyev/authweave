@@ -816,6 +816,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/keycloak-26.8.0-machine-clients.v1.json");
         resources.add("scoped/zitadel-cloud-free-machine-clients.v1.json");
         resources.add("scoped/auth0-b2b-free-machine-clients.v1.json");
+        resources.add("scoped/workos-connect-staging-machine-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -849,18 +850,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(33, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(108, recordedCount);
-        assertEquals(2136, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 39,
+        assertEquals(34, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(110, recordedCount);
+        assertEquals(2202, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 40,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 29, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 30, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T17:49:06Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T18:39:35Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(33, report.optionCount());
-        assertEquals(108, report.factCount());
+        assertEquals(34, report.optionCount());
+        assertEquals(110, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -2216,6 +2217,121 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(7, report.optionCount());
         assertEquals(22, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void workosMachineClientsSeparateThirdPartyOrgCredentialsFromEnvironmentAudienceAndResourceAccess() throws Exception {
+        var json = resource("catalog/baselines/scoped/workos-connect-staging-machine-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("workos-connect-staging-machine-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("workos-connect-staging-machine-clients", option.id());
+        assertEquals("workos", option.providerId());
+        assertEquals("WorkOS AuthKit Connect", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("Staging only; M2M offer documented, production entitlement and billing unverified", option.plan());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OAUTH2_APIS), option.facts().keySet());
+        var api = option.facts().get(ProviderCatalog.Capability.OAUTH2_APIS);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, api.availability());
+        var machineType = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.MACHINE_TO_MACHINE;
+        assertEquals(java.util.Set.of(machineType), option.compatibility().clients().keySet());
+        var machine = option.compatibility().clients().get(machineType);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, machine.support());
+        assertEquals("/docs/authkit/connect/token-claims", api.evidence().sourceUrl().getPath());
+        assertEquals("/docs/authkit/connect/m2m", machine.evidence().sourceUrl().getPath());
+        var observed = Instant.parse("2026-10-08T18:39:35Z");
+        for (var fact : CatalogDraftFacts.entries(option).values()) {
+            assertEquals("workos.com", fact.evidence().sourceUrl().getHost());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertFalse(fact.conditions().isEmpty());
+        }
+        var clientConditions = String.join(" ", machine.conditions());
+        assertTrue(clientConditions.contains("only third-party applications"));
+        assertTrue(clientConditions.contains("not a first-party background-service"));
+        assertTrue(clientConditions.contains("explicit customer/partner organization"));
+        assertTrue(clientConditions.contains("grant_type=client_credentials"));
+        assertTrue(clientConditions.contains("client_secret_post only"));
+        assertTrue(clientConditions.contains("management API key is not this application secret"));
+        assertTrue(clientConditions.contains("least-privilege application scopes"));
+        assertTrue(clientConditions.contains("exact narrowing/default behavior is untested"));
+        assertTrue(clientConditions.contains("OpenID discovery example includes client_credentials"));
+        assertTrue(clientConditions.contains("OAuth authorization-server example omits it"));
+        assertTrue(clientConditions.contains("Free staging does not verify production M2M entitlement"));
+        var apiConditions = String.join(" ", api.conditions());
+        assertTrue(apiConditions.contains("environment client ID audience"));
+        assertTrue(apiConditions.contains("not the requesting M2M client ID"));
+        assertTrue(apiConditions.contains("machine sub and client_id"));
+        assertTrue(apiConditions.contains("expected org_id and granted scopes"));
+        assertTrue(apiConditions.contains("application-owned resource permissions"));
+        assertTrue(apiConditions.contains("no sid and no JWT templates/custom claims"));
+        assertTrue(apiConditions.contains("typed endpoint heading says /oauth2/token"));
+        assertTrue(apiConditions.contains("org_id optional"));
+        assertTrue(apiConditions.contains("Do not promise immediate rejection of already-issued JWTs"));
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(2, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void workosMachineObservationFreshnessDoesNotChangeProposalOrTrust() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/workos-connect-staging-machine-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T18:39:35Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+        }
+        assertEquals(ProviderCatalog.Availability.OPTIONAL,
+                draft.options().getFirst().facts().get(ProviderCatalog.Capability.OAUTH2_APIS).availability());
+    }
+
+    @Test
+    void workosMachineContextDoesNotPopulateSixEarlierScopesOrInheritPrimaryAuthkitOrScim() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("workos.v1.json", "scoped/workos-directory-sync-staging.v1.json",
+                "scoped/workos-directory-sync-staging-upstream-okta.v1.json", "scoped/workos-directory-sync-staging-upstream-entra.v1.json",
+                "scoped/workos-connect-staging-public-oidc-clients.v1.json", "scoped/workos-authkit-staging-organization-context.v1.json",
+                "scoped/workos-connect-staging-machine-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(7, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        var machineType = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.MACHINE_TO_MACHINE;
+        for (var option : options.subList(0, 6)) {
+            assertFalse(option.facts().containsKey(ProviderCatalog.Capability.OAUTH2_APIS));
+            assertFalse(option.compatibility().clients().containsKey(machineType));
+        }
+        assertEquals(Instant.parse("2026-10-02T22:46:13Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(ProviderCatalog.Support.UNKNOWN, options.get(4).compatibility().clients()
+                .get(io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER).support());
+        assertEquals("WorkOS AuthKit", options.get(5).product());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OAUTH2_APIS), options.getLast().facts().keySet());
+        assertTrue(options.getLast().compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "workos-machine-context-coexistence-test", options), Instant.parse("2026-10-08T18:39:35Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(7, report.optionCount());
+        assertEquals(18, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

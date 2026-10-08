@@ -129,12 +129,12 @@ test("WorkOS Connect coexists with unchanged research and three Directory Sync s
   const before = JSON.stringify(originals);
   const report = await inspectBaselinePack(observed);
   const workos = report.options.filter((option) => option.providerId === "workos");
-  assert.equal(workos.length, 6);
-  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 16);
+  assert.equal(workos.length, 7);
+  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 18);
   const organizations = workos.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(organizations.product, "WorkOS AuthKit");
   assert.ok(organizations.facts.every((fact) => fact.path.startsWith("compatibility.") && !fact.path.startsWith("compatibility.clients.")));
-  for (const option of workos.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
+  for (const option of workos.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
     assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }

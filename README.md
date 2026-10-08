@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 108 recorded and 2,136 omitted option-paths across 33 distinct
-scopes (2,244 possible addresses). The 75 capability proposals comprise 39 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-three separate compatibility proposals comprise
-twenty-nine `SUPPORTED` and four `UNKNOWN`.
+The current pack has 110 recorded and 2,202 omitted option-paths across 34 distinct
+scopes (2,312 possible addresses). The 76 capability proposals comprise 40 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-four separate compatibility proposals comprise
+thirty `SUPPORTED` and four `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,14 +1937,14 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-three distinct options and 108 recorded
+`make inspect-provider-baselines` now reports thirty-four distinct options and 110 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
 Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organization-context
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
-and Entra External ID Basic), plus three machine-client scopes
-(Keycloak, ZITADEL Cloud Free and Auth0 B2B Free).
+and Entra External ID Basic), plus four machine-client scopes
+(Keycloak, ZITADEL Cloud Free, Auth0 B2B Free and WorkOS AuthKit Connect staging).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2257,6 +2257,42 @@ third-party consent, residency and authentication controls are not inherited.
 Free [staging](https://workos.com/docs/authkit/environments) is not production
 Connect entitlement. No account, billing, SDK, callback or live exchange was verified;
 AuthWeave's ZITADEL/BFF and synthetic evaluator remain unchanged.
+
+#### Machine-scoped WorkOS Connect staging candidate
+
+A separate [WorkOS Connect machine-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/workos-connect-staging-machine-clients.v1.json)
+proposes `OAUTH2_APIS: OPTIONAL` and `MACHINE_TO_MACHINE: SUPPORTED`, both `UNREVIEWED`.
+The [M2M guide](https://workos.com/docs/authkit/connect/m2m) permits third-party applications
+bound to a customer/partner organization, not first-party background services.
+The selected `client_credentials` exchange uses `client_secret_post` on a trusted
+backend; its application secret is not a WorkOS management API key.
+
+The [claims guide](https://workos.com/docs/authkit/connect/token-claims) fixes the M2M
+audience to the environment client ID, not the requesting application's client ID
+or a configurable per-application API resource. Require a verified issuer, trusted
+environment JWKS, allowed algorithm, expiry, machine identity, expected `org_id`
+and granted scopes, then check application-owned resource permissions. A signed
+organization claim is not tenant isolation, user membership or administrative authority.
+M2M tokens do not inherit user-token consent, JWT templates or custom claims.
+
+Assign explicit least-privilege scopes using the
+[application reference](https://workos.com/docs/reference/workos-connect/applications);
+requested scopes are not proof of the returned grant. Preserve documentation gaps:
+the [OpenID metadata example](https://workos.com/docs/reference/workos-connect/metadata)
+includes `client_credentials`, but its OAuth metadata example omits it;
+the [token reference](https://workos.com/docs/reference/workos-connect/token)
+types `org_id` as optional despite the organization-bound guide;
+the [introspection example](https://workos.com/docs/reference/workos-connect/introspection)
+uses `/oauth2/introspection`, but its typed heading says `/oauth2/token`.
+Reconcile these before approval or live integration. No introspection credential
+policy, immediate JWT invalidation or deployed token lifetime is asserted.
+
+[Free staging](https://workos.com/docs/authkit/environments) is testing-only,
+not a production M2M entitlement, quota or future cost guarantee.
+No account, credentials, application, organization, billing or live calls were created.
+Directory Sync, primary AuthKit login, human compatibility, residency and controls
+are not inherited. Earlier scopes/dates, AuthWeave's ZITADEL/BFF and synthetic evaluator
+remain unchanged.
 
 #### Organization-scoped WorkOS AuthKit staging candidate
 

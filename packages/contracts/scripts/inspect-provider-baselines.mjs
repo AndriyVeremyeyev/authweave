@@ -333,6 +333,25 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
   {
+    file: "workos-connect-staging-machine-clients.v1.json",
+    catalogVersion: "workos-connect-staging-machine-clients-draft-2026.10.08",
+    scope: {
+      id: "workos-connect-staging-machine-clients", providerId: "workos", product: "WorkOS AuthKit Connect", deployment: "MANAGED",
+      plan: "Staging only; M2M offer documented, production entitlement and billing unverified",
+      region: "No WorkOS region selected; storage destinations not verified",
+      configuration: "Third-party org-bound M2M; client_credentials/client_secret_post; environment audience; scoped API access",
+    },
+    facts: {
+      OAUTH2_APIS: { availability: "OPTIONAL", sourceUrl: "https://workos.com/docs/authkit/connect/token-claims" },
+    },
+    compatibility: {
+      "compatibility.clients.MACHINE_TO_MACHINE": {
+        support: "SUPPORTED", sourceUrl: "https://workos.com/docs/authkit/connect/m2m",
+      },
+    },
+    metadata: { basis: "MACHINE_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
+  },
+  {
     file: "workos-authkit-staging-organization-context.v1.json",
     catalogVersion: "workos-authkit-staging-organization-context-draft-2026.10.08",
     scope: {

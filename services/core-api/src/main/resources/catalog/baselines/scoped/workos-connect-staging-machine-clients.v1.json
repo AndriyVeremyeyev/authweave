@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "workos-connect-staging-machine-clients-draft-2026.10.08",
+  "options": [
+    {
+      "id": "workos-connect-staging-machine-clients",
+      "providerId": "workos",
+      "product": "WorkOS AuthKit Connect",
+      "plan": "Staging only; M2M offer documented, production entitlement and billing unverified",
+      "deployment": "MANAGED",
+      "region": "No WorkOS region selected; storage destinations not verified",
+      "configuration": "Third-party org-bound M2M; client_credentials/client_secret_post; environment audience; scoped API access",
+      "facts": {
+        "OAUTH2_APIS": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Limit this proposal to Connect bearer JWTs for an application-owned API. Validate the selected HTTPS AuthKit issuer, trusted environment /oauth2/jwks, signature, allowed algorithm, expiry and environment client ID audience. That audience is not the requesting M2M client ID or a per-application resource parameter; live issuer/key/algorithm acceptance remains unverified.",
+            "Require the machine sub and client_id to identify the registered application, its expected org_id and granted scopes before checking application-owned resource permissions. Reject missing, unknown or foreign organization/resource context. A signed org_id, decoded JWT or successful token exchange does not establish tenant isolation, human membership or administrative authority.",
+            "The claims guide gives M2M an environment client ID audience, no sid and no JWT templates/custom claims. Do not import user-token resource indicators, role-based permissions, consent or primary AuthKit session-token semantics. Granted scopes are not human permissions. Claims source: https://workos.com/docs/authkit/connect/token-claims.",
+            "Optional online validation needs a separately reviewed introspection credential policy and fail-closed transport handling. The reference example uses /oauth2/introspection but its typed endpoint heading says /oauth2/token; preserve this discrepancy before source approval. Caller/cross-client authorization and response freshness are untested. Source: https://workos.com/docs/reference/workos-connect/introspection.",
+            "The M2M token reference marks org_id optional in its typed JWT fields although the M2M guide requires an organization and its example includes org_id. Preserve that discrepancy; this API scope requires the expected organization. Reconcile scope/audience claims and actual responses before approval. Source: https://workos.com/docs/reference/workos-connect/token.",
+            "Secret rotation, scope changes, application removal, cached-token expiry and service offboarding require independent enforcement tests. Do not promise immediate rejection of already-issued JWTs or copy an example lifetime as a deployment guarantee. No API validation, introspection, revocation or resource isolation was tested; the evaluator stays synthetic."
+          ],
+          "evidence": {
+            "sourceUrl": "https://workos.com/docs/authkit/connect/token-claims",
+            "observedAt": "2026-10-08T18:39:35Z",
+            "summary": "The Connect claims guide separates M2M environment audience, machine identity, organization and scopes from user tokens. OPTIONAL is a conditional API-token proposal, not verified enforcement, tenant isolation, live entitlement or reviewed evidence."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {
+          "MACHINE_TO_MACHINE": {
+            "support": "SUPPORTED",
+            "conditions": [
+              "Select a third-party Connect application with application_type m2m and one explicit customer/partner organization. The M2M guide permits only third-party applications; this is not a first-party background-service or delegated-user configuration. Human login, organization switching and multiple user memberships are not inherited.",
+              "POST grant_type=client_credentials with the application's client_id/client_secret in an HTTPS form body to the selected AuthKit domain /oauth2/token; select client_secret_post only. Keep secrets on a trusted backend, outside browser/mobile bundles, URLs and logs. A WorkOS management API key is not this application secret. Basic, private_key_jwt and mTLS are outside scope. Source: https://workos.com/docs/reference/workos-connect/token.",
+              "Assign least-privilege application scopes and request an explicit subset through the optional scope parameter. Verify the returned grant rather than trusting the request; exact narrowing/default behavior is untested. Configure the organization and scopes explicitly even where the common create schema marks them optional. Application reference: https://workos.com/docs/reference/workos-connect/applications.",
+              "Use the access_token as Bearer within its validated expiry, then perform another client_credentials exchange when needed. This selected grant does not use ID Tokens, refresh tokens, end-user sessions or browser redirects. The claims guide fixes the M2M audience to the environment client ID, not a configurable per-application custom API audience.",
+              "The OpenID discovery example includes client_credentials while the OAuth authorization-server example omits it; preserve this discrepancy and do not treat examples as observed runtime metadata or complete grant support. Source: https://workos.com/docs/reference/workos-connect/metadata. Cloud sources are mutable and dated, not release-pinned.",
+              "Staging is testing-only, not customer-facing production; environments have separate keys, organizations and users. Free staging does not verify production M2M entitlement, quotas, billing or future zero-cost operation. Sources: https://workos.com/docs/authkit/environments and https://workos.com/pricing. No account, application, organization, credentials, subscription or live calls were created; no Directory Sync, SSO, residency or human controls are inherited."
+            ],
+            "evidence": {
+              "sourceUrl": "https://workos.com/docs/authkit/connect/m2m",
+              "observedAt": "2026-10-08T18:39:35Z",
+              "summary": "The M2M guide describes third-party, organization-bound Connect applications using client credentials to obtain access tokens. SUPPORTED is a staging documentation proposal with separate credential, scope, audience, resource-authorization and production-cost prerequisites."
+            }
+          }
+        },
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}
