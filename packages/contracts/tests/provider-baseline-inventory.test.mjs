@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-08T16:45:49Z");
+const at = new Date("2026-10-08T17:11:31Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -104,14 +104,14 @@ test("inventory v2 enumerates 68 schema addresses, not 68 required customer fact
 
 test("the full pack partitions every option independently and replays all aggregate counts", () => {
   assertPartitions(pack);
-  assert.equal(inventory.optionCount, 30);
-  assert.equal(inventory.optionPathCount, 2040);
-  assert.equal(inventory.recordedPathCount, 102);
-  assert.equal(inventory.omittedPathCount, 1938);
-  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 36, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
-  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 26, UNSUPPORTED: 0, UNKNOWN: 4 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 72, COMPATIBILITY: 30, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 102, STALE: 0, FUTURE: 0 });
+  assert.equal(inventory.optionCount, 31);
+  assert.equal(inventory.optionPathCount, 2108);
+  assert.equal(inventory.recordedPathCount, 104);
+  assert.equal(inventory.omittedPathCount, 2004);
+  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 37, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
+  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 27, UNSUPPORTED: 0, UNKNOWN: 4 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 73, COMPATIBILITY: 31, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 104, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -144,7 +144,8 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
       ? ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE"]
       : basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"
         ? ["compatibility.applications.B2B_SAAS", "compatibility.applications.PARTNER_PORTAL",
-          "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS"] : [];
+          "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS"]
+        : basis === "MACHINE_SCOPED_DOCUMENTATION_DRAFT" ? ["compatibility.clients.MACHINE_TO_MACHINE"] : [];
     assert.deepEqual(family.recordedPaths, family.family === "COMPATIBILITY" ? expectedContext : []);
   }
 });
@@ -162,10 +163,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 87 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 89 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 102 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 102, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 104 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 104, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);
@@ -230,7 +231,7 @@ test("inventory v1 remains a distinct capability-only legacy contract, not a sil
   legacy.schemaVersion = 1;
   legacy.policyVersion = "provider-baseline-schema-path-inventory-1";
   legacy.options = legacy.options.filter((entry) =>
-    !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"].includes(
+    !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT"].includes(
       pack.options.find((option) => option.optionId === entry.optionId).basis));
   legacy.optionCount = 20;
   legacy.optionPathCount = 1360;

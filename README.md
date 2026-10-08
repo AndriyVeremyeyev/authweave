@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 102 recorded and 1,938 omitted option-paths across 30 distinct
-scopes (2,040 possible addresses). The 72 capability proposals comprise 36 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty separate compatibility proposals comprise
-twenty-six `SUPPORTED` and four `UNKNOWN`.
+The current pack has 104 recorded and 2,004 omitted option-paths across 31 distinct
+scopes (2,108 possible addresses). The 73 capability proposals comprise 37 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-one separate compatibility proposals comprise
+twenty-seven `SUPPORTED` and four `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,13 +1937,13 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty distinct options and 102 recorded
+`make inspect-provider-baselines` now reports thirty-one distinct options and 104 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
 Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organization-context
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
-and Entra External ID Basic).
+and Entra External ID Basic), plus one Keycloak machine-client scope.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -1969,6 +1969,31 @@ have not been tested. Machine clients, confidential BFF, application/population/
 compatibility, SCIM, residency and authentication-control evidence are not inherited.
 No integration, account, provider switch or approval was performed; AuthWeave still
 uses ZITADEL and the active evaluator remains synthetic.
+
+#### Machine-scoped Keycloak OAuth API documentation candidate
+
+A separate [Keycloak machine-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/keycloak-26.8.0-machine-clients.v1.json)
+uses the same exact 26.8.0 source commit. It records `OAUTH2_APIS: OPTIONAL` and
+`MACHINE_TO_MACHINE: SUPPORTED`, both `UNREVIEWED`. The selected configuration is
+a confidential service-account client using `client_credentials` and
+`client_secret_basic`; it is not user login or delegated user access.
+
+The [service-account guide](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/oidc/proc-using-a-service-account.adoc)
+requires client authentication, enabled service-account roles and explicit role-scope
+mappings. Token roles are their intersection; deprecated Full Scope Allowed is not
+a least-privilege shortcut. Basic client authentication must be explicitly restricted,
+protected by TLS and kept server-side. Signed JWT and mTLS are separate configurations.
+The documented default returns an access token without a refresh token or user session;
+the example's lifetime is not a guaranteed deployment setting.
+
+The [audience guide](https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/oidc/con-audience.adoc)
+requires intended API audiences and service-side validation. Requesting-client identity
+or a scope string does not grant API permissions. The resource server must validate
+issuer, signature, expiry, audience, permissions and resource binding. Disabling a
+client or changing mappings does not establish immediate rejection of already issued
+tokens. No client, credential, role assignment, deployment or live API request was
+created or tested. Earlier scopes remain unchanged; AuthWeave still uses ZITADEL
+and the evaluator remains synthetic.
 
 #### Organization-scoped Keycloak documentation candidate
 

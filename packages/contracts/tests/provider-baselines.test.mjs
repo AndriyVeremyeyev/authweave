@@ -919,17 +919,17 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-08T16:45:49Z");
+  const at = new Date("2026-10-08T17:11:31Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 30);
-  assert.equal(report.factCount, 102);
+  assert.equal(report.optionCount, 31);
+  assert.equal(report.factCount, 104);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 25);
+  assert.equal(report.scopedDraftOptionCount, 26);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
-  assert.equal(keycloak.length, 6);
-  assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 6);
+  assert.equal(keycloak.length, 7);
+  assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 7);
   assert.equal(keycloak.filter((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").length, 1);
   assert.ok(keycloak.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").facts.every((fact) => fact.availability === "UNKNOWN"));
   const keycloakPairs = keycloak.filter((option) => option.basis === "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
@@ -1076,7 +1076,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 102);
+  assert.equal(JSON.parse(run.stdout).factCount, 104);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

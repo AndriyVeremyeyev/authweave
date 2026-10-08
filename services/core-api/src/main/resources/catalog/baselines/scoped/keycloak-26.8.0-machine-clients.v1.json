@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "keycloak-26.8.0-machine-clients-draft-2026.10.08",
+  "options": [{
+    "id": "keycloak-26.8.0-machine-clients",
+    "providerId": "keycloak",
+    "product": "Keycloak upstream 26.8.0",
+    "plan": "Upstream release 26.8.0; commercial support not assessed",
+    "deployment": "SELF_HOSTED",
+    "region": "Operator-selected hosting; storage destinations not verified",
+    "configuration": "Confidential service account; client_credentials; client_secret_basic only; scoped roles/audience; default no refresh",
+    "facts": {
+      "OAUTH2_APIS": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Limit this proposal to bearer access tokens obtained by a confidential machine client for a separately identified resource API. OAuth client_credentials acts for the client itself, not an end user; it is not OIDC login, an ID Token or delegated user access.",
+          "Configure a narrowly scoped API audience through reviewed client-role Audience Resolve or an explicit Audience mapper. The requesting client ID is not automatically the API audience; a realm role alone does not establish a target service, and a scope string alone does not grant a role.",
+          "The resource API must validate the selected realm issuer, trusted signature/key and algorithm, expiry, intended audience and its required permissions, then bind the service principal to authorized resources. Reject a missing or foreign audience, missing role or unknown resource context; issuance alone is not authorization.",
+          "Review disabled-client behavior and already issued tokens separately: new role/audience mappings change future tokens, but an existing access token can remain valid until expiry. No live token issuance, API validation, immediate revocation or deployed enforcement was tested.",
+          "This release-pinned scope does not inherit browser/native clients, organization memberships, enterprise brokers, SCIM, residency or human authentication controls. Hosting, operations and cost remain unverified."
+        ],
+        "evidence": {
+          "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/oidc/con-audience.adoc",
+          "observedAt": "2026-10-08T17:11:31Z",
+          "summary": "The pinned audience guide describes bearer tokens for resource services, role-based or explicit audience mapping, service-side audience checks and already-issued-token caveats. Proposed OPTIONAL is restricted API-token context, not verified runtime authorization or revocation."
+        }
+      }
+    },
+    "compatibility": {
+      "applications": {},
+      "clients": {
+        "MACHINE_TO_MACHINE": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Use a separate confidential OIDC client registration with Client authentication On and Service account roles enabled. POST grant_type=client_credentials to the selected realm token endpoint; no browser redirect, user password, user consent or user-delegation flow is selected.",
+            "Select Client ID and Secret and restrict Allowed authentication method to Authorization: Basic as documented at https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/oidc/con-confidential-client-credentials.adoc. Basic encoding is not encryption: protect transport with TLS and keep the secret server-side, outside browser bundles, URLs and logs.",
+            "Token roles are the intersection of assigned service-account roles and explicit role scope mappings, including linked client scopes. Do not enable deprecated Full Scope Allowed or grant realm-management roles as a shortcut; exact least-privilege roles and resource authorization need independent review.",
+            "Retain the documented default without a refresh token or Keycloak user session: obtain a new access token after expiry, and do not imply browser logout or user offboarding semantics. The example's lifetime is not a guaranteed deployment setting; inspect the configured token lifespan and any changed refresh/session behavior.",
+            "Signed JWT, federated client assertions, mTLS and sender-constrained tokens are separate configurations, not implied by this shared-secret scope. No client, credentials, role assignments, secret rotation, provider deployment or live machine request was created or tested."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/oidc/proc-using-a-service-account.adoc",
+            "observedAt": "2026-10-08T17:11:31Z",
+            "summary": "The pinned service-account guide documents confidential client prerequisites, client_credentials, default Basic client authentication, role-scope intersection and default access-token-only behavior. Proposed SUPPORTED remains conditional and unreviewed, not a verified machine integration."
+          }
+        }
+      },
+      "populations": {},
+      "tenancy": {},
+      "membership": {}
+    },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

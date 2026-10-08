@@ -84,6 +84,24 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
   },
   {
+    file: "keycloak-26.8.0-machine-clients.v1.json",
+    catalogVersion: "keycloak-26.8.0-machine-clients-draft-2026.10.08",
+    scope: {
+      id: "keycloak-26.8.0-machine-clients", providerId: "keycloak",
+      product: `Keycloak upstream ${keycloakRelease.version}`, deployment: "SELF_HOSTED",
+      plan: "Upstream release 26.8.0; commercial support not assessed",
+      region: "Operator-selected hosting; storage destinations not verified",
+      configuration: "Confidential service account; client_credentials; client_secret_basic only; scoped roles/audience; default no refresh",
+    },
+    facts: {
+      OAUTH2_APIS: { availability: "OPTIONAL", sourceUrl: `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/docs/documentation/server_admin/topics/clients/oidc/con-audience.adoc` },
+    },
+    compatibility: {
+      "compatibility.clients.MACHINE_TO_MACHINE": { support: "SUPPORTED", sourceUrl: `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/docs/documentation/server_admin/topics/clients/oidc/proc-using-a-service-account.adoc` },
+    },
+    metadata: { basis: "MACHINE_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
+  },
+  {
     file: "keycloak-26.8.0-organization-context.v1.json",
     catalogVersion: "keycloak-26.8.0-organization-context-draft-2026.10.08",
     scope: {
