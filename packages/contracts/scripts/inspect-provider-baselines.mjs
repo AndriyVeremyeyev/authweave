@@ -162,6 +162,29 @@ const scopedBaselines = Object.freeze([
     },
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
   },
+  ...["okta", "entra"].map((upstream) => ({
+    file: `entra-external-id-basic-upstream-${upstream}.v1.json`,
+    catalogVersion: `entra-external-id-basic-upstream-${upstream}-draft-2026.10.08`,
+    scope: {
+      id: `entra-external-id-basic-upstream-${upstream}-workforce`, providerId: "entra-external-id",
+      product: "Microsoft Entra External ID - external tenant", deployment: "MANAGED",
+      plan: "Basic MAU; upstream workforce entitlement unverified",
+      region: "No external or upstream tenant region selected; storage destinations not verified",
+      configuration: upstream === "okta"
+        ? "Standard external tenant; Okta org OIDC code/client_secret_post; user-flow JIT; no SCIM add-on or Graph bridge"
+        : "Standard external tenant; fixed Entra workforce v2 OIDC code/client_secret_post; JIT; no SCIM add-on or Graph bridge",
+    },
+    facts: {
+      ENTERPRISE_SSO: { availability: "OPTIONAL", sourceUrl: `https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-${upstream === "okta" ? "custom-oidc" : "entra-id"}-federation-customers` },
+      JIT: { availability: "OPTIONAL", sourceUrl: `https://learn.microsoft.com/en-us/entra/external-id/customers/${upstream === "okta" ? "concept-authentication-methods-customers" : "how-to-entra-id-federation-customers"}` },
+      SCIM: { availability: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api" },
+      GROUP_SYNC: { availability: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support" },
+    },
+    metadata: {
+      basis: "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU",
+      upstreamProviderId: upstream === "okta" ? "okta-workforce" : "entra-id-workforce",
+    },
+  })),
   {
     file: "auth0-b2b-free-upstream-okta.v1.json",
     catalogVersion: "auth0-b2b-free-upstream-okta-draft-2026.10.02",

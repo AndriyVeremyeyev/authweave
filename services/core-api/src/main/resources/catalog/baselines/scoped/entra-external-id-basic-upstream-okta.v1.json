@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "entra-external-id-basic-upstream-okta-draft-2026.10.08",
+  "options": [
+    {
+      "id": "entra-external-id-basic-upstream-okta-workforce",
+      "providerId": "entra-external-id",
+      "product": "Microsoft Entra External ID - external tenant",
+      "plan": "Basic MAU; upstream workforce entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No external or upstream tenant region selected; storage destinations not verified",
+      "configuration": "Standard external tenant; Okta org OIDC code/client_secret_post; user-flow JIT; no SCIM add-on or Graph bridge",
+      "facts": {
+        "ENTERPRISE_SSO": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Select browser-delegated custom OIDC in a standard-mode external tenant, register its federation redirect URIs in an assigned Okta web app and attach the IdP to the application's sign-up/sign-in user flow; native authentication and workforce B2B guest invitation are outside this scope.",
+            "Choose the fixed Okta org issuer and discovery at https://developer.okta.com/docs/concepts/auth-servers/; this is not the /oauth2/default custom server, and its access tokens are not for the consuming SaaS API.",
+            "Use code and explicitly configure client_secret_post on both sides. Okta's default client_secret_basic is incompatible with the selected External ID interface; private_key_jwt must not be selected there even if displayed. See https://developer.okta.com/docs/api/openapi/okta-oauth/guides/client-auth .",
+            "This is an inferred protocol-compatible documentation candidate, not a vendor-certified or tested Okta connector. Issuer, metadata, claims and secret rotation need live validation; no client, account or integration was created.",
+            "The Basic MAU allowance at https://azure.microsoft.com/en-us/pricing/details/microsoft-entra-external-id/ does not establish tenant or upstream entitlement, paid add-on access or a zero-cost guarantee."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-custom-oidc-federation-customers",
+            "observedAt": "2026-10-08T05:32:34Z",
+            "summary": "External ID documents configurable OIDC federation, with specific token-endpoint methods and code flow. Combining this with Okta's org OIDC and client-auth references proposes OPTIONAL for this exact scope; pair interoperability remains unverified."
+          }
+        },
+        "JIT": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Use the attached browser-delegated sign-up/sign-in user flow to create an external-tenant customer object at first federated sign-up; this is not pre-provisioning or workforce guest redemption.",
+            "Review issuer-bound sub and explicit claim/user-flow attribute mappings at https://learn.microsoft.com/en-us/entra/external-id/customers/reference-oidc-claims-mapping-customers . Email presence requires a truthful email_verified claim for creation; no constant true, email-only identity merge or automatic linking is asserted.",
+            "Email is required by default; the generic guide's optional-email setting is user-flow-wide. The selected Okta claims, account collision handling and repeat-login updates have not been tested.",
+            "First-sign-up object creation does not establish ongoing directory synchronization, group membership, deprovisioning or immediate revocation of application permissions, sessions or tokens."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/concept-authentication-methods-customers",
+            "observedAt": "2026-10-08T05:32:34Z",
+            "summary": "The external-tenant authentication overview describes creating a directory user during federated sign-up. This conditional first-sign-up proposal is not evidence of tested Okta identity correlation or continuing lifecycle synchronization."
+          }
+        },
+        "SCIM": {
+          "availability": "UNKNOWN",
+          "conditions": [
+            "The required direction is Okta workforce provisioning into the customer directory of this Basic external tenant, not outbound Entra application provisioning or OIDC sign-up.",
+            "The separate Entra SCIM server API needs P1 and an Azure-linked paid add-on; it is excluded here, and external-tenant applicability, Okta client interoperability and identity correlation remain unverified.",
+            "No paid add-on or Graph bridge is selected. UNKNOWN is not UNAVAILABLE; establish the inbound endpoint, entitlement, update/disable semantics and separate SaaS access/session enforcement before assigning availability."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api",
+            "observedAt": "2026-10-08T05:32:34Z",
+            "summary": "The billed Entra SCIM server guide does not establish an included Basic external-tenant provisioning path from Okta. OIDC federation and first-sign-up creation cannot fill this evidence gap."
+          }
+        },
+        "GROUP_SYNC": {
+          "availability": "UNKNOWN",
+          "conditions": [
+            "External-tenant group administration, Graph membership edits and application roles do not establish Okta Group Push into this customer directory.",
+            "No Graph bridge is selected; native inbound group entitlement, stable identifiers, membership removals, nested-group behavior and deletions remain unverified for this pair.",
+            "OIDC group claims and JIT are not a SCIM Group lifecycle. Application-owned authorization and session/token revocation need independent evidence; UNKNOWN is not a claim that all group APIs are absent."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support",
+            "observedAt": "2026-10-08T05:32:34Z",
+            "summary": "The external-tenant table documents local user/group and role management, not native inbound Okta group lifecycle synchronization for this Basic scope."
+          }
+        }
+      },
+      "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}

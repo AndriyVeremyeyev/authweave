@@ -19,6 +19,7 @@ const upstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.start
 const zitadelUpstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("zitadel-cloud-free-upstream-"));
 const keycloakUpstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("keycloak-26.8.0-upstream-"));
 const workosUpstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("workos-directory-sync-staging-upstream-"));
+const entraUpstreamDrafts = scopedDrafts.filter((draft) => draft.catalogVersion.startsWith("entra-external-id-basic-upstream-"));
 const observedAt = new Date("2026-10-02T19:58:06Z");
 const copy = () => structuredClone(drafts);
 
@@ -800,15 +801,132 @@ test("WorkOS pair inspection rejects connector, authentication, environment and 
   }
 });
 
+test("External ID workforce candidates separate browser federation and first sign-up from directory lifecycle", () => {
+  const at = new Date("2026-10-08T05:32:34Z");
+  assert.equal(entraUpstreamDrafts.length, 2);
+  const beforeNative = JSON.stringify(entraDraft);
+  for (const draft of entraUpstreamDrafts) {
+    const before = JSON.stringify(draft);
+    const report = inspectScopedBaselineDraft(draft, at);
+    assertUntrusted(report);
+    assert.equal(report.optionCount, 1);
+    assert.equal(report.factCount, 4);
+    const option = report.options[0];
+    assert.equal(option.basis, "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
+    assert.equal(option.sourcePlan, "Basic MAU");
+    assert.equal(option.product, "Microsoft Entra External ID - external tenant");
+    assert.equal(option.deployment, "MANAGED");
+    assert.equal(Object.hasOwn(option, "sourceRelease"), false);
+    assert.equal(Object.hasOwn(option, "sourceCommit"), false);
+    assert.deepEqual(option.facts.map((fact) => [fact.path, fact.availability]), [
+      ["facts.ENTERPRISE_SSO", "OPTIONAL"], ["facts.GROUP_SYNC", "UNKNOWN"],
+      ["facts.JIT", "OPTIONAL"], ["facts.SCIM", "UNKNOWN"],
+    ]);
+    assert.equal(option.omittedCapabilities.length, 5);
+    assert.ok(["OIDC", "SAML", "MFA"].every((capability) => option.omittedCapabilities.includes(capability)));
+    const claims = draft.options[0].facts;
+    const sso = claims.ENTERPRISE_SSO.conditions.join(" ");
+    const jit = claims.JIT.conditions.join(" ");
+    const scim = claims.SCIM.conditions.join(" ");
+    const groups = claims.GROUP_SYNC.conditions.join(" ");
+    assert.match(sso, /browser-delegated.*standard-mode external tenant/);
+    assert.match(sso, /code.*client_secret_post/);
+    assert.match(sso, /client_secret_basic.*private_key_jwt/);
+    assert.match(sso, /user flow/);
+    assert.match(sso, /zero-cost guarantee/);
+    assert.match(jit, /issuer-bound sub.*claim\/user-flow attribute mappings/);
+    assert.match(jit, /truthful email_verified.*not a constant true|truthful email_verified.*no constant true/);
+    assert.match(jit, /email-only identity merge/);
+    assert.match(scim, /P1.*Azure-linked paid add-on.*excluded here.*applicability/);
+    assert.match(scim, /UNKNOWN is not UNAVAILABLE.*separate SaaS access\/session enforcement/);
+    assert.match(groups, /Graph membership edits.*application roles.*do not establish/);
+    assert.match(groups, /OIDC group claims and JIT are not a SCIM Group lifecycle/);
+    if (option.upstreamProviderId === "okta-workforce") {
+      assert.match(sso, /fixed Okta org issuer.*not the \/oauth2\/default.*access tokens.*not for.*SaaS API/);
+      assert.match(sso, /default client_secret_basic is incompatible/);
+      assert.match(sso, /inferred protocol-compatible.*not a vendor-certified or tested Okta connector/);
+      assert.match(jit, /repeat-login updates have not been tested/);
+      assert.match(groups, /Okta Group Push/);
+    } else {
+      assert.equal(option.upstreamProviderId, "entra-id-workforce");
+      assert.match(sso, /organizations\/v2.0 discovery.*explicit tenant-ID\/v2.0 issuer/);
+      assert.match(sso, /not common, consumers, a multi-tenant issuer or domain_hint/);
+      assert.match(sso, /MFA is not automatically trusted.*may prompt again/);
+      assert.match(jit, /Graph user-creation alternative is not selected/);
+      assert.match(jit, /Do not borrow Auth0's oid choice, WorkOS objectId\/externalId/);
+      assert.match(jit, /workforce guide requires email.*generic guide allows.*optional-email/);
+    }
+    for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
+      const later = inspectScopedBaselineDraft(draft, new Date(at.getTime() + offset));
+      assertUntrusted(later);
+      assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness
+        && fact.evidence.observedAt === "2026-10-08T05:32:34Z"));
+    }
+    assert.equal(JSON.stringify(draft), before);
+  }
+  assert.equal(JSON.stringify(entraDraft), beforeNative);
+  assert.equal(entraDraft.options[0].facts.OIDC.evidence.observedAt, "2026-10-02T23:12:01Z");
+  assert.equal(Object.hasOwn(entraDraft.options[0].facts, "JIT"), false);
+});
+
+test("External ID pair inspection rejects tenant, client-auth, identity, fact and authority substitutions", () => {
+  for (const draft of entraUpstreamDrafts) {
+    const other = entraUpstreamDrafts.find((candidate) => candidate !== draft);
+    const mutations = [
+      (input) => { input.approvalGranted = true; },
+      (input) => { input.sourcePlan = "P1"; },
+      (input) => { input.options[0].upstreamProviderId = "verified-workforce"; },
+      (input) => { input.catalogVersion = other.catalogVersion; },
+      (input) => { input.options[0].id = other.options[0].id; },
+      (input) => { input.options[0].configuration = other.options[0].configuration; },
+      (input) => { input.options[0].configuration = "Workforce B2B guest redemption with automatic SCIM lifecycle"; },
+      (input) => { input.options[0].configuration = input.options[0].configuration.replace("client_secret_post", "client_secret_basic"); },
+      (input) => { input.options[0].configuration = entraDraft.options[0].configuration; },
+      (input) => { input.options[0].product = "Azure AD B2C"; },
+      (input) => { input.options[0].plan = "P1; SCIM paid add-on verified"; },
+      (input) => { input.options[0].deployment = "SELF_HOSTED"; },
+      (input) => { input.options[0].providerId = "auth0"; },
+      (input) => { input.options[0].region = "EU"; },
+      (input) => { input.options[0].facts.SCIM.availability = "OPTIONAL"; },
+      (input) => { input.options[0].facts.GROUP_SYNC.availability = "UNAVAILABLE"; },
+      (input) => { input.options[0].facts.ENTERPRISE_SSO.availability = "MANDATORY"; },
+      (input) => { input.options[0].facts.ENTERPRISE_SSO.evidence.sourceUrl = other.options[0].facts.ENTERPRISE_SSO.evidence.sourceUrl; },
+      (input) => { input.options[0].facts.JIT.evidence.sourceUrl = other.options[0].facts.JIT.evidence.sourceUrl; },
+      (input) => { input.options[0].facts.SCIM = structuredClone(auth0Draft.options[0].facts.SCIM); },
+      (input) => { input.options[0].facts.SCIM = structuredClone(workosDraft.options[0].facts.SCIM); },
+      (input) => { input.options[0].facts.GROUP_SYNC = structuredClone(zitadelDraft.options[0].facts.GROUP_SYNC); },
+      (input) => { input.options[0].facts.SCIM.evidence.sourceUrl = "https://learn.microsoft.com.attacker.invalid/docs"; },
+      (input) => { input.options[0].facts.SCIM.evidence.sourceUrl += "?approved=true"; },
+      (input) => { input.options[0].facts.JIT.evidence.evidenceStatus = "REVIEWED"; },
+      (input) => { input.options[0].facts.JIT.evidence.observedAt = "2026-02-30T05:32:34Z"; },
+      (input) => { input.options[0].facts.JIT.conditions = []; },
+      (input) => { input.options[0].facts.GROUP_SYNC.conditions.push(input.options[0].facts.GROUP_SYNC.conditions[0]); },
+      (input) => { input.options[0].facts.OIDC = structuredClone(entraDraft.options[0].facts.OIDC); },
+      (input) => { delete input.options[0].facts.JIT; },
+      (input) => { input.options.push(structuredClone(input.options[0])); },
+      (input) => { input.options[0].compatibility.applications.B2B_SAAS = {
+        support: "SUPPORTED", conditions: [], evidence: structuredClone(input.options[0].facts.JIT.evidence),
+      }; },
+      (input) => { input.options[0].authenticationControls.MFA_ENFORCEMENT = {
+        enforcement: "ENFORCED", conditions: [], evidence: structuredClone(input.options[0].facts.JIT.evidence),
+      }; },
+    ];
+    for (const mutate of mutations) {
+      const input = structuredClone(draft); mutate(input);
+      assert.throws(() => inspectScopedBaselineDraft(input, observedAt));
+    }
+  }
+});
+
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-08T05:14:26Z");
+  const at = new Date("2026-10-08T05:32:34Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 18);
-  assert.equal(report.factCount, 59);
+  assert.equal(report.optionCount, 20);
+  assert.equal(report.factCount, 67);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 13);
+  assert.equal(report.scopedDraftOptionCount, 15);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 4);
   assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 4);
@@ -861,14 +979,26 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.ok(workosPairs.every((option) => option.sourcePlan === "Staging" && option.facts.length === 2
     && option.facts.every((fact) => fact.availability === "OPTIONAL")));
   const entra = report.options.filter((option) => option.providerId === "entra-external-id");
-  assert.equal(entra.length, 2);
-  assert.notEqual(entra[0].optionId, entra[1].optionId);
+  assert.equal(entra.length, 4);
+  assert.equal(new Set(entra.map((option) => option.optionId)).size, 4);
   const entraResearch = entra.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE");
   assert.ok(entraResearch.facts.every((fact) => fact.availability === "UNKNOWN"));
   assert.equal(entraResearch.facts.some((fact) => fact.path === "facts.SAML"), false);
   const external = entra.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(external.sourcePlan, "Basic MAU");
   assert.equal(external.facts.find((fact) => fact.path === "facts.SCIM").availability, "UNKNOWN");
+  const entraPairs = entra.filter((option) => option.basis === "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
+  assert.deepEqual(entraPairs.map((option) => option.upstreamProviderId).sort(), ["entra-id-workforce", "okta-workforce"]);
+  assert.ok(entraPairs.every((option) => option.sourcePlan === "Basic MAU"
+    && option.facts.find((fact) => fact.path === "facts.SCIM").availability === "UNKNOWN"
+    && option.facts.some((fact) => fact.path === "facts.JIT" && fact.availability === "OPTIONAL")
+    && !option.facts.some((fact) => fact.path === "facts.OIDC")));
+  // Ten pair-specific scopes exist, but this is inventory, not complete compatibility coverage.
+  for (const providerId of ["auth0", "entra-external-id", "keycloak", "workos", "zitadel"]) {
+    const pairOptions = report.options.filter((option) => option.providerId === providerId
+      && option.basis === "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
+    assert.deepEqual(pairOptions.map((option) => option.upstreamProviderId).sort(), ["entra-id-workforce", "okta-workforce"]);
+  }
   assert.deepEqual(await inspectBaselinePack(at), report);
 });
 
@@ -911,7 +1041,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 59);
+  assert.equal(JSON.parse(run.stdout).factCount, 67);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

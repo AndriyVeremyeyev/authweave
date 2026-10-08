@@ -1904,9 +1904,9 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports eighteen distinct options and 59 recorded
+`make inspect-provider-baselines` now reports twenty distinct options and 67 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
-eight upstream-scoped drafts.
+ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2093,6 +2093,37 @@ The required app bridge must handle replay, reconcile state and enforce local ac
 emit individual member-removal events. These mutable, dated sources are not release pins
 or live interoperability evidence. Original research/generic observations remain unchanged;
 offline scope checks do not approve or activate facts. Full coverage and publication remain pending.
+
+#### Upstream-scoped Entra External ID Basic candidates
+
+Separate [Okta](services/core-api/src/main/resources/catalog/baselines/scoped/entra-external-id-basic-upstream-okta.v1.json)
+and [Entra workforce](services/core-api/src/main/resources/catalog/baselines/scoped/entra-external-id-basic-upstream-entra.v1.json)
+drafts select standard external-tenant browser OIDC and first-sign-up account creation.
+`ENTERPRISE_SSO`/`JIT` are proposed `OPTIONAL`; `SCIM`/`GROUP_SYNC` remain `UNKNOWN`,
+all eight entries `UNREVIEWED`. This is not workforce guest redemption, B2C or a
+change to AuthWeave's ZITADEL login; no cloud tenant, account or integration was created.
+
+The Okta pairing is a protocol-level inference, not a tested dedicated connector.
+Its [org issuer](https://developer.okta.com/docs/concepts/auth-servers/) is separate
+from `/oauth2/default` and does not supply SaaS API access tokens. Explicit
+[client authentication](https://developer.okta.com/docs/api/openapi/okta-oauth/guides/client-auth)
+must agree with [External ID's methods](https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-custom-oidc-federation-customers):
+the draft selects `client_secret_post`, not Okta's default Basic method or the
+displayed-but-unsupported `private_key_jwt` option. The
+[workforce guide](https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-entra-id-federation-customers)
+uses organizational discovery with a fixed tenant issuer; upstream MFA does not
+automatically transfer assurance to the external tenant.
+
+[Claim mappings](https://learn.microsoft.com/en-us/entra/external-id/customers/reference-oidc-claims-mapping-customers),
+email verification and the workforce/generic guides' differing email instructions
+need review before live sign-up. First-sign-up creation does not prove repeat-login
+updates, account linking or offboarding. The separately billed
+[SCIM server](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api)
+is outside this Basic/no-add-on scope; [group administration](https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support)
+does not prove upstream Group lifecycle sync. Neither `UNKNOWN` means `UNAVAILABLE`.
+Original research/native observations remain unchanged. The ten-pair inventory is
+not complete compatibility coverage, source approval or live interoperability;
+the active evaluator remains synthetic and authorized publication stays closed.
 
 ### Catalog change proposal previews
 

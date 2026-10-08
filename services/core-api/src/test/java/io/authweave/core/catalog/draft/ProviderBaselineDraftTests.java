@@ -680,6 +680,117 @@ class ProviderBaselineDraftTests {
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"okta", "entra"})
+    void externalIdWorkforceFederationDoesNotEstablishProvisioningOrTransferredAssurance(String upstream) throws Exception {
+        var json = resource("catalog/baselines/scoped/entra-external-id-basic-upstream-" + upstream + ".v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("entra-external-id-basic-upstream-" + upstream + "-workforce", option.id());
+        assertEquals("entra-external-id", option.providerId());
+        assertEquals("Microsoft Entra External ID - external tenant", option.product());
+        assertEquals("Basic MAU; upstream workforce entitlement unverified", option.plan());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.ENTERPRISE_SSO, ProviderCatalog.Capability.JIT,
+                ProviderCatalog.Capability.SCIM, ProviderCatalog.Capability.GROUP_SYNC), option.facts().keySet());
+        var observed = Instant.parse("2026-10-08T05:32:34Z");
+        option.facts().forEach((capability, fact) -> {
+            assertEquals(capability == ProviderCatalog.Capability.ENTERPRISE_SSO || capability == ProviderCatalog.Capability.JIT
+                    ? ProviderCatalog.Availability.OPTIONAL : ProviderCatalog.Availability.UNKNOWN, fact.availability());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals("learn.microsoft.com", fact.evidence().sourceUrl().getHost());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        assertEquals("/en-us/entra/external-id/customers/how-to-"
+                + (upstream.equals("okta") ? "custom-oidc" : "entra-id") + "-federation-customers",
+                option.facts().get(ProviderCatalog.Capability.ENTERPRISE_SSO).evidence().sourceUrl().getPath());
+        var sso = String.join(" ", option.facts().get(ProviderCatalog.Capability.ENTERPRISE_SSO).conditions());
+        var jit = String.join(" ", option.facts().get(ProviderCatalog.Capability.JIT).conditions());
+        var scim = String.join(" ", option.facts().get(ProviderCatalog.Capability.SCIM).conditions());
+        var groups = String.join(" ", option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).conditions());
+        assertTrue(sso.contains("browser-delegated"));
+        assertTrue(sso.contains("client_secret_post"));
+        assertTrue(sso.contains("client_secret_basic"));
+        assertTrue(sso.contains("private_key_jwt"));
+        assertTrue(sso.contains("zero-cost guarantee"));
+        assertTrue(jit.contains("issuer-bound sub"));
+        assertTrue(jit.contains("truthful email_verified"));
+        assertTrue(jit.contains("email-only identity merge"));
+        assertTrue(scim.contains("P1 and an Azure-linked paid add-on"));
+        assertTrue(scim.contains("UNKNOWN is not UNAVAILABLE"));
+        assertTrue(groups.contains("OIDC group claims and JIT are not a SCIM Group lifecycle"));
+        if (upstream.equals("okta")) {
+            assertTrue(sso.contains("not the /oauth2/default custom server"));
+            assertTrue(sso.contains("not a vendor-certified or tested Okta connector"));
+            assertTrue(jit.contains("repeat-login updates have not been tested"));
+            assertTrue(groups.contains("Okta Group Push"));
+        } else {
+            assertTrue(sso.contains("organizations/v2.0 discovery"));
+            assertTrue(sso.contains("not common, consumers, a multi-tenant issuer or domain_hint"));
+            assertTrue(sso.contains("MFA is not automatically trusted"));
+            assertTrue(jit.contains("Graph user-creation alternative is not selected"));
+            assertTrue(jit.contains("Do not borrow Auth0's oid choice, WorkOS objectId/externalId"));
+            assertTrue(jit.contains("workforce guide requires email while the generic guide"));
+        }
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var current = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
+        assertEquals(4, current.factCount());
+        assertTrue(current.issues().isEmpty());
+        assertUntrusted(current);
+        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertUntrusted(report);
+            assertEquals(current.contentSha256(), report.contentSha256());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"schemaVersion\": 1", "\"schemaVersion\": 1, \"approvalGranted\": true"), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void externalIdResearchNativeAndBothWorkforcePairsCoexistWithoutDownstreamFactTransfer() throws Exception {
+        var resources = List.of("entra-external-id.v1.json", "scoped/entra-external-id-basic.v1.json",
+                "scoped/entra-external-id-basic-upstream-okta.v1.json",
+                "scoped/entra-external-id-basic-upstream-entra.v1.json");
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : resources) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class)
+                    .options().getFirst());
+        }
+        assertEquals(4, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertTrue(options.getFirst().facts().values().stream()
+                .allMatch(fact -> fact.availability() == ProviderCatalog.Availability.UNKNOWN));
+        assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(Instant.parse("2026-10-02T23:12:01Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
+        assertFalse(options.get(1).facts().containsKey(ProviderCatalog.Capability.JIT));
+        assertTrue(options.subList(2, 4).stream().allMatch(option ->
+                !option.facts().containsKey(ProviderCatalog.Capability.OIDC)
+                && !option.facts().containsKey(ProviderCatalog.Capability.SAML)
+                && option.facts().get(ProviderCatalog.Capability.JIT).availability() == ProviderCatalog.Availability.OPTIONAL
+                && option.facts().get(ProviderCatalog.Capability.SCIM).availability() == ProviderCatalog.Availability.UNKNOWN
+                && option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).availability() == ProviderCatalog.Availability.UNKNOWN));
+        var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "external-id-research-native-and-upstream-test", options);
+        var report = validator.validateAt(combined, Instant.parse("2026-10-08T05:32:34Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.optionCount());
+        assertEquals(15, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+    }
+
     private void assertUntrusted(CatalogDraftValidation report) {
         assertFalse(report.sourceVerificationPerformed());
         assertFalse(report.approvalGranted());

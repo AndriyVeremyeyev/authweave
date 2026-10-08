@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "entra-external-id-basic-upstream-entra-draft-2026.10.08",
+  "options": [
+    {
+      "id": "entra-external-id-basic-upstream-entra-workforce",
+      "providerId": "entra-external-id",
+      "product": "Microsoft Entra External ID - external tenant",
+      "plan": "Basic MAU; upstream workforce entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No external or upstream tenant region selected; storage destinations not verified",
+      "configuration": "Standard external tenant; fixed Entra workforce v2 OIDC code/client_secret_post; JIT; no SCIM add-on or Graph bridge",
+      "facts": {
+        "ENTERPRISE_SSO": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Select browser-delegated custom OIDC in a standard-mode external tenant and a separate workforce-tenant web registration restricted to that organization; configure federation redirect URIs and attach the IdP to the application user flow.",
+            "The workforce guide uses organizations/v2.0 discovery but an explicit tenant-ID/v2.0 issuer. This draft selects that fixed tenant, not common, consumers, a multi-tenant issuer or domain_hint acceleration; it is not workforce B2B guest invitation, B2C or native authentication.",
+            "Use code/client_secret_post, the configured scopes/claims and required upstream consent. Resolve the guide's client_secret label against the supported wire methods in https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-custom-oidc-federation-customers ; do not select client_secret_basic or the displayed-but-unsupported private_key_jwt.",
+            "Home-tenant MFA is not automatically trusted by External ID, which may prompt again. No authentication-control verdict, tested issuer validation, tenant entitlement or live integration is established.",
+            "The Basic MAU allowance at https://azure.microsoft.com/en-us/pricing/details/microsoft-entra-external-id/ does not establish upstream licensing or paid add-on access; this is not a zero-cost guarantee."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-entra-id-federation-customers",
+            "observedAt": "2026-10-08T05:32:34Z",
+            "summary": "The workforce federation guide documents an organizational registration, fixed v2 issuer and external-tenant user flow. Proposed OPTIONAL is conditional on exact configuration, claims and consent, not tested federation or transferred MFA assurance."
+          }
+        },
+        "JIT": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "First federated sign-up through the attached user flow creates an external-tenant customer account; the guide's separate Graph user-creation alternative is not selected.",
+            "Review issuer-bound sub and explicit claim/user-flow attribute mappings at https://learn.microsoft.com/en-us/entra/external-id/customers/reference-oidc-claims-mapping-customers . Do not borrow Auth0's oid choice, WorkOS objectId/externalId or Graph pre-created-user identities as this OIDC JIT mapping.",
+            "The workforce guide requires email while the generic guide allows a user-flow-wide optional-email setting; resolve the selected claim behavior before live sign-up. When email is present the claims reference requires truthful email_verified, not a constant true or email-only identity merge.",
+            "User-flow creation does not verify repeat-login attribute updates, account linking, ongoing directory/group synchronization or immediate application permission, session and token revocation."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/how-to-entra-id-federation-customers",
+            "observedAt": "2026-10-08T05:32:34Z",
+            "summary": "The guide distinguishes first-sign-up account creation from administrator Graph provisioning. This proposed JIT path retains unresolved email/claim behavior and does not establish continuing lifecycle synchronization."
+          }
+        },
+        "SCIM": {
+          "availability": "UNKNOWN",
+          "conditions": [
+            "The required direction is workforce-tenant provisioning into this Basic external customer directory, not workforce outbound provisioning to another SaaS or OIDC sign-up.",
+            "The separate Entra SCIM server API needs P1 and an Azure-linked paid add-on; it is excluded here, and external-tenant applicability, workforce client interoperability and identity correlation remain unverified.",
+            "No paid add-on or Graph bridge is selected. UNKNOWN is not UNAVAILABLE; establish the inbound endpoint, entitlement, update/disable semantics and separate SaaS access/session enforcement before assigning availability."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api",
+            "observedAt": "2026-10-08T05:32:34Z",
+            "summary": "The billed Entra SCIM server guide does not establish an included workforce-to-Basic-external-tenant provisioning path. Shared vendor branding does not supply pair-specific lifecycle evidence."
+          }
+        },
+        "GROUP_SYNC": {
+          "availability": "UNKNOWN",
+          "conditions": [
+            "External-tenant group administration, Graph membership edits and application roles do not establish group synchronization from the upstream workforce directory.",
+            "No Graph bridge is selected; native inbound group entitlement, stable identifiers, membership removals, nested-group behavior and deletions remain unverified for this pair.",
+            "OIDC group claims and JIT are not a SCIM Group lifecycle. Application-owned authorization and session/token revocation need independent evidence; UNKNOWN is not a claim that all group APIs are absent."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support",
+            "observedAt": "2026-10-08T05:32:34Z",
+            "summary": "The external-tenant table documents local group and role management, not workforce-to-external-tenant inbound Group lifecycle synchronization for this Basic scope."
+          }
+        }
+      },
+      "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+      "residency": {},
+      "authenticationControls": {}
+    }
+  ]
+}
