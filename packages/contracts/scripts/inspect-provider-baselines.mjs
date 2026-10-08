@@ -216,6 +216,31 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
   },
   {
+    file: "zitadel-cloud-free-browser-authentication-controls.v1.json",
+    catalogVersion: "zitadel-cloud-free-browser-authentication-controls-draft-2026.10.08",
+    scope: {
+      id: "zitadel-cloud-free-browser-authentication-controls", providerId: "zitadel", product: "ZITADEL Cloud", deployment: "MANAGED",
+      plan: "Free; security offer documented, account entitlement unverified",
+      region: "No Cloud region selected; storage destinations not verified",
+      configuration: "Local browser customers; hosted MFA/passkeys and OIDC reauthentication; no broker; journey/key assurance unverified",
+    },
+    facts: {
+      MFA: { availability: "OPTIONAL", sourceUrl: "https://zitadel.com/docs/guides/manage/console/default-settings" },
+    },
+    authenticationControls: {
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.PHISHING_RESISTANCE": {
+        availability: "SUPPORTED", enforcement: "UNKNOWN", sourceUrl: "https://zitadel.com/docs/guides/integrate/login/hosted-login",
+      },
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.NON_EXPORTABLE_KEYS": {
+        availability: "UNKNOWN", enforcement: "UNKNOWN", sourceUrl: "https://zitadel.com/docs/guides/integrate/login-ui/passkey",
+      },
+      "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.STEP_UP_AUTHENTICATION": {
+        availability: "UNKNOWN", enforcement: "UNKNOWN", sourceUrl: "https://zitadel.com/docs/apis/openidoauth/endpoints",
+      },
+    },
+    metadata: { basis: "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
+  },
+  {
     file: "zitadel-cloud-free-machine-clients.v1.json",
     catalogVersion: "zitadel-cloud-free-machine-clients-draft-2026.10.08",
     scope: {

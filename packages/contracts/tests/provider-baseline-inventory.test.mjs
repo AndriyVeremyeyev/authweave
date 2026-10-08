@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-08T19:33:03Z");
+const at = new Date("2026-10-08T20:18:19Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -109,14 +109,14 @@ test("inventory v2 enumerates 68 schema addresses, not 68 required customer fact
 
 test("the full pack partitions every option independently and replays all aggregate counts", () => {
   assertPartitions(pack);
-  assert.equal(inventory.optionCount, 36);
-  assert.equal(inventory.optionPathCount, 2448);
-  assert.equal(inventory.recordedPathCount, 116);
-  assert.equal(inventory.omittedPathCount, 2332);
-  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 42, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
+  assert.equal(inventory.optionCount, 37);
+  assert.equal(inventory.optionPathCount, 2516);
+  assert.equal(inventory.recordedPathCount, 120);
+  assert.equal(inventory.omittedPathCount, 2396);
+  assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 43, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 33 });
   assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 31, UNSUPPORTED: 0, UNKNOWN: 4 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 78, COMPATIBILITY: 35, RESIDENCY: 0, AUTHENTICATION_CONTROL: 3 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 116, STALE: 0, FUTURE: 0 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 79, COMPATIBILITY: 35, RESIDENCY: 0, AUTHENTICATION_CONTROL: 6 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 120, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -172,10 +172,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 101 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 105 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 116 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 116, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 120 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 120, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);

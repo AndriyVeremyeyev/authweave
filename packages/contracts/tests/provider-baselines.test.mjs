@@ -919,14 +919,14 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-08T19:33:03Z");
+  const at = new Date("2026-10-08T20:18:19Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 36);
-  assert.equal(report.factCount, 116);
+  assert.equal(report.optionCount, 37);
+  assert.equal(report.factCount, 120);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 31);
+  assert.equal(report.scopedDraftOptionCount, 32);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 8);
   assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 8);
@@ -951,8 +951,14 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.ok(keycloakOrganizations.facts.every((fact) => fact.path.startsWith("compatibility.") && fact.support === "SUPPORTED"));
   assert.ok(report.options.every((option) => option.facts.every((fact) => fact.freshness === "CURRENT")));
   const zitadel = report.options.filter((option) => option.providerId === "zitadel");
-  assert.equal(zitadel.length, 7);
-  assert.equal(new Set(zitadel.map((option) => option.optionId)).size, 7);
+  assert.equal(zitadel.length, 8);
+  assert.equal(new Set(zitadel.map((option) => option.optionId)).size, 8);
+  const zitadelAuthentication = zitadel.find((option) => option.basis === "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(zitadelAuthentication.sourcePlan, "Free");
+  assert.equal(Object.hasOwn(zitadelAuthentication, "sourceRelease"), false);
+  assert.equal(Object.hasOwn(zitadelAuthentication, "sourceCommit"), false);
+  assert.equal(zitadelAuthentication.facts.length, 4);
+  assert.equal(zitadelAuthentication.facts.filter((fact) => fact.path.startsWith("authenticationControls.")).length, 3);
   assert.equal(zitadel.filter((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").length, 1);
   assert.ok(zitadel.find((option) => option.basis === "UNRESOLVED_RESEARCH_SCOPE").facts.every((fact) => fact.availability === "UNKNOWN"));
   assert.equal(zitadel.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT").sourcePlan, "Free");
@@ -1084,7 +1090,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 116);
+  assert.equal(JSON.parse(run.stdout).factCount, 120);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

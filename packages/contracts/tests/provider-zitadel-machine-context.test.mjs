@@ -136,14 +136,14 @@ test("Cloud machine freshness retains original observations and the inclusive ni
   assert.equal(JSON.stringify(draft), before);
 });
 
-test("Cloud machine context coexists with six earlier scopes without filling their API omissions", async () => {
+test("Cloud machine context coexists with seven other scopes without filling their API omissions", async () => {
   const originals = drafts.filter((entry) => entry.options[0].providerId === "zitadel" && entry !== draft);
   const before = JSON.stringify(originals);
-  assert.equal(originals.length, 5);
+  assert.equal(originals.length, 6);
   const report = await inspectBaselinePack(observed);
   const zitadel = report.options.filter((option) => option.providerId === "zitadel");
-  assert.equal(zitadel.length, 7);
-  assert.equal(zitadel.reduce((count, option) => count + option.facts.length, 0), 24);
+  assert.equal(zitadel.length, 8);
+  assert.equal(zitadel.reduce((count, option) => count + option.facts.length, 0), 28);
   const earlier = zitadel.filter((option) => option.basis !== "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(earlier.every((option) => !option.facts.some((fact) => paths.includes(fact.path))));
   const native = earlier.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");

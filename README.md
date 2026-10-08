@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 116 recorded and 2,332 omitted option-paths across 36 distinct
-scopes (2,448 possible addresses). The 78 capability proposals comprise 42 `OPTIONAL`,
+The current pack has 120 recorded and 2,396 omitted option-paths across 37 distinct
+scopes (2,516 possible addresses). The 79 capability proposals comprise 43 `OPTIONAL`,
 3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-five separate compatibility proposals comprise
-thirty-one `SUPPORTED` and four `UNKNOWN`. Three authentication-control records retain
+thirty-one `SUPPORTED` and four `UNKNOWN`. Six authentication-control records retain
 their own availability/enforcement pairs, not capability or compatibility counts.
 An `UNKNOWN` in either control field appears in `recordedUnknownPaths`.
 All remain `UNREVIEWED`. These are structural
@@ -1939,7 +1939,7 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-six distinct options and 116 recorded
+`make inspect-provider-baselines` now reports thirty-seven distinct options and 120 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
@@ -1947,8 +1947,8 @@ Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organizat
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
 and Entra External ID Basic), plus five machine-client scopes
 (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
-and Entra External ID with the paid M2M Premium add-on), plus one release-pinned
-Keycloak browser/customer authentication-control scope.
+and Entra External ID with the paid M2M Premium add-on), plus two browser/customer
+authentication-control scopes (release-pinned Keycloak and ZITADEL Cloud Free).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2080,6 +2080,42 @@ sessions remain untested; external-browser use is a separate RFC 8252 prerequisi
 Earlier research/native/workforce scopes and their observations are unchanged.
 No SCIM, machine-client, BFF, residency or authentication-control claims are inherited.
 No account, deployment, source approval or AuthWeave authentication change was performed.
+
+#### Browser/customer-scoped ZITADEL Cloud authentication-control candidate
+
+The separate [ZITADEL Cloud Free authentication draft](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free-browser-authentication-controls.v1.json)
+records `MFA: OPTIONAL` and three controls for local `BROWSER`/
+`EXTERNAL_CUSTOMERS` only. All remain `UNREVIEWED`; earlier ZITADEL scopes,
+AuthWeave's self-hosted ZITADEL/BFF and the synthetic evaluator are unchanged.
+The [Free security offer](https://zitadel.com/pricing) is not verified account
+entitlement, delivery cost, deployed version or a future zero-cost guarantee.
+No account, subscription, credentials or live provider calls were needed.
+
+The [settings guide](https://zitadel.com/docs/guides/manage/console/default-settings)
+distinguishes configurable MFA methods, Force MFA and local-only enforcement;
+the [settings API](https://zitadel.com/docs/reference/api/settings/zitadel.settings.v2.SettingsService.GetLoginSettings)
+preserves organization overrides. Neither a method toggle nor an API example
+proves deployed policy. Hosted WebAuthn/passkeys provide a conditional
+`PHISHING_RESISTANCE` mechanism (`SUPPORTED` availability, `UNKNOWN` enforcement),
+not compulsory protection of enrollment, password fallback, recovery or SSO reuse.
+The [hosted-login guide](https://zitadel.com/docs/guides/integrate/login/hosted-login)
+and [Login App guide](https://zitadel.com/docs/guides/integrate/login-ui/login-app)
+describe different setup limitations/features. Their discrepancy and domain-bound
+credentials remain explicit, without assuming the deployed Login V2 behavior.
+
+`NON_EXPORTABLE_KEYS` stays `UNKNOWN` in both fields. The
+[custom-browser passkey guide](https://zitadel.com/docs/guides/integrate/login-ui/passkey)
+is not hardware-only hosted-login evidence: authenticator selection, user
+verification and example attestation do not establish key non-exportability.
+`STEP_UP_AUTHENTICATION` stays `UNKNOWN` in both fields. Documented
+[OIDC reauthentication parameters](https://zitadel.com/docs/apis/openidoauth/endpoints)
+do not establish the ability to request and verify stronger authentication or an
+essential-ACR contract; repeating the same login is insufficient. The
+application must independently gate sensitive operations on sufficient fresh,
+validated evidence; this draft does not implement that gate.
+Neither Keycloak LoA semantics, external-IdP assurance nor other clients/populations
+are inherited. Offline inspection keeps these limitations and unknown enforcement
+visible without review, activation or readiness.
 
 #### Machine-scoped ZITADEL Cloud documentation candidate
 

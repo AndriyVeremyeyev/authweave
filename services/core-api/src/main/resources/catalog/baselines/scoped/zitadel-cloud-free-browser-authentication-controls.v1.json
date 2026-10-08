@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-cloud-free-browser-authentication-controls-draft-2026.10.08",
+  "options": [
+    {
+      "id": "zitadel-cloud-free-browser-authentication-controls",
+      "providerId": "zitadel",
+      "product": "ZITADEL Cloud",
+      "plan": "Free; security offer documented, account entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No Cloud region selected; storage destinations not verified",
+      "configuration": "Local browser customers; hosted MFA/passkeys and OIDC reauthentication; no broker; journey/key assurance unverified",
+      "facts": {
+        "MFA": {
+          "availability": "OPTIONAL",
+          "conditions": [
+            "Select local browser customers using hosted login, configured MFA methods and passkeys; this is not native/mobile, brokered workforce or machine authentication.",
+            "The login policy offers Force MFA and local-only enforcement; enabling a method alone is not mandatory use. Passkeys require the U2F-with-PIN option. TOTP, email and SMS are weaker alternatives, not equivalent phishing resistance.",
+            "Effective organization settings can override instance defaults; inspect the selected context before relying on enforcement. API examples are not observed account settings: https://zitadel.com/docs/reference/api/settings/zitadel.settings.v2.SettingsService.GetLoginSettings.",
+            "The public Free offer advertises all security features and 100 daily active users: https://zitadel.com/pricing. Account entitlement, quotas, deployed version, email/SMS delivery costs and future zero-cost operation are unverified. No subscription, account or provider calls occurred."
+          ],
+          "evidence": {
+            "sourceUrl": "https://zitadel.com/docs/guides/manage/console/default-settings",
+            "observedAt": "2026-10-08T20:18:19Z",
+            "summary": "The settings guide documents configurable MFA methods, local-only enforcement and passkey prerequisites. OPTIONAL describes a documented mechanism, not verified compulsory use or Free-account entitlement."
+          }
+        }
+      },
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {},
+      "authenticationControls": {
+        "BROWSER": {
+          "EXTERNAL_CUSTOMERS": {
+            "PHISHING_RESISTANCE": {
+              "availability": "SUPPORTED",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "Availability is a conditional mechanism-level inference from the hosted FIDO2/WebAuthn passkey flow, not all MFA or every login. Bind the intended HTTPS login domain/RP and test browser/authenticator behavior. Protocol context: https://www.w3.org/TR/webauthn-2/.",
+                "Password fallback can remain available. Force MFA alone does not establish passkey-only authentication or safe enrollment, password reset, recovery, credential removal, existing SSO and administrator paths. Complete journey enforcement remains UNKNOWN.",
+                "The hosted-login guide lists initial Login V2 setup limitations, while https://zitadel.com/docs/guides/integrate/login-ui/login-app lists passkey/U2F setup. Record this source discrepancy; do not infer a deployed Cloud version or automatically resolve it as verified support.",
+                "Login and management-console domains affect existing credentials and enrollment. No native, external-IdP, employee, hardware-key or AAL assurance is inherited. The seven earlier ZITADEL scopes, AuthWeave's ZITADEL/BFF and synthetic evaluator are unchanged."
+              ],
+              "evidence": {
+                "sourceUrl": "https://zitadel.com/docs/guides/integrate/login/hosted-login",
+                "observedAt": "2026-10-08T20:18:19Z",
+                "summary": "The hosted-login guide documents FIDO2/WebAuthn passkeys and password fallback. Mechanism availability is conditional; complete customer-journey enforcement is UNKNOWN, including version/domain-dependent setup."
+              }
+            },
+            "NON_EXPORTABLE_KEYS": {
+              "availability": "UNKNOWN",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "The custom-browser passkey guide allows platform or cross-platform authenticators and gives iCloud Keychain among credential examples. A passkey label, fingerprint, cross-platform selection or successful WebAuthn login does not prove a non-exportable private key.",
+                "The registration example uses attestation none and required user verification; an example is not verified Cloud configuration. Attachment and user verification do not establish hardware key protection. Trusted authenticator evidence and an enforceable enrollment policy remain unverified.",
+                "Synced, cross-device, existing credential and recovery paths need independent key-protection review. The custom-UI API is context only, not proof of hosted-login Free entitlement or a hardware-only policy. Keep availability and enforcement UNKNOWN, not provider-wide UNSUPPORTED.",
+                "No custom login implementation, security-key purchase, hardware enrollment, attestation verification or physical-device test occurred. Storage countries, SCIM, organization access and machine-key custody are not inferred."
+              ],
+              "evidence": {
+                "sourceUrl": "https://zitadel.com/docs/guides/integrate/login-ui/passkey",
+                "observedAt": "2026-10-08T20:18:19Z",
+                "summary": "The custom-browser guide shows authenticator choices, example attestation none and diverse credential examples. It does not verify non-exportability or its enforcement for this selected Cloud hosted-login customer scope."
+              }
+            },
+            "STEP_UP_AUTHENTICATION": {
+              "availability": "UNKNOWN",
+              "enforcement": "UNKNOWN",
+              "conditions": [
+                "The authorization endpoint documents max_age and prompt=login for reauthentication. AuthWeave step-up means requesting and verifying stronger authentication, not repeating the same login. These parameters alone do not establish that capability; availability remains UNKNOWN.",
+                "Login lifetimes are separate password, external-login, second-factor and multifactor checks: https://zitadel.com/docs/guides/manage/console/default-settings. A prompt, token refresh, organization-selection scope or a cached SSO session is not proof of a new stronger-factor challenge.",
+                "Before a sensitive operation, the application must independently validate signed token issuer/audience/nonce and applicable auth_time, assurance claims and factor freshness; absent or insufficient evidence must deny the operation. This is a required application condition, not a claim that this catalog draft implements it.",
+                "Selected documentation does not establish an essential-ACR higher-assurance contract or complete operation gating for the deployed Free login. Enforcement stays UNKNOWN pending policy, recovery, SSO-reuse and bypass tests. Do not inherit Keycloak LoA semantics, NIST AAL or external-IdP assurance."
+              ],
+              "evidence": {
+                "sourceUrl": "https://zitadel.com/docs/apis/openidoauth/endpoints",
+                "observedAt": "2026-10-08T20:18:19Z",
+                "summary": "The authorization endpoint documents max_age and prompt=login, not a verified stronger-authentication contract. Step-up availability and enforcement remain UNKNOWN; ordinary reauthentication is context only."
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
