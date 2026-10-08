@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { evaluationContextValues, assuranceExpectationSaveMatches, InvalidEvaluationContextForm, parseEvaluationContextForm,
+import { evaluationContextValues, InvalidEvaluationContextForm, parseEvaluationContextForm,
   withEvaluationContextValues } from "../src/lib/assessment/evaluation-context.ts";
+import { savedProfileMatches } from "../src/lib/assessment/profile-save-acknowledgement.ts";
 
 const profile = {
   application: { type: "UNKNOWN", clients: [] },
@@ -40,10 +41,10 @@ test("all assurance planning labels round-trip without deriving or changing inde
     assert.deepEqual((changed.security as Record<string, unknown>).authenticationControls,
       { phishingResistance: "NOT_REQUIRED", nonExportableKeys: "NOT_REQUIRED", stepUpAuthentication: "NOT_REQUIRED" });
     assert.deepEqual(changed.protocols, source.protocols); assert.deepEqual(changed.operations, source.operations);
-    assert.equal(assuranceExpectationSaveMatches(changed, structuredClone(changed)), true);
-    assert.equal(assuranceExpectationSaveMatches(changed, { ...changed,
+    assert.equal(savedProfileMatches(changed, structuredClone(changed)), true);
+    assert.equal(savedProfileMatches(changed, { ...changed,
       security: { ...(changed.security as object), assurance: expectation === "HIGH" ? "BASELINE" : "HIGH" } }), false);
-    assert.equal(assuranceExpectationSaveMatches(changed, profile), false);
+    assert.equal(savedProfileMatches(changed, profile), false);
   }
   assert.deepEqual(source, before);
 });
@@ -55,10 +56,10 @@ test("older context forms preserve existing assurance and absence is not a guess
   for (const assurance of ["BASELINE", "ELEVATED", "HIGH", "UNKNOWN"]) {
     const source = { ...profile, security: { ...profile.security, assurance } };
     assert.equal((withEvaluationContextValues(source, parseEvaluationContextForm(valid).values).security as Record<string, unknown>).assurance, assurance);
-    assert.equal(assuranceExpectationSaveMatches(source, structuredClone(source)), true);
+    assert.equal(savedProfileMatches(source, structuredClone(source)), true);
   }
-  assert.equal(assuranceExpectationSaveMatches(profile, profile), true);
-  assert.equal(assuranceExpectationSaveMatches(profile, { ...profile, security: { ...profile.security, assurance: "UNKNOWN" } }), false);
+  assert.equal(savedProfileMatches(profile, profile), true);
+  assert.equal(savedProfileMatches(profile, { ...profile, security: { ...profile.security, assurance: "UNKNOWN" } }), false);
 });
 
 test("assurance rejects blank, duplicated, unrecognized and malformed values without correction", () => {
@@ -73,7 +74,7 @@ test("assurance rejects blank, duplicated, unrecognized and malformed values wit
     const source = { ...profile, security: { ...profile.security, assurance } };
     assert.equal(evaluationContextValues(source), null);
     assert.throws(() => withEvaluationContextValues(source, parseEvaluationContextForm(valid).values));
-    assert.equal(assuranceExpectationSaveMatches(profile, source), false);
+    assert.equal(savedProfileMatches(profile, source), false);
   }
   assert.throws(() => withEvaluationContextValues(profile, { ...parseEvaluationContextForm(valid).values,
     assuranceExpectation: "invalid" as "HIGH" }), InvalidEvaluationContextForm);

@@ -204,11 +204,3 @@ export function withEvaluationContextValues(profile: Record<string, unknown>,
   if (!evaluationContextValues(copy)) throw new InvalidEvaluationContextForm();
   return copy;
 }
-
-// A successful write must acknowledge the explicit or preserved planning label, not silently drop it.
-export function assuranceExpectationSaveMatches(expected: Record<string, unknown>, saved: Record<string, unknown>): boolean {
-  const expectedValues = evaluationContextValues(expected);
-  const savedValues = evaluationContextValues(saved);
-  return expectedValues !== null && savedValues !== null &&
-    expectedValues.assuranceExpectation === savedValues.assuranceExpectation;
-}

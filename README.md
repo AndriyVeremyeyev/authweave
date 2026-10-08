@@ -338,6 +338,18 @@ feedback is scoped to its assessment, section and loaded version; it does not ca
 over to another editor after navigation. The unsaved-navigation dialog asks the user
 to review the section's save feedback, not to retry a refused write.
 
+Before acknowledging any of the five profile forms, BFF checks the complete Core
+write response against the submitted profile, including preserved sections. Object
+key order and the six domain-set orders may differ; values, membership and ordered
+usage assumptions may not. Missing, added or altered profile values cannot report
+success. A same-version response is accepted only for an unchanged profile; the
+next version remains valid. Successful replies require JSON and at most 64 KiB of
+actual UTF-8 bytes; the existing Core write deadline also covers the body read.
+An invalid or unreadable acknowledgement returns a fixed unavailable response and
+the enhanced form keeps its edits as uncertain. The Core write may already have
+committed: there is no automatic rollback, retry or merge. Native submissions do
+not receive a success redirect for a rejected acknowledgement either.
+
 The protected `/assessments` list identifies saved drafts by application type, users
 and clients, with status, saved version, UTC timestamps and a secondary ID. Unknown
 and empty selections stay unrecorded; Other needs definition. An unreadable stored

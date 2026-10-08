@@ -43,6 +43,9 @@ import { relatedComparisonInput } from "../src/lib/assessment/comparison-present
 import { savedRequirementsFixture } from "./fixtures/assessment-ui.mts";
 import { guidedScenarios } from "./fixtures/guided-scenarios.mts";
 import { profileFormFixture, profileSectionAction, profileSaveFixtureId } from "./fixtures/profile-save.mts";
+import { acknowledgementProfile, acknowledgementSections, acknowledgementWriters, reverseProfileObjectsAndSets } from "./fixtures/profile-acknowledgement.mts";
+import { postProfileSection } from "../src/lib/assessment/profile-save.ts";
+import { profileSaveAcknowledgementByteLimit } from "../src/lib/assessment/profile-save-acknowledgement.ts";
 import { authDatabase, beginLogin, beginReauthentication, consumeLogin, createSession,
   revokeSession, touchSession } from
   "../src/lib/auth/store.ts";
@@ -50,6 +53,84 @@ import { freshCuratorGrant } from "../src/lib/auth/curator.ts";
 import { opaqueHash, randomOpaqueValue, sessionCookieName } from "../src/lib/auth/session-policy.ts";
 
 after(async () => { await authDatabase().end(); });
+
+for (const section of acknowledgementSections) test(`${section} save never acknowledges a mismatched Core reply through the live session route`, async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]])), previousFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-acknowledgement-route-token-000000000000000000" });
+  const id = profileSaveFixtureId, workspaceId = "70000000-0000-4000-8000-000000000001";
+  const identity = { workspaceId, issuer: "http://localhost:8081", subject: `synthetic-${section}-acknowledgement-owner`,
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined);
+  const routes = { context: evaluationContextRoute, capabilities: updateCapabilitiesRoute, auditability: auditabilityRoute,
+    usage: usagePlanningRoute, operations: operationalPreferencesRoute };
+  const route = routes[section], action = profileSectionAction(section), context = { params: Promise.resolve({ id }) };
+  const form = profileFormFixture(section); form.set("expectedVersion", "7");
+  let profile: Record<string, unknown> = acknowledgementProfile(), version = 7, mode = "exact", commits = 0;
+  const calls: string[] = [];
+  const request = (accept = "application/json") => new NextRequest(`http://localhost:3000${action}`, {
+    method: "POST", headers: { Origin: "http://localhost:3000", Accept: accept, "Content-Type": "application/x-www-form-urlencoded",
+      Cookie: `${sessionCookieName(false)}=${sessionId}` }, body: form.toString(),
+  });
+  // Only the session DB is real. Commit first in the stateful Core double, then damage its reply:
+  // a 503/uncertain result must not imply that the underlying write was rolled back.
+  globalThis.fetch = async (target, init) => {
+    calls.push(init!.method!);
+    assert.equal(String(target), `http://127.0.0.1:8080/api/v6/workspaces/${workspaceId}/assessments/${id}${init?.method === "PUT" ? "/profile" : ""}`);
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    assert.equal(init?.redirect, "error"); assert.equal(init?.cache, "no-store");
+    const envelope = () => ({ id, workspaceId, status: "DRAFT", version, profileSchemaVersion: 6, profile });
+    if (init?.method === "GET") return Response.json(envelope());
+    const payload = JSON.parse(String(init?.body)); assert.equal(payload.expectedVersion, version);
+    const old = structuredClone(profile);
+    if (JSON.stringify(profile) !== JSON.stringify(payload.profile)) { version++; commits++; }
+    profile = payload.profile;
+    const reply = { ...envelope(), profile: reverseProfileObjectsAndSets(profile) as Record<string, unknown> };
+    if (mode === "old-profile") reply.profile = old;
+    if (mode === "other-section") {
+      if (section === "context") (reply.profile.operations as Record<string, unknown>).hosting = "SELF_HOSTED";
+      else (reply.profile.application as Record<string, unknown>).type = "OTHER";
+    }
+    if (mode === "old-version") reply.version = payload.expectedVersion;
+    if (mode === "foreign-owner") reply.workspaceId = "70000000-0000-4000-8000-000000000002";
+    if (mode === "oversized") return new Response(JSON.stringify(reply) + " ".repeat(profileSaveAcknowledgementByteLimit),
+      { headers: { "Content-Type": "application/json" } });
+    if (mode === "invalid-json") return new Response("{synthetic-sensitive-upstream-reply", { headers: { "Content-Type": "application/json" } });
+    if (mode === "wrong-media") return new Response(JSON.stringify(reply), { headers: { "Content-Type": "text/html" } });
+    return Response.json(reply);
+  };
+  try {
+    for (const failure of ["old-profile", "other-section", "old-version", "foreign-owner", "oversized", "invalid-json", "wrong-media"]) {
+      for (const accept of ["application/json", "text/html"]) {
+        profile = acknowledgementProfile(); version = 7; mode = failure; commits = 0; calls.length = 0;
+        const response = await route(request(accept), context);
+        assert.equal(response.status, 503); assert.equal(response.headers.get("cache-control"), "no-store");
+        assert.equal(response.headers.get("location"), null);
+        assert.equal(await postProfileSection(section, action, form, async () => response.clone()), "uncertain");
+        assert.equal(await response.text(), "Assessment update is temporarily unavailable.");
+        assert.deepEqual(calls, ["GET", "PUT"]); assert.equal(commits, 1); assert.equal(version, 8);
+        assert.deepEqual(profile, acknowledgementWriters[section].patch(acknowledgementProfile()));
+      }
+    }
+    profile = acknowledgementProfile(); version = 7; mode = "exact"; commits = 0; calls.length = 0;
+    let response = await route(request(), context);
+    assert.equal(response.status, 200); assert.deepEqual(await response.json(), { assessmentId: id, expectedVersion: 7, outcome: "saved" });
+    assert.equal(version, 8); assert.equal(commits, 1);
+    form.set("expectedVersion", "8");
+    response = await route(request(), context);
+    assert.equal(response.status, 200); assert.deepEqual(await response.json(), { assessmentId: id, expectedVersion: 8, outcome: "saved" });
+    assert.equal(version, 8); assert.equal(commits, 1); // No-op does not create a revision.
+    response = await route(request("text/html"), context);
+    assert.equal(response.status, 303); assert.equal(response.headers.get("location"), `http://localhost:3000/assessments/${id}?step=${section === "operations" ? "usage" : section}`);
+    assert.equal(version, 8); assert.equal(commits, 1);
+    await revokeSession(sessionId); calls.length = 0;
+    assert.equal((await route(request(), context)).status, 401); assert.deepEqual(calls, []);
+  } finally {
+    await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name];
+  }
+});
 
 for (const [section, route] of [["context",evaluationContextRoute],["capabilities",updateCapabilitiesRoute],
   ["auditability",auditabilityRoute]] as const) test(`${section} JSON saves keep live session guards, checked receipts and native fallback`,async()=>{

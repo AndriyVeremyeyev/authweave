@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { parseOperationalPreferencesForm, operationalPreferencesFormIssues, withOperationalPreferences,
-  operationalPreferencesSaveMatches } from "../src/lib/assessment/operational-preferences.ts";
+import { parseOperationalPreferencesForm, operationalPreferencesFormIssues, withOperationalPreferences } from "../src/lib/assessment/operational-preferences.ts";
+import { savedProfileMatches } from "../src/lib/assessment/profile-save-acknowledgement.ts";
 import { hostingPreferences, deploymentTargets, identityExpertiseLevels, budgetSensitivities } from "../src/lib/assessment/operations-planning.ts";
 import { updatePersonalOperationalPreferences } from "../src/lib/auth/core-client.ts";
 import { operationsProfile, operationsValues, operationsWorkspaceId as workspaceId, operationsAssessmentId as id } from "./fixtures/operations-planning.mts";
@@ -53,10 +53,10 @@ test("operations patch preserves all saved v6 fields and explicitly clears prefe
 });
 
 test("save matching preserves object values and array order but does not depend on object key order", () => {
-  assert.equal(operationalPreferencesSaveMatches({ a: 0, b: [1, null] }, { b: [1, null], a: 0 }), true);
+  assert.equal(savedProfileMatches({ a: 0, b: [1, null] }, { b: [1, null], a: 0 }), true);
   for (const other of [{ a: 0, b: [null, 1] }, { a: 0, b: [1] }, { a: 0, b: [1, null], c: true },
     { a: "0", b: [1, null] }, { a: 0, b: {} }, null]) {
-    assert.equal(operationalPreferencesSaveMatches({ a: 0, b: [1, null] }, other), false);
+    assert.equal(savedProfileMatches({ a: 0, b: [1, null] }, other), false);
   }
 });
 

@@ -24,6 +24,7 @@ import { lifecycleV2Expectation, lifecycleV2Patterns, lifecycleV2Groups, lifecyc
 import { operationsPlanningValues, operationsPlanningFromCore } from "../../../apps/web/src/lib/assessment/operations-planning.ts";
 import { assurancePlanningValues, assurancePlanningFromCore } from "../../../apps/web/src/lib/assessment/assurance-compliance-planning.ts";
 import { publicationReviewFromCore } from "../../../apps/web/src/lib/catalog/publication-preflight.ts";
+import { validateProfileSaveAcknowledgements } from "../tests/helpers/profile-save-acknowledgement-spec.mjs";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -700,6 +701,10 @@ for (const required of ["comparison-evidence-preview:true", "comparison-evidence
   assert.ok(covered.has(required), `Missing HTTP contract coverage: ${required}`);
 }
 console.log(`Validated ${samples.length} actual HTTP request/response samples against JSON Schema.`);
+const profileAcknowledgements = validateProfileSaveAcknowledgements(samples);
+assert.ok(profileAcknowledgements.count > 0 && profileAcknowledgements.noOps > 0,
+  "Actual v6 writes and no-op saves must reach the common BFF acknowledgement guard.");
+console.log(`Verified ${profileAcknowledgements.count} actual v6 write acknowledgements, including ${profileAcknowledgements.noOps} no-op saves, through the common BFF profile and byte guards.`);
 assert.equal(comparisonEvidenceSamples, 2, "Unknown and selected-audit saved profiles must both reach the exact-catalog personal BFF consumer.");
 console.log(`Verified ${comparisonEvidenceSamples} actual comparison evidence responses against their saved profiles, native constraints and exact catalog digests.`);
 assert.equal(publicationReviewSamples, 4, "Both proposal/bootstrap checked and unavailable-input projections must pass the actual BFF contract.");

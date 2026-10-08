@@ -61,14 +61,3 @@ export function withOperationalPreferences(profile: Record<string, unknown>, val
   Object.assign(copy.operations as Record<string, unknown>, parsed.values);
   return copy;
 }
-
-/** A save acknowledgement must preserve every profile value; object key order is immaterial. */
-export function operationalPreferencesSaveMatches(expected: unknown, saved: unknown): boolean {
-  if (expected === null || typeof expected !== "object") return expected === saved;
-  if (!saved || typeof saved !== "object" || Array.isArray(expected) !== Array.isArray(saved)) return false;
-  if (Array.isArray(expected)) return expected.length === (saved as unknown[]).length &&
-    expected.every((value, index) => operationalPreferencesSaveMatches(value, (saved as unknown[])[index]));
-  const left = expected as Record<string, unknown>, right = saved as Record<string, unknown>;
-  return Object.keys(left).length === Object.keys(right).length && Object.keys(left).every(key =>
-    Object.hasOwn(right, key) && operationalPreferencesSaveMatches(left[key], right[key]));
-}

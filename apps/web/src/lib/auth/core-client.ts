@@ -23,7 +23,7 @@ import { auditabilityPreviewBinding, auditabilityPreviewByteLimit, auditabilityP
   type AuditabilityPreview } from "../assessment/auditability-preview.ts";
 import { comparisonFromCore, type SyntheticComparisonSummary } from "../assessment/comparison.ts";
 import { comparisonEvidenceByteLimit, comparisonEvidenceFromCore, type ComparisonEvidenceSummary } from "../assessment/comparison-provenance.ts";
-import { applicationTypes, clientTypes, populations, evaluationContextValues, assuranceExpectationSaveMatches,
+import { applicationTypes, clientTypes, populations, evaluationContextValues,
   withEvaluationContextValues, type EvaluationContextValues } from "../assessment/evaluation-context.ts";
 import { boundedPrerequisiteText, parsePrerequisiteForm, prerequisiteAnalysis,
   type PrerequisiteInput, type PrerequisitePreview } from "../assessment/architecture-prerequisites.ts";
@@ -37,7 +37,8 @@ import { usageMetrics, usagePlanningValues, withUsagePlanningValues,
   type UsageMetric, type UsagePlanningValues } from "../assessment/usage-planning.ts";
 import { operationsPlanningBinding, operationsPlanningByteLimit, operationsPlanningFromCore,
   type OperationsPlanningValues, type OperationsPlanningPreview } from "../assessment/operations-planning.ts";
-import { withOperationalPreferences, operationalPreferencesSaveMatches } from "../assessment/operational-preferences.ts";
+import { withOperationalPreferences } from "../assessment/operational-preferences.ts";
+import { savedProfileMatches, profileSaveAcknowledgementByteLimit } from "../assessment/profile-save-acknowledgement.ts";
 import type { OperationsInputs } from "../assessment/operations-planning.ts";
 import { assurancePlanningBinding, assurancePlanningByteLimit, assurancePlanningFromCore,
   type AssurancePlanningValues, type AssurancePlanningPreview } from "../assessment/assurance-compliance-planning.ts";
@@ -529,8 +530,7 @@ export async function readPersonalAssessment(session: BrowserSession, id: string
 export type ProfileUpdateResult = "saved" | "conflict" | "invalid" | "not-found" | "not-editable";
 
 async function updatePersonalProfile(session: BrowserSession, id: string, expectedVersion: number,
-  patch: (profile: Record<string, unknown>) => Record<string, unknown>,
-  savedMatches: (expected: Record<string, unknown>, saved: Record<string, unknown>) => boolean = () => true): Promise<ProfileUpdateResult> {
+  patch: (profile: Record<string, unknown>) => Record<string, unknown>): Promise<ProfileUpdateResult> {
   if (!UUID.test(id) || !Number.isSafeInteger(expectedVersion) || expectedVersion < 0) {
     throw new Error("Profile update request is invalid");
   }
@@ -539,21 +539,26 @@ async function updatePersonalProfile(session: BrowserSession, id: string, expect
   if (current.status !== "DRAFT") return "not-editable";
   if (current.version !== expectedVersion) return "conflict";
   const profile = patch(current.profile);
+  const signal = AbortSignal.timeout(3_000);
   const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/profile`, {
     method: "PUT",
     headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
     body: JSON.stringify({ expectedVersion, profile }),
-    cache: "no-store", redirect: "error", signal: AbortSignal.timeout(3_000),
+    cache: "no-store", redirect: "error", signal,
   });
   if (response.status === 409) return "conflict";
   if (response.status === 400 || response.status === 422) return "invalid";
   if (response.status === 404) return "not-found";
   if (response.status !== 200) throw new Error("Core profile update failed");
-  const saved = assessmentFromCore(await response.json(), session, id);
+  if (response.redirected || response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
+    void response.body?.cancel().catch(() => {});
+    throw new Error("Core profile update response is invalid");
+  }
+  const saved = assessmentFromCore(JSON.parse(await boundedPrerequisiteText(response, profileSaveAcknowledgementByteLimit, signal)), session, id);
   if (saved.status !== "DRAFT" || saved.version < expectedVersion ||
       saved.version > expectedVersion + 1 ||
-      JSON.stringify(auditabilityValues(saved.profile)) !== JSON.stringify(auditabilityValues(profile)) ||
-      !savedMatches(profile, saved.profile)) {
+      !savedProfileMatches(profile, saved.profile) ||
+      (saved.version === expectedVersion && !savedProfileMatches(current.profile, profile))) {
     throw new Error("Core profile update response is invalid");
   }
   return "saved";
@@ -570,7 +575,7 @@ export async function updatePersonalEvaluationContext(
   session: BrowserSession, id: string, expectedVersion: number, values: EvaluationContextValues,
 ): Promise<ProfileUpdateResult> {
   return updatePersonalProfile(session, id, expectedVersion,
-    profile => withEvaluationContextValues(profile, values), assuranceExpectationSaveMatches);
+    profile => withEvaluationContextValues(profile, values));
 }
 
 export async function updatePersonalUsagePlanning(
@@ -584,7 +589,7 @@ export async function updatePersonalOperationalPreferences(
   session: BrowserSession, id: string, expectedVersion: number, values: OperationsInputs,
 ): Promise<ProfileUpdateResult> {
   return updatePersonalProfile(session, id, expectedVersion,
-    profile => withOperationalPreferences(profile, values), operationalPreferencesSaveMatches);
+    profile => withOperationalPreferences(profile, values));
 }
 
 export async function updatePersonalAuditability(
