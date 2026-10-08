@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 
 import { authConfiguration } from "@/lib/auth/config";
 import { readCuratorAuthorization, type CuratorProbeStatus } from "@/lib/auth/core-client";
@@ -18,6 +19,8 @@ const curatorMessages: Record<CuratorProbeStatus, string> = {
 };
 
 export default async function AccountPage() {
+  // Configuration failure must not freeze the account page into a build-time snapshot.
+  await connection();
   let unavailable = false;
   let session = null;
   let curatorStatus: CuratorProbeStatus | null = null;

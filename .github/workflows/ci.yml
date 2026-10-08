@@ -126,6 +126,9 @@ jobs:
         run: ./mvnw --batch-mode --no-transfer-progress -Dtest=GuidedAssessmentBffIT test
       - name: Build isolated production web application and install Chromium
         working-directory: apps/web
+        env:
+          AUTHWEAVE_OIDC_ISSUER: ""
+          AUTHWEAVE_OIDC_CLIENT_ID: ""
         run: npm run build && npx playwright install --with-deps chromium
       - name: Test desktop and mobile browser OIDC flows with real Core and isolated PostgreSQL
         run: ./mvnw --batch-mode --no-transfer-progress -Dtest=GuidedAssessmentBrowserIT test

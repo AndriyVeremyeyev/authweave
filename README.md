@@ -2981,6 +2981,8 @@ assumptions, stored profiles and verdicts are unchanged.
 `make check-browser` (also in `make check` and CI) runs eight Chromium E2E cases
 against an isolated production Next.js standalone build, real Core HTTP and fresh
 Testcontainers PostgreSQL. Run `make check-web` and `make setup-browser` first.
+CI builds without OIDC configuration; `/account` must remain request-time rather
+than cache a build-time authentication-unavailable screen.
 The three synthetic scenarios run at desktop and mobile widths through OIDC sign-in,
 five actual form saves, all 37 Review/downloaded-brief rows, fictional Comparison,
 Architecture and sign-out. Failure paths cover dirty-step stay/discard, a stale tab,

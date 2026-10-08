@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
-import { cp, mkdtemp, readdir, rm, stat } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
 import { createServer, request, type Server, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -164,6 +164,8 @@ try {
   await listen(proxy, 8080, "127.0.0.1");
   const web = process.cwd(), standalone = path.join(web, ".next/standalone");
   assert.ok((await stat(path.join(standalone, "server.js"))).isFile(), "Run make check-web first");
+  const prerender = JSON.parse(await readFile(path.join(web, ".next/prerender-manifest.json"), "utf8"));
+  assert.ok(!Object.hasOwn(prerender.routes, "/account"), "Account must remain request-time without build OIDC configuration");
   assert.ok(!(await readdir(standalone)).some(name => name.startsWith(".env")), "Do not copy local environment files");
   directory = await mkdtemp(path.join(tmpdir(), "authweave-browser-"));
   await cp(standalone, directory, { recursive: true });
@@ -181,16 +183,20 @@ try {
     AUTHWEAVE_WEB_DB_PASSWORD: "web-test-password", AUTHWEAVE_CORE_SERVICE_TOKEN: process.env.AUTHWEAVE_CORE_SERVICE_TOKEN });
   const webProcess = run(["server.js"], directory, env);
   let ready = false;
+  const readiness = { responses: 0, unavailable: 0, networkFailures: 0, lastStatus: 0 };
   for (let attempt = 0; attempt < 100; attempt++) {
     assert.ok(!interrupted, "Browser harness was interrupted");
     if (webProcess.exitCode !== null) throw new Error("Isolated web server exited before readiness");
     try {
       const response = await fetch(`${app}/account`, { signal: AbortSignal.timeout(1000) });
-      if (response.ok && (await response.text()).includes("Sign in with ZITADEL")) { ready = true; break; }
-    } catch { /* The owned server may still be starting. */ }
+      const html = await response.text();
+      readiness.responses++; readiness.lastStatus = response.status;
+      if (html.includes("Authentication is temporarily unavailable.")) readiness.unavailable++;
+      if (response.ok && html.includes("Sign in with ZITADEL")) { ready = true; break; }
+    } catch { readiness.networkFailures++; }
     await delay(100);
   }
-  assert.ok(ready, "Isolated production web server did not become ready");
+  assert.ok(ready, `Isolated production web server did not become ready: ${JSON.stringify(readiness)}`);
   const tests = run(["node_modules/@playwright/test/cli.js", "test"], web, { ...env, AUTHWEAVE_TEST_BROWSER: "synthetic-browser-core-v1" });
   assert.equal(await completion(tests), 0, "Browser tests failed");
   assert.deepEqual(counts, { authorizations: 16, tokens: 16, pkceValidated: 16, reauthRequests: 4, logouts: 10 });
