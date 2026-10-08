@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-b2b-free-machine-clients-draft-2026.10.08",
+  "options": [{
+    "id": "auth0-b2b-free-machine-clients",
+    "providerId": "auth0",
+    "product": "Auth0 Public Cloud",
+    "plan": "B2B Free; bounded M2M offer, account quota and entitlement unverified",
+    "deployment": "MANAGED",
+    "region": "No tenant region selected; storage destinations not verified",
+    "configuration": "First-party confidential M2M; client_credentials/client_secret_post; custom API RS256; explicit grants/scopes; no org",
+    "facts": {
+      "OAUTH2_APIS": {
+        "availability": "OPTIONAL",
+        "conditions": [
+          "Limit this proposal to bearer access tokens for a separately registered custom API using the Auth0 JWT profile and RS256 signing. Its exact API Identifier is the audience, not the requesting client ID or an OIDC ID Token. Registration details are documented at https://auth0.com/docs/get-started/auth0-overview/set-up-apis; identifier trailing slashes are significant.",
+          "The resource API must validate the trusted tenant issuer, RS256 signature/key, expiry and intended API audience, then require the endpoint's granted scopes. Reject malformed, expired, wrong-issuer, foreign-audience or insufficient-scope tokens; token decoding or successful issuance alone is not authorization.",
+          "Obtain verification keys only from the selected issuer's trusted JWKS, not a token-supplied URL, and pin the allowed algorithm. Signature validation is distinct from client_secret_post client authentication; the client secret is not the RS256 signing key. JWT verification guidance: https://auth0.com/docs/secure/tokens/json-web-tokens/validate-json-web-tokens.",
+          "Combine granted scopes with application-owned service-principal/resource permissions, as described at https://auth0.com/docs/get-started/apis. A requested scope, API Identifier or machine subject does not establish customer tenancy, user membership or administrative authority. Fail closed on missing or foreign resource context; no organization claims are assumed.",
+          "Review cached tokens, signing-key rotation, client-secret rotation, grant removal and service offboarding separately. Do not promise immediate rejection of already-issued JWTs or assume the tutorial's expires_in is the deployed lifetime. No live API validation, revocation policy or resource enforcement was tested.",
+          "Cloud sources are mutable and dated, not release-pinned. This scope does not inherit browser/native login, delegated end-user access, Organizations, enterprise federation, SCIM, residency or human authentication controls. The active evaluator and AuthWeave ZITADEL/BFF configuration remain unchanged."
+        ],
+        "evidence": {
+          "sourceUrl": "https://auth0.com/docs/secure/tokens/access-tokens/validate-access-tokens",
+          "observedAt": "2026-10-08T17:49:06Z",
+          "summary": "The custom-API validation guide requires JWT validation, the intended API audience and endpoint scopes. OPTIONAL is a conditional API-token proposal, not verified tenant entitlement, resource isolation or runtime enforcement."
+        }
+      }
+    },
+    "compatibility": {
+      "applications": {},
+      "clients": {
+        "MACHINE_TO_MACHINE": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Use a dedicated first-party confidential M2M application authorized for the chosen custom API. POST grant_type=client_credentials, its exact audience and explicit requested scopes to /oauth/token. This authenticates the application itself, not an end user; no browser redirect, user password, OIDC login or user-delegation flow is selected.",
+            "Select token_endpoint_auth_method client_secret_post and keep the client_id/client_secret in the HTTPS request body on a trusted backend, outside browser/mobile bundles, URLs and logs. Client Secret Post is documented at https://auth0.com/docs/get-started/applications/credentials. Basic, private_key_jwt, mTLS and sender-constrained tokens are separate configurations, not properties of this shared-secret scope.",
+            "Select Per-app authorization for Client Access with an explicit client grant and least-privilege scope ceiling, not Always grant all permissions. Require explicit scopes in the token request; grant settings and requested scopes do not replace resource checks. Set User-Delegated Access to No apps allowed for this machine-only API. Access-policy source: https://auth0.com/docs/get-started/apis/api-access-policies-for-applications.",
+            "Keep Organization Support None and omit organization from the token request. The M2M Organizations guide names paid B2B Professional/Enterprise plans, while the public pricing table lists Select Enterprise Plans; preserve this discrepancy and do not infer Free organization-scoped M2M or import human memberships. Guide: https://auth0.com/docs/manage-users/organizations/organizations-for-m2m-applications.",
+            "The public Free comparison at https://auth0.com/pricing lists 1,000 M2M authentications, not verified account entitlement, remaining quota or a future zero-cost guarantee. Custom-audience tokens consume quota; internal Auth0 audiences are a different case, as documented at https://auth0.com/docs/secure/tokens/access-tokens/management-api-access-tokens. Management API grants are not custom API permissions and are excluded.",
+            "Use the returned access_token as Bearer over HTTPS and reuse it only within its validated expiry; obtain a new token with client_credentials when needed, not for every API call. Refresh tokens are not part of this selected flow. Token reuse, expiry and JWKS rotation need independent testing; guidance: https://auth0.com/docs/secure/tokens/token-best-practices. No tenant, application, API, credentials, grants, subscription or live requests were created."
+          ],
+          "evidence": {
+            "sourceUrl": "https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-credentials-flow/call-your-api-using-the-client-credentials-flow",
+            "observedAt": "2026-10-08T17:49:06Z",
+            "summary": "The client-credentials tutorial requires a registered custom API, an authorized M2M application and the API audience before issuing a bearer access token. SUPPORTED is a scoped documentation proposal with separate credential, grant, quota and paid-organization prerequisites."
+          }
+        }
+      },
+      "populations": {},
+      "tenancy": {},
+      "membership": {}
+    },
+    "residency": {},
+    "authenticationControls": {}
+  }]
+}

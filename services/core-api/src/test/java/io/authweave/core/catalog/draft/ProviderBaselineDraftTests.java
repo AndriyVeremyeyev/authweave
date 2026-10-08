@@ -815,6 +815,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/entra-external-id-basic-organization-context.v1.json");
         resources.add("scoped/keycloak-26.8.0-machine-clients.v1.json");
         resources.add("scoped/zitadel-cloud-free-machine-clients.v1.json");
+        resources.add("scoped/auth0-b2b-free-machine-clients.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -848,18 +849,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(32, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(106, recordedCount);
-        assertEquals(2070, omittedCount);
-        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 38,
+        assertEquals(33, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(108, recordedCount);
+        assertEquals(2136, omittedCount);
+        assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 39,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 33), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 28, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 29, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T17:31:13Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-08T17:49:06Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(32, report.optionCount());
-        assertEquals(106, report.factCount());
+        assertEquals(33, report.optionCount());
+        assertEquals(108, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -2103,6 +2104,118 @@ class ProviderBaselineDraftTests {
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(7, report.optionCount());
         assertEquals(24, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+    }
+
+    @Test
+    void auth0MachineClientsSeparateSecretPostFromRs256ValidationAndCustomApiPermissions() throws Exception {
+        var json = resource("catalog/baselines/scoped/auth0-b2b-free-machine-clients.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("auth0-b2b-free-machine-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("auth0-b2b-free-machine-clients", option.id());
+        assertEquals("auth0", option.providerId());
+        assertEquals("Auth0 Public Cloud", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertEquals("B2B Free; bounded M2M offer, account quota and entitlement unverified", option.plan());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OAUTH2_APIS), option.facts().keySet());
+        var api = option.facts().get(ProviderCatalog.Capability.OAUTH2_APIS);
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, api.availability());
+        var machineType = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.MACHINE_TO_MACHINE;
+        assertEquals(java.util.Set.of(machineType), option.compatibility().clients().keySet());
+        var machine = option.compatibility().clients().get(machineType);
+        assertEquals(ProviderCatalog.Support.SUPPORTED, machine.support());
+        assertEquals("/docs/secure/tokens/access-tokens/validate-access-tokens", api.evidence().sourceUrl().getPath());
+        assertEquals("/docs/get-started/authentication-and-authorization-flow/client-credentials-flow/"
+                + "call-your-api-using-the-client-credentials-flow", machine.evidence().sourceUrl().getPath());
+        var observed = Instant.parse("2026-10-08T17:49:06Z");
+        for (var fact : CatalogDraftFacts.entries(option).values()) {
+            assertEquals("auth0.com", fact.evidence().sourceUrl().getHost());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertFalse(fact.conditions().isEmpty());
+        }
+        var clientConditions = String.join(" ", machine.conditions());
+        assertTrue(clientConditions.contains("first-party confidential M2M"));
+        assertTrue(clientConditions.contains("grant_type=client_credentials"));
+        assertTrue(clientConditions.contains("token_endpoint_auth_method client_secret_post"));
+        assertTrue(clientConditions.contains("Per-app authorization for Client Access"));
+        assertTrue(clientConditions.contains("not Always grant all permissions"));
+        assertTrue(clientConditions.contains("User-Delegated Access to No apps allowed"));
+        assertTrue(clientConditions.contains("Organization Support None"));
+        assertTrue(clientConditions.contains("preserve this discrepancy"));
+        assertTrue(clientConditions.contains("1,000 M2M authentications"));
+        assertTrue(clientConditions.contains("Custom-audience tokens consume quota"));
+        assertTrue(clientConditions.contains("Refresh tokens are not part of this selected flow"));
+        var apiConditions = String.join(" ", api.conditions());
+        assertTrue(apiConditions.contains("Auth0 JWT profile and RS256"));
+        assertTrue(apiConditions.contains("not the requesting client ID or an OIDC ID Token"));
+        assertTrue(apiConditions.contains("token decoding or successful issuance alone is not authorization"));
+        assertTrue(apiConditions.contains("trusted JWKS, not a token-supplied URL"));
+        assertTrue(apiConditions.contains("client secret is not the RS256 signing key"));
+        assertTrue(apiConditions.contains("application-owned service-principal/resource permissions"));
+        assertTrue(apiConditions.contains("Fail closed on missing or foreign resource context"));
+        assertTrue(apiConditions.contains("Do not promise immediate rejection of already-issued JWTs"));
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        assertTrue(option.residency().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(2, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
+                "\"support\": \"SUPPORTED\"", "\"support\": \"SUPPORTED\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
+    }
+
+    @Test
+    void auth0MachineObservationFreshnessDoesNotChangeProposalOrTrust() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/auth0-b2b-free-machine-clients.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-08T17:49:06Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+        }
+        assertEquals(ProviderCatalog.Availability.OPTIONAL,
+                draft.options().getFirst().facts().get(ProviderCatalog.Capability.OAUTH2_APIS).availability());
+    }
+
+    @Test
+    void auth0MachineContextDoesNotPopulateSixEarlierScopesOrInheritScimOrOrganizations() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("auth0.v1.json", "scoped/auth0-b2b-free.v1.json",
+                "scoped/auth0-b2b-free-upstream-okta.v1.json", "scoped/auth0-b2b-free-upstream-entra.v1.json",
+                "scoped/auth0-b2b-free-public-oidc-clients.v1.json", "scoped/auth0-b2b-free-organization-context.v1.json",
+                "scoped/auth0-b2b-free-machine-clients.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(7, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        var machineType = io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.MACHINE_TO_MACHINE;
+        for (var option : options.subList(0, 6)) {
+            assertFalse(option.facts().containsKey(ProviderCatalog.Capability.OAUTH2_APIS));
+            assertFalse(option.compatibility().clients().containsKey(machineType));
+        }
+        assertEquals(Instant.parse("2026-10-02T22:07:48Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(java.util.Set.of(ProviderCatalog.Capability.OAUTH2_APIS), options.getLast().facts().keySet());
+        assertTrue(options.getLast().compatibility().membership().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "auth0-machine-context-coexistence-test", options), Instant.parse("2026-10-08T17:49:06Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(7, report.optionCount());
+        assertEquals(22, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

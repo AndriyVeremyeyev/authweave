@@ -1875,10 +1875,10 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 106 recorded and 2,070 omitted option-paths across 32 distinct
-scopes (2,176 possible addresses). The 74 capability proposals comprise 38 `OPTIONAL`,
-3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-two separate compatibility proposals comprise
-twenty-eight `SUPPORTED` and four `UNKNOWN`.
+The current pack has 108 recorded and 2,136 omitted option-paths across 33 distinct
+scopes (2,244 possible addresses). The 75 capability proposals comprise 39 `OPTIONAL`,
+3 `UNAVAILABLE` and 33 `UNKNOWN`; thirty-three separate compatibility proposals comprise
+twenty-nine `SUPPORTED` and four `UNKNOWN`.
 All remain `UNREVIEWED`. These are structural
 counts, **not a completion percentage**. Addresses may be irrelevant to a particular
 customer profile; omissions do not mean unsupported features or a requirement to
@@ -1937,13 +1937,14 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports thirty-two distinct options and 106 recorded
+`make inspect-provider-baselines` now reports thirty-three distinct options and 108 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
 Entra External ID Basic and WorkOS AuthKit Connect staging), plus five organization-context
 drafts (ZITADEL Cloud Free, Auth0 B2B Free, primary WorkOS AuthKit staging, Keycloak 26.8.0
-and Entra External ID Basic), plus two machine-client scopes (Keycloak and ZITADEL Cloud Free).
+and Entra External ID Basic), plus three machine-client scopes
+(Keycloak, ZITADEL Cloud Free and Auth0 B2B Free).
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2140,6 +2141,36 @@ entitlement or a future cost guarantee.
 Research/native/workforce observations are unchanged; SCIM, enterprise federation,
 machine/BFF/third-party clients, residency and authentication controls are not inherited.
 No tenant, subscription, live integration, approval or AuthWeave provider change occurred.
+
+#### Machine-scoped Auth0 OAuth API documentation candidate
+
+A separate [Auth0 machine-client draft](services/core-api/src/main/resources/catalog/baselines/scoped/auth0-b2b-free-machine-clients.v1.json)
+proposes `OAUTH2_APIS: OPTIONAL` and `MACHINE_TO_MACHINE: SUPPORTED`, both `UNREVIEWED`.
+It selects a first-party confidential application, `client_credentials` and
+[`client_secret_post`](https://auth0.com/docs/get-started/applications/credentials),
+with an explicit custom API audience and requested scopes. Client authentication
+is separate from the API's RS256 token signature; the client secret is not its signing key.
+
+The [client access policy](https://auth0.com/docs/get-started/apis/api-access-policies-for-applications)
+requires an explicit least-privilege client grant; user-delegated access is denied for
+this machine-only API. The resource server must
+[validate access tokens](https://auth0.com/docs/secure/tokens/access-tokens/validate-access-tokens)
+and bind the service principal and granted scopes to its own resources. An API
+Identifier, decoded JWT or successful token exchange is not resource authorization.
+
+The [Free comparison](https://auth0.com/pricing) lists 1,000 M2M authentications, not
+verified account quota, entitlement or a future cost guarantee. Custom-audience
+tokens consume quota; internal Auth0 audience rules do not make a custom API free
+or confer Management API permissions. Reuse valid tokens within expiry rather
+than exchanging on every API call; no refresh-token or immediate-revocation promise is made.
+
+Organization support is deliberately excluded. The
+[M2M Organizations guide](https://auth0.com/docs/manage-users/organizations/organizations-for-m2m-applications)
+names B2B Professional/Enterprise availability, while the public pricing table
+lists Select Enterprise Plans. This discrepancy is retained; human memberships
+and Free Organizations do not establish organization-scoped M2M access.
+No tenant, credentials, grants, subscription or live integration was created.
+Earlier scopes/dates, the synthetic evaluator and AuthWeave's ZITADEL/BFF remain unchanged.
 
 #### Organization-scoped Auth0 documentation candidate
 

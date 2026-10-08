@@ -263,6 +263,25 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
   },
   {
+    file: "auth0-b2b-free-machine-clients.v1.json",
+    catalogVersion: "auth0-b2b-free-machine-clients-draft-2026.10.08",
+    scope: {
+      id: "auth0-b2b-free-machine-clients", providerId: "auth0", product: "Auth0 Public Cloud", deployment: "MANAGED",
+      plan: "B2B Free; bounded M2M offer, account quota and entitlement unverified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "First-party confidential M2M; client_credentials/client_secret_post; custom API RS256; explicit grants/scopes; no org",
+    },
+    facts: {
+      OAUTH2_APIS: { availability: "OPTIONAL", sourceUrl: "https://auth0.com/docs/secure/tokens/access-tokens/validate-access-tokens" },
+    },
+    compatibility: {
+      "compatibility.clients.MACHINE_TO_MACHINE": {
+        support: "SUPPORTED", sourceUrl: "https://auth0.com/docs/get-started/authentication-and-authorization-flow/client-credentials-flow/call-your-api-using-the-client-credentials-flow",
+      },
+    },
+    metadata: { basis: "MACHINE_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
+  },
+  {
     file: "auth0-b2b-free-organization-context.v1.json",
     catalogVersion: "auth0-b2b-free-organization-context-draft-2026.10.08",
     scope: {

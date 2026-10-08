@@ -919,14 +919,14 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-08T17:31:13Z");
+  const at = new Date("2026-10-08T17:49:06Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 32);
-  assert.equal(report.factCount, 106);
+  assert.equal(report.optionCount, 33);
+  assert.equal(report.factCount, 108);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 27);
+  assert.equal(report.scopedDraftOptionCount, 28);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 7);
   assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 7);
@@ -963,8 +963,8 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.ok(organizations.facts.every((fact) => fact.path.startsWith("compatibility.") && fact.support === "SUPPORTED"));
   assert.equal(organizations.facts.some((fact) => fact.path.startsWith("facts.")), false);
   const auth0 = report.options.filter((option) => option.providerId === "auth0");
-  assert.equal(auth0.length, 6);
-  assert.equal(new Set(auth0.map((option) => option.optionId)).size, 6);
+  assert.equal(auth0.length, 7);
+  assert.equal(new Set(auth0.map((option) => option.optionId)).size, 7);
   const auth0Organizations = auth0.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(auth0Organizations.sourcePlan, "B2B Free");
   assert.equal(auth0Organizations.facts.length, 4);
@@ -1076,7 +1076,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 106);
+  assert.equal(JSON.parse(run.stdout).factCount, 108);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");
