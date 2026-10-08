@@ -132,12 +132,17 @@ short-lived verification sessions and delete them.
 With the project and organization IDs configured, the BFF requests a project-scoped role
 claim through ZITADEL UserInfo at sign-in. Only the exact `catalog_curator` assignment for
 both IDs is recorded in the server-side session; a failed lookup grants no curator access.
+Subject-validated UserInfo also supplies display name and verified email when those
+claims are omitted from the ID Token. Existing ID Token claims take precedence;
+email and its verification flag are never mixed between sources. These are profile
+metadata only: workspace identity and reauthentication remain issuer/subject-bound.
 The sensitive-action policy requires authentication within the preceding 15 minutes.
 The account page offers a same-account reauthentication action using `prompt=login` and
 `max_age=0`. Its one-use transaction is bound to the existing session; the callback
 checks a recent `auth_time`, rejects a different issuer or subject, and rotates the
-session ID only after success. The guarded rejection route now uses this policy, but neither
-the browser step-up flow nor a positive role-assignment case has been manually verified.
+session ID only after success. The explicit local browser check below verifies ordinary
+Alice/Bob reauthentication and curator denial. Owner hands-on validation and a positive
+role-assignment case remain separate, unverified checkpoints.
 Do not treat role storage as catalog authorization or publication readiness.
 
 Core now reserves a separate curator boundary for future proposal decisions and exposes
@@ -2999,6 +3004,32 @@ are not used. Both loopback address families are checked for busy ports; cleanup
 stops only owned processes. Browser screenshots on failure remain ignored and traces
 are disabled. This does not prove real-ZITADEL interoperability, curator grants,
 owner understanding, accessibility conformance or hosted security readiness.
+
+`make check-browser-zitadel` is the separate, explicit real-provider interoperability
+check, not part of `make check` or CI. Use the existing local registration (`make auth-up`
+and `make auth-registration-check`), the production build from `make check-web`, and
+Chromium from `make setup-browser`. Ports 3000/8080 must be free; the existing ZITADEL
+lab owns 8081. It never registers users, changes passwords or grants roles.
+
+The check reads only the four OIDC registration values and the two fixed synthetic
+Alice/Bob passwords from existing ignored mode-600, non-symlink files. Passwords are
+entered into the pinned Login V2 UI, never passed to the application server. Fresh
+browser contexts use real authorization/callback routes and PKCE, not injected
+sessions. Real Core and a new Testcontainers application database remain isolated
+from owner app data and named volumes. Two desktop flows verify profile claims,
+draft creation and one BFF context save each, same-account password reauthentication,
+session rotation with unchanged identity/workspace, revoked old cookies, bidirectional
+cross-user read/write 404, curator denial and logout with ZITADEL's `End Session`
+confirmation. SQL checks two version-1 assessments with two revisions/events each
+and no remaining application sessions or login transactions.
+
+Only checkpoint names and safe status counters are printed: browser debug output,
+application server logs, screenshots, traces, videos and error objects are disabled
+for this credential-bearing check. Browser traffic outside the two exact loopback
+origins is blocked. Cleanup stops only owned temporary app resources; the identity
+lab is left running until `make auth-down`, which preserves its volumes. This is not
+full real-provider guided/mobile coverage, a curator grant, a cloud check or owner
+understanding. Provider authentication events may be recorded in the local IdP.
 
 The fact-path report concurrency regression observes actual PostgreSQL blocking,
 uncommitted visibility and report-number allocation with both a normal and a

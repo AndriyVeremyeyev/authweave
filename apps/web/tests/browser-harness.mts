@@ -1,35 +1,12 @@
 import assert from "node:assert/strict";
-import { spawn, type ChildProcess } from "node:child_process";
 import { createHash, generateKeyPairSync, randomBytes, sign } from "node:crypto";
-import { cp, mkdtemp, readFile, readdir, rm, stat } from "node:fs/promises";
-import { createServer, request, type Server, type IncomingMessage, type ServerResponse } from "node:http";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { BrowserRuntime, browserApp, completion } from "./browser-runtime.mts";
 
 assert.equal(process.env.AUTHWEAVE_TEST_BROWSER, "synthetic-browser-core-v1", "Run make check-browser");
-const core = new URL(process.env.AUTHWEAVE_TEST_CORE_ORIGIN!);
-assert.match(core.href, /^http:\/\/127\.0\.0\.1:[1-9][0-9]*\/$/);
-assert.notEqual(core.port, "8080");
-const issuer = "http://localhost:8081", app = "http://localhost:3000";
+const issuer = "http://localhost:8081", app = browserApp;
 const clientId = "synthetic-browser-client", callback = `${app}/api/auth/callback`;
-const servers: Server[] = [];
-const children: ChildProcess[] = [];
-let directory: string | undefined;
-let interrupted = false;
-const interrupt = () => {
-  interrupted = true;
-  for (const child of children) if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
-};
-process.on("SIGINT", interrupt);
-process.on("SIGTERM", interrupt);
-
-function listen(server: Server, port: number, host: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, host, () => { server.off("error", reject); servers.push(server); resolve(); });
-  });
-}
+const runtime = new BrowserRuntime();
 
 function json(response: ServerResponse, status: number, value: unknown) {
   response.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
@@ -126,88 +103,19 @@ async function oidc(request: IncomingMessage, response: ServerResponse) {
   json(response, 404, { error: "not_found" });
 }
 
-function run(args: string[], cwd: string, env: NodeJS.ProcessEnv) {
-  const child = spawn(process.execPath, args, { cwd, env, stdio: "inherit" });
-  children.push(child); return child;
-}
-
-function completion(child: ChildProcess) {
-  return new Promise<number>((resolve, reject) => { child.once("error", reject); child.once("exit", code => resolve(code ?? 1)); });
-}
-
-async function stop(child: ChildProcess) {
-  if (child.exitCode !== null || child.signalCode !== null) return;
-  const exited = completion(child); child.kill("SIGTERM");
-  if (await Promise.race([exited.then(() => true), delay(3000).then(() => false)])) return;
-  child.kill("SIGKILL"); await exited;
-}
-
 try {
   // Check both loopback families; localhost resolution differs across macOS and Linux.
   // Busy owner services cause a failure, never termination or connection to their endpoints.
-  const reservations: Server[] = [];
-  for (const port of [3000, 8080, 8081]) for (const host of ["127.0.0.1", "::1"]) {
-    const reservation = createServer(); await listen(reservation, port, host); reservations.push(reservation);
-  }
-  for (const reservation of reservations) await new Promise<void>(resolve => reservation.close(() => resolve()));
+  await runtime.reservePorts([3000, 8080, 8081]);
   const provider = createServer((request, response) => {
     void oidc(request, response).catch(() => json(response, 500, { error: "synthetic_provider_assertion" }));
   });
-  await listen(provider, 8081, "localhost");
-  const proxy = createServer((incoming, outgoing) => {
-    const upstream = request(new URL(incoming.url!, core), { method: incoming.method, headers: incoming.headers,
-      timeout: 10_000 }, response => { outgoing.writeHead(response.statusCode!, response.headers); response.pipe(outgoing); });
-    upstream.on("timeout", () => upstream.destroy());
-    upstream.on("error", () => { if (!outgoing.headersSent) outgoing.writeHead(502); outgoing.end(); });
-    incoming.pipe(upstream);
-  });
-  await listen(proxy, 8080, "127.0.0.1");
-  const web = process.cwd(), standalone = path.join(web, ".next/standalone");
-  assert.ok((await stat(path.join(standalone, "server.js"))).isFile(), "Run make check-web first");
-  const prerender = JSON.parse(await readFile(path.join(web, ".next/prerender-manifest.json"), "utf8"));
-  assert.ok(!Object.hasOwn(prerender.routes, "/account"), "Account must remain request-time without build OIDC configuration");
-  assert.ok(!(await readdir(standalone)).some(name => name.startsWith(".env")), "Do not copy local environment files");
-  directory = await mkdtemp(path.join(tmpdir(), "authweave-browser-"));
-  await cp(standalone, directory, { recursive: true });
-  await cp(path.join(web, ".next/static"), path.join(directory, ".next/static"), { recursive: true });
-  const publicDirectory = await stat(path.join(web, "public")).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== "ENOENT") throw error;
-    return null;
-  });
-  if (publicDirectory) await cp(path.join(web, "public"), path.join(directory, "public"), { recursive: true });
-  assert.ok(!interrupted, "Browser harness was interrupted");
-  const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "production", HOSTNAME: "localhost", PORT: "3000" };
-  for (const key of Object.keys(env)) if (key.startsWith("AUTHWEAVE_")) delete env[key];
-  Object.assign(env, { AUTHWEAVE_PUBLIC_ORIGIN: app, AUTHWEAVE_OIDC_ISSUER: issuer, AUTHWEAVE_OIDC_CLIENT_ID: clientId,
-    AUTHWEAVE_POSTGRES_DB: process.env.AUTHWEAVE_POSTGRES_DB, AUTHWEAVE_POSTGRES_PORT: process.env.AUTHWEAVE_POSTGRES_PORT,
-    AUTHWEAVE_WEB_DB_PASSWORD: "web-test-password", AUTHWEAVE_CORE_SERVICE_TOKEN: process.env.AUTHWEAVE_CORE_SERVICE_TOKEN });
-  const webProcess = run(["server.js"], directory, env);
-  let ready = false;
-  const readiness = { responses: 0, unavailable: 0, networkFailures: 0, lastStatus: 0 };
-  for (let attempt = 0; attempt < 100; attempt++) {
-    assert.ok(!interrupted, "Browser harness was interrupted");
-    if (webProcess.exitCode !== null) throw new Error("Isolated web server exited before readiness");
-    try {
-      const response = await fetch(`${app}/account`, { signal: AbortSignal.timeout(1000) });
-      const html = await response.text();
-      readiness.responses++; readiness.lastStatus = response.status;
-      if (html.includes("Authentication is temporarily unavailable.")) readiness.unavailable++;
-      if (response.ok && html.includes("Sign in with ZITADEL")) { ready = true; break; }
-    } catch { readiness.networkFailures++; }
-    await delay(100);
-  }
-  assert.ok(ready, `Isolated production web server did not become ready: ${JSON.stringify(readiness)}`);
-  const tests = run(["node_modules/@playwright/test/cli.js", "test"], web, { ...env, AUTHWEAVE_TEST_BROWSER: "synthetic-browser-core-v1" });
+  await runtime.listen(provider, 8081, "localhost");
+  const env = await runtime.startWeb({ AUTHWEAVE_OIDC_ISSUER: issuer, AUTHWEAVE_OIDC_CLIENT_ID: clientId });
+  const tests = runtime.run(["node_modules/@playwright/test/cli.js", "test"], process.cwd(), { ...env, AUTHWEAVE_TEST_BROWSER: "synthetic-browser-core-v1" });
   assert.equal(await completion(tests), 0, "Browser tests failed");
   assert.deepEqual(counts, { authorizations: 16, tokens: 16, pkceValidated: 16, reauthRequests: 4, logouts: 10 });
   console.log("Browser/OIDC E2E: 8 passed; real Core, isolated PostgreSQL, signed ID Tokens and PKCE validated.");
 } finally {
-  for (const child of children.toReversed()) await stop(child);
-  for (const server of servers.toReversed()) {
-    server.closeAllConnections();
-    await new Promise<void>(resolve => server.close(() => resolve()));
-  }
-  if (directory) await rm(directory, { recursive: true, force: true });
-  process.off("SIGINT", interrupt);
-  process.off("SIGTERM", interrupt);
+  await runtime.close();
 }

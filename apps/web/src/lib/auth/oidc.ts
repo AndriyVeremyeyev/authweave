@@ -5,6 +5,7 @@ import type { AuthConfiguration } from "./config.ts";
 import type { BrowserSession } from "./store.ts";
 import { ABSOLUTE_SESSION_SECONDS } from "./session-policy.ts";
 import { curatorGrant, SENSITIVE_ACTION_REAUTH_SECONDS } from "./curator.ts";
+import { identityProfile } from "./identity-profile.ts";
 
 let cached: { key: string; promise: Promise<oidc.Configuration> } | undefined;
 
@@ -100,8 +101,7 @@ export async function identityFromCallback(config: AuthConfiguration, currentUrl
   return {
     issuer: config.issuer.href.replace(/\/$/, ""),
     subject: claims.sub,
-    email: claims.email_verified === true && typeof claims.email === "string" ? claims.email : null,
-    displayName: typeof claims.name === "string" ? claims.name : null,
+    ...identityProfile({ ...claims, sub: claims.sub }, userInfo),
     authenticatedAt: new Date(claims.auth_time * 1000),
     curatorScope: curatorGrant(userInfo, config.curatorScope),
   };

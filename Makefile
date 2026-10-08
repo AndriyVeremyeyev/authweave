@@ -4,7 +4,7 @@ AI_WORKER_PYTHON ?= .venv/bin/python
 PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-browser setup-ai setup-contracts \
-	check check-policy check-core check-web check-web-auth-db check-guided-bff check-browser check-ai check-contracts \
+	check check-policy check-core check-web check-web-auth-db check-guided-bff check-browser check-browser-zitadel check-ai check-contracts \
 	setup-auth setup-core-service-token check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
 	inspect-provider-baselines generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact store-catalog-regression store-catalog-bootstrap-impact dev-core dev-web dev-ai
 
@@ -13,13 +13,14 @@ help:
 		'AuthWeave development commands:' \
 		'  make setup           Install local project dependencies' \
 		'  make setup-browser   Install the project-pinned Chromium test browser' \
-		'  make check           Run every local validation command' \
+		'  make check           Run default local regression checks (real IdP excluded)' \
 		'  make check-policy    Check public files for Cyrillic text' \
 		'  make check-core      Run Core API tests with Testcontainers' \
 		'  make check-web       Lint, test and build the web application' \
 		'  make check-web-auth-db  Run isolated web session integration tests against local PostgreSQL' \
 		'  make check-guided-bff  Test three BFF assessment flows with a real Core HTTP server and a temporary database' \
 		'  make check-browser   Run isolated production browser/OIDC E2E (build and Chromium required; ports 3000/8080/8081 must be free)' \
+		'  make check-browser-zitadel  Explicit local Alice/Bob interoperability check (existing ZITADEL lab required; ports 3000/8080 must be free)' \
 		'  make check-ai        Lint and test the AI worker' \
 		'  make check-contracts Validate OpenAPI and JSON Schemas' \
 		'  make inspect-provider-baselines  Inspect unreviewed provider research drafts offline; no activation' \
@@ -123,6 +124,10 @@ check-guided-bff:
 
 check-browser:
 	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress -Dtest=GuidedAssessmentBrowserIT test
+
+# Existing synthetic IdP users only; fresh application DB. Not included in make check or CI.
+check-browser-zitadel: auth-check auth-registration-check
+	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress -Dtest=LocalZitadelBrowserIT -Dauthweave.local-zitadel-browser=true test
 
 check-ai:
 	cd services/ai-worker && $(AI_WORKER_PYTHON) -m ruff check . && $(AI_WORKER_PYTHON) -m pytest
