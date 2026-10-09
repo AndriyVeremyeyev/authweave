@@ -108,8 +108,9 @@ has no typed disablement evidence. Required auditability remains unknown without
 separate scoped supplement; elevated/unknown assurance and identified/unknown compliance
 scope withhold an unqualified result. Existing synthetic fixtures cannot fill these gaps.
 
-There is no new endpoint or UI result. Architecture advice, authenticated review loading,
-auditability supplement loading and published result pinning remain unfinished.
+There is no new endpoint or UI result. The composed calculation below adds conditional
+architecture advice; authenticated review loading, auditability supplement loading
+and published result pinning remain unfinished.
 The kernel report is not the reserved final-result contract, and these tests
 do not complete the 18 engine acceptance cases or source-review gate. Tests exercise
 the actual pinned candidate and explicit in-memory rule hypotheses, never real approvals.
@@ -143,6 +144,48 @@ These remain calculation-only reports with all authority/publication/write flags
 The actual unreviewed eight-option candidate still has no score, shortlist or ranking.
 Synthetic scoring fixtures are fictional `.invalid` hypotheses, not vendor approvals.
 This implements the scoring component, not the complete recommendation endpoint or UI.
+
+### Composed candidate decisions and conditional architecture advice
+
+The internal `CandidateDecisionEvaluator` now recomputes hard checks and scoring,
+then composes their findings, bounds, shortlist and rank groups with architecture
+advice on the same exact profile, candidate, assertions, weights and clock. Its
+`UNVERIFIED_CANDIDATE_DECISION_CALCULATION` scope is intentionally distinct from
+the reserved final-result contract: unauthenticated calculation assertions cannot
+be labeled a reviewed catalog. Component policy versions and input digests remain
+bound to the result; no caller-supplied eligibility or cached score is accepted.
+
+Five patterns reuse the existing advantages, tradeoffs, references and prerequisites:
+BFF/session, server-side session, SPA with Authorization Code/PKCE, native PKCE and
+M2M client credentials. Each choice names only conditionally compatible eligible
+options and checks its own dated protocol claims, including capabilities that were
+not required or scored. Backend session sign-in may use supported OIDC or SAML;
+SAML evidence cannot be donated to an OIDC/PKCE design. Unknown, forbidden or unusable
+protocol claims cannot be filled in from a pattern's generic description.
+
+For browser applications with protected APIs and a token-minimization preference,
+BFF is a conditional recommendation. Without separate OAuth APIs, the backend
+session is the suggested starting point. SPA remains an explained alternative:
+required minimization asks for defined acceptable exposure, not an implicit ban.
+Without that preference, protected-API browser alternatives have no invented winner.
+Native and workload advice stay separate. OAuth API protection explicitly requires
+its own token validation and authorization design; browser sessions, enterprise SSO
+and an OAuth capability label do not prove API enforcement or grant support.
+
+SCIM, JIT and hybrid provisioning retain their own pros/cons and lifecycle conditions.
+Required SCIM cannot be replaced by JIT; required JIT also remains explicit. User-only
+SCIM does not establish group transport, role mapping or session/token revocation.
+All eleven authentication prerequisites remain undeclared/unverified; conditional
+advice does not mark any proposed setting satisfied or authorize deployment.
+
+Hosting, deployment target, expertise, budget and workload inputs remain explicit
+planning limitations, not hidden scores, provider exclusions, prices or free-tier
+promises. Security evidence is not observed enforcement or compliance certification.
+The actual unreviewed eight-option input still has no shortlist, score or recommended
+architecture. Positive tests use fictional `.invalid` hypotheses. Source authority,
+configuration/compliance verification, publication and write flags remain false.
+Trusted review loading, real auditability supplements, pinned final-result persistence,
+the final endpoint/UI and the 18 actual-engine acceptance cases are still pending.
 
 ## Local development
 
