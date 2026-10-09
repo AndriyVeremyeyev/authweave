@@ -1,0 +1,15 @@
+{
+  "selectionVersion": "decision-catalog-selection-1",
+  "catalogVersion": "decision-core-candidate-2026.10.09",
+  "policyVersion": "decision-core-explicit-1",
+  "selections": [
+    { "providerId": "keycloak", "scope": "upstream-26.8.0-self-hosted", "file": "keycloak-26.8.0.v1.json", "catalogVersion": "keycloak-26.8.0-native-draft-2026.10.02", "optionId": "keycloak-26.8.0-native-self-hosted", "sourceSha256": "3f6307f479fac755ca13d27d2acd9b34c00147ebac71573ec167a4a6d9eb4d2c" },
+    { "providerId": "zitadel", "scope": "cloud-free", "file": "zitadel-cloud-free.v1.json", "catalogVersion": "zitadel-cloud-free-native-draft-2026.10.02", "optionId": "zitadel-cloud-free-native", "sourceSha256": "c2380f2dd15d2242ef0a507ad32083eeb7f59d376f0d3a8b6a22f5df49c10ec7" },
+    { "providerId": "auth0", "scope": "b2b-free-public-cloud", "file": "auth0-b2b-free.v1.json", "catalogVersion": "auth0-b2b-free-oidc-scim-draft-2026.10.02", "optionId": "auth0-b2b-free-oidc-scim", "sourceSha256": "8429ca45c92e5f89a002bf18bb0ae9ace3d1b277325526ca70cde89526d7da20" },
+    { "providerId": "workos", "scope": "authkit-staging", "file": "workos-authkit-staging-browser-authentication-controls.v1.json", "catalogVersion": "workos-authkit-staging-browser-authentication-controls-draft-2026.10.08", "optionId": "workos-authkit-staging-browser-authentication-controls", "sourceSha256": "779f20bfd179f07b9bccd212806ac06721f11fba5cb6e9a7b59a36d99e532d8f" },
+    { "providerId": "workos", "scope": "connect-staging", "file": "workos-connect-staging-public-oidc-clients.v1.json", "catalogVersion": "workos-connect-staging-public-oidc-clients-draft-2026.10.08", "optionId": "workos-connect-staging-public-oidc-clients", "sourceSha256": "0a3f1e115ffabdd411c038c730845600845bbe60661c5dc7297c6c353fc30103" },
+    { "providerId": "workos", "scope": "directory-sync-staging", "file": "workos-directory-sync-staging.v1.json", "catalogVersion": "workos-directory-sync-staging-draft-2026.10.02", "optionId": "workos-directory-sync-staging-scim-events", "sourceSha256": "5d9085c8280f5a82eab3ad48f5dc06695c1e8afbd2b8afbf241884b966b593b3" },
+    { "providerId": "entra-external-id", "scope": "basic-standard-mode", "file": "entra-external-id-basic.v1.json", "catalogVersion": "entra-external-id-basic-draft-2026.10.02", "optionId": "entra-external-id-basic-standard-native", "sourceSha256": "a8c4292893ec0ed9d629e83c1b262334811357791ad1e897f9356208672a3bfb" },
+    { "providerId": "entra-external-id", "scope": "separate-m2m-premium-addon", "file": "entra-external-id-m2m-addon-machine-clients.v1.json", "catalogVersion": "entra-external-id-m2m-addon-machine-clients-draft-2026.10.08", "optionId": "entra-external-id-m2m-addon-machine-clients", "sourceSha256": "34274190203d5b9f09ea5accbc77037bfcdd4e9b7703854933650efbb52da6ff" }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/decision-catalog-candidate.v1.schema.json",
+  "title": "Unreviewed decision catalog assembly v1; not a publication or recommendation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "scope", "selection", "bindings", "candidate", "reviewTasks", "approvalGranted", "sourceVerificationPerformed", "publicationReady", "limitations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "scope": { "const": "UNREVIEWED_DECISION_CATALOG_ASSEMBLY" },
+    "selection": { "$ref": "#/$defs/selectionManifest" },
+    "bindings": {
+      "type": "object", "additionalProperties": false,
+      "required": ["selectionSha256", "decisionCanonicalization", "decisionCatalogSha256", "bootstrapCanonicalization", "bootstrapCandidateSha256"],
+      "properties": {
+        "selectionSha256": { "$ref": "#/$defs/digest" },
+        "decisionCanonicalization": { "const": "SHA256_UTF8_COMPACT_JSON_SORTED_OBJECT_KEYS_PRESERVED_ARRAY_ORDER" },
+        "decisionCatalogSha256": { "$ref": "#/$defs/digest" },
+        "bootstrapCanonicalization": { "const": "catalog-draft-canonical-json-1" },
+        "bootstrapCandidateSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "candidate": { "$ref": "provider-catalog-draft.v1.schema.json" },
+    "reviewTasks": {
+      "type": "array", "minItems": 1, "maxItems": 6800,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["optionId", "factPath", "claimSha256", "verdict"],
+        "properties": {
+          "optionId": { "$ref": "#/$defs/identifier" },
+          "factPath": { "type": "string", "maxLength": 200, "pattern": "^(facts\\.[A-Z0-9_]+|compatibility\\.(applications|clients|populations|tenancy|membership)\\.[A-Z0-9_]+|residency\\.[A-Z0-9_]+|authenticationControls\\.[A-Z0-9_]+\\.[A-Z0-9_]+\\.[A-Z0-9_]+)$" },
+          "claimSha256": { "$ref": "#/$defs/digest" },
+          "verdict": { "type": "null" }
+        }
+      }
+    },
+    "approvalGranted": { "const": false },
+    "sourceVerificationPerformed": { "const": false },
+    "publicationReady": { "const": false },
+    "limitations": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "identifier": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+    "selectionManifest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["selectionVersion", "catalogVersion", "policyVersion", "selections"],
+      "properties": {
+        "selectionVersion": { "const": "decision-catalog-selection-1" },
+        "catalogVersion": { "$ref": "#/$defs/identifier" },
+        "policyVersion": { "const": "decision-core-explicit-1" },
+        "selections": {
+          "type": "array", "minItems": 8, "maxItems": 8,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["providerId", "scope", "file", "catalogVersion", "optionId", "sourceSha256"],
+            "properties": {
+              "providerId": { "enum": ["keycloak", "zitadel", "auth0", "workos", "entra-external-id"] },
+              "scope": { "enum": ["upstream-26.8.0-self-hosted", "cloud-free", "b2b-free-public-cloud", "authkit-staging", "connect-staging", "directory-sync-staging", "basic-standard-mode", "separate-m2m-premium-addon"] },
+              "file": { "type": "string", "maxLength": 120, "pattern": "^[a-z0-9][a-z0-9.-]*\\.v1\\.json$" },
+              "catalogVersion": { "$ref": "#/$defs/identifier" },
+              "optionId": { "$ref": "#/$defs/identifier" },
+              "sourceSha256": { "$ref": "#/$defs/digest" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

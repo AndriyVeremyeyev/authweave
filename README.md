@@ -44,6 +44,26 @@ input coverage, arithmetic, source gating and exact profile/catalog/policy/weigh
 bindings. They do not run a real-provider decision engine. The current runtime continues
 to use the unchanged synthetic preflights and closed publication policy.
 
+### Pinned candidate assembly
+
+`make prepare-decision-candidate` emits a reproducible, unreviewed draft payload to
+stdout from the [pinned selection](packages/contracts/decision-core/catalog-selection.v1.json).
+It selects eight separate options across the five provider families; WorkOS AuthKit,
+Connect and Directory Sync stay separate, as does Entra's M2M Premium add-on.
+Original scopes, conditions and observation dates are preserved. Any selected source
+content change requires explicitly updating its pin; other drafts cannot donate facts.
+
+The output includes a pending source-review task for every recorded claim, with no
+verdict, human confirmation or authority grant. Missing context, residency and
+auditability facts remain unknown. These initial options do **not** yet establish a
+positive end-to-end acceptance case or a reviewed catalog. The command fetches no
+sources, writes no files and does not change the runtime, accounts or publication gate.
+
+Two digests are deliberately separate: `bootstrapCandidateSha256` replays the existing
+Core source-review canonicalization (unordered arrays); `decisionCatalogSha256`
+preserves array order for future decision bindings. Core tests parse the actual generated
+payload, reproduce the bootstrap digest and verify complete pending review coverage.
+
 ## Local development
 
 Required tools are Java 21, Node.js 24 with npm 11, Python 3.13, Docker Desktop and
