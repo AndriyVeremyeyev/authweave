@@ -58,6 +58,7 @@ class StoredCandidateDecisionIntegrationTests {
     @Autowired private CatalogAuditabilityReviewService auditReviews;
     @Autowired private CatalogAuditabilityDraftValidator drafts;
     @Autowired private StoredCandidateDecisionService decisions;
+    @Autowired private DecisionPublicationCoverageService publicationCoverage;
     @Autowired private org.springframework.context.ApplicationContext context;
 
     private record Fixture(CatalogBootstrapReview base, CatalogAuditabilityReview audit, StoredCandidateDecisionService.Reference reference) { }
@@ -73,6 +74,24 @@ class StoredCandidateDecisionIntegrationTests {
 
     @Test void candidateReportWriterIsUnavailableWithoutItsExplicitLocalProfile() {
         assertTrue(context.getBeansOfType(LocalCandidateDecisionReportWriter.class).isEmpty());
+    }
+
+    @Test void publicationRuleCoverageUsesStoredReviewsButDoesNotPublishOrGrantAuthority() {
+        var fixture = stored(); var before = counts(); var result = publicationCoverage.inspect(fixture.reference(), fixture.reference());
+        assertTrue(result.storedSourceReviewsVerified()); assertTrue(result.decisionScopeCoverageComplete());
+        assertFalse(result.coverageComplete()); assertFalse(result.currentCuratorAuthorityVerified()); assertFalse(result.sourceVerificationPerformed());
+        assertFalse(result.approvalGranted()); assertFalse(result.publicationReady()); assertFalse(result.writesPerformed());
+        assertFalse(result.actualGoldenAcceptancePerformed()); assertEquals(before, counts());
+        assertEquals(fixture.reference(), result.before()); assertEquals(fixture.reference(), result.after());
+        assertFalse(mapper.valueToTree(result).toString().contains("fictional-reviewer"));
+    }
+    @Test void publicationRuleCoverageRefusesWrongStoredPinsAndDamagedAuditWithoutFallback() {
+        var fixture = stored(); var pin = fixture.reference(); var before = counts();
+        var wrong = new StoredCandidateDecisionService.Reference(pin.reviewId(), "0".repeat(64), pin.decisionCatalogSha256(), pin.auditability());
+        assertThrows(CatalogBootstrapReviewException.class, () -> publicationCoverage.inspect(wrong, pin));
+        var audit = pin.auditability(); var wrongAudit = new StoredCandidateDecisionService.Reference(pin.reviewId(), pin.reviewSha256(), pin.decisionCatalogSha256(),
+                new StoredCandidateDecisionService.AuditReference(audit.reviewId(), "0".repeat(64), audit.decisionSupplementSha256()));
+        assertThrows(CatalogAuditabilityReviewException.class, () -> publicationCoverage.inspect(pin, wrongAudit)); assertEquals(before, counts());
     }
 
     @Test void realDatabaseReviewsDriveTheWholeDecisionWithoutWritesPublicationOrActorDisclosure() {

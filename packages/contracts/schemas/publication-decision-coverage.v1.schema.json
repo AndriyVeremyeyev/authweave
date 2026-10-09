@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/publication-decision-coverage.v1.schema.json",
+  "title": "Fresh declared decision-rule coverage, not publication authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scope", "policyVersion", "canonicalization", "evaluatedAt", "profileSchemaVersion", "profileSchemaSha256", "decisionPolicySha256", "scenarioSetSha256", "manifestSha256", "componentVersions", "before", "after", "scenarios", "uncoveredFacts", "verificationGaps", "status", "decisionScopeCoverageComplete", "storedSourceReviewsVerified", "coverageComplete", "currentCuratorAuthorityVerified", "sourceVerificationPerformed", "configurationVerified", "complianceVerified", "actualGoldenAcceptancePerformed", "historicalReportPromotionPerformed", "approvalGranted", "publicationReady", "writesPerformed"],
+  "properties": {
+    "scope": { "const": "DECLARED_DECISION_RULES_ONLY" },
+    "policyVersion": { "const": "publication-decision-coverage-1" },
+    "canonicalization": { "const": "SHA256_UTF8_COMPACT_JSON_SORTED_OBJECT_KEYS_PRESERVED_ARRAY_ORDER" },
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "profileSchemaVersion": { "const": 6 },
+    "profileSchemaSha256": { "const": "3d384daf2d98851ebcbe00f90a9c6dabeedbae8361f8a41f58d00b9742c95fbb" },
+    "decisionPolicySha256": { "$ref": "#/$defs/hash" },
+    "scenarioSetSha256": { "$ref": "#/$defs/hash" },
+    "manifestSha256": { "$ref": "#/$defs/hash" },
+    "componentVersions": { "const": { "hardChecks": "decision-hard-check-2", "scoring": "decision-preference-scoring-2", "composition": "decision-candidate-composition-2", "architecture": "decision-conditional-architecture-1", "impact": "decision-candidate-impact-1", "auditability": "decision-auditability-input-1", "patterns": "architecture-pattern-preflight-1", "prerequisites": "architecture-prerequisites-1", "provisioning": "provisioning-lifecycle-design-1", "provisioningConditions": "provisioning-lifecycle-design-2", "claimRules": "assertion-claim-rules-1", "capabilityRules": "capability-preflight-1", "contextRules": "eligibility-preflight-1", "residencyRules": "residency-preflight-1", "authenticationRules": "authentication-controls-preflight-1", "complianceRules": "compliance-scope-preflight-1", "auditabilityRules": "auditability-capability-preflight-1", "evidenceMaxAgeDays": "90", "storedReviewLoading": "decision-stored-review-loading-1" } },
+    "before": { "$ref": "#/$defs/reference" },
+    "after": { "$ref": "#/$defs/reference" },
+    "scenarios": { "type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true, "items": { "$ref": "#/$defs/scenario" } },
+    "uncoveredFacts": { "type": "array", "maxItems": 14800, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 600 } },
+    "verificationGaps": { "type": "array", "minItems": 22, "maxItems": 22, "uniqueItems": true, "items": {
+      "type": "object", "additionalProperties": false, "required": ["family", "boundary"], "properties": {
+        "family": { "enum": ["ARCHITECTURE_CONFIGURATION", "PROVISIONING_LIFECYCLE", "OPERATIONS_PLANNING", "ASSURANCE_COMPLIANCE"] },
+        "boundary": { "type": "string", "minLength": 1, "maxLength": 600 }
+      }
+    } },
+    "status": { "enum": ["COMPLETE_DECLARED_SCOPE", "INCOMPLETE"] },
+    "decisionScopeCoverageComplete": { "type": "boolean" },
+    "storedSourceReviewsVerified": { "type": "boolean" },
+    "coverageComplete": { "const": false },
+    "currentCuratorAuthorityVerified": { "const": false },
+    "sourceVerificationPerformed": { "const": false },
+    "configurationVerified": { "const": false },
+    "complianceVerified": { "const": false },
+    "actualGoldenAcceptancePerformed": { "const": false },
+    "historicalReportPromotionPerformed": { "const": false },
+    "approvalGranted": { "const": false },
+    "publicationReady": { "const": false },
+    "writesPerformed": { "const": false }
+  },
+  "allOf": [{
+    "if": { "type": "object", "properties": { "decisionScopeCoverageComplete": { "const": true } }, "required": ["decisionScopeCoverageComplete"] },
+    "then": { "type": "object", "properties": {
+      "status": { "const": "COMPLETE_DECLARED_SCOPE" },
+      "uncoveredFacts": { "type": "array", "maxItems": 0 },
+      "scenarios": { "type": "array", "items": { "type": "object", "properties": {
+        "routes": { "type": "array", "items": { "type": "object", "properties": { "accounted": { "const": true } } } }
+      } } }
+    } },
+    "else": { "type": "object", "properties": { "status": { "const": "INCOMPLETE" } } }
+  }],
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "auditReference": { "type": ["object", "null"], "additionalProperties": false, "required": ["reviewId", "reviewSha256", "decisionSupplementSha256"], "properties": {
+      "reviewId": { "$ref": "#/$defs/uuid" }, "reviewSha256": { "$ref": "#/$defs/hash" }, "decisionSupplementSha256": { "$ref": "#/$defs/hash" }
+    } },
+    "reference": { "type": "object", "additionalProperties": false, "required": ["reviewId", "reviewSha256", "decisionCatalogSha256", "auditability"], "properties": {
+      "reviewId": { "$ref": "#/$defs/uuid" }, "reviewSha256": { "$ref": "#/$defs/hash" }, "decisionCatalogSha256": { "$ref": "#/$defs/hash" }, "auditability": { "$ref": "#/$defs/auditReference" }
+    } },
+    "route": { "type": "object", "additionalProperties": false, "required": ["profilePath", "handling", "beforeOutputs", "afterOutputs", "accounted"], "properties": {
+      "profilePath": { "type": "string", "minLength": 1, "maxLength": 150 },
+      "handling": { "enum": ["CANDIDATE_FINDINGS", "AUDITABILITY_FINDINGS", "CONDITIONAL_ARCHITECTURE", "EXPLICIT_LIMITATION"] },
+      "beforeOutputs": { "type": "integer", "minimum": 0, "maximum": 12000 },
+      "afterOutputs": { "type": "integer", "minimum": 0, "maximum": 12000 },
+      "accounted": { "type": "boolean" }
+    }, "allOf": [{ "if": { "type": "object", "properties": { "accounted": { "const": true } }, "required": ["accounted"] }, "then": { "type": "object", "properties": { "beforeOutputs": { "type": "integer", "minimum": 1 }, "afterOutputs": { "type": "integer", "minimum": 1 } } }, "else": { "anyOf": [{ "type": "object", "properties": { "beforeOutputs": { "const": 0 } } }, { "type": "object", "properties": { "afterOutputs": { "const": 0 } } }] } }] },
+    "scenario": { "type": "object", "additionalProperties": false,
+      "required": ["scenarioId", "profileSha256", "weightsSha256", "impactSha256", "beforeResultSha256", "afterResultSha256", "beforeInputSha256", "afterInputSha256", "beforeOptions", "afterOptions", "beforeUnknownFindings", "afterUnknownFindings", "decisionOutcomesChanged", "routes"],
+      "properties": {
+        "scenarioId": { "enum": ["b2b-saas-scoped", "partner-portal-scoped", "public-sector-scoped", "internal-workforce-scoped"] },
+        "profileSha256": { "$ref": "#/$defs/hash" }, "weightsSha256": { "$ref": "#/$defs/hash" }, "impactSha256": { "$ref": "#/$defs/hash" },
+        "beforeResultSha256": { "$ref": "#/$defs/hash" }, "afterResultSha256": { "$ref": "#/$defs/hash" }, "beforeInputSha256": { "$ref": "#/$defs/hash" }, "afterInputSha256": { "$ref": "#/$defs/hash" },
+        "beforeOptions": { "type": "integer", "minimum": 1, "maximum": 100 }, "afterOptions": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "beforeUnknownFindings": { "type": "integer", "minimum": 0, "maximum": 12000 }, "afterUnknownFindings": { "type": "integer", "minimum": 0, "maximum": 12000 },
+        "decisionOutcomesChanged": { "type": "boolean" },
+        "routes": { "type": "array", "minItems": 34, "maxItems": 34, "uniqueItems": true, "items": { "$ref": "#/$defs/route" } }
+      }
+    }
+  }
+}

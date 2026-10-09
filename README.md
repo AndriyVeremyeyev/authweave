@@ -256,6 +256,34 @@ whether it was created. Tests use fictional `.invalid` sources and isolated data
 The real eight-option source review, safe publisher/trusted loading, final assessment
 pinning, user-visible results and final golden/owner acceptance are still open.
 
+### Versioned publication decision-rule coverage
+
+P3-4 adds `DecisionPublicationCoverageService` and the separate
+`publication-decision-coverage-1` policy. Within a read-only repeatable-read transaction,
+Core loads two exact stored reviews and optional auditability supplements. It recomputes
+whole decisions for the four unchanged scoped regression profiles, explicitly extended
+with their existing v6 auditability requirements. JIT/SAML weights are named regression
+hypotheses, not defaults for an assessor. All 34 profile inputs are accounted for through
+candidate findings, auditability findings, conditional architecture or explicit limitations.
+Every stored candidate/supplement fact address must appear in the executed scope; a
+missing route or unexercised fact prevents complete declared coverage.
+
+`COMPLETE_DECLARED_SCOPE` and `decisionScopeCoverageComplete` mean that these bounded
+decision calculations ran, not that their findings passed. Missing, contradicted or stale
+evidence remains unknown; no source date is refreshed. Ordered profile, weight, input,
+full-result and impact digests are bound to the exact reviews, clock, policy manifest
+and component versions. The strict output schema and independent source-binding checks
+run locally and in CI against actual Core calculations, without a new HTTP endpoint.
+
+The 22 deployment, lifecycle, operational-cost and assurance/compliance verification
+gaps remain explicit. The older global `coverageComplete` stays false. Historical
+incomplete reports are not relabelled, and the legacy publication preflight remains
+blocked. Stored-review provenance is not current curator authority, independent source
+verification, approval or publication readiness. This policy does not replace the 18
+final golden acceptance cases, publish a catalog or pin an assessment result. The next
+P3-4 step is the authorized publication workflow using fresh checks, not this output as
+a reusable approval token. The real candidate still awaits human source review.
+
 ## Local development
 
 Required tools are Java 21, Node.js 24 with npm 11, Python 3.13, Docker Desktop and
