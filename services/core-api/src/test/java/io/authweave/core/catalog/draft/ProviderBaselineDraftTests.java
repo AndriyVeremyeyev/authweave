@@ -825,6 +825,7 @@ class ProviderBaselineDraftTests {
         resources.add("scoped/entra-external-id-basic-browser-authentication-controls.v1.json");
         resources.add("scoped/keycloak-26.8.0-operator-residency.v1.json");
         resources.add("scoped/zitadel-cloud-free-residency.v1.json");
+        resources.add("scoped/auth0-b2b-free-residency.v1.json");
         var vocabulary = CatalogFactPathRegressionCases.PROBES.stream()
                 .map(probe -> probe.factPath()).collect(java.util.stream.Collectors.toSet());
         assertEquals(68, vocabulary.size());
@@ -865,18 +866,18 @@ class ProviderBaselineDraftTests {
                     .map(ProviderCatalogDraft.CompatibilityFact.class::cast)
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
-        assertEquals(42, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(140, recordedCount);
-        assertEquals(2716, omittedCount);
+        assertEquals(43, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        assertEquals(144, recordedCount);
+        assertEquals(2780, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 45,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 34), counts);
         assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 31, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-08T23:22:37Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-09T13:27:39Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(42, report.optionCount());
-        assertEquals(140, report.factCount());
+        assertEquals(43, report.optionCount());
+        assertEquals(144, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -3246,6 +3247,128 @@ class ProviderBaselineDraftTests {
             assertEquals(Instant.parse("2026-10-08T22:10:43Z"), fact.evidence().observedAt());
             assertEquals("github.com", fact.evidence().sourceUrl().getHost());
         });
+    }
+
+    @Test
+    void auth0FreePublicCloudResidencyPreservesUnknownCountriesWithoutPrivateCloudGuarantees() throws Exception {
+        var json = resource("catalog/baselines/scoped/auth0-b2b-free-residency.v1.json");
+        var draft = mapper.readValue(json, ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        assertEquals("auth0-b2b-free-residency-draft-2026.10.09", draft.catalogVersion());
+        assertEquals("auth0-b2b-free-residency", option.id());
+        assertEquals("Auth0 Public Cloud", option.product());
+        assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
+        assertTrue(option.plan().contains("B2B Free; residency documentation only"));
+        assertTrue(option.region().contains("No tenant region selected"));
+        var category = io.authweave.core.assessment.domain.profile.DataResidencyDetails.DataCategory.class;
+        assertEquals(java.util.EnumSet.allOf(category), option.residency().keySet());
+        assertTrue(option.facts().isEmpty());
+        assertTrue(option.authenticationControls().isEmpty());
+        assertTrue(option.compatibility().applications().isEmpty());
+        assertTrue(option.compatibility().clients().isEmpty());
+        assertTrue(option.compatibility().populations().isEmpty());
+        assertTrue(option.compatibility().tenancy().isEmpty());
+        assertTrue(option.compatibility().membership().isEmpty());
+        var observed = Instant.parse("2026-10-09T13:27:39Z");
+        option.residency().values().forEach(fact -> {
+            assertEquals(ProviderCatalog.ResidencyCoverage.UNKNOWN, fact.coverage());
+            assertTrue(fact.storageCountries().isEmpty());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertTrue(java.util.Set.of("auth0.com", "support.auth0.com").contains(fact.evidence().sourceUrl().getHost()));
+            assertFalse(fact.conditions().isEmpty());
+        });
+        var report = validator.validateAt(draft, observed);
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(4, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
+        for (var mutation : List.of("unknown-with-country", "complete-without-country", "invalid-country",
+                "region-not-country", "locality-not-country")) {
+            var changed = mapper.readTree(json);
+            var fact = (tools.jackson.databind.node.ObjectNode) changed.at("/options/0/residency/USER_PROFILES");
+            boolean invalidCountry = java.util.Set.of("invalid-country", "region-not-country", "locality-not-country").contains(mutation);
+            if (mutation.equals("complete-without-country")) {
+                fact.put("coverage", "COMPLETE");
+            } else {
+                var country = switch (mutation) {
+                    case "invalid-country" -> "ZZ";
+                    case "region-not-country" -> "EU";
+                    case "locality-not-country" -> "UK";
+                    default -> "US";
+                };
+                ((tools.jackson.databind.node.ArrayNode) fact.get("storageCountries")).add(country);
+                if (invalidCountry) fact.put("coverage", "PARTIAL");
+            }
+            var invalid = validator.validateAt(mapper.treeToValue(changed, ProviderCatalogDraft.class), observed);
+            assertEquals(CatalogDraftValidation.Status.INVALID_DRAFT, invalid.status(), mutation);
+            var code = invalidCountry ? CatalogDraftValidation.IssueCode.INVALID_COUNTRY
+                    : CatalogDraftValidation.IssueCode.RESIDENCY_COVERAGE_INCONSISTENT;
+            assertTrue(invalid.issues().stream().anyMatch(issue -> issue.code() == code), mutation);
+            assertUntrusted(invalid);
+        }
+    }
+
+    @Test
+    void auth0ResidencyFreshnessDoesNotPromoteCountryCoverageOrRewriteSourceEvidence() throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/auth0-b2b-free-residency.v1.json"),
+                ProviderCatalogDraft.class);
+        var observed = Instant.parse("2026-10-09T13:27:39Z");
+        var current = validator.validateAt(draft, observed);
+        for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertEquals(current.contentSha256(), report.contentSha256());
+            assertEquals(4, report.factCount());
+            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertUntrusted(report);
+            draft.options().getFirst().residency().values().forEach(fact -> {
+                assertEquals(ProviderCatalog.ResidencyCoverage.UNKNOWN, fact.coverage());
+                assertTrue(fact.storageCountries().isEmpty());
+                assertEquals(observed, fact.evidence().observedAt());
+            });
+        }
+    }
+
+    @Test
+    void auth0ResidencyCoexistsWithEightEarlierScopesWithoutBorrowingProviderDestinations() throws Exception {
+        var options = new java.util.ArrayList<ProviderCatalogDraft.Option>();
+        for (var file : List.of("auth0.v1.json", "scoped/auth0-b2b-free.v1.json",
+                "scoped/auth0-b2b-free-upstream-okta.v1.json", "scoped/auth0-b2b-free-upstream-entra.v1.json",
+                "scoped/auth0-b2b-free-public-oidc-clients.v1.json", "scoped/auth0-b2b-free-organization-context.v1.json",
+                "scoped/auth0-b2b-free-machine-clients.v1.json",
+                "scoped/auth0-b2b-free-browser-authentication-controls.v1.json",
+                "scoped/auth0-b2b-free-residency.v1.json")) {
+            options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
+        }
+        assertEquals(9, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
+        options.subList(0, 8).forEach(option -> assertTrue(option.residency().isEmpty()));
+        assertEquals(Instant.parse("2026-10-02T22:07:48Z"),
+                options.get(1).facts().get(ProviderCatalog.Capability.SCIM).evidence().observedAt());
+        assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, options.get(1).facts().get(ProviderCatalog.Capability.GROUP_SYNC).availability());
+        assertEquals(ProviderCatalog.Availability.UNKNOWN, options.get(7).facts().get(ProviderCatalog.Capability.MFA).availability());
+        assertEquals(Instant.parse("2026-10-08T20:50:27Z"), options.get(7).facts().get(ProviderCatalog.Capability.MFA).evidence().observedAt());
+        assertTrue(options.getLast().facts().isEmpty());
+        assertTrue(options.getLast().authenticationControls().isEmpty());
+        var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
+                "auth0-residency-context-coexistence-test", options), Instant.parse("2026-10-09T13:27:39Z"));
+        assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+        assertEquals(9, report.optionCount());
+        assertEquals(30, report.factCount());
+        assertTrue(report.issues().isEmpty());
+        assertUntrusted(report);
+        for (var file : List.of("keycloak-26.8.0-operator-residency.v1.json", "zitadel-cloud-free-residency.v1.json")) {
+            var other = mapper.readValue(resource("catalog/baselines/scoped/" + file), ProviderCatalogDraft.class).options().getFirst();
+            other.residency().values().forEach(fact -> {
+                assertTrue(fact.evidence().observedAt().isBefore(Instant.parse("2026-10-09T13:27:39Z")));
+                assertEquals(ProviderCatalog.ResidencyCoverage.UNKNOWN, fact.coverage());
+                assertTrue(fact.storageCountries().isEmpty());
+            });
+        }
     }
 
     private void assertUntrusted(CatalogDraftValidation report) {

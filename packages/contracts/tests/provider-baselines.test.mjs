@@ -919,14 +919,14 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-08T23:22:37Z");
+  const at = new Date("2026-10-09T13:27:39Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
-  assert.equal(report.optionCount, 42);
-  assert.equal(report.factCount, 140);
+  assert.equal(report.optionCount, 43);
+  assert.equal(report.factCount, 144);
   assert.equal(report.researchOptionCount, 5);
-  assert.equal(report.scopedDraftOptionCount, 37);
+  assert.equal(report.scopedDraftOptionCount, 38);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 9);
   assert.equal(new Set(keycloak.map((option) => option.optionId)).size, 9);
@@ -987,8 +987,15 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.ok(organizations.facts.every((fact) => fact.path.startsWith("compatibility.") && fact.support === "SUPPORTED"));
   assert.equal(organizations.facts.some((fact) => fact.path.startsWith("facts.")), false);
   const auth0 = report.options.filter((option) => option.providerId === "auth0");
-  assert.equal(auth0.length, 8);
-  assert.equal(new Set(auth0.map((option) => option.optionId)).size, 8);
+  assert.equal(auth0.length, 9);
+  assert.equal(new Set(auth0.map((option) => option.optionId)).size, 9);
+  const auth0Residency = auth0.find((option) => option.basis === "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT");
+  assert.equal(auth0Residency.sourcePlan, "B2B Free");
+  assert.equal(Object.hasOwn(auth0Residency, "sourceRelease"), false);
+  assert.equal(Object.hasOwn(auth0Residency, "sourceCommit"), false);
+  assert.equal(auth0Residency.facts.length, 4);
+  assert.ok(auth0Residency.facts.every((fact) => fact.path.startsWith("residency.")
+    && fact.coverage === "UNKNOWN" && fact.storageCountries.length === 0));
   const auth0Authentication = auth0.find((option) => option.basis === "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(auth0Authentication.sourcePlan, "B2B Free");
   assert.equal(Object.hasOwn(auth0Authentication, "sourceRelease"), false);
@@ -1125,7 +1132,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 140);
+  assert.equal(JSON.parse(run.stdout).factCount, 144);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

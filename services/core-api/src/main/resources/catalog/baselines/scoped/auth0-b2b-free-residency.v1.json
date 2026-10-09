@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "auth0-b2b-free-residency-draft-2026.10.09",
+  "options": [
+    {
+      "id": "auth0-b2b-free-residency",
+      "providerId": "auth0",
+      "product": "Auth0 Public Cloud",
+      "plan": "B2B Free; residency documentation only, account entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No tenant region selected; storage destinations not verified",
+      "configuration": "Native database password users; provider storage/logs; no federation, custom DB, exports, streams or Private Cloud",
+      "facts": {},
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {
+        "USER_PROFILES": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Select B2B Free Public Cloud with native Auth0-hosted database users, not Private Cloud or a custom external database. Hosted profile storage is documented, but no tenant, region, account entitlement or applicable terms were inspected.",
+            "The tenant guide lists Australia, Canada, Europe, Japan, United Kingdom and United States localities: https://auth0.com/docs/get-started/auth0-overview/create-tenants. Region/domain labels and assigned sub-localities do not enumerate every at-rest country, replica or provider copy.",
+            "The processing guide also describes profile copies from external connections: https://auth0.com/docs/secure/data-privacy-and-compliance/data-processing. Federation, custom databases, Actions, application copies and exports require separate destination evidence and are excluded here.",
+            "Review actual provider-managed stores, replicas, logs and backup destinations independently. No Private Cloud regional or recovery guarantee is inherited. Coverage remains UNKNOWN with empty countries; advertised hosting is not full coverage or a compliance verdict."
+          ],
+          "evidence": {
+            "sourceUrl": "https://auth0.com/docs/secure/security-guidance/data-security/user-data-storage",
+            "observedAt": "2026-10-09T13:27:39Z",
+            "summary": "The guide distinguishes Auth0-hosted authentication profiles from external databases and application copies. It does not verify every storage country for a selected Free Public Cloud tenant."
+          }
+        },
+        "CREDENTIALS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "The export policy excludes Auth0-hosted password hashes and private keys from Management API access; obtaining password hashes requires a support request. API unavailability is not proof of country coverage, hardware-only protection or key non-exportability.",
+            "Review hosted password stores, signing material, replicas and backup copies against the exact tenant and contract. Hashing, encryption, a tenant domain or credential export restrictions do not locate every stored copy or verify deployed cryptographic settings.",
+            "Customer-managed credential stores, federation and exported credentials are outside this native-database scope. Countries remain empty and coverage UNKNOWN; no password, key, support ticket, enrollment, API token or tenant configuration was retrieved or changed."
+          ],
+          "evidence": {
+            "sourceUrl": "https://auth0.com/docs/troubleshoot/customer-support/operational-policies/data-export-and-transfer-policy",
+            "observedAt": "2026-10-09T13:27:39Z",
+            "summary": "The policy limits API/extension export of hosted password hashes and private keys. Those export limitations do not establish credential-copy countries or the tenant's deployed protection."
+          }
+        },
+        "AUDIT_LOGS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "The retention guide is subscription-dependent, labels its lowest tier Starter and warns that indexed tenant logs can be delayed. The current Free pricing table advertises one day: https://auth0.com/pricing. This is not verified tenant entitlement, measured retention, complete auditing or immutable history.",
+            "Log streaming exports tenant events to separate customer-controlled destinations: https://auth0.com/docs/customize/log-streams. The Free comparison does not include a stream; generic streaming documentation does not establish Free entitlement. No stream, SIEM, webhook or external collector is configured.",
+            "Tenant log retention and streaming delivery are not residency coverage. Provider event stores, log replicas and backup copies remain unverified; UNKNOWN with empty countries does not mean logs are absent.",
+            "No live log retrieval, stream setup, retention change, paid integration or trial was performed. Any later customer-side log copies need their own destination and commercial-scope evidence, not inherited tenant-region assurance."
+          ],
+          "evidence": {
+            "sourceUrl": "https://auth0.com/docs/deploy-monitor/logs/log-data-retention",
+            "observedAt": "2026-10-09T13:27:39Z",
+            "summary": "The guide documents subscription-dependent retention and indexing delays, not all log-storage countries. Public Free pricing and generic streaming capabilities are not verified instance settings or completeness."
+          }
+        },
+        "BACKUPS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "The official support article, updated January 5, 2026, assigns Public Cloud user/configuration backups to tenant administrators rather than providing a customer backup/restore service. This does not establish that provider-internal disaster-recovery copies are absent or reveal their countries.",
+            "The export-tools article distinguishes tenant configuration from user exports: https://support.auth0.com/center/s/article/Backup-Auth0-Data. Deploy CLI does not back up user information; ordinary exports exclude hosted password hashes. A configuration export is not complete tenant recovery.",
+            "No Private Cloud restoration SKU, regional backup statement, retention, measured RPO/RTO or Free support entitlement is inherited. Provider-managed snapshots/replicas and every backup destination remain unverified; coverage is UNKNOWN with empty countries.",
+            "Customer export storage is a separate configuration outside this scope. No account, subscription, support ticket, backup, export/import, restore, transfer, snapshot, cloud storage or paid service was created; AuthWeave's ZITADEL/BFF, UI and synthetic evaluator are unchanged."
+          ],
+          "evidence": {
+            "sourceUrl": "https://support.auth0.com/center/s/article/backup-and-restore-features-provided-by-auth0-for-tenants",
+            "observedAt": "2026-10-09T13:27:39Z",
+            "summary": "Official support separates customer-owned Public Cloud backup/restore responsibility from Private Cloud restoration. It does not enumerate provider-internal backup countries or prove complete Free tenant recovery."
+          }
+        }
+      },
+      "authenticationControls": {}
+    }
+  ]
+}

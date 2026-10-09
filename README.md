@@ -1875,13 +1875,13 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 140 recorded and 2,716 omitted option-paths across 42 distinct
-scopes (2,856 possible addresses). The 82 capability proposals comprise 45 `OPTIONAL`,
+The current pack has 144 recorded and 2,780 omitted option-paths across 43 distinct
+scopes (2,924 possible addresses). The 82 capability proposals comprise 45 `OPTIONAL`,
 3 `UNAVAILABLE` and 34 `UNKNOWN`; thirty-five separate compatibility proposals comprise
 thirty-one `SUPPORTED` and four `UNKNOWN`. Fifteen authentication-control records retain
 their own availability/enforcement pairs, not capability or compatibility counts.
 An `UNKNOWN` in either control field appears in `recordedUnknownPaths`.
-Eight separate residency records across two scopes retain `coverage: UNKNOWN` and empty
+Twelve separate residency records across three scopes retain `coverage: UNKNOWN` and empty
 `storageCountries`, also appearing in `recordedUnknownPaths`. They are not converted
 to capability availability, compatibility support or authentication enforcement.
 All remain `UNREVIEWED`. These are structural
@@ -1942,7 +1942,7 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports forty-two distinct options and 140 recorded
+`make inspect-provider-baselines` now reports forty-three distinct options and 144 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
@@ -1952,8 +1952,9 @@ and Entra External ID Basic), plus five machine-client scopes
 (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
 and Entra External ID with the paid M2M Premium add-on), plus five browser/customer
 authentication-control scopes (release-pinned Keycloak, ZITADEL Cloud Free, Auth0 B2B Free
-and primary WorkOS AuthKit staging, plus Entra External ID Basic), plus two
-residency scopes: release-pinned operator Keycloak and dated ZITADEL Cloud Free.
+and primary WorkOS AuthKit staging, plus Entra External ID Basic), plus three
+residency scopes: release-pinned operator Keycloak, dated ZITADEL Cloud Free and
+Auth0 B2B Free Public Cloud.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2334,6 +2335,38 @@ fresh operation gating. Step-up means stronger authentication, not repeated logi
 No tenant, account, subscription, enrollment, Action or live integration was created.
 Seven earlier Auth0 scopes and their observations, runtime ZITADEL/BFF and the
 synthetic evaluator are unchanged; no approval, import, activation or cost guarantee.
+
+#### Plan-scoped Auth0 Public Cloud residency documentation candidate
+
+A separate [Auth0 B2B Free residency draft](services/core-api/src/main/resources/catalog/baselines/scoped/auth0-b2b-free-residency.v1.json)
+records `USER_PROFILES`, `CREDENTIALS`, `AUDIT_LOGS` and `BACKUPS`, all
+`coverage: UNKNOWN`, empty `storageCountries` and `UNREVIEWED` evidence.
+It selects native hosted-database password users, without federation, custom
+databases, customer exports, log streams or Private Cloud. The earlier eight
+Auth0 scopes and their observations are unchanged.
+
+The [hosted-store guide](https://auth0.com/docs/secure/security-guidance/data-security/user-data-storage)
+describes a storage mechanism; [tenant localities](https://auth0.com/docs/get-started/auth0-overview/create-tenants)
+control hosting but do not enumerate every country, replica or backup. External
+connection and application copies have separate boundaries. No tenant, region
+or applicable customer terms were inspected; Private Cloud guarantees are not inherited.
+
+The [export policy](https://auth0.com/docs/troubleshoot/customer-support/operational-policies/data-export-and-transfer-policy)
+excludes hosted password hashes and private keys from API access. This is not
+geography or non-exportable-key evidence. [Retention documentation](https://auth0.com/docs/deploy-monitor/logs/log-data-retention)
+uses subscription tiers and warns of indexing delays; the [Free comparison](https://auth0.com/pricing)
+advertises one day, not verified instance retention, immutability or completeness.
+Generic [log streaming](https://auth0.com/docs/customize/log-streams) does not establish
+Free entitlement or the countries of later customer-controlled copies.
+
+[Official support](https://support.auth0.com/center/s/article/backup-and-restore-features-provided-by-auth0-for-tenants)
+assigns Public Cloud customer backup/restore responsibility to tenant administrators.
+That does not prove provider-internal DR copies are absent. [Export tools](https://support.auth0.com/center/s/article/Backup-Auth0-Data)
+separate configuration from users; ordinary exports omit password hashes.
+An export is not complete recovery or measured RPO/RTO. All destinations remain unverified.
+No account, support ticket, subscription, export/restore, live logs, paid service,
+runtime change, human approval or catalog activation occurred. Sources are dated
+mutable documentation; the evaluator remains synthetic and full baselines remain pending.
 
 #### Machine-scoped Auth0 OAuth API documentation candidate
 

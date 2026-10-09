@@ -382,6 +382,24 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
   },
   {
+    file: "auth0-b2b-free-residency.v1.json",
+    catalogVersion: "auth0-b2b-free-residency-draft-2026.10.09",
+    scope: {
+      id: "auth0-b2b-free-residency", providerId: "auth0", product: "Auth0 Public Cloud", deployment: "MANAGED",
+      plan: "B2B Free; residency documentation only, account entitlement unverified",
+      region: "No tenant region selected; storage destinations not verified",
+      configuration: "Native database password users; provider storage/logs; no federation, custom DB, exports, streams or Private Cloud",
+    },
+    facts: {},
+    residency: Object.fromEntries(Object.entries({
+      USER_PROFILES: "https://auth0.com/docs/secure/security-guidance/data-security/user-data-storage",
+      CREDENTIALS: "https://auth0.com/docs/troubleshoot/customer-support/operational-policies/data-export-and-transfer-policy",
+      AUDIT_LOGS: "https://auth0.com/docs/deploy-monitor/logs/log-data-retention",
+      BACKUPS: "https://support.auth0.com/center/s/article/backup-and-restore-features-provided-by-auth0-for-tenants",
+    }).map(([category, sourceUrl]) => [category, { coverage: "UNKNOWN", storageCountries: [], sourceUrl }])),
+    metadata: { basis: "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "B2B Free" },
+  },
+  {
     file: "auth0-b2b-free-machine-clients.v1.json",
     catalogVersion: "auth0-b2b-free-machine-clients-draft-2026.10.08",
     scope: {

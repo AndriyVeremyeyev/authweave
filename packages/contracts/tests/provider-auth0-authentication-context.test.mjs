@@ -153,15 +153,15 @@ test("Auth0 authentication freshness and ordering preserve all four unknown path
   assert.equal(JSON.stringify(draft), before);
 });
 
-test("Auth0 authentication coexists with seven older scopes without borrowing Keycloak step-up", async () => {
+test("Auth0 authentication coexists with eight other scopes without borrowing Keycloak step-up", async () => {
   const originals = drafts.filter((entry) => entry.options[0].providerId === "auth0" && entry !== draft);
   const before = JSON.stringify(originals);
-  assert.equal(originals.length, 6);
+  assert.equal(originals.length, 7);
   assert.ok(originals.every((entry) => Object.keys(entry.options[0].authenticationControls).length === 0));
   const report = await inspectBaselinePack(observed);
   const auth0 = report.options.filter((option) => option.providerId === "auth0");
-  assert.equal(auth0.length, 8);
-  assert.equal(auth0.reduce((sum, option) => sum + option.facts.length, 0), 26);
+  assert.equal(auth0.length, 9);
+  assert.equal(auth0.reduce((sum, option) => sum + option.facts.length, 0), 30);
   assert.ok(auth0.filter((option) => option.basis !== "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT")
     .every((option) => !option.facts.some((fact) => fact.path.startsWith("authenticationControls.") || fact.path === "facts.MFA")));
   const native = auth0.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");
