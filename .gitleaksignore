@@ -1,3 +1,8 @@
 # Reviewed false positive: a test maps provider names to catalog resource basenames.
 # Restrict this exception to the original commit, file, rule, and line; no credentials.
 310f5e5c71578e7972cfb7daf3278dce2f57da34:services/core-api/src/test/java/io/authweave/core/catalog/draft/ProviderBaselineDraftTests.java:generic-api-key:149
+
+# Reviewed false positive: this test asserts a public upstream Keycloak commit SHA.
+# Verified at https://github.com/keycloak/keycloak/commit/4246609cf2024c85016d3fb1254c3d2533367c31.
+# Restrict this exception to the original commit, file, rule, and line; no credentials.
+d1cb2139a8096cbb5d3b2efd53a37d1334fa13d5:packages/contracts/tests/provider-zitadel-residency-context.test.mjs:generic-api-key:182
