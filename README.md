@@ -75,6 +75,16 @@ eligibility can be established. The primary multi-tenant B2B profile and the 18 
 synthetic cases are unchanged. Multi-client federation, required residency, auditability,
 strong controls and application-side lifecycle are not cleared by this narrower case.
 
+`make prepare-decision-review` prints a human-readable Markdown review summary to
+stdout for that exact pinned payload. It groups all pending claims by option and
+official source, retaining scope, conditions, source dates and claim digests; it marks
+the seven required and one preferred claims for the additional case. Observation
+freshness is classified at the displayed inspection clock, never renewed or confused
+with source approval. Missing case dependencies remain unknown. The report explains
+the existing authorized `/catalog/bootstrap` workflow without supplying verdicts,
+submitting requests, fetching sources or writing files. This is a review aid, not
+another provider draft, a trusted catalog or an evaluated result.
+
 ## Local development
 
 Required tools are Java 21, Node.js 24 with npm 11, Python 3.13, Docker Desktop and
