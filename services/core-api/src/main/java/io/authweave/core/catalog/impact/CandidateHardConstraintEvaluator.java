@@ -24,7 +24,7 @@ import static io.authweave.core.evaluation.CapabilityPreflight.Outcome;
  * Source assertions are calculation inputs, NOT authenticated/stored curator receipts.
  * No controller, repositories, source fetcher, scores, ranking or publication authority. */
 public final class CandidateHardConstraintEvaluator {
-    public static final String VERSION = "decision-hard-check-1";
+    public static final String VERSION = "decision-hard-check-2";
     public static final String POLICY_VERSION = "decision-core-explicit-1";
     private static final JsonMapper MAPPER = JsonMapper.builder()
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
@@ -45,10 +45,14 @@ public final class CandidateHardConstraintEvaluator {
         }
     }
     public record Binding(int profileSchemaVersion, String profileSha256, String catalogVersion,
-            String catalogSha256, String sourceAssertionsSha256, String canonicalization, Instant evaluatedAt) { }
+            String catalogSha256, String sourceAssertionsSha256, String auditabilitySha256, String auditabilityAssertionsSha256,
+            String canonicalization, Instant evaluatedAt) { }
     public record Evidence(String claimSha256, Assertion sourceAssertion, java.net.URI sourceUrl,
-            Instant observedAt, List<String> conditions) {
+            Instant observedAt, List<String> conditions, Integer documentedMinimumRetentionDays) {
         public Evidence { conditions = List.copyOf(conditions); }
+        public Evidence(String claimSha256, Assertion sourceAssertion, java.net.URI sourceUrl, Instant observedAt, List<String> conditions) {
+            this(claimSha256, sourceAssertion, sourceUrl, observedAt, conditions, null);
+        }
     }
     public record Finding(String checkId, String profilePath, String factPath, String criticality,
             Outcome outcome, String reasonCode, Evidence evidence) { }
@@ -67,6 +71,11 @@ public final class CandidateHardConstraintEvaluator {
     /** Exact wire JSON is bound before typed conversion; record defaults must not change its digest. */
     public static Analysis evaluate(JsonNode profileDocument, int profileSchemaVersion,
             JsonNode candidateDocument, SourceAssertions sourceAssertions, Instant at) {
+        return evaluate(profileDocument, profileSchemaVersion, candidateDocument, sourceAssertions, null, at);
+    }
+
+    public static Analysis evaluate(JsonNode profileDocument, int profileSchemaVersion,
+            JsonNode candidateDocument, SourceAssertions sourceAssertions, CandidateAuditabilityInput auditability, Instant at) {
         Objects.requireNonNull(at); Objects.requireNonNull(sourceAssertions);
         var profileJson = Objects.requireNonNull(profileDocument).deepCopy();
         var catalogJson = Objects.requireNonNull(candidateDocument).deepCopy();
@@ -84,6 +93,7 @@ public final class CandidateHardConstraintEvaluator {
         var rawOptions = new HashMap<String, JsonNode>();
         catalogJson.get("options").forEach(option -> rawOptions.put(option.get("id").asText(), option));
         var assertions = boundAssertions(draft, rawOptions, sourceAssertions);
+        var supplement = auditability == null ? null : auditability.bind(catalogJson, draft, at);
         var rules = ScenarioRulePlan.from(profile).stream().sorted(Comparator.comparing(ScenarioRulePlan.Rule::checkId)).toList();
         var candidates = draft.options().stream().sorted(Comparator.comparing(Option::id)).map(option -> {
             var findings = new ArrayList<Finding>();
@@ -114,13 +124,14 @@ public final class CandidateHardConstraintEvaluator {
                         || rule.profilePath().equals("security.complianceScopeStatus") ? "CONTEXT" : rule.criticality().name();
                 findings.add(new Finding(rule.checkId(), rule.profilePath(), rule.factPath(), criticality, outcome, reason, evidence));
             }
-            // Draft v1 has no auditability supplement. Never borrow unrelated synthetic audit facts.
+            // No supplement means missing evidence, never a fallback to unrelated synthetic facts.
             var auditScope = new AuditabilityFacts.Scope(option.id(), option.plan(), option.region(), option.configuration());
             var audit = AuditabilityEvaluator.evaluate(profile.security().auditability(),
                     profile.security().auditabilityRequirements(), auditScope, List.of(), at);
-            audit.checks().forEach(check -> findings.add(new Finding("security.auditability|" + check.criterion(),
+            if (supplement == null) audit.checks().forEach(check -> findings.add(new Finding("security.auditability|" + check.criterion(),
                     "security.auditability", "auditabilitySupplement." + check.criterion(),
                     profile.security().auditability().name(), check.outcome(), check.reasonCode().name(), null)));
+            else findings.addAll(supplement.findings(profile, option, at));
             var assurance = profile.security().assurance();
             findings.add(new Finding("security.assurance|scope", "security.assurance", null, "CONTEXT",
                     assurance == SecurityRequirements.AssuranceLevel.BASELINE ? Outcome.NOT_APPLIED : Outcome.UNKNOWN,
@@ -133,7 +144,9 @@ public final class CandidateHardConstraintEvaluator {
         }).toList();
         return new Analysis("CANDIDATE_HARD_CHECK_KERNEL", VERSION, POLICY_VERSION,
                 new Binding(profileSchemaVersion, DecisionCanonicalizer.sha256(profileJson), draft.catalogVersion(),
-                        catalogDigest, DecisionCanonicalizer.sha256(MAPPER.valueToTree(sourceAssertions)), DecisionCanonicalizer.VERSION, at),
+                        catalogDigest, DecisionCanonicalizer.sha256(MAPPER.valueToTree(sourceAssertions)),
+                        supplement == null ? null : supplement.supplementSha256(), supplement == null ? null : supplement.assertionsSha256(),
+                        DecisionCanonicalizer.VERSION, at),
                 candidates, List.of("preferenceScoringAndSensitivity", "shortlistAndRanking", "architectureAdvice",
                         "operationsAndCostPlanning", "reviewReceiptAuthenticationAndLoading", "publishedSnapshotPinning",
                         "realAuditabilitySupplementLoading", "deployedConfigurationAndLifecycle", "complianceCertification"),

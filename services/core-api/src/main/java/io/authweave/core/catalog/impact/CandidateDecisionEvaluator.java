@@ -26,7 +26,7 @@ import static io.authweave.core.catalog.impact.CandidateHardConstraintEvaluator.
  * Assertions remain unauthenticated calculation hypotheses. This is NOT the reserved final-result
  * contract, a saved assessment, an observed configuration, an approval or a publication endpoint. */
 public final class CandidateDecisionEvaluator {
-    public static final String VERSION = "decision-candidate-composition-1";
+    public static final String VERSION = "decision-candidate-composition-2";
     public static final String ARCHITECTURE_VERSION = "decision-conditional-architecture-1";
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
     private CandidateDecisionEvaluator() { }
@@ -56,7 +56,7 @@ public final class CandidateDecisionEvaluator {
     }
     public record Binding(CandidatePreferenceScorer.Binding inputs, String scoringVersion, String architectureVersion,
             String patternDefinitionsVersion, String prerequisiteVersion, String provisioningDefinitionsVersion,
-            String provisioningConditionsVersion) { }
+            String provisioningConditionsVersion, String hardKernelVersion, String auditabilityInputVersion) { }
     public record Limitation(String profilePath, String declaredValue, String reasonCode, boolean blocksDeploymentRecommendation,
             String explanation) { }
     public record Result(String scope, String kernelVersion, String policyVersion, Binding binding,
@@ -73,11 +73,16 @@ public final class CandidateDecisionEvaluator {
 
     public static Result evaluate(JsonNode profileDocument, int profileSchemaVersion, JsonNode candidateDocument,
             SourceAssertions assertions, JsonNode weightsDocument, Instant at) {
+        return evaluate(profileDocument, profileSchemaVersion, candidateDocument, assertions, null, weightsDocument, at);
+    }
+
+    public static Result evaluate(JsonNode profileDocument, int profileSchemaVersion, JsonNode candidateDocument,
+            SourceAssertions assertions, CandidateAuditabilityInput auditability, JsonNode weightsDocument, Instant at) {
         var profileJson = Objects.requireNonNull(profileDocument).deepCopy();
         var catalogJson = Objects.requireNonNull(candidateDocument).deepCopy();
         var weightsJson = Objects.requireNonNull(weightsDocument).deepCopy();
         // Validates exact claims, profile and weights before any architecture fact can be consumed.
-        var scoring = CandidatePreferenceScorer.evaluate(profileJson, profileSchemaVersion, catalogJson, assertions, weightsJson, at);
+        var scoring = CandidatePreferenceScorer.evaluate(profileJson, profileSchemaVersion, catalogJson, assertions, auditability, weightsJson, at);
         var profile = MAPPER.treeToValue(profileJson, ApplicationIdentityProfile.class);
         var facts = new Facts(profile, catalogJson, assertions, scoring, at);
         var patterns = ArchitecturePatternEvaluator.evaluate(profile).stream().map(pattern -> pattern(profile, facts, pattern)).toList();
@@ -101,7 +106,8 @@ public final class CandidateDecisionEvaluator {
         return new Result("UNVERIFIED_CANDIDATE_DECISION_CALCULATION", VERSION, scoring.policyVersion(),
                 new Binding(scoring.binding(), scoring.kernelVersion(), ARCHITECTURE_VERSION, ArchitecturePatternEvaluator.POLICY_VERSION,
                         ArchitecturePrerequisiteEvaluator.POLICY_VERSION, ProvisioningLifecycleEvaluator.POLICY_VERSION,
-                        ProvisioningLifecycleV2Evaluator.POLICY_VERSION),
+                        ProvisioningLifecycleV2Evaluator.POLICY_VERSION, scoring.hardKernelVersion(),
+                        auditability == null ? null : CandidateAuditabilityInput.VERSION),
                 scoring.status(), scoring.weights(), scoring.candidates(), scoring.shortlist(), scoring.rankGroups(),
                 new Architecture(status, "CONDITIONAL_DESIGN_ADVICE_WITH_UNAUTHENTICATED_SOURCE_HYPOTHESES", patterns, api, provisioning),
                 limitations(profileJson), List.of(

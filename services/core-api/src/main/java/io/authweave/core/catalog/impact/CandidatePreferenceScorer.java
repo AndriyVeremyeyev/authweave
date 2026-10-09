@@ -22,7 +22,7 @@ import static io.authweave.core.catalog.impact.CandidateHardConstraintEvaluator.
  * Source assertions remain calculation hypotheses, not authenticated curator review receipts.
  * No hidden weights, automatic winner, publication authority, persistence or final-result endpoint. */
 public final class CandidatePreferenceScorer {
-    public static final String VERSION = "decision-preference-scoring-1";
+    public static final String VERSION = "decision-preference-scoring-2";
     private static final JsonMapper MAPPER = JsonMapper.builder()
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES).build();
     private CandidatePreferenceScorer() { }
@@ -70,11 +70,16 @@ public final class CandidatePreferenceScorer {
     /** One exact input snapshot. No cached/transported hard-check report can inject a scoreable option. */
     public static Analysis evaluate(JsonNode profileDocument, int profileSchemaVersion, JsonNode candidateDocument,
             SourceAssertions sourceAssertions, JsonNode weightsDocument, Instant at) {
+        return evaluate(profileDocument, profileSchemaVersion, candidateDocument, sourceAssertions, null, weightsDocument, at);
+    }
+
+    public static Analysis evaluate(JsonNode profileDocument, int profileSchemaVersion, JsonNode candidateDocument,
+            SourceAssertions sourceAssertions, CandidateAuditabilityInput auditability, JsonNode weightsDocument, Instant at) {
         var profileJson = Objects.requireNonNull(profileDocument).deepCopy();
         var catalogJson = Objects.requireNonNull(candidateDocument).deepCopy();
         var weightsJson = Objects.requireNonNull(weightsDocument).deepCopy();
         var weights = readWeights(weightsJson);
-        var hard = CandidateHardConstraintEvaluator.evaluate(profileJson, profileSchemaVersion, catalogJson, sourceAssertions, at);
+        var hard = CandidateHardConstraintEvaluator.evaluate(profileJson, profileSchemaVersion, catalogJson, sourceAssertions, auditability, at);
         var profile = MAPPER.treeToValue(profileJson, ApplicationIdentityProfile.class);
         var preferred = ScenarioRulePlan.from(profile).stream().filter(rule -> rule.kind() == io.authweave.core.catalog.draft.CatalogChangePreview.FactKind.CAPABILITY
                 && rule.criticality() == RequirementCriticality.PREFERRED).toList();
@@ -122,12 +127,17 @@ public final class CandidatePreferenceScorer {
     /** Both runs receive the SAME copied profile/catalog, assertions and clock; only explicit weights differ. */
     public static Sensitivity compareWeights(JsonNode profileDocument, int profileSchemaVersion, JsonNode candidateDocument,
             SourceAssertions sourceAssertions, JsonNode beforeWeights, JsonNode afterWeights, Instant at) {
+        return compareWeights(profileDocument, profileSchemaVersion, candidateDocument, sourceAssertions, null, beforeWeights, afterWeights, at);
+    }
+
+    public static Sensitivity compareWeights(JsonNode profileDocument, int profileSchemaVersion, JsonNode candidateDocument,
+            SourceAssertions sourceAssertions, CandidateAuditabilityInput auditability, JsonNode beforeWeights, JsonNode afterWeights, Instant at) {
         var profile = Objects.requireNonNull(profileDocument).deepCopy();
         var candidate = Objects.requireNonNull(candidateDocument).deepCopy();
         var beforeDocument = Objects.requireNonNull(beforeWeights).deepCopy();
         var afterDocument = Objects.requireNonNull(afterWeights).deepCopy();
-        var before = evaluate(profile, profileSchemaVersion, candidate, sourceAssertions, beforeDocument, at);
-        var after = evaluate(profile, profileSchemaVersion, candidate, sourceAssertions, afterDocument, at);
+        var before = evaluate(profile, profileSchemaVersion, candidate, sourceAssertions, auditability, beforeDocument, at);
+        var after = evaluate(profile, profileSchemaVersion, candidate, sourceAssertions, auditability, afterDocument, at);
         if (!before.binding().hardChecks().equals(after.binding().hardChecks())
                 || !before.candidates().stream().map(ScoredCandidate::hardChecks).toList()
                     .equals(after.candidates().stream().map(ScoredCandidate::hardChecks).toList()))

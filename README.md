@@ -109,8 +109,8 @@ separate scoped supplement; elevated/unknown assurance and identified/unknown co
 scope withhold an unqualified result. Existing synthetic fixtures cannot fill these gaps.
 
 There is no new endpoint or UI result. The composed calculation below adds conditional
-architecture advice; authenticated review loading, auditability supplement loading
-and published result pinning remain unfinished.
+architecture advice, and the stored-review adapter below connects historical reviews
+and scoped auditability evidence. Published result pinning remains unfinished.
 The kernel report is not the reserved final-result contract, and these tests
 do not complete the 18 engine acceptance cases or source-review gate. Tests exercise
 the actual pinned candidate and explicit in-memory rule hypotheses, never real approvals.
@@ -184,8 +184,39 @@ promises. Security evidence is not observed enforcement or compliance certificat
 The actual unreviewed eight-option input still has no shortlist, score or recommended
 architecture. Positive tests use fictional `.invalid` hypotheses. Source authority,
 configuration/compliance verification, publication and write flags remain false.
-Trusted review loading, real auditability supplements, pinned final-result persistence,
-the final endpoint/UI and the 18 actual-engine acceptance cases are still pending.
+The adapter below adds stored-review and auditability inputs without approving the
+real catalog. Pinned final-result persistence, the final endpoint/UI and the 18
+actual-engine acceptance cases are still pending.
+
+### Stored-review calculation and auditability inputs
+
+The internal [stored-review service](services/core-api/src/main/java/io/authweave/core/catalog/impact/StoredCandidateDecisionService.java)
+loads a base source review and an optional auditability review in one read-only,
+repeatable-read transaction. Callers supply review IDs, historical review digests
+and exact ordered candidate/supplement digests, not replacement claims, eligibility
+or an evaluation clock. Stored bodies, complete human observations and their linked
+curator audit events must pass the existing integrity checks. Missing or corrupt
+rows, wrong pins and mixed supplement bases are rejected without fixture fallback.
+The exact persisted JSON is evaluated, preserving array order and field presence;
+the historical unordered review digests remain unchanged.
+
+Scoped auditability claims now participate in the same hard checks, scoring,
+sensitivity and composed calculation. They must match the exact option, plan,
+region and configuration, with claim-bound source assertions and original observation
+dates. Missing, unreviewed, contradicted, insufficient, stale or future evidence
+remains unknown. A supported retention claim below the requested minimum fails;
+unknown retention duration cannot pass. Conditions stay explicit prerequisites,
+not observed logging configuration. No synthetic `REVIEWED` facts are created.
+
+The adapter reports `STORED_REVIEW_CANDIDATE_DECISION_CALCULATION` with historical
+review integrity verified. That does not prove current curator authority,
+independently verify sources, approve claims or publish a trusted catalog. Its pure
+calculation retains its narrower unverified-assertion scope. Configuration,
+compliance, source-verification, approval, publication and write flags remain false.
+Positive integration tests use fictional `.invalid` sources and isolated PostgreSQL
+review rows. The real eight-option candidate still awaits human source review.
+Whole-decision candidate-change impact, reproducible saved results, final endpoint/UI
+and actual-engine acceptance remain unfinished; this adds no HTTP route or UI change.
 
 ## Local development
 

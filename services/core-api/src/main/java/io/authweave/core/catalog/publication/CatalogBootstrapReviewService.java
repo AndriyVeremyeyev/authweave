@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Objects;
+import java.util.List;
 import java.util.UUID;
 import org.jooq.DSLContext;
 import org.jooq.JSONB;
@@ -32,6 +33,19 @@ public class CatalogBootstrapReviewService {
     }
     public record Result(CatalogBootstrapReview review, boolean created) { }
     record ReviewedCandidate(CatalogBootstrapReviewRequest request, CatalogBootstrapReview review) { }
+    /** Internal engine input, not an HTTP response or a current curator-authority grant. */
+    public record DecisionSource(CatalogBootstrapReview review, String candidateJson,
+            List<CatalogBootstrapReviewRequest.Observation> observations) {
+        public DecisionSource { observations = List.copyOf(observations); }
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, noRollbackFor = CatalogBootstrapReviewException.class)
+    public DecisionSource loadForDecision(UUID id, String expectedSha256) {
+        var row = expectedRow(id, expectedSha256);
+        var saved = validateStored(row);
+        // Retain the actual persisted array order and field presence, not a typed reserialization.
+        return new DecisionSource(saved.review(), mapper.readTree(row.request()).get("candidate").toString(), saved.request().observations());
+    }
 
     @Transactional
     public Result record(CatalogBootstrapReviewRequest request, CuratorActor actor) {
@@ -72,12 +86,16 @@ public class CatalogBootstrapReviewService {
     // Expected read denials must not poison an outer preflight transaction that reports BLOCKED.
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, noRollbackFor = CatalogBootstrapReviewException.class)
     ReviewedCandidate reviewed(UUID id, String expectedSha256) {
+        return validateStored(expectedRow(id, expectedSha256));
+    }
+
+    private CatalogBootstrapReviewRepository.Stored expectedRow(UUID id, String expectedSha256) {
         Objects.requireNonNull(id);
         if (expectedSha256 == null || !expectedSha256.matches("[a-f0-9]{64}")) throw new CatalogBootstrapReviewException(INVALID_REQUEST);
         var row = repository.find(id);
         if (row == null) throw new CatalogBootstrapReviewException(NOT_FOUND);
         if (!expectedSha256.equals(row.reviewSha256())) throw new CatalogBootstrapReviewException(CONFLICT);
-        return validateStored(row);
+        return row;
     }
 
     private ReviewedCandidate validateStored(CatalogBootstrapReviewRepository.Stored row) {

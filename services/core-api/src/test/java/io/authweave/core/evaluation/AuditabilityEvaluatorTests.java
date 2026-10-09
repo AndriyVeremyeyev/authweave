@@ -34,6 +34,18 @@ class AuditabilityEvaluatorTests {
     private static final AuditabilityRequirements ALL = new AuditabilityRequirements(EnumSet.allOf(Criterion.class), 30);
     enum EvidenceState { MISSING, UNREVIEWED, CURRENT, AT_90_DAYS, STALE, FUTURE }
 
+    @Test void documentedClaimArithmeticCannotInventOrMixRetentionThresholds() {
+        assertEquals(Outcome.PASS, documentedClaim(Criterion.AUDIT_LOG_RETENTION, Support.SUPPORTED, 30, 30).outcome());
+        assertEquals(Outcome.FAIL, documentedClaim(Criterion.AUDIT_LOG_RETENTION, Support.SUPPORTED, 29, 30).outcome());
+        assertEquals(Outcome.UNKNOWN, documentedClaim(Criterion.AUDIT_LOG_RETENTION, Support.SUPPORTED, null, 30).outcome());
+        assertEquals(Outcome.PASS, documentedClaim(Criterion.AUTHENTICATION_SUCCESS_EVENTS, Support.SUPPORTED, null, null).outcome());
+        assertThrows(IllegalArgumentException.class, () -> documentedClaim(Criterion.AUTHENTICATION_SUCCESS_EVENTS, Support.SUPPORTED, 30, null));
+        assertThrows(IllegalArgumentException.class, () -> documentedClaim(Criterion.AUTHENTICATION_SUCCESS_EVENTS, Support.SUPPORTED, null, 30));
+        assertThrows(IllegalArgumentException.class, () -> documentedClaim(Criterion.AUDIT_LOG_RETENTION, Support.SUPPORTED, 30, null));
+        assertThrows(IllegalArgumentException.class, () -> documentedClaim(Criterion.AUDIT_LOG_RETENTION, Support.UNSUPPORTED, 30, 30));
+        assertThrows(IllegalArgumentException.class, () -> documentedClaim(Criterion.AUDIT_LOG_RETENTION, Support.SUPPORTED, 36501, 30));
+    }
+
     static Stream<Arguments> matrix() {
         return Arrays.stream(Criterion.values()).flatMap(criterion -> Arrays.stream(Support.values())
                 .flatMap(support -> Arrays.stream(EvidenceState.values()).map(state -> Arguments.of(criterion, support, state))));

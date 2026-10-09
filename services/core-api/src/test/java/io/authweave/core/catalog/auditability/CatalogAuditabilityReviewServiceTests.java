@@ -29,6 +29,9 @@ class CatalogAuditabilityReviewServiceTests {
         var row = stored(); when(repository.find(row.id())).thenReturn(row);
         var receipt = service.get(row.id(), row.reviewSha256()); assertEquals(row.id(), receipt.reviewId()); assertEquals(2, receipt.factCount());
         assertEquals(new CatalogAuditabilityReview.Counts(2, 0, 0), receipt.counts()); assertFalse(receipt.sourceVerificationPerformed()); assertFalse(receipt.publicationReady());
+        var input = service.loadForDecision(row.id(), row.reviewSha256());
+        assertEquals(receipt, input.review()); assertEquals(mapper.readTree(row.request()).get("candidate"), mapper.readTree(input.candidateJson()));
+        assertEquals(2, input.observations().size());
         verifyNoInteractions(dsl);
         assertEquals(CONFLICT, assertThrows(CatalogAuditabilityReviewException.class, () -> service.get(row.id(), "0".repeat(64))).reason());
         assertEquals(NOT_FOUND, assertThrows(CatalogAuditabilityReviewException.class, () -> service.get(UUID.randomUUID(), row.reviewSha256())).reason());
@@ -87,6 +90,7 @@ class CatalogAuditabilityReviewServiceTests {
         }
         when(repository.find(row.id())).thenReturn(row); var invalid = row;
         assertEquals(READ_UNAVAILABLE, assertThrows(CatalogAuditabilityReviewException.class, () -> service.get(invalid.id(), invalid.reviewSha256())).reason());
+        assertEquals(READ_UNAVAILABLE, assertThrows(CatalogAuditabilityReviewException.class, () -> service.loadForDecision(invalid.id(), invalid.reviewSha256())).reason());
         verifyNoInteractions(dsl);
     }
 
@@ -94,6 +98,7 @@ class CatalogAuditabilityReviewServiceTests {
         UUID id = UUID.randomUUID();
         when(repository.find(id)).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("Synthetic DB read failure"));
         assertThrows(org.springframework.dao.DataAccessResourceFailureException.class, () -> service.get(id, "0".repeat(64)));
+        assertThrows(org.springframework.dao.DataAccessResourceFailureException.class, () -> service.loadForDecision(id, "0".repeat(64)));
         verifyNoInteractions(dsl);
     }
 

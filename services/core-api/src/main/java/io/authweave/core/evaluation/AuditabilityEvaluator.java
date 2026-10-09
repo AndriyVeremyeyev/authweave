@@ -102,18 +102,29 @@ public final class AuditabilityEvaluator {
                 var fact = byCriterion.get(criterion);
                 var problem = EvidencePolicy.problem(fact, at);
                 if (problem != null) reason = Reason.valueOf(problem.name());
-                else if (fact.support() == Support.UNSUPPORTED) reason = Reason.CAPABILITY_UNAVAILABLE;
-                else if (fact.support() == Support.UNKNOWN) reason = Reason.CAPABILITY_UNKNOWN;
-                else if (criterion != Criterion.AUDIT_LOG_RETENTION) reason = Reason.DOCUMENTED_CAPABILITY_AVAILABLE;
-                else if (fact.documentedMinimumRetentionDays() == null) reason = Reason.RETENTION_DURATION_UNKNOWN;
-                else {
-                    duration = fact.documentedMinimumRetentionDays();
-                    reason = duration < requirements.minimumRetentionDays() ? Reason.RETENTION_BELOW_MINIMUM : Reason.RETENTION_MEETS_MINIMUM;
-                }
+                else return documentedClaim(criterion, fact.support(), fact.documentedMinimumRetentionDays(),
+                        criterion == Criterion.AUDIT_LOG_RETENTION ? requirements.minimumRetentionDays() : null);
             }
             return new Check(criterion, outcome(reason), reason, duration);
         }).toList();
         return new Analysis(target, criticality, requirements, at, checks);
+    }
+
+    /** Claim arithmetic only, AFTER the caller applies exact scope, source and freshness gates.
+     * It does not create a REVIEWED fact or certify logging configuration. */
+    public static Check documentedClaim(Criterion criterion, Support support, Integer documentedDays, Integer requestedDays) {
+        Objects.requireNonNull(criterion); Objects.requireNonNull(support);
+        if (documentedDays != null && (criterion != Criterion.AUDIT_LOG_RETENTION || support != Support.SUPPORTED
+                || documentedDays < 0 || documentedDays > AuditabilityRequirements.MAX_RETENTION_DAYS)
+                || criterion == Criterion.AUDIT_LOG_RETENTION && (requestedDays == null || requestedDays < 0 || requestedDays > AuditabilityRequirements.MAX_RETENTION_DAYS)
+                || criterion != Criterion.AUDIT_LOG_RETENTION && requestedDays != null)
+            throw new IllegalArgumentException("Use exact criterion-specific retention thresholds");
+        var reason = support == Support.UNSUPPORTED ? Reason.CAPABILITY_UNAVAILABLE : support == Support.UNKNOWN ? Reason.CAPABILITY_UNKNOWN
+                : criterion != Criterion.AUDIT_LOG_RETENTION ? Reason.DOCUMENTED_CAPABILITY_AVAILABLE
+                : documentedDays == null ? Reason.RETENTION_DURATION_UNKNOWN
+                : documentedDays < requestedDays ? Reason.RETENTION_BELOW_MINIMUM : Reason.RETENTION_MEETS_MINIMUM;
+        return new Check(criterion, outcome(reason), reason,
+                reason == Reason.RETENTION_BELOW_MINIMUM || reason == Reason.RETENTION_MEETS_MINIMUM ? documentedDays : null);
     }
 
     private static Reason scopeReason(RequirementCriticality criticality, AuditabilityRequirements requirements, Criterion criterion) {

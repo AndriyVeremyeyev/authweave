@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.Objects;
+import java.util.List;
 import java.util.UUID;
 import org.jooq.DSLContext;
 import org.jooq.JSONB;
@@ -31,6 +32,18 @@ public class CatalogAuditabilityReviewService {
     }
     public record Result(CatalogAuditabilityReview review, boolean created) { }
     record ReviewedCandidate(CatalogAuditabilityReviewRequest request, CatalogAuditabilityReview review) { }
+    /** Internal engine input, never a body-bearing HTTP receipt or an approval. */
+    public record DecisionSource(CatalogAuditabilityReview review, String candidateJson,
+            List<CatalogAuditabilityReviewRequest.Observation> observations) {
+        public DecisionSource { observations = List.copyOf(observations); }
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, noRollbackFor = CatalogAuditabilityReviewException.class)
+    public DecisionSource loadForDecision(UUID id, String expectedSha256) {
+        var row = expectedRow(id, expectedSha256);
+        var saved = validateStored(row);
+        return new DecisionSource(saved.review(), mapper.readTree(row.request()).get("candidate").toString(), saved.request().observations());
+    }
 
     @Transactional
     public Result record(CatalogAuditabilityReviewRequest request, CuratorActor actor) {
@@ -70,12 +83,16 @@ public class CatalogAuditabilityReviewService {
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, noRollbackFor = CatalogAuditabilityReviewException.class)
     ReviewedCandidate reviewed(UUID id, String expectedSha256) {
+        return validateStored(expectedRow(id, expectedSha256));
+    }
+
+    private CatalogAuditabilityReviewRepository.Stored expectedRow(UUID id, String expectedSha256) {
         Objects.requireNonNull(id);
         if (expectedSha256 == null || !expectedSha256.matches("[a-f0-9]{64}")) throw new CatalogAuditabilityReviewException(INVALID_REQUEST);
         var row = repository.find(id);
         if (row == null) throw new CatalogAuditabilityReviewException(NOT_FOUND);
         if (!expectedSha256.equals(row.reviewSha256())) throw new CatalogAuditabilityReviewException(CONFLICT);
-        return validateStored(row);
+        return row;
     }
 
     private ReviewedCandidate validateStored(CatalogAuditabilityReviewRepository.Stored row) {
