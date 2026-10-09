@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq;
 
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
+import io.authweave.core.generated.jooq.tables.CandidateDecisionReports;
 import io.authweave.core.generated.jooq.tables.CatalogAuditabilityReviews;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapReviews;
@@ -47,6 +48,12 @@ public class Tables {
      * version.
      */
     public static final Assessments ASSESSMENTS = Assessments.ASSESSMENTS;
+
+    /**
+     * Immutable historical whole-decision candidate calculation; not a
+     * published catalog, assessment result or source approval.
+     */
+    public static final CandidateDecisionReports CANDIDATE_DECISION_REPORTS = CandidateDecisionReports.CANDIDATE_DECISION_REPORTS;
 
     /**
      * Immutable exact-supplement manual observations; no reviewed provider

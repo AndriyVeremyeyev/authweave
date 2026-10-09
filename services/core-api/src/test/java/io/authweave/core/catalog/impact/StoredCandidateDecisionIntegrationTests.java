@@ -58,43 +58,22 @@ class StoredCandidateDecisionIntegrationTests {
     @Autowired private CatalogAuditabilityReviewService auditReviews;
     @Autowired private CatalogAuditabilityDraftValidator drafts;
     @Autowired private StoredCandidateDecisionService decisions;
+    @Autowired private org.springframework.context.ApplicationContext context;
 
     private record Fixture(CatalogBootstrapReview base, CatalogAuditabilityReview audit, StoredCandidateDecisionService.Reference reference) { }
     private Fixture stored(Consumer<ObjectNode> baseChange, Consumer<ObjectNode> auditChange, Verdict verdict) {
-        var rawBase = (ObjectNode) base(); freshSourceDates(rawBase); baseChange.accept(rawBase);
-        var base = mapper.treeToValue(rawBase, ProviderCatalogDraft.class);
-        var observations = base.options().stream().flatMap(o -> CatalogDraftFacts.entries(o).keySet().stream().sorted()
-                .map(path -> new CatalogBootstrapReviewRequest.Observation(o.id(), path, Verdict.SOURCE_SUPPORTS_CLAIM))).toList();
-        var request = new CatalogBootstrapReviewRequest(1, UUID.randomUUID(), CatalogDraftCanonicalizer.sha256(base), base, observations,
-                CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
-        var receipt = baseReviews.record(request, actor()).review();
-        var savedBase = mapper.readTree(baseReviews.loadForDecision(receipt.reviewId(), receipt.reviewSha256()).candidateJson());
-        var rawAudit = (ObjectNode) supplement(); freshSourceDates(rawAudit); rawAudit.put("baseContentSha256", request.expectedCandidateSha256());
-        rawAudit.put("baseCatalogVersion", base.catalogVersion()); auditChange.accept(rawAudit);
-        var candidate = new CatalogAuditabilityDraftValidator.Request(base, mapper.treeToValue(rawAudit, AuditabilityCatalogDraft.class));
-        var validation = drafts.validate(candidate);
-        var manual = new CatalogAuditabilityReviewRequest(1, UUID.randomUUID(), validation.baseValidation().contentSha256(),
-                validation.contentSha256(), validation.reviewTargetSetSha256(), candidate, validation.targets().stream()
-                    .map(t -> new CatalogAuditabilityReviewRequest.Observation(t.scope().optionId(), t.fact().criterion(), t.targetSha256(), verdict)).toList(),
-                CatalogAuditabilityReviewRequest.Confirmation.MANUAL_AUDITABILITY_SOURCE_REVIEW);
-        var audit = auditReviews.record(manual, actor()).review();
-        var savedAudit = mapper.readTree(auditReviews.loadForDecision(audit.reviewId(), audit.reviewSha256()).candidateJson()).get("auditabilityDraft");
-        var ref = new StoredCandidateDecisionService.Reference(receipt.reviewId(), receipt.reviewSha256(), DecisionCanonicalizer.sha256(savedBase),
-                new StoredCandidateDecisionService.AuditReference(audit.reviewId(), audit.reviewSha256(), DecisionCanonicalizer.sha256(savedAudit)));
-        return new Fixture(receipt, audit, ref);
-    }
-    private static void freshSourceDates(JsonNode document) {
-        // Fictional fixture creation, not a review-time refresh: positive DB tests must not expire with the calendar.
-        var observedAt = Instant.now().minusSeconds(86400).toString();
-        for (var option : document.path("options")) for (var fact : option.path("facts"))
-            ((ObjectNode) fact.get("evidence")).put("observedAt", observedAt);
+        var fixture = new CandidateDecisionReviewFixture(mapper, baseReviews, auditReviews, drafts).stored(baseChange, auditChange, verdict);
+        return new Fixture(fixture.base(), fixture.audit(), fixture.reference());
     }
     private Fixture stored() { return stored(b -> { }, a -> { }, Verdict.SOURCE_SUPPORTS_CLAIM); }
-    private static CuratorActor actor() { return new CuratorActor("https://identity.example.invalid", "fictional-reviewer", "123", "456", Instant.now()); }
     private StoredCandidateDecisionService.Result evaluate(StoredCandidateDecisionService.Reference ref) { return decisions.evaluate(profile(), 6, ref, weights()); }
     private List<Integer> counts() { return List.of(dsl.fetchCount(CATALOG_BOOTSTRAP_REVIEWS), dsl.fetchCount(CATALOG_BOOTSTRAP_REVIEW_EVENTS),
             dsl.fetchCount(CATALOG_AUDITABILITY_REVIEWS), dsl.fetchCount(CATALOG_AUDITABILITY_REVIEW_EVENTS),
             dsl.fetchCount(CATALOG_PUBLISHED_SNAPSHOTS), dsl.fetchCount(CATALOG_PUBLICATION_DECISIONS)); }
+
+    @Test void candidateReportWriterIsUnavailableWithoutItsExplicitLocalProfile() {
+        assertTrue(context.getBeansOfType(LocalCandidateDecisionReportWriter.class).isEmpty());
+    }
 
     @Test void realDatabaseReviewsDriveTheWholeDecisionWithoutWritesPublicationOrActorDisclosure() {
         var fixture = stored(); var before = counts(); var result = evaluate(fixture.reference());

@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CandidateDecisionReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogAuditabilityReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogBootstrapImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogBootstrapReviewEvents;
@@ -36,6 +37,12 @@ public class Tables {
      * update or delete events.
      */
     public static final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
+
+    /**
+     * Mandatory body-free local service receipt. No curator identity, source
+     * truth or publication authority.
+     */
+    public static final CandidateDecisionReportEvents CANDIDATE_DECISION_REPORT_EVENTS = CandidateDecisionReportEvents.CANDIDATE_DECISION_REPORT_EVENTS;
 
     /**
      * Mandatory body-free scoped curator audit. The protected HTTP boundary,

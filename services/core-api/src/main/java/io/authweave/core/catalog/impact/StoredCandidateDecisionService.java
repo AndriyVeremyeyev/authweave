@@ -1,6 +1,7 @@
 package io.authweave.core.catalog.impact;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -45,9 +46,16 @@ public class StoredCandidateDecisionService {
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Result evaluate(JsonNode profileDocument, int profileSchemaVersion, Reference reference, JsonNode weightsDocument) {
-        Objects.requireNonNull(reference);
         // Snapshot caller documents before DB reads; caller cannot replace eligibility or the clock.
         var profile = Objects.requireNonNull(profileDocument).deepCopy(); var weights = Objects.requireNonNull(weightsDocument).deepCopy();
+        return calculate(profile, profileSchemaVersion, load(reference), weights, clock.instant());
+    }
+
+    /** Package-internal material for impact/replay, under the caller's transaction. No actor disclosure. */
+    record Inputs(CandidateDecisionImpactEvaluator.Snapshot snapshot, CatalogBootstrapReview baseReview,
+            CatalogAuditabilityReview auditabilityReview) { }
+    Inputs load(Reference reference) {
+        Objects.requireNonNull(reference);
         var base = baseReviews.loadForDecision(reference.reviewId(), reference.reviewSha256());
         var catalog = MAPPER.readTree(base.candidateJson());
         if (!reference.decisionCatalogSha256().equals(DecisionCanonicalizer.sha256(catalog)))
@@ -68,11 +76,15 @@ public class StoredCandidateDecisionService {
                             claimDigests.get(new CandidateAuditabilityInput.Address(o.optionId(), o.criterion())), Assertion.valueOf(o.verdict().name()))).toList());
             receipt = audit.review();
         }
-        var decision = CandidateDecisionEvaluator.evaluate(profile, profileSchemaVersion, catalog, assertions, supplement, weights, clock.instant());
-        boolean auditLoaded = supplement != null;
+        return new Inputs(new CandidateDecisionImpactEvaluator.Snapshot(catalog, assertions, supplement), base.review(), receipt);
+    }
+    static Result calculate(JsonNode profile, int profileSchemaVersion, Inputs inputs, JsonNode weights, Instant at) {
+        var snapshot = inputs.snapshot();
+        var decision = CandidateDecisionEvaluator.evaluate(profile, profileSchemaVersion, snapshot.catalog(), snapshot.assertions(), snapshot.auditability(), weights, at);
+        boolean auditLoaded = snapshot.auditability() != null;
         var deferred = decision.deferredBoundaries().stream().filter(path -> !path.equals("reviewReceiptAuthenticationAndLoading")
                 && !(auditLoaded && path.equals("realAuditabilitySupplementLoading"))).toList();
-        return new Result("STORED_REVIEW_CANDIDATE_DECISION_CALCULATION", VERSION, base.review(), receipt, decision, deferred,
+        return new Result("STORED_REVIEW_CANDIDATE_DECISION_CALCULATION", VERSION, inputs.baseReview(), inputs.auditabilityReview(), decision, deferred,
                 true, false, false, false, false, false);
     }
     private static void digest(String value) { if (value == null || !value.matches("[a-f0-9]{64}")) throw new IllegalArgumentException("Use an exact decision digest"); }

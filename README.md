@@ -215,8 +215,46 @@ calculation retains its narrower unverified-assertion scope. Configuration,
 compliance, source-verification, approval, publication and write flags remain false.
 Positive integration tests use fictional `.invalid` sources and isolated PostgreSQL
 review rows. The real eight-option candidate still awaits human source review.
-Whole-decision candidate-change impact, reproducible saved results, final endpoint/UI
-and actual-engine acceptance remain unfinished; this adds no HTTP route or UI change.
+The whole-decision impact and saved calculation receipts below build on this adapter.
+Final assessment-result pinning, endpoint/UI and actual-engine acceptance remain
+unfinished; this adds no HTTP route or UI change.
+
+### Whole-decision impact and immutable calculation receipts
+
+The internal `CandidateDecisionImpactEvaluator` recomputes two complete candidate
+decisions on one exact profile, explicit weights and evaluation clock. It compares
+all hard findings, preference contributions, shortlist/rank groups, authentication
+and provisioning choices, API advice and limitations. Option/check IDs form stable
+delta paths: inserting an option does not make it replace a neighbouring option.
+Decision-outcome changes are distinguished from evidence/reason changes. An input
+version or array-order change alone cannot invent a decision delta; exact input and
+full-result digests still retain that change. Auditability and architecture-only
+protocol claims participate, including claims that were neither required nor scored.
+
+Flyway V20 adds separate `core.candidate_decision_reports` and mandatory body-free
+service audit events. `LocalCandidateDecisionReportWriter` is disabled unless the
+explicit `local-candidate-decision-write` profile is selected; it has no HTTP route.
+The internal request pins both stored reviews and optional supplements, profile v6
+and weights, not caller eligibility, a result or a clock. A server-selected evaluation
+time and component versions are retained. Same-ID/same-input retries return the
+original receipt; a different request cannot reuse that ID. Concurrent writes
+serialize, and report plus audit commit or roll back together.
+
+Core runtime can insert only bounded columns, not update/delete history or set receipt
+timestamps. Web runtime has no access. Exact-ID/digest reads are size-bounded and
+validate the linked service event, then recompute both sides from the original
+immutable reviews at the saved time and compare the entire report. A valid checksum
+alone cannot conceal a forged result. Unsupported historical versions are rejected,
+not silently interpreted with a different policy. Later calculations do not rewrite
+older receipts or refresh their evidence dates.
+
+These are candidate calculation receipts, not owned assessment results, the reserved
+final-result contract, publisher-coverage certification or an active trusted catalog.
+Source/configuration/compliance verification, approval and publication remain false;
+the calculation itself reports no writes, while the explicit save receipt reports
+whether it was created. Tests use fictional `.invalid` sources and isolated databases.
+The real eight-option source review, safe publisher/trusted loading, final assessment
+pinning, user-visible results and final golden/owner acceptance are still open.
 
 ## Local development
 

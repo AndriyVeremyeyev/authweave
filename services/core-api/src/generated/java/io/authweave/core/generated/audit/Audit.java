@@ -5,6 +5,7 @@ package io.authweave.core.generated.audit;
 
 
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
+import io.authweave.core.generated.audit.tables.CandidateDecisionReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogAuditabilityReviewEvents;
 import io.authweave.core.generated.audit.tables.CatalogBootstrapImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogBootstrapReviewEvents;
@@ -51,6 +52,12 @@ public class Audit extends SchemaImpl {
      * update or delete events.
      */
     public final AssessmentEvents ASSESSMENT_EVENTS = AssessmentEvents.ASSESSMENT_EVENTS;
+
+    /**
+     * Mandatory body-free local service receipt. No curator identity, source
+     * truth or publication authority.
+     */
+    public final CandidateDecisionReportEvents CANDIDATE_DECISION_REPORT_EVENTS = CandidateDecisionReportEvents.CANDIDATE_DECISION_REPORT_EVENTS;
 
     /**
      * Mandatory body-free scoped curator audit. The protected HTTP boundary,
@@ -123,6 +130,7 @@ public class Audit extends SchemaImpl {
     public final List<Table<?>> getTables() {
         return Arrays.asList(
             AssessmentEvents.ASSESSMENT_EVENTS,
+            CandidateDecisionReportEvents.CANDIDATE_DECISION_REPORT_EVENTS,
             CatalogAuditabilityReviewEvents.CATALOG_AUDITABILITY_REVIEW_EVENTS,
             CatalogBootstrapImpactReportEvents.CATALOG_BOOTSTRAP_IMPACT_REPORT_EVENTS,
             CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS,

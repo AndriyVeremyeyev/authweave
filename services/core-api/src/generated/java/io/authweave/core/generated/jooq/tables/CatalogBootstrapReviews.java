@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq.tables;
 
 import io.authweave.core.generated.jooq.Core;
 import io.authweave.core.generated.jooq.Keys;
+import io.authweave.core.generated.jooq.tables.CandidateDecisionReports.CandidateDecisionReportsPath;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports.CatalogBootstrapImpactReportsPath;
 import io.authweave.core.generated.jooq.tables.records.CatalogBootstrapReviewsRecord;
 
@@ -201,6 +202,34 @@ public class CatalogBootstrapReviews extends TableImpl<CatalogBootstrapReviewsRe
     @Override
     public List<UniqueKey<CatalogBootstrapReviewsRecord>> getUniqueKeys() {
         return Arrays.asList(Keys.CATALOG_BOOTSTRAP_REVIEW_EVENT_BINDING_UK);
+    }
+
+    private transient CandidateDecisionReportsPath _candidateDecisionReportsAfterReviewIdFkey;
+
+    /**
+     * Get the implicit to-many join path to the
+     * <code>core.candidate_decision_reports</code> table, via the
+     * <code>candidate_decision_reports_after_review_id_fkey</code> key
+     */
+    public CandidateDecisionReportsPath candidateDecisionReportsAfterReviewIdFkey() {
+        if (_candidateDecisionReportsAfterReviewIdFkey == null)
+            _candidateDecisionReportsAfterReviewIdFkey = new CandidateDecisionReportsPath(this, null, Keys.CANDIDATE_DECISION_REPORTS__CANDIDATE_DECISION_REPORTS_AFTER_REVIEW_ID_FKEY.getInverseKey());
+
+        return _candidateDecisionReportsAfterReviewIdFkey;
+    }
+
+    private transient CandidateDecisionReportsPath _candidateDecisionReportsBeforeReviewIdFkey;
+
+    /**
+     * Get the implicit to-many join path to the
+     * <code>core.candidate_decision_reports</code> table, via the
+     * <code>candidate_decision_reports_before_review_id_fkey</code> key
+     */
+    public CandidateDecisionReportsPath candidateDecisionReportsBeforeReviewIdFkey() {
+        if (_candidateDecisionReportsBeforeReviewIdFkey == null)
+            _candidateDecisionReportsBeforeReviewIdFkey = new CandidateDecisionReportsPath(this, null, Keys.CANDIDATE_DECISION_REPORTS__CANDIDATE_DECISION_REPORTS_BEFORE_REVIEW_ID_FKEY.getInverseKey());
+
+        return _candidateDecisionReportsBeforeReviewIdFkey;
     }
 
     private transient CatalogBootstrapImpactReportsPath _catalogBootstrapImpactReports;
