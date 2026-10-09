@@ -41,7 +41,7 @@ not invented scores or proof of deployment/certification.
 The cases are six normal, six missing/contradictory and six adversarial/failure targets
 across B2B, public-sector and workforce profiles. Tests validate frozen expected envelopes,
 input coverage, arithmetic, source gating and exact profile/catalog/policy/weights/time
-bindings. They do not run a real-provider decision engine. The current runtime continues
+bindings. They do not run a complete provider decision engine. The current runtime continues
 to use the unchanged synthetic preflights and closed publication policy.
 
 ### Pinned candidate assembly
@@ -84,6 +84,35 @@ with source approval. Missing case dependencies remain unknown. The report expla
 the existing authorized `/catalog/bootstrap` workflow without supplying verdicts,
 submitting requests, fetching sources or writing files. This is a review aid, not
 another provider draft, a trusted catalog or an evaluated result.
+
+### Candidate hard-check kernel
+
+The internal [hard-check evaluator](services/core-api/src/main/java/io/authweave/core/catalog/impact/CandidateHardConstraintEvaluator.java)
+now computes capability, context, residency and authentication-control findings on
+the exact draft JSON, using the existing rule kernels behind a separate evidence gate.
+Confirmed failure takes precedence over missing information. Missing, unreviewed,
+contradicted, insufficient, stale or future evidence cannot establish support or exclusion.
+The 90-day freshness boundary is inclusive; neither a review assertion nor an evaluation
+renews an observation date. Required SCIM cannot be replaced by JIT or another option's facts.
+
+This first engine component returns **UNRESOLVED for all eight currently unreviewed
+options**. Calculation-only source assertions are bound to the exact candidate and
+claim, including product/plan/region/configuration; they are not authenticated human
+review receipts, source approval or publication authority. Even a conditionally eligible
+calculation retains source dates and conditions and reports all verification/write flags false.
+Profile, catalog, source assertions and evaluation clock have reproducible bindings;
+the new ordered-array digest does not replace the historical bootstrap digest.
+
+FORBIDDEN requires documented absence: OPTIONAL alone is unresolved because draft v1
+has no typed disablement evidence. Required auditability remains unknown without its
+separate scoped supplement; elevated/unknown assurance and identified/unknown compliance
+scope withhold an unqualified result. Existing synthetic fixtures cannot fill these gaps.
+
+There is no new endpoint or UI result. Scoring, sensitivity, shortlist/ranking,
+architecture advice, authenticated review loading and published result pinning remain
+unfinished. The kernel report is not the reserved final-result contract, and these tests
+do not complete the 18 engine acceptance cases or source-review gate. Tests exercise
+the actual pinned candidate and explicit in-memory rule hypotheses, never real approvals.
 
 ## Local development
 
