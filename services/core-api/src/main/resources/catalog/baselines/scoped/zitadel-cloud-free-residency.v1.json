@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "kind": "PROVIDER_CATALOG_DRAFT",
+  "catalogVersion": "zitadel-cloud-free-residency-draft-2026.10.08",
+  "options": [
+    {
+      "id": "zitadel-cloud-free-residency",
+      "providerId": "zitadel",
+      "product": "ZITADEL Cloud",
+      "plan": "Free; residency offer documented, account entitlement unverified",
+      "deployment": "MANAGED",
+      "region": "No Cloud region selected; storage destinations not verified",
+      "configuration": "Native local users; Cloud-managed storage/logs/backups; no federation, customer export, SIEM or custom notification",
+      "facts": {},
+      "compatibility": {
+        "applications": {},
+        "clients": {},
+        "populations": {},
+        "tenancy": {},
+        "membership": {}
+      },
+      "residency": {
+        "USER_PROFILES": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Select ZITADEL Cloud Free with native local users, not the local self-hosted lab. The public offer lists EU, US, Switzerland and Australia residency choices: https://zitadel.com/pricing. No Cloud account, region or entitlement was inspected.",
+            "The service description defines a data location as a region that may contain multiple countries and separately excludes a transit-only regional guarantee. A regional label does not establish every at-rest country or prove all copies are covered.",
+            "The Cloud page advertises EU placement of user records, auth logs and cryptographic metadata: https://zitadel.com/zitadel-cloud. This is regional documentation, not an instance-specific inventory of countries, replicas, exports, logs and backups.",
+            "Review the selected instance, applicable terms and sub-processor destinations: https://zitadel.com/docs/legal/subprocessors. Customer-configured federation, exports, SIEM and notification destinations are outside this scope; provider-managed copies remain unverified. Coverage stays UNKNOWN with no countries."
+          ],
+          "evidence": {
+            "sourceUrl": "https://zitadel.com/docs/legal/service-description/cloud-service-description#data-location",
+            "observedAt": "2026-10-08T23:22:37Z",
+            "summary": "The Cloud service description separates hosting regions from transit limitations. No Free Cloud instance, complete destination inventory or country list has been verified."
+          }
+        },
+        "CREDENTIALS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "The general secrets guide distinguishes database secrets, hashed passwords/client secrets and encrypted secrets, and separately identifies masterkey and TLS material outside Secrets Storage. It is architectural context, not a verified Cloud Free storage/key-management inventory.",
+            "Hashing, encryption, a passkey label or an egress IP address does not locate every credential copy. Do not infer country coverage, cryptographic configuration or key non-exportability from the general guide or AuthWeave's local ZITADEL setup.",
+            "Review provider-managed credential stores, replicas, backup copies and key material against the exact instance and terms. Customer federation, custom secret stores and notification integrations are not assessed; coverage remains UNKNOWN with empty countries. No credential retrieval, enrollment, key or configuration change occurred."
+          ],
+          "evidence": {
+            "sourceUrl": "https://zitadel.com/docs/concepts/architecture/secrets",
+            "observedAt": "2026-10-08T23:22:37Z",
+            "summary": "The architecture guide describes distinct secret-storage mechanisms and external key material. It does not establish the deployed Free Cloud configuration or countries for all credential copies."
+          }
+        },
+        "AUDIT_LOGS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "The streaming guide separates Events API resource-change events from Actions stdout and webhook/API output. Its environment table marks Actions stdout unavailable for Cloud, but that does not mean Cloud events or provider logs do not exist.",
+            "The support note distinguishes Cloud stdout access from subscription-dependent retrieval limits: https://help.zitadel.com/access-and-runtime-logs. The current public pricing page does not resolve this instance's exact retention or log destinations; no period, immutability or complete auditing guarantee is inferred.",
+            "Customer-side Events API pulls, webhooks and SIEM copies require their own destination evidence and are not configured here. Provider-managed event stores, log copies, retention and countries are unverified; coverage remains UNKNOWN with empty countries.",
+            "Region names and egress addresses are not storage-country evidence: https://zitadel.com/docs/guides/manage/cloud/egress. No live logs, Events API request, Action, webhook, collector, retention setting or paid integration was created or changed."
+          ],
+          "evidence": {
+            "sourceUrl": "https://zitadel.com/docs/guides/integrate/external-audit-log",
+            "observedAt": "2026-10-08T23:22:37Z",
+            "summary": "The guide documents separate Cloud-compatible event/API paths and a Cloud stdout limitation. Actual event/log destinations and completeness are unverified, independently of audit-feature availability."
+          }
+        },
+        "BACKUPS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "The service description assigns Cloud backup operations to ZITADEL and describes full/differential backups and recovery goals. Its displayed update date is April 5, 2024; these generic statements do not verify current Free entitlement, measured recovery, retention or storage countries.",
+            "Primary-region advertising is not an inventory of backup replicas, snapshots or all credential/log copies. Confirm provider-managed backup destinations and applicable instance-specific terms separately; coverage stays UNKNOWN with empty countries.",
+            "The guide mentions APIs for backup/restore/transfer alternatives; an API or export is not proof of complete disaster recovery. Customer export copies, external storage and their destinations are separate configurations, not inherited from a Cloud region.",
+            "No account, subscription, region selection, backup, export, restore, transfer, snapshot, cloud storage or paid service was created. Sources are dated mutable Cloud documentation, not a release pin or approval; ZITADEL/BFF, UI and the synthetic evaluator are unchanged."
+          ],
+          "evidence": {
+            "sourceUrl": "https://zitadel.com/docs/legal/service-description/cloud-service-description#backup",
+            "observedAt": "2026-10-08T23:22:37Z",
+            "summary": "The dated service description describes provider-owned Cloud backup operations and generic recovery goals. Current Free terms, all backup countries and tested recovery coverage remain unverified."
+          }
+        }
+      },
+      "authenticationControls": {}
+    }
+  ]
+}

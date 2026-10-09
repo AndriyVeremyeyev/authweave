@@ -263,6 +263,24 @@ const scopedBaselines = Object.freeze([
     metadata: { basis: "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
   },
   {
+    file: "zitadel-cloud-free-residency.v1.json",
+    catalogVersion: "zitadel-cloud-free-residency-draft-2026.10.08",
+    scope: {
+      id: "zitadel-cloud-free-residency", providerId: "zitadel", product: "ZITADEL Cloud", deployment: "MANAGED",
+      plan: "Free; residency offer documented, account entitlement unverified",
+      region: "No Cloud region selected; storage destinations not verified",
+      configuration: "Native local users; Cloud-managed storage/logs/backups; no federation, customer export, SIEM or custom notification",
+    },
+    facts: {},
+    residency: Object.fromEntries(Object.entries({
+      USER_PROFILES: "https://zitadel.com/docs/legal/service-description/cloud-service-description#data-location",
+      CREDENTIALS: "https://zitadel.com/docs/concepts/architecture/secrets",
+      AUDIT_LOGS: "https://zitadel.com/docs/guides/integrate/external-audit-log",
+      BACKUPS: "https://zitadel.com/docs/legal/service-description/cloud-service-description#backup",
+    }).map(([category, sourceUrl]) => [category, { coverage: "UNKNOWN", storageCountries: [], sourceUrl }])),
+    metadata: { basis: "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Free" },
+  },
+  {
     file: "zitadel-cloud-free-machine-clients.v1.json",
     catalogVersion: "zitadel-cloud-free-machine-clients-draft-2026.10.08",
     scope: {

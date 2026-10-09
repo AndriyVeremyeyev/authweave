@@ -155,15 +155,15 @@ test("Cloud authentication freshness and canonical ordering preserve observation
   assert.equal(JSON.stringify(draft), before);
 });
 
-test("Cloud authentication coexists with seven older ZITADEL scopes and never borrows Keycloak enforcement", async () => {
+test("Cloud authentication coexists with eight other ZITADEL scopes and never borrows Keycloak enforcement", async () => {
   const originals = drafts.filter((entry) => entry.options[0].providerId === "zitadel" && entry !== draft);
   const before = JSON.stringify(originals);
-  assert.equal(originals.length, 6);
+  assert.equal(originals.length, 7);
   assert.ok(originals.every((entry) => Object.keys(entry.options[0].authenticationControls).length === 0));
   const report = await inspectBaselinePack(observed);
   const zitadel = report.options.filter((option) => option.providerId === "zitadel");
-  assert.equal(zitadel.length, 8);
-  assert.equal(zitadel.reduce((sum, option) => sum + option.facts.length, 0), 28);
+  assert.equal(zitadel.length, 9);
+  assert.equal(zitadel.reduce((sum, option) => sum + option.facts.length, 0), 32);
   assert.ok(zitadel.filter((option) => option.basis !== "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT")
     .every((option) => !option.facts.some((fact) => fact.path.startsWith("authenticationControls.") || fact.path === "facts.MFA")));
   const native = zitadel.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");

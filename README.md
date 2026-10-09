@@ -1875,13 +1875,13 @@ capability-only [inventory v1 schema](packages/contracts/schemas/provider-baseli
 is preserved, not silently widened or reinterpreted. Option identities and
 catalog versions join back to the original scope, conditions and evidence.
 
-The current pack has 136 recorded and 2,652 omitted option-paths across 41 distinct
-scopes (2,788 possible addresses). The 82 capability proposals comprise 45 `OPTIONAL`,
+The current pack has 140 recorded and 2,716 omitted option-paths across 42 distinct
+scopes (2,856 possible addresses). The 82 capability proposals comprise 45 `OPTIONAL`,
 3 `UNAVAILABLE` and 34 `UNKNOWN`; thirty-five separate compatibility proposals comprise
 thirty-one `SUPPORTED` and four `UNKNOWN`. Fifteen authentication-control records retain
 their own availability/enforcement pairs, not capability or compatibility counts.
 An `UNKNOWN` in either control field appears in `recordedUnknownPaths`.
-Four separate residency records retain `coverage: UNKNOWN` and empty
+Eight separate residency records across two scopes retain `coverage: UNKNOWN` and empty
 `storageCountries`, also appearing in `recordedUnknownPaths`. They are not converted
 to capability availability, compatibility support or authentication enforcement.
 All remain `UNREVIEWED`. These are structural
@@ -1942,7 +1942,7 @@ that native SCIM interface **without a bridge**, not a provider-wide claim about
 every API or membership integration. Inbound identity provisioning does not verify
 the consuming application's permissions, deprovisioning or local-session enforcement.
 
-`make inspect-provider-baselines` now reports forty-one distinct options and 136 recorded
+`make inspect-provider-baselines` now reports forty-two distinct options and 140 recorded
 entries: five unresolved research scopes, one release-scoped, four plan-scoped and
 ten upstream-scoped drafts (Okta and Entra workforce for each of the five providers),
 plus five public-client-scoped drafts (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free,
@@ -1952,8 +1952,8 @@ and Entra External ID Basic), plus five machine-client scopes
 (Keycloak, ZITADEL Cloud Free, Auth0 B2B Free, WorkOS AuthKit Connect staging
 and Entra External ID with the paid M2M Premium add-on), plus five browser/customer
 authentication-control scopes (release-pinned Keycloak, ZITADEL Cloud Free, Auth0 B2B Free
-and primary WorkOS AuthKit staging, plus Entra External ID Basic), plus one
-release-pinned, operator-residency Keycloak scope.
+and primary WorkOS AuthKit staging, plus Entra External ID Basic), plus two
+residency scopes: release-pinned operator Keycloak and dated ZITADEL Cloud Free.
 All remain `UNREVIEWED`; freshness cannot grant approval. The offline checker rejects
 plan/deployment/source-path drift and preserves observations, but does not fetch sources
 or establish their truth. Mutable Cloud documentation is dated, not falsely release-pinned.
@@ -2166,6 +2166,51 @@ validated evidence; this draft does not implement that gate.
 Neither Keycloak LoA semantics, external-IdP assurance nor other clients/populations
 are inherited. Offline inspection keeps these limitations and unknown enforcement
 visible without review, activation or readiness.
+
+#### Plan-scoped ZITADEL Cloud residency documentation candidate
+
+A separate [ZITADEL Cloud Free residency draft](services/core-api/src/main/resources/catalog/baselines/scoped/zitadel-cloud-free-residency.v1.json)
+records `USER_PROFILES`, `CREDENTIALS`, `AUDIT_LOGS` and `BACKUPS`, all
+`coverage: UNKNOWN`, with empty `storageCountries` and `UNREVIEWED` evidence.
+It concerns native local Cloud users and provider-managed storage/logs/backups,
+not AuthWeave's self-hosted lab. Customer federation, export destinations,
+SIEM and custom notifications are separate configurations, not verified here.
+The earlier eight ZITADEL scopes and their observations remain unchanged.
+
+The [Free offer](https://zitadel.com/pricing) lists EU, US, Switzerland and
+Australia residency choices. The [service description](https://zitadel.com/docs/legal/service-description/cloud-service-description#data-location)
+defines a location as a potentially multi-country region and separately limits
+transit guarantees. The [Cloud page](https://zitadel.com/zitadel-cloud) advertises
+EU placement for records, auth logs and cryptographic metadata; this is not an
+instance-specific enumeration of every country, replica or backup. No instance,
+region, entitlement or applicable customer terms were inspected.
+[Sub-processor documentation](https://zitadel.com/docs/legal/subprocessors)
+also needs instance-specific destination review; region labels and egress IPs
+are not complete at-rest evidence. Transit and storage are distinct boundaries,
+not automatically contradictory claims or a compliance verdict.
+
+The [general secrets guide](https://zitadel.com/docs/concepts/architecture/secrets)
+distinguishes hashed/encrypted database secrets and external masterkey/TLS
+material. It does not verify this Free Cloud deployment's cryptographic settings,
+key protection or credential-copy countries. Encryption is not geography.
+
+The [streaming guide](https://zitadel.com/docs/guides/integrate/external-audit-log)
+distinguishes resource-change events, Actions stdout and webhook/API output.
+Cloud stdout limitations do not mean events or provider logs are absent.
+[Support documentation](https://help.zitadel.com/access-and-runtime-logs)
+separates stdout access from subscription-dependent retrieval limits. Exact
+instance retention, completeness, immutability and log destinations remain
+unverified; customer-side API pulls and SIEM copies need separate evidence.
+
+The [backup description](https://zitadel.com/docs/legal/service-description/cloud-service-description#backup),
+displaying an April 5, 2024 update date, assigns Cloud backup operations to ZITADEL
+and describes generic full/differential backups and recovery goals. It does not
+verify current Free contractual coverage, backup destinations or measured recovery.
+An API/export path is not proof of complete disaster recovery.
+Sources are dated mutable documentation, not a release pin or human approval.
+No account, subscription, country selection, credential/log retrieval, Action,
+backup/export/restore/transfer, paid service or runtime change occurred.
+The evaluator remains synthetic; full baselines and authorized publication remain pending.
 
 #### Machine-scoped ZITADEL Cloud documentation candidate
 
