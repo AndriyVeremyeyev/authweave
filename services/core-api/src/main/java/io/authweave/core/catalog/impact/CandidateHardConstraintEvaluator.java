@@ -165,7 +165,8 @@ public final class CandidateHardConstraintEvaluator {
         return Map.copyOf(result);
     }
 
-    private static String evidenceProblem(ProposedFact fact, Assertion assertion, Instant at) {
+    // Shared with preference scoring; callers must first validate exact candidate/claim bindings.
+    static String evidenceProblem(ProposedFact fact, Assertion assertion, Instant at) {
         if (fact == null) return "EVIDENCE_MISSING";
         if (assertion == null) return "EVIDENCE_UNREVIEWED";
         if (assertion == Assertion.SOURCE_DOES_NOT_SUPPORT_CLAIM) return "EVIDENCE_CONTRADICTED";

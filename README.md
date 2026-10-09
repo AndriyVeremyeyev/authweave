@@ -108,11 +108,41 @@ has no typed disablement evidence. Required auditability remains unknown without
 separate scoped supplement; elevated/unknown assurance and identified/unknown compliance
 scope withhold an unqualified result. Existing synthetic fixtures cannot fill these gaps.
 
-There is no new endpoint or UI result. Scoring, sensitivity, shortlist/ranking,
-architecture advice, authenticated review loading and published result pinning remain
-unfinished. The kernel report is not the reserved final-result contract, and these tests
+There is no new endpoint or UI result. Architecture advice, authenticated review loading,
+auditability supplement loading and published result pinning remain unfinished.
+The kernel report is not the reserved final-result contract, and these tests
 do not complete the 18 engine acceptance cases or source-review gate. Tests exercise
 the actual pinned candidate and explicit in-memory rule hypotheses, never real approvals.
+
+### Candidate preference scoring and sensitivity
+
+The internal [preference scorer](services/core-api/src/main/java/io/authweave/core/catalog/impact/CandidatePreferenceScorer.java)
+recomputes hard checks from the same exact inputs before scoring; it never accepts
+caller-supplied eligibility. Only eligible options receive scores, using exactly the
+explicitly preferred capabilities and positive integer weights totaling 100.
+Missing/extra/duplicate dimensions, zero weights, fractional/string coercion and
+undeclared cost/security dimensions are rejected. There are no default weights.
+`NONE` is allowed only when no scoring-capability preferences are declared.
+
+Each contribution retains its profile path, weight, evidence, reason and earned points.
+Known available capability earns its weight; known unavailable capability earns zero.
+Unusable or unknown preference evidence earns zero in the lower bound and adds its
+weight to the upper bound. For example, known MFA weighted 70 plus unknown SAML
+weighted 30 gives **70–100 with unknown weight 30**, not a claimed score of 100.
+Required unknowns still block eligibility rather than becoming numeric penalties.
+
+The shortlist contains every conditionally eligible option, not just a chosen winner.
+Ranking is withheld until every eligible option has complete preference evidence;
+equal complete scores share dense ranks. No-preference cases have null scores and an
+unranked shortlist. Option IDs provide stable presentation, never an automatic tiebreaker.
+Weight sensitivity runs two sets of weights on one fixed profile/catalog/source-assertion
+snapshot and clock; contributions and ranks may change, but hard findings cannot.
+The exact originating weights document has a separate order-preserving digest.
+
+These remain calculation-only reports with all authority/publication/write flags false.
+The actual unreviewed eight-option candidate still has no score, shortlist or ranking.
+Synthetic scoring fixtures are fictional `.invalid` hypotheses, not vendor approvals.
+This implements the scoring component, not the complete recommendation endpoint or UI.
 
 ## Local development
 
