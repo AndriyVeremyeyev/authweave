@@ -5,6 +5,10 @@
   "type": "object",
   "additionalProperties": false,
   "required": ["schemaVersion", "scope", "selection", "bindings", "candidate", "reviewTasks", "approvalGranted", "sourceVerificationPerformed", "publicationReady", "limitations"],
+  "allOf": [
+    { "if": { "properties": { "focusedCase": {} }, "required": ["focusedCase"] }, "then": { "properties": { "bindings": { "type": "object", "properties": { "focusedCaseSha256": {} }, "required": ["focusedCaseSha256"] } } } },
+    { "if": { "properties": { "bindings": { "type": "object", "properties": { "focusedCaseSha256": {} }, "required": ["focusedCaseSha256"] } } }, "then": { "properties": { "focusedCase": {} }, "required": ["focusedCase"] } }
+  ],
   "properties": {
     "schemaVersion": { "const": 1 },
     "scope": { "const": "UNREVIEWED_DECISION_CATALOG_ASSEMBLY" },
@@ -14,6 +18,7 @@
       "required": ["selectionSha256", "decisionCanonicalization", "decisionCatalogSha256", "bootstrapCanonicalization", "bootstrapCandidateSha256"],
       "properties": {
         "selectionSha256": { "$ref": "#/$defs/digest" },
+        "focusedCaseSha256": { "$ref": "#/$defs/digest" },
         "decisionCanonicalization": { "const": "SHA256_UTF8_COMPACT_JSON_SORTED_OBJECT_KEYS_PRESERVED_ARRAY_ORDER" },
         "decisionCatalogSha256": { "$ref": "#/$defs/digest" },
         "bootstrapCanonicalization": { "const": "catalog-draft-canonical-json-1" },
@@ -21,6 +26,7 @@
       }
     },
     "candidate": { "$ref": "provider-catalog-draft.v1.schema.json" },
+    "focusedCase": { "$ref": "#/$defs/focusedCase" },
     "reviewTasks": {
       "type": "array", "minItems": 1, "maxItems": 6800,
       "items": {
@@ -40,6 +46,33 @@
     "limitations": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
   },
   "$defs": {
+    "focusedCase": {
+      "type": "object", "additionalProperties": false,
+      "required": ["caseId", "profileSchemaVersion", "targetOptionId", "description", "profile", "weights", "requiredFactPaths", "preferredFactPaths", "expectedAfterReviewAndEngine", "pendingSourceReview", "limitations"],
+      "properties": {
+        "caseId": { "$ref": "#/$defs/identifier" },
+        "profileSchemaVersion": { "const": 6 },
+        "targetOptionId": { "$ref": "#/$defs/identifier" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "profile": { "$ref": "application-identity-profile.v6.schema.json" },
+        "weights": {
+          "type": "object", "additionalProperties": false, "required": ["mode", "values"],
+          "properties": {
+            "mode": { "const": "EXPLICIT" },
+            "values": { "type": "array", "minItems": 1, "maxItems": 9, "items": {
+              "type": "object", "additionalProperties": false, "required": ["capability", "weight"],
+              "properties": { "capability": { "enum": ["OIDC", "SAML", "OAUTH2_APIS", "SOCIAL_LOGIN", "ENTERPRISE_SSO", "SCIM", "JIT", "GROUP_SYNC", "MFA"] }, "weight": { "type": "integer", "minimum": 1, "maximum": 100 } }
+            } }
+          }
+        },
+        "requiredFactPaths": { "$ref": "#/$defs/factPaths" },
+        "preferredFactPaths": { "$ref": "#/$defs/factPaths" },
+        "expectedAfterReviewAndEngine": { "const": "ELIGIBLE_IN_DECLARED_PROVIDER_CAPABILITY_SCOPE" },
+        "pendingSourceReview": { "const": true },
+        "limitations": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 500 } }
+      }
+    },
+    "factPaths": { "type": "array", "minItems": 1, "maxItems": 68, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 200 } },
     "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "identifier": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
     "selectionManifest": {

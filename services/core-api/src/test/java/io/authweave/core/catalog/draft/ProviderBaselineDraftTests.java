@@ -87,7 +87,7 @@ class ProviderBaselineDraftTests {
         });
         var current = validator.validateAt(draft, observed);
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
-        assertEquals(4, current.factCount());
+        assertEquals(9, current.factCount());
         assertUntrusted(current);
         for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
                 observed.plusSeconds(90L * 86400).plusNanos(1))) {
@@ -97,7 +97,7 @@ class ProviderBaselineDraftTests {
             var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
                     : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
                     : CatalogDraftValidation.Freshness.CURRENT;
-            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertTrue(report.facts().stream().filter(fact -> fact.path().startsWith("facts.")).allMatch(fact -> fact.freshness() == freshness));
         }
         assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
     }
@@ -162,12 +162,14 @@ class ProviderBaselineDraftTests {
         var report = validator.validateAt(combined, Instant.parse("2026-10-02T22:07:48Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(2, report.optionCount());
-        assertEquals(provider.equals("workos") ? 5 : 7, report.factCount());
+        assertEquals(provider.equals("workos") ? 5 : provider.equals("keycloak") ? 12 : 7, report.factCount());
         assertUntrusted(report);
         assertNotEquals(validator.validate(research).contentSha256(), report.contentSha256());
         assertNotEquals(validator.validate(scoped).contentSha256(), report.contentSha256());
         assertTrue(combined.options().stream().allMatch(option -> option.residency().isEmpty()
-                && option.authenticationControls().isEmpty() && option.compatibility().clients().isEmpty()));
+                && option.authenticationControls().isEmpty()
+                && (option.compatibility().clients().isEmpty() || option.id().equals("keycloak-26.8.0-native-self-hosted")
+                    && option.compatibility().clients().keySet().equals(java.util.Set.of(io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER)))));
     }
 
     @Test
@@ -578,10 +580,10 @@ class ProviderBaselineDraftTests {
         var report = validator.validateAt(combined, Instant.parse("2026-10-08T04:57:09Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(4, report.optionCount());
-        assertEquals(15, report.factCount());
+        assertEquals(20, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
-        assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertTrue(report.facts().stream().filter(fact -> !fact.path().startsWith("compatibility.")).allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
     }
 
     @ParameterizedTest
@@ -846,6 +848,9 @@ class ProviderBaselineDraftTests {
                     || address.equals("compatibility.clients.MACHINE_TO_MACHINE")
                     || address.equals("compatibility.applications.B2B_SAAS")
                     || address.equals("compatibility.applications.PARTNER_PORTAL")
+                    || address.equals("compatibility.populations.EXTERNAL_CUSTOMERS")
+                    || address.equals("compatibility.tenancy.SINGLE_ORGANIZATION")
+                    || address.equals("compatibility.membership.SINGLE_ORGANIZATION_PER_USER")
                     || address.equals("compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS")
                     || address.equals("compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER")
                     || address.equals("residency.USER_PROFILES")
@@ -867,17 +872,17 @@ class ProviderBaselineDraftTests {
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
         assertEquals(43, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(144, recordedCount);
-        assertEquals(2780, omittedCount);
+        assertEquals(149, recordedCount);
+        assertEquals(2775, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 45,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 34), counts);
-        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 31, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
+        assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 36, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-09T13:27:39Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-09T17:00:00Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(43, report.optionCount());
-        assertEquals(144, report.factCount());
+        assertEquals(149, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -948,14 +953,15 @@ class ProviderBaselineDraftTests {
             options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
         }
         assertEquals(5, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().clients().isEmpty()));
+        assertTrue(java.util.stream.Stream.of(options.get(0), options.get(2), options.get(3)).allMatch(option -> option.compatibility().clients().isEmpty()));
+        assertEquals(java.util.Set.of(io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER), options.get(1).compatibility().clients().keySet());
         assertEquals(java.util.Set.of(ProviderCatalog.Capability.OIDC), options.getLast().facts().keySet());
         assertEquals(OBSERVED, options.getFirst().facts().get(ProviderCatalog.Capability.OIDC).evidence().observedAt());
         var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "keycloak-client-context-coexistence-test", options), Instant.parse("2026-10-08T06:12:22Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(5, report.optionCount());
-        assertEquals(18, report.factCount());
+        assertEquals(23, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -1768,8 +1774,9 @@ class ProviderBaselineDraftTests {
             options.add(mapper.readValue(resource("catalog/baselines/" + file), ProviderCatalogDraft.class).options().getFirst());
         }
         assertEquals(6, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertTrue(options.subList(0, 4).stream().allMatch(option -> option.compatibility().applications().isEmpty()
+        assertTrue(java.util.stream.Stream.of(options.get(0), options.get(2), options.get(3)).allMatch(option -> option.compatibility().applications().isEmpty()
                 && option.compatibility().tenancy().isEmpty() && option.compatibility().membership().isEmpty()));
+        assertEquals(java.util.Set.of(io.authweave.core.assessment.domain.profile.AudienceRequirements.TenancyModel.SINGLE_ORGANIZATION), options.get(1).compatibility().tenancy().keySet());
         assertTrue(options.getLast().facts().isEmpty());
         assertTrue(options.getLast().compatibility().clients().isEmpty());
         assertEquals(ProviderCatalog.Availability.OPTIONAL, options.get(1).facts().get(ProviderCatalog.Capability.SCIM).availability());
@@ -1783,7 +1790,7 @@ class ProviderBaselineDraftTests {
                 "keycloak-organization-context-coexistence-test", options), Instant.parse("2026-10-08T16:26:23Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(6, report.optionCount());
-        assertEquals(22, report.factCount());
+        assertEquals(27, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -2012,7 +2019,7 @@ class ProviderBaselineDraftTests {
                 "keycloak-machine-context-coexistence-test", options), Instant.parse("2026-10-08T17:11:31Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(7, report.optionCount());
-        assertEquals(24, report.factCount());
+        assertEquals(29, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -2568,7 +2575,7 @@ class ProviderBaselineDraftTests {
                 "keycloak-authentication-context-coexistence-test", options), Instant.parse("2026-10-08T19:33:03Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(8, report.optionCount());
-        assertEquals(28, report.factCount());
+        assertEquals(33, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -3129,7 +3136,7 @@ class ProviderBaselineDraftTests {
                 "keycloak-residency-context-coexistence-test", options), Instant.parse("2026-10-08T22:10:43Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(9, report.optionCount());
-        assertEquals(32, report.factCount());
+        assertEquals(37, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

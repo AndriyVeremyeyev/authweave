@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "PROVIDER_CATALOG_DRAFT",
-  "catalogVersion": "keycloak-26.8.0-native-draft-2026.10.02",
+  "catalogVersion": "keycloak-26.8.0-native-b2b-draft-2026.10.09",
   "options": [{
     "id": "keycloak-26.8.0-native-self-hosted",
     "providerId": "keycloak",
@@ -9,7 +9,7 @@
     "plan": "Upstream release 26.8.0; commercial support not assessed",
     "deployment": "SELF_HOSTED",
     "region": "Operator-selected hosting; storage destinations not verified",
-    "configuration": "Native OIDC/SAML clients and configurable inbound realm SCIM; no third-party extensions or outbound bridge",
+    "configuration": "One customer realm; confidential browser OIDC/SAML; local-user SCIM; no broker, Organizations or outbound bridge",
     "facts": {
       "OIDC": {
         "availability": "OPTIONAL",
@@ -64,7 +64,80 @@
         }
       }
     },
-    "compatibility": { "applications": {}, "clients": {}, "populations": {}, "tenancy": {}, "membership": {} },
+    "compatibility": {
+      "applications": {
+        "B2B_SAAS": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "This is a conditional single-customer B2B deployment: one dedicated customer realm and one application organization. It is not the original multi-tenant partner-portal scenario.",
+            "Bind application access to the fixed realm issuer and authorized user identifier; the application owns resource authorization. No Organizations feature, upstream broker or external user store is selected.",
+            "Native realm SCIM manages identity records, not SaaS business records or local sessions. Application lifecycle enforcement remains a separate unverified integration."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/realms/proc-creating-a-realm.adoc",
+            "observedAt": "2026-10-09T16:40:10Z",
+            "summary": "The pinned realm guide describes separate customer realms and customer-facing applications. Single-customer B2B compatibility is a conditional design interpretation, not a vendor guarantee of application isolation or a tested deployment."
+          }
+        }
+      },
+      "clients": {
+        "BROWSER": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Register a confidential server-side OIDC client with Standard Flow, exact HTTPS redirect URIs and S256 PKCE; keep its credential and tokens server-side behind the proposed BFF/session boundary.",
+            "Use a separate authorized confidential service-account client for realm SCIM; do not expose its credential or provisioning permissions to the browser login client.",
+            "This browser-only scope does not establish public SPA, native/mobile, resource-server or machine-client compatibility, or a configured BFF."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/clients/oidc/con-basic-settings.adoc",
+            "observedAt": "2026-10-09T16:40:10Z",
+            "summary": "The pinned client settings describe confidential server-side browser login, the authorization-code switch and S256 PKCE. Proposed BFF token handling remains an application responsibility, not an observed provider configuration."
+          }
+        }
+      },
+      "populations": {
+        "EXTERNAL_CUSTOMERS": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Use locally stored users in the dedicated customer realm, admitted through authorized administration or native realm SCIM; upstream federation, self-registration and partner organization membership are outside this case.",
+            "A customer-facing identity realm is not proof of business admission, identity assurance or session revocation. Validate the consuming application's identity correlation and authorization separately."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/realms/proc-creating-a-realm.adoc",
+            "observedAt": "2026-10-09T16:40:10Z",
+            "summary": "The pinned realm guide explicitly describes customers using a separate realm for customer-facing applications. This does not establish a brokered enterprise population or application-side lifecycle behavior."
+          }
+        }
+      },
+      "tenancy": {
+        "SINGLE_ORGANIZATION": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "Declare one fixed customer organization for this application instance and use one dedicated realm. The application maps the validated issuer to that organization; no client-supplied organization selector or email domain grants access.",
+            "This is an application-owned single-organization design over a realm, not Keycloak Organizations membership or multi-tenant database isolation. It does not establish MULTI_TENANT_ORGANIZATIONS support."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/realms/proc-creating-a-realm.adoc",
+            "observedAt": "2026-10-09T16:40:10Z",
+            "summary": "The pinned guide presents realms as separate spaces for users and applications. Mapping one realm to one application organization is an explicit conditional design assumption, not a documented business-tenant isolation guarantee."
+          }
+        }
+      },
+      "membership": {
+        "SINGLE_ORGANIZATION_PER_USER": {
+          "support": "SUPPORTED",
+          "conditions": [
+            "The application fixes one organization for admitted users of this realm; bind users by validated issuer and stable subject, not email. Membership is application-owned, not a native organization claim inferred from realm groups.",
+            "Do not interpret SCIM Users or Groups as organization membership synchronization. Multiple organizations per user, managed membership deletion and consuming-app offboarding are outside this conditional case."
+          ],
+          "evidence": {
+            "sourceUrl": "https://github.com/keycloak/keycloak/blob/4246609cf2024c85016d3fb1254c3d2533367c31/docs/documentation/server_admin/topics/realms/proc-creating-a-realm.adoc",
+            "observedAt": "2026-10-09T16:40:10Z",
+            "summary": "The realm guide supports an isolated customer user/application space. Single application-organization membership is a stated design constraint, not a provider-enforced business membership or verified SCIM lifecycle result."
+          }
+        }
+      }
+    },
     "residency": {},
     "authenticationControls": {}
   }]

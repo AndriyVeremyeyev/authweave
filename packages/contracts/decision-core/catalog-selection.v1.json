@@ -1,9 +1,9 @@
 {
   "selectionVersion": "decision-catalog-selection-1",
-  "catalogVersion": "decision-core-candidate-2026.10.09",
+  "catalogVersion": "decision-core-candidate-2026.10.09-b2b1",
   "policyVersion": "decision-core-explicit-1",
   "selections": [
-    { "providerId": "keycloak", "scope": "upstream-26.8.0-self-hosted", "file": "keycloak-26.8.0.v1.json", "catalogVersion": "keycloak-26.8.0-native-draft-2026.10.02", "optionId": "keycloak-26.8.0-native-self-hosted", "sourceSha256": "3f6307f479fac755ca13d27d2acd9b34c00147ebac71573ec167a4a6d9eb4d2c" },
+    { "providerId": "keycloak", "scope": "upstream-26.8.0-self-hosted", "file": "keycloak-26.8.0.v1.json", "catalogVersion": "keycloak-26.8.0-native-b2b-draft-2026.10.09", "optionId": "keycloak-26.8.0-native-self-hosted", "sourceSha256": "cf3e665642e9b1bfac536a19b52d067ffbb11afab5e2e6577e0b9ec6c6ab0d27" },
     { "providerId": "zitadel", "scope": "cloud-free", "file": "zitadel-cloud-free.v1.json", "catalogVersion": "zitadel-cloud-free-native-draft-2026.10.02", "optionId": "zitadel-cloud-free-native", "sourceSha256": "c2380f2dd15d2242ef0a507ad32083eeb7f59d376f0d3a8b6a22f5df49c10ec7" },
     { "providerId": "auth0", "scope": "b2b-free-public-cloud", "file": "auth0-b2b-free.v1.json", "catalogVersion": "auth0-b2b-free-oidc-scim-draft-2026.10.02", "optionId": "auth0-b2b-free-oidc-scim", "sourceSha256": "8429ca45c92e5f89a002bf18bb0ae9ace3d1b277325526ca70cde89526d7da20" },
     { "providerId": "workos", "scope": "authkit-staging", "file": "workos-authkit-staging-browser-authentication-controls.v1.json", "catalogVersion": "workos-authkit-staging-browser-authentication-controls-draft-2026.10.08", "optionId": "workos-authkit-staging-browser-authentication-controls", "sourceSha256": "779f20bfd179f07b9bccd212806ac06721f11fba5cb6e9a7b59a36d99e532d8f" },

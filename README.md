@@ -64,6 +64,17 @@ Core source-review canonicalization (unordered arrays); `decisionCatalogSha256`
 preserves array order for future decision bindings. Core tests parse the actual generated
 payload, reproduce the bootstrap digest and verify complete pending review coverage.
 
+The [additional browser/SCIM case](packages/contracts/decision-core/catalog-case.b2b-browser-scim.v1.json)
+uses a single-customer application instance, one dedicated Keycloak realm and a
+confidential browser client. SCIM remains required; SAML has an explicit preference
+weight. Five dated context proposals now accompany that exact option. Single-organization
+mapping is an application-owned design assumption, **not native Organizations support**.
+The assembly checks the case's exact claim dependencies; it does not evaluate or rank it.
+Source review and the runtime engine are still required before the expected conditional
+eligibility can be established. The primary multi-tenant B2B profile and the 18 frozen
+synthetic cases are unchanged. Multi-client federation, required residency, auditability,
+strong controls and application-side lifecycle are not cleared by this narrower case.
+
 ## Local development
 
 Required tools are Java 21, Node.js 24 with npm 11, Python 3.13, Docker Desktop and

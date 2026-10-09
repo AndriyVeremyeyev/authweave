@@ -7,7 +7,7 @@ import test from "node:test";
 import Ajv2020 from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
 import {
-  assembleDecisionCandidate, bootstrapDigest, decisionDigest, prepareDecisionCandidate,
+  assembleDecisionCandidate, assertFocusedCaseCoverage, bootstrapDigest, decisionDigest, prepareDecisionCandidate,
   readDecisionSelection, readSelectedDrafts,
 } from "../scripts/prepare-decision-candidate.mjs";
 
@@ -16,6 +16,7 @@ const drafts = await readSelectedDrafts();
 const assembly = assembleDecisionCandidate(selection, drafts);
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
+for (let version = 1; version <= 6; version++) ajv.addSchema(JSON.parse(await readFile(new URL(`../schemas/application-identity-profile.v${version}.schema.json`, import.meta.url))));
 ajv.addSchema(JSON.parse(await readFile(new URL("../schemas/provider-catalog-draft.v1.schema.json", import.meta.url))));
 const validate = ajv.compile(JSON.parse(await readFile(new URL("../schemas/decision-catalog-candidate.v1.schema.json", import.meta.url))));
 
@@ -28,9 +29,10 @@ test("pinned selection produces one usable draft payload, eight separate scopes 
   assert.equal(assembly.bindings.selectionSha256, decisionDigest(selection));
   assert.equal(assembly.bindings.decisionCatalogSha256, decisionDigest(assembly.candidate));
   assert.equal(assembly.bindings.bootstrapCandidateSha256, bootstrapDigest(assembly.candidate));
-  assert.equal(assembly.bindings.selectionSha256, "7c36bfa8b567693113c76ff8060975cafb2c52cc4349228eeea045c1576e86b4");
-  assert.equal(assembly.bindings.decisionCatalogSha256, "85a08fdf21006e4ffa9614325962145b00753c12831e9804f3ce411116a3492e");
-  assert.equal(assembly.bindings.bootstrapCandidateSha256, "db8b3623cf5226774eecb3859a2b36708b916b4a0531900ca1ad0017e9ec6404");
+  assert.equal(assembly.bindings.selectionSha256, "7f37f80a30bee76a379a994a2971b708965ec4a1b9cc3f34c2ba3d96e19f8400");
+  assert.equal(assembly.bindings.decisionCatalogSha256, "324f59c9181dd88ccc4885fc1eabaebc4fcc3c8522382de41dee18a8b8e67bf8");
+  assert.equal(assembly.bindings.bootstrapCandidateSha256, "d2f9c1e85ef00bccaf2acbd6a382cc30a68511296cee351c8f1bab52611ded92");
+  assert.equal(assembly.bindings.focusedCaseSha256, decisionDigest(assembly.focusedCase));
   assert.notEqual(assembly.bindings.decisionCatalogSha256, assembly.bindings.bootstrapCandidateSha256);
   assert.deepEqual(await prepareDecisionCandidate(), assembly);
 });
@@ -69,7 +71,8 @@ test("every recorded claim has one pending exact-scope review task, including un
 
 test("other drafts never donate residency, organization, client or machine facts", () => {
   const option = id => assembly.candidate.options.find(o => o.id === id);
-  assert.deepEqual(option("keycloak-26.8.0-native-self-hosted").compatibility.clients, {});
+  assert.deepEqual(Object.keys(option("keycloak-26.8.0-native-self-hosted").compatibility.clients), ["BROWSER"]);
+  assert.equal(option("keycloak-26.8.0-native-self-hosted").compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS, undefined);
   assert.deepEqual(option("auth0-b2b-free-oidc-scim").residency, {});
   assert.deepEqual(option("zitadel-cloud-free-native").compatibility.applications, {});
   assert.deepEqual(option("entra-external-id-basic-standard-native").residency, {});
@@ -88,6 +91,67 @@ test("review claim binding includes whole option scope, not merely a copied fact
   const fact = option.facts.SCIM;
   option.configuration = "Different application-side provisioning bridge";
   assert.notEqual(task.claimSha256, decisionDigest({ optionId: option.id, optionSha256: decisionDigest(option), factPath: task.factPath, fact }));
+});
+
+test("the additional case retains hard SCIM, seven exact required claims and explicit preference weights", async () => {
+  const c = assembly.focusedCase;
+  assert.equal(c.profile.provisioning.scim, "REQUIRED");
+  assert.deepEqual(c.profile.application.clients, ["BROWSER"]);
+  assert.equal(c.profile.audience.tenancy, "SINGLE_ORGANIZATION");
+  assert.equal(c.requiredFactPaths.length, 7);
+  assert.deepEqual(c.preferredFactPaths, ["facts.SAML"]);
+  assert.deepEqual(c.weights.values, [{ capability: "SAML", weight: 100 }]);
+  assert.equal(c.pendingSourceReview, true);
+  assert.equal(assembly.reviewTasks.length, 32);
+  assert.equal(assembly.sourceVerificationPerformed, false);
+  assertFocusedCaseCoverage(c, assembly.candidate);
+  for (const factPath of [...c.requiredFactPaths, ...c.preferredFactPaths]) {
+    assert(assembly.reviewTasks.some(task => task.optionId === c.targetOptionId && task.factPath === factPath && task.verdict === null));
+  }
+  const primary = JSON.parse(await readFile(new URL("../../../services/core-api/src/main/resources/catalog/scoped-impact-scenarios.v1.json", import.meta.url)));
+  const original = primary.find(c => c.id === "b2b-saas-scoped").profile;
+  assert.equal(original.audience.tenancy, "MULTI_TENANT_ORGANIZATIONS");
+  assert.equal(original.provisioning.scim, "REQUIRED");
+  assert.equal(original.security.dataResidency, "REQUIRED");
+  assert.equal(original.application.clients.length, 3);
+  assert.equal(JSON.parse(await readFile(new URL("../decision-core/cases.v1.json", import.meta.url))).cases.length, 18);
+});
+
+for (const [name, mutate] of [
+  ["relaxed SCIM", c => { c.profile.provisioning.scim = "NOT_REQUIRED"; c.requiredFactPaths = c.requiredFactPaths.filter(p => p !== "facts.SCIM"); }],
+  ["missing context dependency", c => { c.requiredFactPaths.shift(); }],
+  ["multi-organization borrowing", c => { c.profile.audience.tenancy = "MULTI_TENANT_ORGANIZATIONS"; c.requiredFactPaths[c.requiredFactPaths.indexOf("compatibility.tenancy.SINGLE_ORGANIZATION")] = "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS"; }],
+  ["required residency", c => { c.profile.security.dataResidency = "REQUIRED"; }],
+  ["required auditability", c => { c.profile.security.auditability = "REQUIRED"; }],
+  ["elevated assurance", c => { c.profile.security.assurance = "ELEVATED"; }],
+  ["identified compliance", c => { c.profile.security.complianceScopeStatus = "IDENTIFIED"; }],
+  ["hidden weight", c => { c.weights.values[0].weight = 99; }],
+  ["invented review", c => { c.pendingSourceReview = false; }],
+  ["forbidden available OIDC", c => { c.profile.protocols.federation.OIDC = "FORBIDDEN"; }],
+]) test(`focused preparation rejects ${name}`, () => {
+  const input = structuredClone(assembly.focusedCase); mutate(input);
+  assert.throws(() => assertFocusedCaseCoverage(input, assembly.candidate));
+});
+
+test("focused preparation cannot borrow missing or unknown claims from another option", () => {
+  for (const mutate of [
+    candidate => { delete candidate.options[0].compatibility.clients.BROWSER; },
+    candidate => { candidate.options[0].facts.SCIM.availability = "UNKNOWN"; },
+    candidate => { candidate.options[0].compatibility.tenancy.SINGLE_ORGANIZATION.support = "UNKNOWN"; },
+  ]) {
+    const input = structuredClone(assembly.candidate); mutate(input);
+    assert.throws(() => assertFocusedCaseCoverage(assembly.focusedCase, input));
+  }
+});
+
+test("the optional focused-case extension keeps earlier v1 envelopes valid but requires a paired binding", () => {
+  const legacy = structuredClone(assembly);
+  delete legacy.focusedCase; delete legacy.bindings.focusedCaseSha256;
+  assert.equal(validate(legacy), true, ajv.errorsText(validate.errors));
+  const noBinding = structuredClone(assembly); delete noBinding.bindings.focusedCaseSha256;
+  assert.equal(validate(noBinding), false);
+  const noCase = structuredClone(assembly); delete noCase.focusedCase;
+  assert.equal(validate(noCase), false);
 });
 
 test("dual digest policies keep object ordering stable but do not reinterpret array ordering", () => {

@@ -156,7 +156,7 @@ test("authentication context coexists with eight other Keycloak scopes and canno
   assert.ok(originals.every((entry) => Object.keys(entry.options[0].authenticationControls).length === 0));
   const keycloak = (await inspectBaselinePack(observed)).options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 9);
-  assert.equal(keycloak.reduce((sum, option) => sum + option.facts.length, 0), 32);
+  assert.equal(keycloak.reduce((sum, option) => sum + option.facts.length, 0), 37);
   assert.ok(keycloak.filter((option) => option.basis !== "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT")
     .every((option) => !option.facts.some((fact) => fact.path.startsWith("authenticationControls.") || fact.path === "facts.MFA")));
   const native = keycloak.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT");

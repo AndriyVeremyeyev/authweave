@@ -52,17 +52,21 @@ const keycloakRelease = Object.freeze({
 const scopedBaselines = Object.freeze([
   {
     file: keycloakRelease.file,
-    catalogVersion: "keycloak-26.8.0-native-draft-2026.10.02",
+    catalogVersion: "keycloak-26.8.0-native-b2b-draft-2026.10.09",
     scope: {
       id: "keycloak-26.8.0-native-self-hosted", providerId: "keycloak",
       product: `Keycloak upstream ${keycloakRelease.version}`, deployment: "SELF_HOSTED",
       plan: "Upstream release 26.8.0; commercial support not assessed",
       region: "Operator-selected hosting; storage destinations not verified",
-      configuration: "Native OIDC/SAML clients and configurable inbound realm SCIM; no third-party extensions or outbound bridge",
+      configuration: "One customer realm; confidential browser OIDC/SAML; local-user SCIM; no broker, Organizations or outbound bridge",
     },
     facts: Object.fromEntries(Object.entries(keycloakRelease.sourcePaths).map(([capability, sourcePath]) => [
       capability, { availability: "OPTIONAL", sourceUrl: `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/docs/documentation/server_admin/topics/${sourcePath}` },
     ])),
+    compatibility: Object.fromEntries([
+      "compatibility.applications.B2B_SAAS", "compatibility.clients.BROWSER", "compatibility.populations.EXTERNAL_CUSTOMERS",
+      "compatibility.tenancy.SINGLE_ORGANIZATION", "compatibility.membership.SINGLE_ORGANIZATION_PER_USER",
+    ].map(address => [address, { support: "SUPPORTED", sourceUrl: `https://github.com/keycloak/keycloak/blob/${keycloakRelease.commit}/docs/documentation/server_admin/topics/${address === "compatibility.clients.BROWSER" ? "clients/oidc/con-basic-settings.adoc" : "realms/proc-creating-a-realm.adoc"}` }])),
     metadata: { basis: "RELEASE_SCOPED_DOCUMENTATION_DRAFT", sourceRelease: keycloakRelease.version, sourceCommit: keycloakRelease.commit },
   },
   {

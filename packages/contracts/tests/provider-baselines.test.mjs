@@ -75,17 +75,19 @@ test("a release-scoped Keycloak draft proposes optional capabilities without rev
   const report = inspectScopedBaselineDraft(scopedDraft, at);
   assertUntrusted(report);
   assert.equal(report.optionCount, 1);
-  assert.equal(report.factCount, 4);
+  assert.equal(report.factCount, 9);
   const option = report.options[0];
   assert.equal(option.basis, "RELEASE_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(option.sourceRelease, "26.8.0");
   assert.equal(option.sourceCommit, "4246609cf2024c85016d3fb1254c3d2533367c31");
-  assert.ok(option.facts.every((fact) => fact.availability === "OPTIONAL" && fact.freshness === "CURRENT"));
+  assert.ok(option.facts.filter(fact => fact.path.startsWith("facts.")).every((fact) => fact.availability === "OPTIONAL" && fact.freshness === "CURRENT"));
+  assert.equal(option.facts.filter(fact => fact.path.startsWith("compatibility.")).length, 5);
+  assert.ok(option.facts.filter(fact => fact.path.startsWith("compatibility.")).every(fact => fact.support === "SUPPORTED" && fact.freshness === "FUTURE"));
   assert.equal(option.omittedCapabilities.length, 5);
   for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
     const later = inspectScopedBaselineDraft(scopedDraft, new Date(at.getTime() + offset));
     assertUntrusted(later);
-    assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness));
+    assert.ok(later.options[0].facts.filter(fact => fact.path.startsWith("facts.")).every((fact) => fact.freshness === freshness));
   }
   assert.equal(JSON.stringify(scopedDraft), before);
   const claims = scopedDraft.options[0].facts;
@@ -648,7 +650,7 @@ test("Keycloak workforce scopes pin broker documentation without certifying a pr
     assert.equal(JSON.stringify(draft), before);
   }
   assert.equal(JSON.stringify(scopedDraft), beforeNative);
-  assert.ok(inspectScopedBaselineDraft(scopedDraft, at).options[0].facts.every((fact) => fact.availability === "OPTIONAL"));
+  assert.ok(inspectScopedBaselineDraft(scopedDraft, at).options[0].facts.filter(fact => fact.path.startsWith("facts.")).every((fact) => fact.availability === "OPTIONAL"));
   assert.equal(Object.hasOwn(scopedDraft.options[0].facts, "JIT"), false);
 });
 
@@ -919,12 +921,12 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-09T13:27:39Z");
+  const at = new Date("2026-10-09T17:00:00Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
   assert.equal(report.optionCount, 43);
-  assert.equal(report.factCount, 144);
+  assert.equal(report.factCount, 149);
   assert.equal(report.researchOptionCount, 5);
   assert.equal(report.scopedDraftOptionCount, 38);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
@@ -949,7 +951,7 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.ok(keycloakPairs.every((option) => option.sourceRelease === "26.8.0"
     && option.facts.find((fact) => fact.path === "facts.SCIM").availability === "UNKNOWN"));
   assert.ok(keycloak.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT")
-    .facts.every((fact) => fact.availability === "OPTIONAL"));
+    .facts.filter(fact => fact.path.startsWith("facts.")).every((fact) => fact.availability === "OPTIONAL"));
   const keycloakOrganizations = keycloak.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(keycloakOrganizations.sourceRelease, "26.8.0");
   assert.equal(keycloakOrganizations.sourceCommit, "4246609cf2024c85016d3fb1254c3d2533367c31");
@@ -1132,7 +1134,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 144);
+  assert.equal(JSON.parse(run.stdout).factCount, 149);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");

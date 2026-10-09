@@ -89,16 +89,20 @@ test("client-context observations retain the inclusive 90-day boundary and never
   assert.equal(JSON.stringify(draft), before);
 });
 
-test("public client context does not populate research, native SCIM or workforce broker options", async () => {
+test("public client context cannot donate native/mobile support to the separate native SCIM or broker scopes", async () => {
   const report = await inspectBaselinePack(observed);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 9);
   for (const option of keycloak.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT",
     "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT",
-    "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
+    "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT", "RELEASE_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
     assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }
+  const native = keycloak.find(option => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT");
+  assert.deepEqual(native.facts.filter(fact => fact.path.startsWith("compatibility.clients.")).map(fact => fact.path), ["compatibility.clients.BROWSER"]);
+  assert.equal(native.facts.find(fact => fact.path === "facts.SCIM").availability, "OPTIONAL");
+  assert.equal(native.facts.find(fact => fact.path === "compatibility.clients.BROWSER").evidence.observedAt, "2026-10-09T16:40:10Z");
   const organizations = keycloak.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(organizations.facts.every((fact) => fact.path.startsWith("compatibility.")
     && !fact.path.startsWith("compatibility.clients.")));

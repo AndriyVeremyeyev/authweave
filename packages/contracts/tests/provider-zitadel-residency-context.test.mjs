@@ -185,7 +185,7 @@ test("Cloud residency coexists with eight older ZITADEL scopes without borrowing
   borrowedSource.options[0].residency = structuredClone(drafts.find((entry) =>
     entry.catalogVersion === "keycloak-26.8.0-operator-residency-draft-2026.10.08").options[0].residency);
   assert.throws(() => inspectScopedBaselineDraft(borrowedSource, observed));
-  for (const catalogVersion of ["zitadel-cloud-free-public-oidc-clients-draft-2026.10.08", "keycloak-26.8.0-native-draft-2026.10.02"]) {
+  for (const catalogVersion of ["zitadel-cloud-free-public-oidc-clients-draft-2026.10.08", "keycloak-26.8.0-native-b2b-draft-2026.10.09"]) {
     const borrowed = structuredClone(drafts.find((entry) => entry.catalogVersion === catalogVersion));
     borrowed.options[0].residency = structuredClone(residency);
     assert.throws(() => inspectScopedBaselineDraft(borrowed, observed));

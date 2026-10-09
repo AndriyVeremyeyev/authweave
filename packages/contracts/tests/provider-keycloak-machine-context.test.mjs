@@ -140,7 +140,7 @@ test("machine context coexists with other Keycloak scopes without changing their
   const report = await inspectBaselinePack(observed);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 9);
-  assert.equal(keycloak.reduce((count, option) => count + option.facts.length, 0), 32);
+  assert.equal(keycloak.reduce((count, option) => count + option.facts.length, 0), 37);
   const earlier = keycloak.filter((option) => option.basis !== "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(earlier.every((option) => !option.facts.some((fact) => paths.includes(fact.path))));
   const native = earlier.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT");

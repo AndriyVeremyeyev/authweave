@@ -1,0 +1,32 @@
+{
+  "caseId": "b2b-single-customer-browser-scim-1",
+  "profileSchemaVersion": 6,
+  "targetOptionId": "keycloak-26.8.0-native-self-hosted",
+  "description": "Additional conditional single-customer browser/SCIM case, not a replacement for the primary multi-tenant B2B profile or the 18 frozen synthetic acceptance cases.",
+  "profile": {
+    "application": { "type": "B2B_SAAS", "clients": ["BROWSER"] },
+    "audience": { "populations": ["EXTERNAL_CUSTOMERS"], "tenancy": "SINGLE_ORGANIZATION", "membership": "SINGLE_ORGANIZATION_PER_USER" },
+    "protocols": { "federation": { "OIDC": "REQUIRED", "SAML": "PREFERRED" }, "oauth2ProtectedApis": "NOT_REQUIRED", "socialLogin": "NOT_REQUIRED", "enterpriseSingleSignOn": "NOT_REQUIRED" },
+    "provisioning": { "scim": "REQUIRED", "justInTimeProvisioning": "NOT_REQUIRED", "groupSynchronization": "NOT_REQUIRED" },
+    "security": {
+      "multiFactorAuthentication": "NOT_REQUIRED", "browserTokenExposureMinimization": "PREFERRED",
+      "auditability": "NOT_REQUIRED", "dataResidency": "NOT_REQUIRED", "assurance": "BASELINE", "complianceTargets": [], "complianceScopeStatus": "NONE_IDENTIFIED",
+      "dataResidencyDetails": { "allowedCountries": [], "dataCategories": [] },
+      "authenticationControls": { "phishingResistance": "NOT_REQUIRED", "nonExportableKeys": "NOT_REQUIRED", "stepUpAuthentication": "NOT_REQUIRED" },
+      "auditabilityRequirements": { "selectedCriteria": [], "minimumRetentionDays": null }
+    },
+    "operations": { "hosting": "SELF_HOSTED", "deploymentTarget": "UNDECIDED", "identityExpertise": "ADVANCED", "budgetSensitivity": "HIGH", "usagePlanning": { "scopeDescription": "Synthetic single-customer application instance; volumes and hosting costs are not established.", "assumptions": [], "volumes": {} } }
+  },
+  "weights": { "mode": "EXPLICIT", "values": [{ "capability": "SAML", "weight": 100 }] },
+  "requiredFactPaths": ["compatibility.applications.B2B_SAAS", "compatibility.clients.BROWSER", "compatibility.populations.EXTERNAL_CUSTOMERS", "compatibility.tenancy.SINGLE_ORGANIZATION", "compatibility.membership.SINGLE_ORGANIZATION_PER_USER", "facts.OIDC", "facts.SCIM"],
+  "preferredFactPaths": ["facts.SAML"],
+  "expectedAfterReviewAndEngine": "ELIGIBLE_IN_DECLARED_PROVIDER_CAPABILITY_SCOPE",
+  "pendingSourceReview": true,
+  "limitations": [
+    "Current claims are UNREVIEWED. This fixture is not an evaluated result, a trusted shortlist or proof of configured security.",
+    "SCIM remains REQUIRED and means inbound realm Users support only; outbound SaaS provisioning, group/org synchronization and local-session enforcement are not proven.",
+    "Single application-organization mapping is an explicit design assumption. Native Organizations, shared multi-tenant membership and upstream vendor pairings are not selected.",
+    "Other primary B2B requirements have not been satisfied by this narrower profile. Multi-client, enterprise federation, strong controls, auditability and required residency must still be evaluated when requested.",
+    "No LLM, live Keycloak deployment or vendor integration was used. Self-hosting responsibilities, costs, application authorization and lifecycle tests remain explicit follow-ups."
+  ]
+}

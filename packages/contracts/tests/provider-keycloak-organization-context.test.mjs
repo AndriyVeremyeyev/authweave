@@ -159,9 +159,12 @@ test("Keycloak organization context coexists with research, native SCIM, public 
   const before = JSON.stringify(originals);
   const keycloak = (await inspectBaselinePack(observed)).options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 9);
-  assert.equal(keycloak.reduce((count, option) => count + option.facts.length, 0), 32);
+  assert.equal(keycloak.reduce((count, option) => count + option.facts.length, 0), 37);
   const native = keycloak.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT");
-  assert.ok(native.facts.every((fact) => fact.availability === "OPTIONAL" && fact.path.startsWith("facts.")));
+  assert.ok(native.facts.filter(fact => fact.path.startsWith("facts.")).every(fact => fact.availability === "OPTIONAL"));
+  assert.deepEqual(native.facts.filter(fact => fact.path.startsWith("compatibility.")).map(fact => fact.path),
+    ["compatibility.applications.B2B_SAAS", "compatibility.clients.BROWSER", "compatibility.membership.SINGLE_ORGANIZATION_PER_USER", "compatibility.populations.EXTERNAL_CUSTOMERS", "compatibility.tenancy.SINGLE_ORGANIZATION"]);
+  assert.ok(!native.facts.some(fact => ["compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS", "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER"].includes(fact.path)));
   assert.equal(native.facts.find((fact) => fact.path === "facts.SCIM").evidence.observedAt, "2026-10-02T21:20:39Z");
   const publicClient = keycloak.find((option) => option.basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   assert.deepEqual(publicClient.facts.map((fact) => fact.path), ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE", "facts.OIDC"]);

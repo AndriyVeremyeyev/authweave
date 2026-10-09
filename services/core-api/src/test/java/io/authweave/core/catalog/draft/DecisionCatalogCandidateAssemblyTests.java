@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Actual build-tool output must remain a valid, untrusted Core draft with the existing review digest. */
 class DecisionCatalogCandidateAssemblyTests {
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
-    private static final Instant NOW = Instant.parse("2026-10-09T12:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-10-09T17:00:00Z");
     private static JsonNode assembly;
 
     @BeforeAll
@@ -87,5 +87,43 @@ class DecisionCatalogCandidateAssemblyTests {
         validation.facts().forEach(fact -> assertEquals(CatalogDraftValidation.Freshness.STALE, fact.freshness()));
         assertEquals(assembly.at("/bindings/bootstrapCandidateSha256").asText(), validation.contentSha256());
         assertFalse(validation.evaluationReady());
+    }
+
+    @Test
+    void focusedProfileIsTypedAndKeepsRequiredScimWithoutRelaxingThePrimaryMultiTenantScenario() throws Exception {
+        var focused = assembly.get("focusedCase");
+        var profile = MAPPER.treeToValue(focused.get("profile"), io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile.class);
+        assertEquals(io.authweave.core.assessment.domain.profile.RequirementCriticality.REQUIRED, profile.provisioning().scim());
+        assertEquals(io.authweave.core.assessment.domain.profile.AudienceRequirements.TenancyModel.SINGLE_ORGANIZATION, profile.audience().tenancy());
+        assertEquals(6, focused.get("profileSchemaVersion").asInt());
+        assertTrue(profile.security().auditabilityRequirements().selectedCriteria().isEmpty());
+        assertEquals(7, focused.get("requiredFactPaths").size());
+        assertTrue(focused.get("pendingSourceReview").asBoolean());
+        var primary = MAPPER.readTree(Path.of(System.getProperty("basedir", "."),
+                "src/main/resources/catalog/scoped-impact-scenarios.v1.json").toFile());
+        var original = java.util.stream.StreamSupport.stream(primary.spliterator(), false)
+                .filter(row -> row.get("id").asText().equals("b2b-saas-scoped")).findFirst().orElseThrow().get("profile");
+        assertEquals("MULTI_TENANT_ORGANIZATIONS", original.at("/audience/tenancy").asText());
+        assertEquals("REQUIRED", original.at("/security/dataResidency").asText());
+        assertEquals("REQUIRED", original.at("/provisioning/scim").asText());
+    }
+
+    @Test
+    void addedContextUsesItsOwnObservationInstantAndDoesNotRefreshEarlierCapabilityClaims() {
+        var draft = MAPPER.treeToValue(assembly.get("candidate"), ProviderCatalogDraft.class);
+        var validator = new CatalogDraftValidator(Clock.fixed(Instant.parse("2026-10-09T12:00:00Z"), ZoneOffset.UTC));
+        var report = validator.validate(draft);
+        var context = report.facts().stream().filter(f -> f.optionId().equals("keycloak-26.8.0-native-self-hosted") && f.path().startsWith("compatibility.")).toList();
+        assertEquals(5, context.size());
+        context.forEach(f -> {
+            assertEquals(CatalogDraftValidation.Freshness.FUTURE, f.freshness());
+            assertEquals(Instant.parse("2026-10-09T16:40:10Z"), f.evidence().observedAt());
+            assertEquals(CatalogDraftValidation.ReviewStatus.UNREVIEWED, f.evidenceStatus());
+        });
+        report.facts().stream().filter(f -> f.optionId().equals("keycloak-26.8.0-native-self-hosted") && f.path().startsWith("facts.")).forEach(f -> {
+            assertEquals(Instant.parse("2026-10-02T21:20:39Z"), f.evidence().observedAt());
+            assertEquals(CatalogDraftValidation.Freshness.CURRENT, f.freshness());
+        });
+        assertFalse(report.evaluationReady());
     }
 }

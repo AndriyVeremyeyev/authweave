@@ -2688,6 +2688,7 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertEquals("VALID_DRAFT", report.get("status").asText());
         assertEquals(1, report.get("optionCount").asInt());
         var expectedFactCount = switch (scope) {
+            case "keycloak-26.8.0" -> 9;
             case "workos-directory-sync-staging" -> 2;
             case "auth0-b2b-free-upstream-okta", "auth0-b2b-free-upstream-entra" -> 3;
             default -> 4;
@@ -2704,8 +2705,8 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
             assertEquals("UNREVIEWED", fact.get("evidenceStatus").asText());
             // This suite's frozen September clock must not rewrite the actual October observations.
             assertEquals("FUTURE", fact.get("freshness").asText());
-            var capability = fact.get("path").asText().substring("facts.".length());
-            assertEquals(input.at("/options/0/facts/" + capability + "/evidence"), fact.get("evidence"));
+            var factPath = fact.get("path").asText().replace('.', '/');
+            assertEquals(input.at("/options/0/" + factPath + "/evidence"), fact.get("evidence"));
         }
         assertEquals(report, versionedSample(scope + "-scoped-repeat", "catalog-draft-validation",
                 mvc.perform(post("/api/v1/catalog-drafts/validate").contentType(MediaType.APPLICATION_JSON)

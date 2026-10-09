@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-09T13:27:39Z");
+const at = new Date("2026-10-09T17:00:00Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -116,12 +116,12 @@ test("the full pack partitions every option independently and replays all aggreg
   assertPartitions(pack);
   assert.equal(inventory.optionCount, 43);
   assert.equal(inventory.optionPathCount, 2924);
-  assert.equal(inventory.recordedPathCount, 144);
-  assert.equal(inventory.omittedPathCount, 2780);
+  assert.equal(inventory.recordedPathCount, 149);
+  assert.equal(inventory.omittedPathCount, 2775);
   assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 45, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 34 });
-  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 31, UNSUPPORTED: 0, UNKNOWN: 4 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 82, COMPATIBILITY: 35, RESIDENCY: 12, AUTHENTICATION_CONTROL: 15 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 144, STALE: 0, FUTURE: 0 });
+  assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 36, UNSUPPORTED: 0, UNKNOWN: 4 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 82, COMPATIBILITY: 40, RESIDENCY: 12, AUTHENTICATION_CONTROL: 15 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 149, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -155,7 +155,9 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
       : basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT"
         ? ["compatibility.applications.B2B_SAAS", "compatibility.applications.PARTNER_PORTAL",
           "compatibility.membership.MULTIPLE_ORGANIZATIONS_PER_USER", "compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS"]
-        : basis === "MACHINE_SCOPED_DOCUMENTATION_DRAFT" ? ["compatibility.clients.MACHINE_TO_MACHINE"] : [];
+        : basis === "MACHINE_SCOPED_DOCUMENTATION_DRAFT" ? ["compatibility.clients.MACHINE_TO_MACHINE"]
+          : entry.optionId === "keycloak-26.8.0-native-self-hosted"
+            ? ["compatibility.applications.B2B_SAAS", "compatibility.clients.BROWSER", "compatibility.membership.SINGLE_ORGANIZATION_PER_USER", "compatibility.populations.EXTERNAL_CUSTOMERS", "compatibility.tenancy.SINGLE_ORGANIZATION"] : [];
     const expectedControls = basis === "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"
       ? ["NON_EXPORTABLE_KEYS", "PHISHING_RESISTANCE", "STEP_UP_AUTHENTICATION"]
         .map((control) => `authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.${control}`) : [];
@@ -180,10 +182,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 129 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 134 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 144 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 144, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 149 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 149, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);
