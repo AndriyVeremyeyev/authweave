@@ -21,6 +21,29 @@ Development is local-first and incremental. This README describes the project at
 high level; additional documentation remains private while the product is being
 shaped.
 
+## Phase 3 decision acceptance target
+
+The [reserved result schema](packages/contracts/schemas/decision-result.v1.schema.json),
+[decision policy](packages/contracts/decision-core/policy.v1.json) and
+[18 acceptance cases](packages/contracts/decision-core/cases.v1.json) specify the next
+deterministic result. This is a tested contract target, **not an implemented endpoint,
+verified vendor catalog, publisher or finished recommendation engine**.
+
+All 34 existing profile inputs have explicit routes. Numeric scoring covers only the
+nine explicitly preferred capabilities: weights total 100 and have no hidden defaults.
+Unknown required evidence blocks eligibility; confirmed hard failure takes precedence.
+Unknown preference evidence exposes a lower/upper score bound and its missing-information
+weight, and withholds ranking until all eligible options have complete preference evidence.
+Equal scores share a rank; no-preference cases retain an unranked eligible set.
+Other operational, cost, assurance and compliance inputs remain explicit limitations,
+not invented scores or proof of deployment/certification.
+
+The cases are six normal, six missing/contradictory and six adversarial/failure targets
+across B2B, public-sector and workforce profiles. Tests validate frozen expected envelopes,
+input coverage, arithmetic, source gating and exact profile/catalog/policy/weights/time
+bindings. They do not run a real-provider decision engine. The current runtime continues
+to use the unchanged synthetic preflights and closed publication policy.
+
 ## Local development
 
 Required tools are Java 21, Node.js 24 with npm 11, Python 3.13, Docker Desktop and

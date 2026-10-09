@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/decision-result.v1.schema.json",
+  "title": "Reserved deterministic decision result v1",
+  "description": "P3-1 target contract, not an implemented endpoint or publication authority. Evidence review concerns scoped documentation, not observed deployment. Semantic binding and decision invariants require independent validation in addition to this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "scope", "binding", "status", "weights", "candidates", "shortlist", "rankGroups", "evidence", "architecture", "limitations", "followUps", "configurationVerified", "complianceVerified"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "scope": { "const": "DECLARED_IDENTITY_DECISION_WITH_CAPABILITY_ONLY_SCORING" },
+    "binding": { "$ref": "#/$defs/binding" },
+    "status": { "type": "string", "enum": ["RANKED_SHORTLIST", "UNRANKED_SHORTLIST", "NEEDS_INFORMATION", "NO_ELIGIBLE_OPTIONS"] },
+    "weights": {
+      "type": "object", "additionalProperties": false, "required": ["mode", "values"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["NONE", "EXPLICIT"] },
+        "values": { "type": "array", "maxItems": 9, "items": { "$ref": "#/$defs/weight" } }
+      },
+      "allOf": [
+        { "if": { "properties": { "mode": { "const": "NONE" } } }, "then": { "properties": { "values": { "type": "array", "maxItems": 0 } } } },
+        { "if": { "properties": { "mode": { "const": "EXPLICIT" } } }, "then": { "properties": { "values": { "type": "array", "minItems": 1 } } } }
+      ]
+    },
+    "candidates": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/candidate" } },
+    "shortlist": { "$ref": "#/$defs/ids" },
+    "rankGroups": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["rank", "optionIds"],
+        "properties": { "rank": { "type": "integer", "minimum": 1, "maximum": 100 }, "optionIds": { "$ref": "#/$defs/nonemptyIds" } }
+      }
+    },
+    "evidence": { "type": "array", "maxItems": 6800, "items": { "$ref": "#/$defs/evidence" } },
+    "architecture": { "$ref": "#/$defs/architecture" },
+    "limitations": {
+      "type": "array", "maxItems": 200,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["profilePath", "reasonCode", "blocksRecommendation", "explanation"],
+        "properties": {
+          "profilePath": { "$ref": "#/$defs/text" }, "reasonCode": { "$ref": "#/$defs/reason" },
+          "blocksRecommendation": { "type": "boolean" }, "explanation": { "$ref": "#/$defs/text" }
+        }
+      }
+    },
+    "followUps": { "$ref": "#/$defs/texts" },
+    "configurationVerified": { "const": false },
+    "complianceVerified": { "const": false }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "texts": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/text" } },
+    "ids": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "nonemptyIds": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+    "capability": { "type": "string", "enum": ["OIDC", "SAML", "OAUTH2_APIS", "SOCIAL_LOGIN", "ENTERPRISE_SSO", "SCIM", "JIT", "GROUP_SYNC", "MFA"] },
+    "reason": { "type": "string", "enum": ["SUPPORTED", "UNSUPPORTED", "REQUIRED_UNKNOWN", "REQUIREMENT_UNKNOWN", "EVIDENCE_MISSING", "EVIDENCE_UNREVIEWED", "EVIDENCE_STALE", "EVIDENCE_FUTURE", "EVIDENCE_CONTRADICTED", "SCOPE_MISMATCH", "PLANNING_ONLY", "CONFIGURATION_REQUIRED", "NO_REQUIREMENT"] },
+    "weight": {
+      "type": "object", "additionalProperties": false, "required": ["capability", "weight"],
+      "properties": { "capability": { "$ref": "#/$defs/capability" }, "weight": { "type": "integer", "minimum": 1, "maximum": 100 } }
+    },
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["workspaceId", "assessmentId", "assessmentVersion", "profileSchemaVersion", "profileSha256", "catalogBasis", "catalogVersion", "catalogSha256", "snapshotId", "policyVersion", "weightsSha256", "evaluatedAt"],
+      "properties": {
+        "workspaceId": { "type": "string", "format": "uuid" }, "assessmentId": { "type": "string", "format": "uuid" },
+        "assessmentVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "profileSchemaVersion": { "const": 6 }, "profileSha256": { "$ref": "#/$defs/hash" },
+        "catalogBasis": { "type": "string", "enum": ["SYNTHETIC_ACCEPTANCE", "REVIEWED_CANDIDATE", "PUBLISHED_SNAPSHOT"] },
+        "catalogVersion": { "$ref": "#/$defs/id" }, "catalogSha256": { "$ref": "#/$defs/hash" },
+        "snapshotId": { "type": ["string", "null"], "format": "uuid" },
+        "policyVersion": { "const": "decision-core-explicit-1" }, "weightsSha256": { "$ref": "#/$defs/hash" }, "evaluatedAt": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        { "if": { "properties": { "catalogBasis": { "const": "PUBLISHED_SNAPSHOT" } } }, "then": { "properties": { "snapshotId": { "type": "string", "format": "uuid" } } }, "else": { "properties": { "snapshotId": { "type": "null" } } } }
+      ]
+    },
+    "finding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profilePath", "criticality", "outcome", "reasonCode", "evidenceIds"],
+      "properties": {
+        "profilePath": { "$ref": "#/$defs/text" },
+        "criticality": { "type": "string", "enum": ["REQUIRED", "FORBIDDEN", "PREFERRED", "NOT_REQUIRED", "UNKNOWN", "CONTEXT"] },
+        "outcome": { "type": "string", "enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLIED"] },
+        "reasonCode": { "$ref": "#/$defs/reason" }, "evidenceIds": { "$ref": "#/$defs/ids" }
+      }
+    },
+    "score": {
+      "type": "object", "additionalProperties": false,
+      "required": ["lowerBound", "upperBound", "unknownWeight", "contributions"],
+      "properties": {
+        "lowerBound": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "upperBound": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "unknownWeight": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "contributions": {
+          "type": "array", "minItems": 1, "maxItems": 9,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["capability", "weight", "outcome", "earnedPoints", "evidenceIds"],
+            "properties": {
+              "capability": { "$ref": "#/$defs/capability" }, "weight": { "type": "integer", "minimum": 1, "maximum": 100 },
+              "outcome": { "type": "string", "enum": ["AVAILABLE", "UNAVAILABLE", "UNKNOWN"] },
+              "earnedPoints": { "type": "integer", "minimum": 0, "maximum": 100 }, "evidenceIds": { "$ref": "#/$defs/ids" }
+            }
+          }
+        }
+      }
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["optionId", "providerId", "product", "plan", "region", "deployment", "hardVerdict", "findings", "score"],
+      "properties": {
+        "optionId": { "$ref": "#/$defs/id" }, "providerId": { "$ref": "#/$defs/id" },
+        "product": { "$ref": "#/$defs/text" }, "plan": { "$ref": "#/$defs/text" }, "region": { "$ref": "#/$defs/text" },
+        "deployment": { "type": "string", "enum": ["MANAGED", "SELF_HOSTED"] },
+        "hardVerdict": { "type": "string", "enum": ["ELIGIBLE", "EXCLUDED", "UNRESOLVED"] },
+        "findings": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "$ref": "#/$defs/finding" } },
+        "score": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/score" }] }
+      },
+      "allOf": [
+        { "if": { "properties": { "hardVerdict": { "enum": ["EXCLUDED", "UNRESOLVED"] } } }, "then": { "properties": { "score": { "type": "null" } } } }
+      ]
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "optionId", "factPath", "sourceUrl", "observedAt", "reviewStatus", "assertion", "conditions"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" }, "optionId": { "$ref": "#/$defs/id" }, "factPath": { "$ref": "#/$defs/text" },
+        "sourceUrl": { "type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2048 },
+        "observedAt": { "type": "string", "format": "date-time" },
+        "reviewStatus": { "type": "string", "enum": ["REVIEWED", "UNREVIEWED"] },
+        "assertion": { "type": "string", "enum": ["SUPPORTS_CLAIM", "CONTRADICTS_CLAIM", "INSUFFICIENT", "UNKNOWN"] },
+        "conditions": { "$ref": "#/$defs/texts" }
+      }
+    },
+    "architecture": {
+      "type": "object", "additionalProperties": false, "required": ["status", "patterns", "apiProtection"],
+      "properties": {
+        "status": { "type": "string", "enum": ["CONDITIONAL_ADVICE", "NEEDS_INFORMATION", "NOT_APPLICABLE"] },
+        "patterns": {
+          "type": "array", "minItems": 5, "maxItems": 5,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["patternId", "disposition", "pros", "cons", "conditions", "references"],
+            "properties": {
+              "patternId": { "type": "string", "enum": ["BFF_SESSION", "SERVER_SIDE_SESSION", "SPA_CODE_PKCE", "NATIVE_CODE_PKCE", "M2M_CLIENT_CREDENTIALS"] },
+              "disposition": { "type": "string", "enum": ["RECOMMENDED", "ALTERNATIVE", "UNRESOLVED", "NOT_APPLICABLE"] },
+              "pros": { "$ref": "#/$defs/texts" }, "cons": { "$ref": "#/$defs/texts" }, "conditions": { "$ref": "#/$defs/texts" },
+              "references": { "type": "array", "maxItems": 10, "uniqueItems": true, "items": { "type": "string", "format": "uri", "pattern": "^https://", "maxLength": 2048 } }
+            }
+          }
+        },
+        "apiProtection": { "type": "string", "enum": ["REQUIRED_CONDITIONAL", "NEEDS_INFORMATION", "NOT_REQUIRED"] }
+      }
+    }
+  }
+}
