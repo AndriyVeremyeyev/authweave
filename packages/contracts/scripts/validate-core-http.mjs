@@ -26,6 +26,7 @@ import { assurancePlanningValues, assurancePlanningFromCore } from "../../../app
 import { publicationReviewFromCore } from "../../../apps/web/src/lib/catalog/publication-preflight.ts";
 import { validateProfileSaveAcknowledgements } from "../tests/helpers/profile-save-acknowledgement-spec.mjs";
 import { resultAdviceFromCore } from "../../../apps/web/src/lib/assessment/decision-advice.ts";
+import { sensitivityFromCore } from "../../../apps/web/src/lib/assessment/decision-sensitivity.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -370,6 +371,12 @@ for (const { name, schema, valid, payload } of samples) {
     assert.deepEqual(resultAdviceFromCore(payload, s.workspaceId, s.assessmentId, s.item.reference), payload,
       `${name}: actual owned advice must also pass the strict BFF guard without dropping fields`);
   }
+  if (schema === "assessment-decision-sensitivity" && valid) {
+    const s = payload.summary;
+    assert.deepEqual(sensitivityFromCore(payload, s.workspaceId, s.assessmentId,
+      { schemaVersion: 1, reference: s.item.reference, weights: payload.after.weights }), payload,
+      `${name}: actual transient comparison must pass the strict BFF guard`);
+  }
   assert.equal(typeof valid, "boolean", `${name}: expected validity is required`);
   const versionedName = /\.v[0-9]+$/.test(schema) ? schema : `${schema}.v1`;
   const validate = ajv.getSchema(`https://authweave.dev/contracts/${versionedName}.schema.json`);
@@ -690,6 +697,7 @@ for (const required of ["comparison-evidence-preview:true", "comparison-evidence
   "assessment-list-page:true",
   "assessment-decision-result:true", "assessment-decision-result-request:true", "assessment-decision-result-request:false",
   "assessment-decision-result-page:true", "assessment-decision-result-summary:true", "assessment-decision-result-advice:true",
+  "assessment-decision-sensitivity-request:true", "assessment-decision-sensitivity:true",
   "assessment-context-list-page:true", "assessment-context-list-page:false",
   "hard-constraint-preflight:true",
   "synthetic-comparison:true",

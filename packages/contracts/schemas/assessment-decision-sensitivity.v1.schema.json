@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-decision-sensitivity.v1.schema.json",
+  "title": "Owned original-input weight sensitivity v1",
+  "description": "Maximum 1 MiB UTF-8. Summary and before describe the replay-verified saved result. After is transient advice: only explicit weights and their score contributions/ranks differ. Original profile, catalog, source evidence, policy and evaluation clock stay fixed. No saved result, audit event, approval, deployment verification or automatic winner is created.",
+  "type": "object", "additionalProperties": false,
+  "required": ["scope", "summary", "before", "after", "writesPerformed"],
+  "properties": {
+    "scope": { "const": "VERIFIED_ASSESSMENT_WEIGHT_SENSITIVITY" },
+    "summary": { "$ref": "assessment-decision-result-summary.v1.schema.json" },
+    "before": { "$ref": "#/$defs/scoring" },
+    "after": { "$ref": "#/$defs/scoring" },
+    "writesPerformed": { "const": false }
+  },
+  "$defs": { "scoring": {
+    "type": "object", "additionalProperties": false,
+    "required": ["weights", "status", "shortlist", "candidates", "rankGroups"],
+    "properties": {
+      "weights": { "$ref": "assessment-decision-result-request.v1.schema.json#/properties/weights" },
+      "status": { "$ref": "assessment-decision-result-summary.v1.schema.json#/properties/status" },
+      "shortlist": { "$ref": "assessment-decision-result-summary.v1.schema.json#/properties/shortlist" },
+      "candidates": { "$ref": "assessment-decision-result-advice.v1.schema.json#/properties/candidates" },
+      "rankGroups": { "$ref": "assessment-decision-result-advice.v1.schema.json#/properties/rankGroups" }
+    }
+  } }
+}

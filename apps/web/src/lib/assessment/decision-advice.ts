@@ -88,10 +88,8 @@ function choice(value: unknown, summary: ResultSummary): AdviceChoice {
   return { id: text(c.id, 100), disposition, reasonCode: code(c.reasonCode), conditionalOptionIds: ids, optionChecks: checks,
     pros: texts(c.pros), cons: texts(c.cons), conditions: texts(c.conditions), references: array(c.references, 30, url) };
 }
-export function resultAdviceFromCore(value: unknown, workspace: string, assessment: string, reference: ResultReference): ResultAdvice {
-  const r = object(value, ["scope", "summary", "candidates", "rankGroups", "architecture", "limitations", "followUps"]);
-  if (r.scope !== "VERIFIED_ASSESSMENT_DECISION_ADVICE") fail();
-  const summary = resultSummaryFromCore(r.summary, workspace, assessment, reference);
+export function resultScoringFromCore(value: unknown, summary: ResultSummary): Pick<ResultAdvice, "candidates" | "rankGroups"> {
+  const r = object(value, ["candidates", "rankGroups"]);
   const candidates = array(r.candidates, 100, (v): AdviceCandidate => {
     const c = object(v, ["hardChecks", "score"]), h = object(c.hardChecks, ["optionId", "providerId", "product", "plan", "region", "deployment", "configuration", "hardVerdict", "findings"]);
     const s = summary.candidates.find(s => s.optionId === h.optionId); if (!s) fail();
@@ -124,6 +122,13 @@ export function resultAdviceFromCore(value: unknown, workspace: string, assessme
   const expectedGroups = summary.status === "RANKED_SHORTLIST" ? scores.map((s, i) => ({ rank: i + 1,
     optionIds: summary.candidates.filter(c => c.score?.lowerBound === s).map(c => c.optionId) })) : [];
   if (JSON.stringify(rankGroups) !== JSON.stringify(expectedGroups)) fail();
+  return { candidates, rankGroups };
+}
+export function resultAdviceFromCore(value: unknown, workspace: string, assessment: string, reference: ResultReference): ResultAdvice {
+  const r = object(value, ["scope", "summary", "candidates", "rankGroups", "architecture", "limitations", "followUps"]);
+  if (r.scope !== "VERIFIED_ASSESSMENT_DECISION_ADVICE") fail();
+  const summary = resultSummaryFromCore(r.summary, workspace, assessment, reference);
+  const { candidates, rankGroups } = resultScoringFromCore({ candidates: r.candidates, rankGroups: r.rankGroups }, summary);
   const a = object(r.architecture, ["status", "basis", "patterns", "apiProtection", "provisioning"]);
   if (a.basis !== "CONDITIONAL_DESIGN_ADVICE_WITH_UNAUTHENTICATED_SOURCE_HYPOTHESES") fail();
   const patterns = array(a.patterns, 5, v => {

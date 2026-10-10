@@ -44,7 +44,8 @@ export function assertAssessmentResult(sample) {
   assert.deepEqual(weights.map(w => w.capability).sort(), preferred); assert.equal(new Set(weights.map(w => w.capability)).size, weights.length);
   assert.equal(request.weights.mode, preferred.length ? "EXPLICIT" : "NONE");
   if (preferred.length) assert.equal(weights.reduce((sum, w) => sum + w.weight, 0), 100);
-  assert.deepEqual(d.weights, { mode: request.weights.mode, values: weights.toSorted((a, b) => a.capability.localeCompare(b.capability)) });
+  // The digest preserves the caller's declared array order; only presentation contributions are sorted.
+  assert.deepEqual(d.weights, request.weights);
   assert.deepEqual(d.candidates.map(c => c.hardChecks.optionId), source.catalog.options.map(o => o.id).sort());
   for (const candidate of d.candidates) {
     const c = candidate.hardChecks, option = source.catalog.options.find(o => o.id === c.optionId), findings = c.findings;
@@ -68,7 +69,8 @@ export function assertAssessmentResult(sample) {
     }
     if (verdict !== "ELIGIBLE" || request.weights.mode === "NONE") assert.equal(candidate.score, null);
     else {
-      const score = candidate.score; assert.deepEqual(score.contributions.map(c => ({ capability: c.capability, weight: c.weight })), d.weights.values);
+      const score = candidate.score; assert.deepEqual(score.contributions.map(c => ({ capability: c.capability, weight: c.weight })),
+        d.weights.values.toSorted((a, b) => a.capability.localeCompare(b.capability)));
       assert.equal(score.lowerBound, score.contributions.reduce((sum, c) => sum + c.earnedPoints, 0));
       assert.equal(score.unknownWeight, score.contributions.filter(c => c.outcome === "UNKNOWN").reduce((sum, c) => sum + c.weight, 0));
       assert.equal(score.upperBound, score.lowerBound + score.unknownWeight);

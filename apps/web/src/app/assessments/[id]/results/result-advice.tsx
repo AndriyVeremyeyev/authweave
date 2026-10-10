@@ -74,7 +74,7 @@ export function ResultAdviceView({ advice }: { advice: ResultAdvice }) {
     <div><h3 className="text-xl font-medium">Shortlist and ties</h3>
       {advice.rankGroups.length ? <ol className="mt-3 space-y-3 text-sm text-slate-300">{advice.rankGroups.map(group => <li key={group.rank} className="break-words">Rank {group.rank}: {group.optionIds.join(", ")}{group.optionIds.length > 1 ? " — tied; no automatic winner" : ""}</li>)}</ol>
         : <p className="mt-3 text-sm text-slate-300">No ranks are assigned: {advice.summary.shortlist.length ? "the saved shortlist is unranked; weights are absent or preference evidence is incomplete." : "there is no eligible shortlist. Review failed and unknown checks below before selecting an option."}</p>}
-      <p className="mt-3 text-sm text-slate-400">These are the original weights and points. No interactive weight sensitivity is available on this historical read, and no changed-weight calculation is implied.</p>
+      <p className="mt-3 text-sm text-slate-400">These are the original weights and points. The separate weight comparison below keeps this saved result unchanged.</p>
     </div>
     <div><h3 className="text-xl font-medium">Requirement findings and preference contributions</h3>
       <div className="mt-4 space-y-4">{advice.candidates.map(candidate => <details key={candidate.hardChecks.optionId} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.025] p-5">

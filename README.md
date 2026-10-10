@@ -410,10 +410,36 @@ Architecture advice explains conditional fits and alternatives, pros/cons, unver
 prerequisites and separate API/lifecycle conditions. Required SCIM cannot be replaced
 by JIT. Managed/self-hosted responsibility and cost uncertainty remain explicit: no
 free-tier or price guarantee. This read creates no new version or configuration and
-does not offer interactive weight sensitivity or a full ADR export. Independent checks
+does not offer a full ADR export. Independent checks
 compare every projected field to actual stored replayed receipts; isolated real-Core
 desktop/mobile browser checks cover evidence, keyboard disclosure and ownership denial.
 Real human source review/publication and final Phase 3 acceptance are still pending.
+
+### Weight sensitivity on pinned historical inputs
+
+The result page offers a separate, explicit weight comparison when the saved profile
+has at least two preferred capability dimensions. Positive integer weights must total
+100; no defaults, new dimensions or hidden weights are introduced. With no preferences
+or only one, the UI explains why there is nothing to reweight. Editing requirements
+and recording another result remain separate operations.
+
+`POST .../decision-results/{resultId}/sensitivity` accepts only the exact saved result
+reference and weights. It performs whole-result replay and trusted catalog loading in
+one read-only `REPEATABLE_READ` transaction, then runs the existing sensitivity kernel
+on the same original profile, catalog, source assertions, policy and evaluation clock.
+Only score contributions/bounds and ranks may change. Hard findings, excluded/unresolved
+options, evidence dates, shortlist membership and conditional architecture stay fixed;
+unknown evidence is never repaired by weights. Equal scores remain ties, not automatic winners.
+
+The response separates replay-verified original scoring from transient comparison advice.
+It is bounded to 1 MiB UTF-8, omits raw profiles/curator identities, and writes no result,
+assessment revision or owner audit. The same-origin session BFF binds both sides to the
+exact result, preferred dimensions and requested weights, refusing changed hard facts,
+evidence or invented points/ranks. Controls freeze while pending; edits discard old
+comparison output, errors clear it, and navigation/reload discards the transient state.
+There is no automatic retry, latest-catalog substitution, new approval or real source fetch.
+Isolated Core/PostgreSQL and desktop/mobile browser checks cover the comparison and
+unchanged result/audit counts. This does not close real human review or final acceptance.
 
 ### Explicit recording and re-evaluation from the assessment UI
 

@@ -322,6 +322,81 @@ class AssessmentDecisionResultIntegrationTests {
         assertEquals(first.reference(), summary.item().reference());
         assertEquals(first.result().path("decision").path("status").asText(), summary.status()); counts(1);
         assertEquals(mapper.valueToTree(summary), mapper.valueToTree(results.advice(workspace, assessment, first.reference(), actor())).get("summary")); counts(1);
+        results.sensitivity(workspace, assessment, new AssessmentDecisionSensitivityRequest(1, first.reference(), weights), actor()); counts(1);
+    }
+    @Test void sensitivityChangesOnlyExplicitWeightsOnTheOriginalClockEvenAfterProfileCatalogAndArchiveChanges() throws Exception {
+        sql("TRUNCATE core.catalog_bootstrap_reviews, core.catalog_auditability_reviews, core.catalog_proposals, core.catalog_publication_decisions CASCADE");
+        var source = new CandidateDecisionReviewFixture(mapper, reviews, audits, auditDrafts).stored(base -> {
+            var available = (ObjectNode) base.at("/options/0/facts/OIDC").deepCopy(); available.put("availability", "MANDATORY");
+            ((ObjectNode) base.at("/options/0/facts")).set("SAML", available);
+            var absent = (ObjectNode) available.deepCopy(); absent.put("availability", "UNAVAILABLE");
+            ((ObjectNode) base.at("/options/0/facts")).set("MFA", absent);
+        }, supplement -> { }, Verdict.SOURCE_SUPPORTS_CLAIM).reference();
+        root = bootstrap.publish(new CatalogBootstrapPublicationRequest(1, UUID.randomUUID(), source,
+                CatalogBootstrapPublicationRequest.Confirmation.PUBLISH_REVIEWED_BOOTSTRAP), curator()).receipt();
+        var profile = (ObjectNode) mapper.readTree(Path.of("../../packages/contracts/decision-core/catalog-case.b2b-browser-scim.v1.json").toFile()).get("profile");
+        ((ObjectNode) profile.get("audience")).set("populations", mapper.createArrayNode().add("PARTNERS"));
+        ((ObjectNode) profile.get("audience")).put("tenancy", "MULTI_TENANT_ORGANIZATIONS");
+        ((ObjectNode) profile.get("security")).put("multiFactorAuthentication", "PREFERRED");
+        profileVersion = assessments.updateProfileV6(new WorkspaceId(workspace), new AssessmentId(assessment), profileVersion,
+                mapper.treeToValue(profile, ApplicationIdentityProfile.class)).version();
+        weights = mapper.readTree("{\"mode\":\"EXPLICIT\",\"values\":[{\"capability\":\"SAML\",\"weight\":70},{\"capability\":\"MFA\",\"weight\":30}]}");
+        var receipt = submit(request(root.snapshot(), null), 201); var ref = reference(receipt);
+        var changed = mapper.readTree("{\"mode\":\"EXPLICIT\",\"values\":[{\"capability\":\"MFA\",\"weight\":80},{\"capability\":\"SAML\",\"weight\":20}]}");
+        var comparison = sensitivity(ref, changed); bundle(receipt, changed);
+        assertEquals(70, comparison.at("/before/candidates/0/score/lowerBound").asInt());
+        assertEquals(20, comparison.at("/after/candidates/0/score/lowerBound").asInt());
+        assertEquals(comparison.at("/before/candidates/0/hardChecks"), comparison.at("/after/candidates/0/hardChecks"));
+        assertEquals("RANKED_SHORTLIST", comparison.at("/after/status").asText());
+        for (String privateKey : List.of("\"profile\"", "\"evaluationProfile\"", "\"declaredValue\"", "\"issuer\"", "\"subject\"")) assertFalse(comparison.toString().contains(privateKey));
+        successor(); ((ObjectNode) profile.at("/protocols/federation")).put("SAML", "NOT_REQUIRED");
+        assessments.updateProfileV6(new WorkspaceId(workspace), new AssessmentId(assessment), profileVersion, mapper.treeToValue(profile, ApplicationIdentityProfile.class));
+        sql("UPDATE core.assessments SET status='ARCHIVED'"); doReturn(Instant.now().plusSeconds(91L * 86400)).when(clock).instant();
+        assertEquals(comparison, sensitivity(ref, changed)); assertEquals(receipt, getResult(ref, 200)); counts(1);
+        var view = results.sensitivity(workspace, assessment, new AssessmentDecisionSensitivityRequest(1, ref, changed), actor());
+        ((tools.jackson.databind.node.ArrayNode) view.summary().weights().get("values")).removeAll();
+        assertEquals(comparison, wire(view));
+    }
+    @ParameterizedTest @ValueSource(strings = {"no-token", "bad-token", "duplicate-token", "no-subject", "duplicate-subject", "other-owner", "other-issuer"})
+    void sensitivityRequiresSingularServiceAndOwnerAssertions(String issue) throws Exception {
+        var ref = reference(submit(request(root.snapshot(), null), 201));
+        mvc.perform(auth(compare(ref, weights), issue)).andExpect(status().is(issue.startsWith("other-") ? 403 : 401)); counts(1);
+    }
+    @ParameterizedTest @ValueSource(strings = {"dimensions", "fraction", "duplicate", "sum", "unknown", "string", "caller-clock", "missing"})
+    void sensitivityRejectsInvalidWeightsAndInjectedInputsWithoutWrites(String issue) throws Exception {
+        var ref = reference(submit(request(root.snapshot(), null), 201));
+        var raw = (ObjectNode) wire(new AssessmentDecisionSensitivityRequest(1, ref, weights));
+        switch (issue) {
+            case "dimensions" -> raw.set("weights", mapper.readTree("{\"mode\":\"EXPLICIT\",\"values\":[{\"capability\":\"SAML\",\"weight\":100}]}"));
+            case "caller-clock" -> raw.put("evaluatedAt", Instant.now().toString());
+            case "missing" -> raw.remove("reference");
+            default -> {
+                var w = (ObjectNode) mapper.readTree("{\"mode\":\"EXPLICIT\",\"values\":[{\"capability\":\"SAML\",\"weight\":100}]}");
+                var value = (ObjectNode) w.at("/values/0");
+                switch (issue) {
+                    case "fraction" -> value.put("weight", 1.5);
+                    case "duplicate" -> ((tools.jackson.databind.node.ArrayNode) w.get("values")).add(value.deepCopy());
+                    case "sum" -> value.put("weight", 99);
+                    case "unknown" -> value.put("capability", "PASSKEYS");
+                    case "string" -> value.put("weight", "100");
+                }
+                raw.set("weights", w);
+            }
+        }
+        mvc.perform(auth(post(url() + "/" + ref.resultId() + "/sensitivity").contentType("application/json").content(raw.toString()), "ok"))
+                .andExpect(status().isBadRequest()); counts(1);
+    }
+    @Test void sensitivityRefusesMismatchedForeignAndTamperedReferencesOrQueryAuthority() throws Exception {
+        var ref = reference(submit(request(root.snapshot(), null), 201));
+        mvc.perform(auth(compare(ref, weights).param("latest", "true"), "ok")).andExpect(status().isBadRequest());
+        var wrong = new AssessmentDecisionResultRequest.Reference(ref.resultId(), 1, "0".repeat(64));
+        mvc.perform(auth(compare(wrong, weights), "ok")).andExpect(status().isConflict());
+        mvc.perform(auth(post(url() + "/" + UUID.randomUUID() + "/sensitivity").contentType("application/json")
+            .content(mapper.writeValueAsString(new AssessmentDecisionSensitivityRequest(1, ref, weights))), "ok")).andExpect(status().isBadRequest());
+        var old = assessment; assessment = UUID.randomUUID();
+        mvc.perform(auth(compare(ref, weights), "ok")).andExpect(status().isNotFound()); assessment = old;
+        sql("SET session_replication_role=replica; UPDATE core.assessment_decision_results SET result=jsonb_set(result,'{decision,shortlist}','[\"forged\"]'::jsonb)");
+        mvc.perform(auth(compare(ref, weights), "ok")).andExpect(status().isConflict()); counts(1);
     }
     @Test void adviceProjectsOnlyOriginalVerifiedExplanationsAndDefensivelyCopiesEveryJsonField() throws Exception {
         var receipt = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
@@ -557,12 +632,26 @@ class AssessmentDecisionResultIntegrationTests {
     }
     private AssessmentDecisionResultRequest.Reference reference(JsonNode json) { return mapper.treeToValue(json.get("reference"), AssessmentDecisionResultRequest.Reference.class); }
     private void sample(String name, String schema, boolean valid, JsonNode payload) { samples.add(Map.of("name", name, "schema", schema, "valid", valid, "payload", payload)); }
-    private void bundle(JsonNode receipt) {
+    private MockHttpServletRequestBuilder compare(AssessmentDecisionResultRequest.Reference ref, JsonNode comparisonWeights) {
+        return post(url() + "/" + ref.resultId() + "/sensitivity").contentType("application/json")
+            .content(mapper.writeValueAsString(new AssessmentDecisionSensitivityRequest(1, ref, comparisonWeights)));
+    }
+    private JsonNode sensitivity(AssessmentDecisionResultRequest.Reference ref, JsonNode comparisonWeights) throws Exception {
+        var input = new AssessmentDecisionSensitivityRequest(1, ref, comparisonWeights);
+        sample("sensitivity-request-" + samples.size(), "assessment-decision-sensitivity-request", true, wire(input));
+        var response = mvc.perform(auth(compare(ref, comparisonWeights), "ok")).andExpect(status().isOk())
+            .andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
+        var json = mapper.readTree(response.getContentAsString()); sample("sensitivity-" + samples.size(), "assessment-decision-sensitivity", true, json); return json;
+    }
+    private void bundle(JsonNode receipt) throws Exception { bundle(receipt, receipt.at("/result/request/weights")); }
+    private void bundle(JsonNode receipt, JsonNode comparisonWeights) throws Exception {
         var ref = mapper.treeToValue(receipt.at("/result/request/catalog"), PublishedCatalogSnapshot.Reference.class);
         var resultRef = reference(receipt);
         bundles.add(Map.of("receipt", receipt, "decisionInputs", trusted.load(ref).decisionInputs(),
                 "summary", results.summary(workspace, assessment, resultRef, actor()),
-                "advice", results.advice(workspace, assessment, resultRef, actor())));
+                "advice", results.advice(workspace, assessment, resultRef, actor()),
+                "comparisonRequest", new AssessmentDecisionSensitivityRequest(1, resultRef, comparisonWeights),
+                "sensitivity", sensitivity(resultRef, comparisonWeights)));
     }
     private void counts(int n) { for (String t : List.of("core.assessment_decision_results", "audit.assessment_decision_result_events")) assertEquals(n, dsl.fetchOne("select count(*) from " + t).get(0, Integer.class)); }
     private java.sql.Connection admin() throws Exception { return DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()); }

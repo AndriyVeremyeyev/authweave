@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-decision-sensitivity-request.v1.schema.json",
+  "title": "Transient pinned assessment weight comparison request v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "reference", "weights"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "reference": { "$ref": "assessment-decision-result-request.v1.schema.json#/$defs/reference" },
+    "weights": { "$ref": "assessment-decision-result-request.v1.schema.json#/properties/weights" }
+  }
+}

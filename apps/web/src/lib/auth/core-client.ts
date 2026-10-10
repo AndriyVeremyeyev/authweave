@@ -4,6 +4,7 @@ import { resultPageFromCore, resultSummaryFromCore, resultReference, resultRefer
   resultHistoryByteLimit, resultSummaryByteLimit, type ResultReference, type ResultPage, type ResultSummary } from "../assessment/decision-results.ts";
 import { recordingRequest, recordingSummaryMatches, type RecordingRequest, type RecordingAck } from "../assessment/decision-recording.ts";
 import { resultAdviceFromCore, resultAdviceByteLimit, type ResultAdvice } from "../assessment/decision-advice.ts";
+import { sensitivityRequest, sensitivityFromCore as pinnedSensitivityFromCore, sensitivityByteLimit, type SensitivityRequest, type ResultSensitivity } from "../assessment/decision-sensitivity.ts";
 import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
@@ -519,6 +520,19 @@ export async function readPersonalDecisionAdvice(session: BrowserSession, id: st
   });
   if (response.status === 404) return null;
   return resultAdviceFromCore(await ownedResultJson(response, resultAdviceByteLimit, signal), session.workspaceId, id, ref);
+}
+/** One read-only calculation on an exact saved result. No retry, recording or current-head lookup. */
+export async function comparePersonalDecisionWeights(session: BrowserSession, id: string, value: SensitivityRequest): Promise<ResultSensitivity | 400 | 401 | 403 | 404 | 409 | 413> {
+  if (!resultUuid.test(id)) throw new Error("Invalid owned comparison request");
+  const input = sensitivityRequest(value), signal = AbortSignal.timeout(20_000);
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/decision-results/${input.reference.resultId}/sensitivity`, {
+    method: "POST", headers: { ...assessmentHeaders(session), "Content-Type": "application/json" }, body: JSON.stringify(input),
+    cache: "no-store", redirect: "error", signal,
+  });
+  if ([400, 401, 403, 404, 409, 413].includes(response.status) && !response.redirected) {
+    void response.body?.cancel().catch(() => {}); return response.status as 400 | 401 | 403 | 404 | 409 | 413;
+  }
+  return pinnedSensitivityFromCore(await ownedResultJson(response, sensitivityByteLimit, signal), session.workspaceId, id, input);
 }
 /** One explicit POST only; exact retries are initiated by the human, never by this client. */
 export async function recordPersonalDecision(session: BrowserSession, id: string, value: RecordingRequest): Promise<RecordingAck | 400 | 401 | 403 | 404 | 409 | 413> {

@@ -9,6 +9,7 @@ import { sessionCookieName } from "@/lib/auth/session-policy";
 import { touchSession, type BrowserSession } from "@/lib/auth/store";
 import { ResultSummaryView, ResultUnavailable } from "../result-history";
 import { ResultAdviceView } from "../result-advice";
+import { ResultSensitivityView } from "../result-sensitivity";
 
 export const runtime = "nodejs";
 export default async function SavedResultPage({ params, searchParams }: PageProps<"/assessments/[id]/results/[resultId]">) {
@@ -32,5 +33,6 @@ export default async function SavedResultPage({ params, searchParams }: PageProp
     <h1 className="mt-6 text-3xl font-semibold">Historical decision advice</h1>
     <ResultSummaryView summary={advice.summary} />
     <ResultAdviceView advice={advice} />
+    <ResultSensitivityView baseline={{ summary: advice.summary, candidates: advice.candidates, rankGroups: advice.rankGroups }} />
   </main>;
 }

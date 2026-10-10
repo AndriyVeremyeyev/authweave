@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import io.authweave.core.assessment.persistence.AssessmentDecisionResultService;
 import io.authweave.core.assessment.result.AssessmentDecisionResultRequest;
+import io.authweave.core.assessment.result.AssessmentDecisionSensitivityRequest;
 import io.authweave.core.config.InternalServiceCredentialFilter;
 
 /** Explicit owner operation; a curator role does not confer access to another personal assessment. */
@@ -71,6 +72,16 @@ public class AssessmentDecisionResultController {
         query(request, java.util.Set.of("version", "resultSha256"));
         return ResponseEntity.ok().header("Cache-Control", "no-store").body(results.advice(workspaceId, assessmentId,
                 new AssessmentDecisionResultRequest.Reference(resultId, version, resultSha256), actor(request)));
+    }
+    /** POST avoids weight data in URLs, but the entire calculation transaction is read-only. */
+    @PostMapping("/{resultId}/sensitivity")
+    ResponseEntity<?> sensitivity(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId, @PathVariable UUID resultId,
+            @RequestBody AssessmentDecisionSensitivityRequest body, HttpServletRequest request) {
+        int status = credentials.personalWorkspaceStatus(request, workspaceId);
+        if (status != 200) return ResponseEntity.status(status).header("Cache-Control", "no-store").build();
+        query(request, java.util.Set.of());
+        if (!resultId.equals(body.reference().resultId())) invalid();
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(results.sensitivity(workspaceId, assessmentId, body, actor(request)));
     }
     @GetMapping("/{resultId}")
     ResponseEntity<?> get(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId, @PathVariable UUID resultId,

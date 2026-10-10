@@ -313,6 +313,47 @@ paths:
         '404': { description: Exact result not found in the owned assessment. }
         '409': { description: 'Reference mismatch, tampering, oversized view or unsupported replay.' }
         '503': { description: Internal credential is not configured. }
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results/{resultId}/sensitivity:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+      - name: resultId
+        in: path
+        required: true
+        description: Must match the exact result reference in the request body.
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Assessments]
+      operationId: compareAssessmentDecisionWeights
+      summary: Compare explicit weights on the same original pinned result inputs
+      description: >-
+        Read-only REPEATABLE_READ calculation after full saved-result and trusted-catalog replay.
+        Only weights differ. Requirements, eligibility, evidence, policy and original evaluation clock
+        remain fixed. After is transient scoring advice, not a stored or replay-verified summary.
+        No new result or audit write, latest-head substitution, source fetch, approval or automatic winner.
+        Exact same preferred dimensions and total 100 are required; no query parameters.
+        Maximum 1 MiB UTF-8 response; oversized projections fail closed.
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: ../schemas/assessment-decision-sensitivity-request.v1.schema.json }
+      responses:
+        '200':
+          description: Original and transient scoring on fixed historical inputs.
+          content:
+            application/json:
+              schema: { $ref: ../schemas/assessment-decision-sensitivity.v1.schema.json }
+        '400': { description: 'Invalid weights, result key or unexpected query.' }
+        '401': { description: Invalid service credential or missing singular principal. }
+        '403': { description: Principal does not own this workspace. }
+        '404': { description: Exact result not found in the owned assessment. }
+        '409': { description: 'Reference mismatch, tampering, unsupported replay or oversized projection.' }
+        '503': { description: Internal credential is not configured. }
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'

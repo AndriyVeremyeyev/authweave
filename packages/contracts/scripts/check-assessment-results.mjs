@@ -6,6 +6,7 @@ import { assertAssessmentResult } from "../tests/helpers/assessment-decision-res
 import { orderedHash as hash } from "../tests/helpers/publication-decision-coverage-spec.mjs";
 import { resultSummaryFromCore } from "../../../apps/web/src/lib/assessment/decision-results.ts";
 import { resultAdviceFromCore } from "../../../apps/web/src/lib/assessment/decision-advice.ts";
+import { sensitivityFromCore } from "../../../apps/web/src/lib/assessment/decision-sensitivity.ts";
 
 assert.equal(process.argv.length, 3, "Pass actual isolated Core assessment result samples.");
 const ajv = new Ajv2020({ strict: true, allErrors: true }); addFormats(ajv);
@@ -14,6 +15,30 @@ for (const file of await readdir(new URL("../schemas/", import.meta.url))) if (f
 const validate = ajv.getSchema("https://authweave.dev/contracts/assessment-decision-result.v1.schema.json");
 const summarySchema = ajv.getSchema("https://authweave.dev/contracts/assessment-decision-result-summary.v1.schema.json");
 const adviceSchema = ajv.getSchema("https://authweave.dev/contracts/assessment-decision-result-advice.v1.schema.json");
+const sensitivitySchema = ajv.getSchema("https://authweave.dev/contracts/assessment-decision-sensitivity.v1.schema.json");
+function verifySensitivity(sample) {
+  const { receipt, comparisonRequest: input, sensitivity: view, summary, advice } = sample, r = receipt.result;
+  assert(sensitivitySchema(view), ajv.errorsText(sensitivitySchema.errors));
+  const actual = sensitivityFromCore(view, r.workspaceId, r.assessmentId, input, advice);
+  const before = { weights: r.request.weights, status: r.decision.status, shortlist: r.decision.shortlist,
+    candidates: r.decision.candidates, rankGroups: r.decision.rankGroups };
+  assert.deepEqual(actual.summary, summary); assert.deepEqual(actual.before, before);
+  const after = structuredClone(before); after.weights = input.weights;
+  for (const c of after.candidates) if (c.score) {
+    for (const x of c.score.contributions) { x.weight = input.weights.values.find(w => w.capability === x.capability).weight;
+      x.earnedPoints = x.outcome === "AVAILABLE" ? x.weight : 0; }
+    c.score.lowerBound = c.score.contributions.reduce((n, x) => n + x.earnedPoints, 0);
+    c.score.unknownWeight = c.score.contributions.filter(x => x.outcome === "UNKNOWN").reduce((n, x) => n + x.weight, 0);
+    c.score.upperBound = c.score.lowerBound + c.score.unknownWeight;
+  }
+  const eligible = after.candidates.filter(c => c.hardChecks.hardVerdict === "ELIGIBLE");
+  const rankable = eligible.length && after.weights.mode === "EXPLICIT" && eligible.every(c => c.score.unknownWeight === 0);
+  after.status = eligible.length ? rankable ? "RANKED_SHORTLIST" : "UNRANKED_SHORTLIST"
+    : after.candidates.some(c => c.hardChecks.hardVerdict === "UNRESOLVED") ? "NEEDS_INFORMATION" : "NO_ELIGIBLE_OPTIONS";
+  after.rankGroups = rankable ? [...new Set(eligible.map(c => c.score.lowerBound))].sort((a, b) => b - a)
+    .map((points, i) => ({ rank: i + 1, optionIds: eligible.filter(c => c.score.lowerBound === points).map(c => c.hardChecks.optionId) })) : [];
+  assert.deepEqual(actual.after, after); assert.equal(actual.writesPerformed, false);
+}
 function verifyAdvice(sample) {
   const { receipt, advice, summary } = sample, r = receipt.result;
   assert(adviceSchema(advice), ajv.errorsText(adviceSchema.errors));
@@ -44,6 +69,12 @@ for (const sample of samples) {
   assert(stored(sample.receipt.result.profile), ajv.errorsText(stored.errors)); assertAssessmentResult(sample);
   verifySummary(sample);
   verifyAdvice(sample);
+  verifySensitivity(sample);
+  for (const change of [s => s.sensitivity.after.candidates[0].hardChecks.product = "Forged",
+    s => s.sensitivity.summary.evaluatedAt = "2026-01-01T00:00:00Z", s => s.sensitivity.summary.profileSha256 = "0".repeat(64),
+    s => s.sensitivity.after.rankGroups.push({ rank: 99, optionIds: ["forged"] }), s => s.sensitivity.writesPerformed = true]) {
+    const forged = structuredClone(sample); change(forged); assert.throws(() => verifySensitivity(forged));
+  }
   for (const change of [s => s.advice.candidates[0].hardChecks.findings[0].reasonCode = "FORGED",
     s => s.advice.architecture.patterns[0].choice.conditions.push("Forged condition"),
     s => s.advice.summary.item.reference.resultSha256 = "0".repeat(64),
@@ -73,4 +104,6 @@ assert.notEqual(successor.receipt.result.request.catalog.snapshotId, parent.rece
 assert.notEqual(successor.receipt.result.profileSha256, parent.receipt.result.profileSha256);
 assert(samples.some(s => s.receipt.result.profileSchemaVersion === 1));
 assert(samples.some(s => s.decisionInputs.auditability === null)); assert(samples.some(s => s.decisionInputs.auditability !== null));
+assert(samples.some(s => s.sensitivity.before.candidates.some((c, i) => c.score?.lowerBound !== s.sensitivity.after.candidates[i].score?.lowerBound)),
+  "A real pinned eligible result must demonstrate changed score points, not only identical-weight replay.");
 console.log(`Verified ${samples.length} actual assessment results and their exact BFF summaries/advice: owned profile/catalog pins, policy/weights/clock hashes, scoring/evidence invariants, allowlisted explanations and explicit result history.`);

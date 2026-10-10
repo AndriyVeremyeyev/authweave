@@ -136,14 +136,18 @@ class GuidedAssessmentBrowserIT extends PostgresIntegrationTest {
             var actor = new AssessmentDecisionResultService.Actor("http://localhost:8081", "synthetic-browser-" + device + "-history");
             var workspace = workspaces.provision(actor.issuer(), actor.subject()); var assessment = UUID.randomUUID();
             assessments.createAssessment(new WorkspaceId(workspace), new AssessmentId(assessment));
+            var historyProfile = (ObjectNode) scenario.profile().deepCopy();
+            ((ObjectNode) historyProfile.at("/protocols/federation")).put("SAML", "PREFERRED");
+            ((ObjectNode) historyProfile.get("security")).put("multiFactorAuthentication", "PREFERRED");
+            var historyWeights = mapper.readTree("{\"mode\":\"EXPLICIT\",\"values\":[{\"capability\":\"SAML\",\"weight\":70},{\"capability\":\"MFA\",\"weight\":30}]}");
             assessments.updateProfileV6(new WorkspaceId(workspace), new AssessmentId(assessment), 0,
-                    mapper.treeToValue(scenario.profile(), ApplicationIdentityProfile.class));
+                    mapper.treeToValue(historyProfile, ApplicationIdentityProfile.class));
             var first = results.save(workspace, assessment, new AssessmentDecisionResultRequest(1, UUID.randomUUID(), 1,
-                    publication.snapshot(), null, scenario.weights(), AssessmentDecisionResultRequest.Confirmation.RECORD_DECISION_RESULT), actor).receipt();
-            var profile = (ObjectNode) scenario.profile().deepCopy(); ((ObjectNode) profile.get("operations")).put("identityExpertise", "ADVANCED");
+                    publication.snapshot(), null, historyWeights, AssessmentDecisionResultRequest.Confirmation.RECORD_DECISION_RESULT), actor).receipt();
+            var profile = (ObjectNode) historyProfile.deepCopy(); ((ObjectNode) profile.get("operations")).put("identityExpertise", "ADVANCED");
             assessments.updateProfileV6(new WorkspaceId(workspace), new AssessmentId(assessment), 1, mapper.treeToValue(profile, ApplicationIdentityProfile.class));
             var second = results.save(workspace, assessment, new AssessmentDecisionResultRequest(1, UUID.randomUUID(), 2,
-                    publication.snapshot(), first.reference(), scenario.weights(), AssessmentDecisionResultRequest.Confirmation.REEVALUATE_DECISION_RESULT), actor).receipt();
+                    publication.snapshot(), first.reference(), historyWeights, AssessmentDecisionResultRequest.Confirmation.REEVALUATE_DECISION_RESULT), actor).receipt();
             var writeActor = new AssessmentDecisionResultService.Actor("http://localhost:8081", "synthetic-browser-" + device + "-recording");
             var writeWorkspace = workspaces.provision(writeActor.issuer(), writeActor.subject()); var writeAssessment = UUID.randomUUID();
             assessments.createAssessment(new WorkspaceId(writeWorkspace), new AssessmentId(writeAssessment));

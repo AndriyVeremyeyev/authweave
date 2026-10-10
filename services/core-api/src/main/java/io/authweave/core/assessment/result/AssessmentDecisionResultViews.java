@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import io.authweave.core.catalog.publication.PublishedCatalogSnapshot;
 import tools.jackson.databind.JsonNode;
+import io.authweave.core.catalog.impact.CandidatePreferenceScorer;
 
 /** Discovery metadata is deliberately not a replay-verified result. Summary is projected only after full replay. */
 public final class AssessmentDecisionResultViews {
@@ -19,6 +20,16 @@ public final class AssessmentDecisionResultViews {
     public record Bounds(int lowerBound, int upperBound, int unknownWeight) { }
     public record Candidate(String optionId, String product, String plan, String region, String deployment,
             String hardVerdict, Bounds score) { }
+    /** After is newly computed advice, NOT a stored or replay-verified result summary. */
+    public record Scoring(CandidatePreferenceScorer.Weights weights, CandidatePreferenceScorer.Status status,
+            List<String> shortlist, List<CandidatePreferenceScorer.ScoredCandidate> candidates,
+            List<CandidatePreferenceScorer.RankGroup> rankGroups) {
+        public Scoring { shortlist = List.copyOf(shortlist); candidates = List.copyOf(candidates); rankGroups = List.copyOf(rankGroups); }
+        public static Scoring from(CandidatePreferenceScorer.Analysis analysis) {
+            return new Scoring(analysis.weights(), analysis.status(), analysis.shortlist(), analysis.candidates(), analysis.rankGroups());
+        }
+    }
+    public record Sensitivity(String scope, Summary summary, Scoring before, Scoring after, boolean writesPerformed) { }
     public record Summary(String scope, UUID workspaceId, UUID assessmentId, Item item, Instant evaluatedAt,
             int profileSchemaVersion, String profileSha256, String policySha256, JsonNode weights, String status,
             List<String> shortlist, List<Candidate> candidates, int verificationGapCount, boolean historicalReplayVerified,

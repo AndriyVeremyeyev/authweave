@@ -151,6 +151,29 @@ public class AssessmentDecisionResultService {
                 body.path("policySha256").asText(), request.get("weights"), body.path("decision").path("status").asText(), shortlist,
                 candidates, body.path("catalog").path("verificationGaps").size(), true, false, false, false, false);
     }
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public AssessmentDecisionResultViews.Sensitivity sensitivity(UUID workspace, UUID assessment,
+            AssessmentDecisionSensitivityRequest request, Actor actor) {
+        var receipt = get(workspace, assessment, request.reference(), actor); var body = receipt.result();
+        try {
+            var catalog = mapper.treeToValue(body.at("/request/catalog"), PublishedCatalogSnapshot.Reference.class);
+            var source = catalogs.load(catalog).decisionInputs();
+            if (!hash(source).equals(body.at("/catalog/decisionInputsSha256").asText())) fail(READ_UNAVAILABLE);
+            var comparison = CandidatePreferenceScorer.compareWeights(body.get("evaluationProfile"), 6, source.catalog(),
+                    source.assertions(), source.auditability(), body.at("/request/weights"), request.weights(),
+                    Instant.parse(body.get("evaluatedAt").asText()));
+            var before = AssessmentDecisionResultViews.Scoring.from(comparison.before());
+            var original = mapper.createObjectNode();
+            for (var key : List.of("weights", "status", "shortlist", "candidates", "rankGroups"))
+                original.set(key, key.equals("weights") ? body.at("/request/weights") : body.get("decision").get(key));
+            if (!mapper.readTree(mapper.writeValueAsString(before)).equals(original)) fail(READ_UNAVAILABLE);
+            var view = new AssessmentDecisionResultViews.Sensitivity("VERIFIED_ASSESSMENT_WEIGHT_SENSITIVITY", projectSummary(receipt),
+                    before, AssessmentDecisionResultViews.Scoring.from(comparison.after()), false);
+            if (mapper.writeValueAsString(view).getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1_048_576) fail(READ_UNAVAILABLE);
+            return view;
+        } catch (CatalogPublishedLoadingException unavailable) { throw new AssessmentDecisionResultException(READ_UNAVAILABLE); }
+        catch (tools.jackson.core.JacksonException | IllegalArgumentException invalid) { throw new AssessmentDecisionResultException(INVALID_INPUT); }
+    }
     private Body compute(UUID workspace, UUID assessment, long version, AssessmentDecisionResultRequest request,
             AssessmentDecisionResultRepository.Profile profile, Instant at) {
         try {

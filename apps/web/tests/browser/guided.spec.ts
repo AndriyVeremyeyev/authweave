@@ -73,7 +73,7 @@ test("owned saved result history opens exact original-clock advice without write
   await expect(page.getByRole("heading", { name: "Result version 1", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Verify and open result version 1", exact: true }).click();
   await expect(page).toHaveURL(`http://localhost:3000${assessment}/results/${fixture.first.resultId}?${resultReferenceQuery(fixture.first)}`);
-  await expect(page.getByRole("status")).toContainText("Core verified the whole historical replay");
+  await expect(page.getByRole("status").filter({ hasText: "Core verified the whole historical replay" })).toBeVisible();
   await expect(page.getByText("Version 1 · Schema 6", { exact: true })).toBeVisible();
   await expect(page.getByText(/No decision is approved/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Why this saved result?", exact: true })).toBeVisible();
@@ -95,10 +95,35 @@ test("owned saved result history opens exact original-clock advice without write
   await jit.focus(); await page.keyboard.press("Enter");
   await expect(page.getByText(/SCIM is required\. Login-time JIT creation cannot replace/)).toBeVisible();
   await jit.focus(); await page.keyboard.press("Enter");
+  const compareButton = page.getByRole("button", { name: "Compare weights without saving", exact: true });
+  await page.getByLabel(/SAML \(saved 70\)/).fill("20");
+  await expect(compareButton).toBeDisabled();
+  await page.getByLabel(/MFA \(saved 30\)/).fill("80");
+  await compareButton.focus(); await page.keyboard.press("Enter");
+  await expect(page.getByRole("status").filter({ hasText: "Comparison complete." })).toContainText("The saved result is unchanged");
+  await expect(page.getByText(/Unchanged hard verdict:/).first()).toBeVisible();
+  await page.getByRole("heading", { name: "What if the preference weights change?", exact: true }).scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: `../../.internal/result-sensitivity-${info.project.name}.png` });
+  const sensitivityEndpoint = `/api/assessments/${fixture.assessmentId}/decision-results/${fixture.first.resultId}/sensitivity`;
+  const sensitivityBody = new URLSearchParams({ version: "1", resultSha256: fixture.first.resultSha256, weightMode: "EXPLICIT", weight_SAML: "20", weight_MFA: "80" }).toString();
+  const sensitivityHeaders = { Origin: "http://localhost:3000", Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" };
+  expect((await page.request.post(sensitivityEndpoint, { headers: { ...sensitivityHeaders, Origin: "https://attacker.example.invalid" }, data: sensitivityBody })).status()).toBe(403);
+  expect((await page.request.post(`${sensitivityEndpoint}?latest=true`, { headers: sensitivityHeaders, data: sensitivityBody })).status()).toBe(400);
+  expect((await page.request.post(sensitivityEndpoint, { headers: sensitivityHeaders, data: `${sensitivityBody}&version=1` })).status()).toBe(400);
+  expect((await page.request.post(sensitivityEndpoint, { headers: sensitivityHeaders, data: sensitivityBody.replace(fixture.first.resultSha256, "bad") })).status()).toBe(400);
+  expect((await page.request.post(sensitivityEndpoint, { headers: { ...sensitivityHeaders, "Content-Type": "application/json" }, data: "{}" })).status()).toBe(415);
+  await page.route(`**${sensitivityEndpoint}`, route => route.fulfill({ status: 503, body: "", headers: { "Cache-Control": "no-store" } }));
+  await compareButton.click();
+  await expect(page.getByRole("status").filter({ hasText: "Comparison unavailable." })).toContainText("Nothing was saved");
+  await expect(page.getByText(/Unchanged hard verdict:/)).toHaveCount(0);
+  await page.unroute(`**${sensitivityEndpoint}`);
   await expect(page.getByRole("button", { name: /recalculate|approve|record/i })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await page.screenshot({ path: `../../.internal/result-history-${info.project.name}.png`, fullPage: true });
   await page.reload(); await expect(page.getByRole("heading", { name: "Result version 1", exact: true })).toBeVisible();
+  await expect(page.getByLabel(/SAML \(saved 70\)/)).toHaveValue("70");
+  await expect(page.getByText(/Unchanged hard verdict:/)).toHaveCount(0);
   const invalid = await page.goto(`${assessment}/results/${fixture.first.resultId}?version=1`);
   expect(invalid!.status()).toBe(200); await expect(page.getByRole("main").getByRole("alert")).toContainText("complete exact result reference");
   await expect(page.getByText("Core verified the whole historical replay", { exact: false })).toHaveCount(0);
@@ -107,9 +132,11 @@ test("owned saved result history opens exact original-clock advice without write
     const outsider = await outsiderContext.newPage(); await login(outsider, `${subject}-outsider`);
     const deniedHistory = await outsider.goto(`${assessment}/results`); expect(deniedHistory!.status()).toBe(404);
     const deniedResult = await outsider.goto(`${assessment}/results/${fixture.first.resultId}?${resultReferenceQuery(fixture.first)}`); expect(deniedResult!.status()).toBe(404);
+    expect((await outsider.request.post(sensitivityEndpoint, { headers: sensitivityHeaders, data: sensitivityBody })).status()).toBe(404);
     await logout(outsider);
   } finally { await outsiderContext.close(); }
   await logout(page); await page.goto(`${assessment}/results`); await expect(page).toHaveURL("http://localhost:3000/account");
+  expect((await page.request.post(sensitivityEndpoint, { headers: sensitivityHeaders, data: sensitivityBody })).status()).toBe(401);
 });
 
 test("explicit recording, stale-head refusal and lost-reply identical retry preserve immutable history", async ({ page, browser }, info) => {
@@ -150,12 +177,12 @@ test("explicit recording, stale-head refusal and lost-reply identical retry pres
     await route.fulfill({ response });
   });
   await page.getByRole("button", { name: "Record initial calculation", exact: true }).click();
-  await expect(page.getByRole("status")).toContainText("whole historical replay");
+  await expect(page.getByRole("status").filter({ hasText: "whole historical replay" })).toBeVisible();
   await page.unroute(`**${endpoint}`);
   expect(initialReply).toBeDefined(); expect(initialReply!.status).toBe(201); const first = initialReply!.body;
   expect(first.reference.version).toBe(1); expect(first.reference.resultId).toBe(new URLSearchParams(initialBody).get("resultId"));
   await expect(page).toHaveURL(`http://localhost:3000${assessment}/results/${first.reference.resultId}?${resultReferenceQuery(first.reference)}`);
-  await expect(page.getByRole("status")).toContainText("whole historical replay"); await expect(page.getByText("SAML: 100", { exact: true })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "whole historical replay" })).toBeVisible(); await expect(page.getByText("SAML: 100", { exact: true })).toBeVisible();
   const retry = await page.request.post(endpoint, { headers, data: initialBody }); expect(retry.status()).toBe(200);
   expect((await retry.json()).reference).toEqual(first.reference);
   await page.goto(`${assessment}/results/new`); await fill(page);
@@ -188,7 +215,7 @@ test("explicit recording, stale-head refusal and lost-reply identical retry pres
   for (const version of [1, 2, 3]) await expect(page.getByRole("heading", { name: `Result version ${version}`, exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Verify and open result version 1", exact: true }).click();
   await expect(page).toHaveURL(`http://localhost:3000${assessment}/results/${first.reference.resultId}?${resultReferenceQuery(first.reference)}`);
-  await expect(page.getByRole("status")).toContainText("whole historical replay");
+  await expect(page.getByRole("status").filter({ hasText: "whole historical replay" })).toBeVisible();
   const outsiderContext = await browser.newContext({ baseURL: "http://localhost:3000" });
   try {
     const outsider = await outsiderContext.newPage(); await login(outsider, `${subject}-outsider`);
