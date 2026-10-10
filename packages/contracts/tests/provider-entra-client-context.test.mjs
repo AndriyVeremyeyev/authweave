@@ -125,7 +125,7 @@ test("Entra public clients coexist with unchanged research/native/workforce entr
   assert.equal(entra.length, 8);
   for (const option of entra.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT",
     "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT", "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
-    assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
+    assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.") || fact.path.startsWith("residency.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }
   const organizations = entra.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
@@ -134,7 +134,7 @@ test("Entra public clients coexist with unchanged research/native/workforce entr
   assert.deepEqual(organizations.omittedCapabilities, ["ENTERPRISE_SSO", "GROUP_SYNC", "JIT", "MFA",
     "OAUTH2_APIS", "OIDC", "SAML", "SCIM", "SOCIAL_LOGIN"]);
   assert.deepEqual(inspect().options[0].omittedCapabilities, ["ENTERPRISE_SSO", "GROUP_SYNC", "JIT", "MFA", "OAUTH2_APIS", "SAML", "SCIM", "SOCIAL_LOGIN"]);
-  const native = originals.find((entry) => entry.catalogVersion === "entra-external-id-basic-draft-2026.10.02");
+  const native = originals.find((entry) => entry.catalogVersion === "entra-external-id-basic-draft-2026.10.10");
   assert.equal(native.options[0].facts.OIDC.evidence.observedAt, "2026-10-02T23:12:01Z");
   assert.equal(native.options[0].facts.SCIM.availability, "UNKNOWN");
   assert.equal(native.options[0].facts.SAML.availability, "OPTIONAL");

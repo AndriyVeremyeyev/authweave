@@ -172,7 +172,7 @@ test("operator residency coexists with eight older Keycloak scopes and cannot be
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
   assert.equal(keycloak.length, 9);
   assert.equal(keycloak.reduce((sum, option) => sum + option.facts.length, 0), 37);
-  assert.ok(report.options.filter((option) => option.basis !== "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT")
+  assert.ok(keycloak.filter((option) => option.basis !== "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT")
     .every((option) => !option.facts.some((fact) => fact.path.startsWith("residency."))));
   const native = keycloak.find((option) => option.basis === "RELEASE_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(native.facts.find((fact) => fact.path === "facts.SCIM").evidence.observedAt, "2026-10-02T21:20:39Z");

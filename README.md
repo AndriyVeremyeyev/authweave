@@ -97,6 +97,21 @@ the existing authorized `/catalog/bootstrap` workflow without supplying verdicts
 submitting requests, fetching sources or writing files. This is a review aid, not
 another provider draft, a trusted catalog or an evaluated result.
 
+The current selection records the two previously open WorkOS/Entra residency research
+gaps without adding options: four categories on each of the three WorkOS staging
+products and the Basic standard-mode external tenant. All 16 new records explicitly
+retain `UNKNOWN` coverage and empty country lists. General transfer, encryption,
+regional-placement and backup documentation is not a complete, option-specific
+storage inventory. WorkOS products stay separate; Entra Go-Local and workforce-only
+backup assurances are not inherited. No environment, tenant, entitlement or recovery
+was tested. Original earlier claims/dates are unchanged. The repinned candidate now
+has 48 pending claims across 30 source URLs; source review remains outstanding.
+
+Sources: [WorkOS DPA](https://workos.com/legal/data-processing-addendum),
+[WorkOS security](https://workos.com/security),
+[Entra residency](https://learn.microsoft.com/en-us/entra/fundamentals/data-residency),
+[Entra backup scope](https://learn.microsoft.com/en-us/entra/backup/overview).
+
 The protected `/catalog/bootstrap` form explains what the curator confirms: provider
 `OPTIONAL` availability is distinct from an application's `REQUIRED` requirement;
 supporting an `UNKNOWN` claim preserves uncertainty. Every claim needs an explicit

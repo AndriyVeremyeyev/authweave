@@ -29,9 +29,9 @@ test("pinned selection produces one usable draft payload, eight separate scopes 
   assert.equal(assembly.bindings.selectionSha256, decisionDigest(selection));
   assert.equal(assembly.bindings.decisionCatalogSha256, decisionDigest(assembly.candidate));
   assert.equal(assembly.bindings.bootstrapCandidateSha256, bootstrapDigest(assembly.candidate));
-  assert.equal(assembly.bindings.selectionSha256, "7f37f80a30bee76a379a994a2971b708965ec4a1b9cc3f34c2ba3d96e19f8400");
-  assert.equal(assembly.bindings.decisionCatalogSha256, "324f59c9181dd88ccc4885fc1eabaebc4fcc3c8522382de41dee18a8b8e67bf8");
-  assert.equal(assembly.bindings.bootstrapCandidateSha256, "d2f9c1e85ef00bccaf2acbd6a382cc30a68511296cee351c8f1bab52611ded92");
+  assert.equal(assembly.bindings.selectionSha256, "5cd50f1a63472d14f9cd55f7ed1599dee4ab01d208385cd3036981c39d219cda");
+  assert.equal(assembly.bindings.decisionCatalogSha256, "870ba66ec81b3dfb45d2ea591e9ba31678e6da3be8281c5eaee0ab431eb1687c");
+  assert.equal(assembly.bindings.bootstrapCandidateSha256, "a951b581550c0330c0404a49cce8f8fe4bfdf51181eda211c24bd69fab300159");
   assert.equal(assembly.bindings.focusedCaseSha256, decisionDigest(assembly.focusedCase));
   assert.notEqual(assembly.bindings.decisionCatalogSha256, assembly.bindings.bootstrapCandidateSha256);
   assert.deepEqual(await prepareDecisionCandidate(), assembly);
@@ -75,7 +75,7 @@ test("other drafts never donate residency, organization, client or machine facts
   assert.equal(option("keycloak-26.8.0-native-self-hosted").compatibility.tenancy.MULTI_TENANT_ORGANIZATIONS, undefined);
   assert.deepEqual(option("auth0-b2b-free-oidc-scim").residency, {});
   assert.deepEqual(option("zitadel-cloud-free-native").compatibility.applications, {});
-  assert.deepEqual(option("entra-external-id-basic-standard-native").residency, {});
+  assert.equal(Object.keys(option("entra-external-id-basic-standard-native").residency).length, 4);
   assert.equal(option("entra-external-id-basic-standard-native").facts.OAUTH2_APIS, undefined);
   assert.equal(option("entra-external-id-m2m-addon-machine-clients").facts.SCIM, undefined);
   const workos = assembly.candidate.options.filter(o => o.providerId === "workos");
@@ -102,7 +102,7 @@ test("the additional case retains hard SCIM, seven exact required claims and exp
   assert.deepEqual(c.preferredFactPaths, ["facts.SAML"]);
   assert.deepEqual(c.weights.values, [{ capability: "SAML", weight: 100 }]);
   assert.equal(c.pendingSourceReview, true);
-  assert.equal(assembly.reviewTasks.length, 32);
+  assert.equal(assembly.reviewTasks.length, 48);
   assert.equal(assembly.sourceVerificationPerformed, false);
   assertFocusedCaseCoverage(c, assembly.candidate);
   for (const factPath of [...c.requiredFactPaths, ...c.preferredFactPaths]) {

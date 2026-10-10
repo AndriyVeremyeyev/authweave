@@ -4,7 +4,7 @@ import test from "node:test";
 import { inspectBaselinePack, inspectScopedBaselineDraft, readScopedBaselineDrafts } from "../scripts/inspect-provider-baselines.mjs";
 
 const drafts = await readScopedBaselineDrafts();
-const draft = drafts.find((entry) => entry.catalogVersion === "workos-connect-staging-public-oidc-clients-draft-2026.10.08");
+const draft = drafts.find((entry) => entry.catalogVersion === "workos-connect-staging-public-oidc-clients-draft-2026.10.10");
 const observed = new Date("2026-10-08T13:50:08Z");
 const inspect = () => inspectScopedBaselineDraft(draft, observed);
 
@@ -17,10 +17,10 @@ test("WorkOS Connect public clients retain staging scope without production enti
   assert.equal(option.deployment, "MANAGED");
   assert.equal(Object.hasOwn(option, "sourceRelease"), false);
   assert.equal(Object.hasOwn(option, "sourceCommit"), false);
-  assert.equal(report.factCount, 3);
-  assert.deepEqual(option.facts.map((fact) => fact.path), ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE", "facts.OIDC"]);
-  assert.deepEqual(option.facts.map((fact) => fact.support ?? fact.availability), ["UNKNOWN", "SUPPORTED", "OPTIONAL"]);
-  for (const fact of option.facts) {
+  assert.equal(report.factCount, 7);
+  assert.deepEqual(option.facts.filter(fact => !fact.path.startsWith("residency.")).map((fact) => fact.path), ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE", "facts.OIDC"]);
+  assert.deepEqual(option.facts.filter(fact => !fact.path.startsWith("residency.")).map((fact) => fact.support ?? fact.availability), ["UNKNOWN", "SUPPORTED", "OPTIONAL"]);
+  for (const fact of option.facts.filter(fact => !fact.path.startsWith("residency."))) {
     assert.equal(fact.evidenceStatus, "UNREVIEWED");
     assert.equal(fact.freshness, "CURRENT");
     assert.equal(new URL(fact.evidence.sourceUrl).hostname, "workos.com");
@@ -52,7 +52,7 @@ test("WorkOS mobile PKCE does not establish SPA CORS, AuthKit primary login or s
   assert.match(mobile, /primary AuthKit session tokens and Directory Sync/);
   assert.match(mobile, /org_id\/scopes do not establish organization\/membership/);
   assert.deepEqual(option.authenticationControls, {});
-  assert.deepEqual(option.residency, {});
+  assert.equal(Object.keys(option.residency).length, 4);
   assert.equal(Object.hasOwn(option.facts, "OAUTH2_APIS"), false);
 });
 
@@ -60,11 +60,11 @@ test("WorkOS inventory counts explicit browser UNKNOWN separately from omitted a
   const inventory = inspect().schemaPathInventory;
   assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 1, MANDATORY: 0, UNAVAILABLE: 0, UNKNOWN: 0 });
   assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 1, UNSUPPORTED: 0, UNKNOWN: 1 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 1, COMPATIBILITY: 2, RESIDENCY: 0, AUTHENTICATION_CONTROL: 0 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 1, COMPATIBILITY: 2, RESIDENCY: 4, AUTHENTICATION_CONTROL: 0 });
   const entry = inventory.options[0];
-  assert.equal(entry.recordedPathCount, 3);
-  assert.equal(entry.omittedPathCount, 65);
-  assert.deepEqual(entry.recordedUnknownPaths, ["compatibility.clients.BROWSER"]);
+  assert.equal(entry.recordedPathCount, 7);
+  assert.equal(entry.omittedPathCount, 61);
+  assert.deepEqual(entry.recordedUnknownPaths, ["compatibility.clients.BROWSER", "residency.AUDIT_LOGS", "residency.BACKUPS", "residency.CREDENTIALS", "residency.USER_PROFILES"]);
   assert.ok(entry.families[1].recordedPaths.includes("compatibility.clients.BROWSER"));
   assert.ok(!entry.families[1].omittedPaths.includes("compatibility.clients.BROWSER"));
   assert.ok(entry.families[1].omittedPaths.includes("compatibility.clients.MACHINE_TO_MACHINE"));
@@ -116,8 +116,8 @@ test("WorkOS client freshness retains an inclusive 90-day boundary without rewri
   const before = JSON.stringify(draft);
   for (const [offset, freshness] of [[-1, "FUTURE"], [0, "CURRENT"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
     const report = inspectScopedBaselineDraft(draft, new Date(observed.getTime() + offset));
-    assert.equal(report.schemaPathInventory.recordedFreshnessCounts[freshness], 3);
-    assert.ok(report.options[0].facts.every((fact) => fact.evidence.observedAt === "2026-10-08T13:50:08Z"));
+    assert.equal(report.options[0].facts.filter(fact => !fact.path.startsWith("residency.") && fact.freshness === freshness).length, 3);
+    assert.ok(report.options[0].facts.filter(fact => !fact.path.startsWith("residency.")).every((fact) => fact.evidence.observedAt === "2026-10-08T13:50:08Z"));
     assert.equal(report.evaluationReady, false);
     assert.equal(report.approvalGranted, false);
   }
@@ -130,15 +130,15 @@ test("WorkOS Connect coexists with unchanged research and three Directory Sync s
   const report = await inspectBaselinePack(observed);
   const workos = report.options.filter((option) => option.providerId === "workos");
   assert.equal(workos.length, 8);
-  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 22);
+  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 34);
   const organizations = workos.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(organizations.product, "WorkOS AuthKit");
   assert.ok(organizations.facts.every((fact) => fact.path.startsWith("compatibility.") && !fact.path.startsWith("compatibility.clients.")));
   for (const option of workos.filter((option) => !["CLIENT_SCOPED_DOCUMENTATION_DRAFT", "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT", "MACHINE_SCOPED_DOCUMENTATION_DRAFT", "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"].includes(option.basis))) {
-    assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.")));
+    assert.ok(option.facts.every((fact) => fact.path.startsWith("facts.") || fact.path.startsWith("residency.")));
     assert.deepEqual(report.schemaPathInventory.options.find((entry) => entry.optionId === option.optionId).families[1].recordedPaths, []);
   }
-  const directory = originals.find((entry) => entry.catalogVersion === "workos-directory-sync-staging-draft-2026.10.02");
+  const directory = originals.find((entry) => entry.catalogVersion === "workos-directory-sync-staging-draft-2026.10.10");
   assert.equal(directory.options[0].facts.SCIM.availability, "OPTIONAL");
   assert.equal(directory.options[0].facts.GROUP_SYNC.availability, "OPTIONAL");
   assert.equal(Object.hasOwn(directory.options[0].facts, "OIDC"), false);

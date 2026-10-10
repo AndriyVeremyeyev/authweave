@@ -4,7 +4,7 @@ import test from "node:test";
 import { inspectBaselinePack, inspectScopedBaselineDraft, readScopedBaselineDrafts } from "../scripts/inspect-provider-baselines.mjs";
 
 const drafts = await readScopedBaselineDrafts();
-const draft = drafts.find((entry) => entry.catalogVersion === "workos-authkit-staging-browser-authentication-controls-draft-2026.10.08");
+const draft = drafts.find((entry) => entry.catalogVersion === "workos-authkit-staging-browser-authentication-controls-draft-2026.10.10");
 const observed = new Date("2026-10-08T21:09:22Z");
 const prefix = "authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.";
 const controls = draft.options[0].authenticationControls.BROWSER.EXTERNAL_CUSTOMERS;
@@ -19,13 +19,13 @@ test("WorkOS primary hosted authentication proposals remain staging-only, typed 
   assert.equal(option.sourcePlan, "Staging");
   assert.equal(Object.hasOwn(option, "sourceRelease"), false);
   assert.equal(Object.hasOwn(option, "sourceCommit"), false);
-  assert.equal(report.factCount, 4);
-  assert.deepEqual(option.facts.map((fact) => fact.path), [...controlPaths, "facts.MFA"]);
+  assert.equal(report.factCount, 8);
+  assert.deepEqual(option.facts.filter(fact => !fact.path.startsWith("residency.")).map((fact) => fact.path), [...controlPaths, "facts.MFA"]);
   assert.deepEqual(option.facts.filter((fact) => fact.path.startsWith(prefix)).map((fact) => [fact.availability, fact.enforcement]), [
     ["UNKNOWN", "UNKNOWN"], ["SUPPORTED", "UNKNOWN"], ["UNKNOWN", "UNKNOWN"],
   ]);
   assert.equal(option.facts.find((fact) => fact.path === "facts.MFA").availability, "OPTIONAL");
-  assert.ok(option.facts.every((fact) => fact.evidenceStatus === "UNREVIEWED" && fact.freshness === "CURRENT"
+  assert.ok(option.facts.filter(fact => !fact.path.startsWith("residency.")).every((fact) => fact.evidenceStatus === "UNREVIEWED" && fact.freshness === "CURRENT"
     && new URL(fact.evidence.sourceUrl).hostname === "workos.com"));
   assert.ok(option.facts.filter((fact) => fact.path.startsWith(prefix)).every((fact) => !Object.hasOwn(fact, "support")));
   for (const flag of ["sourceVerificationPerformed", "approvalGranted", "writesPerformed", "fullCoverageEstablished", "evaluationReady"]) {
@@ -81,22 +81,22 @@ test("WorkOS authentication inventory separates MFA capability from unknown cont
   const inventory = inspect().schemaPathInventory;
   assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 1, MANDATORY: 0, UNAVAILABLE: 0, UNKNOWN: 0 });
   assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 0, UNSUPPORTED: 0, UNKNOWN: 0 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 1, COMPATIBILITY: 0, RESIDENCY: 0, AUTHENTICATION_CONTROL: 3 });
-  assert.equal(inventory.options[0].recordedPathCount, 4);
-  assert.equal(inventory.options[0].omittedPathCount, 64);
-  assert.deepEqual(inventory.options[0].recordedUnknownPaths, controlPaths);
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 1, COMPATIBILITY: 0, RESIDENCY: 4, AUTHENTICATION_CONTROL: 3 });
+  assert.equal(inventory.options[0].recordedPathCount, 8);
+  assert.equal(inventory.options[0].omittedPathCount, 60);
+  assert.deepEqual(inventory.options[0].recordedUnknownPaths, [...controlPaths, ...["AUDIT_LOGS", "BACKUPS", "CREDENTIALS", "USER_PROFILES"].map(category => `residency.${category}`)]);
   assert.deepEqual(inventory.options[0].families[3].recordedPaths, controlPaths);
   assert.ok(inventory.options[0].families[3].omittedPaths.includes("authenticationControls.NATIVE_MOBILE.EXTERNAL_CUSTOMERS.PHISHING_RESISTANCE"));
   assert.ok(inventory.options[0].families[3].omittedPaths.includes("authenticationControls.BROWSER.EMPLOYEES.PHISHING_RESISTANCE"));
   assert.deepEqual(Object.values(draft.options[0].compatibility), [{}, {}, {}, {}, {}]);
-  assert.deepEqual(draft.options[0].residency, {});
+  assert.equal(Object.keys(draft.options[0].residency).length, 4);
   assert.equal(inventory.requirementCoverageEstablished, false);
   assert.equal(inventory.evaluationReady, false);
 });
 
 test("WorkOS inspection rejects product, environment, population, source and trust substitutions", () => {
   const mutations = [
-    (value) => { value.catalogVersion = "workos-connect-staging-public-oidc-clients-draft-2026.10.08"; },
+    (value) => { value.catalogVersion = "workos-connect-staging-public-oidc-clients-draft-2026.10.10"; },
     (value) => { value.options[0].plan = "Production; AuthKit Free 1M MAU"; },
     (value) => { value.options[0].deployment = "SELF_HOSTED"; },
     (value) => { value.options[0].product = "WorkOS AuthKit Connect"; },
@@ -140,9 +140,9 @@ test("WorkOS authentication freshness and ordering preserve evidence and unknown
   const before = JSON.stringify(draft);
   for (const [offset, freshness] of [[-1, "FUTURE"], [0, "CURRENT"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
     const report = inspectScopedBaselineDraft(draft, new Date(observed.getTime() + offset));
-    assert.equal(report.schemaPathInventory.recordedFreshnessCounts[freshness], 4);
-    assert.deepEqual(report.schemaPathInventory.options[0].recordedUnknownPaths, controlPaths);
-    assert.ok(report.options[0].facts.every((fact) => fact.evidence.observedAt === "2026-10-08T21:09:22Z"));
+    assert.equal(report.options[0].facts.filter(fact => !fact.path.startsWith("residency.") && fact.freshness === freshness).length, 4);
+    assert.deepEqual(report.schemaPathInventory.options[0].recordedUnknownPaths, [...controlPaths, ...["AUDIT_LOGS", "BACKUPS", "CREDENTIALS", "USER_PROFILES"].map(category => `residency.${category}`)]);
+    assert.ok(report.options[0].facts.filter(fact => !fact.path.startsWith("residency.")).every((fact) => fact.evidence.observedAt === "2026-10-08T21:09:22Z"));
     assert.equal(report.approvalGranted, false);
     assert.equal(report.evaluationReady, false);
   }
@@ -162,7 +162,7 @@ test("WorkOS hosted authentication does not populate seven older research, Direc
   const report = await inspectBaselinePack(observed);
   const workos = report.options.filter((option) => option.providerId === "workos");
   assert.equal(workos.length, 8);
-  assert.equal(workos.reduce((sum, option) => sum + option.facts.length, 0), 22);
+  assert.equal(workos.reduce((sum, option) => sum + option.facts.length, 0), 34);
   assert.ok(workos.filter((option) => option.basis !== "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT")
     .every((option) => !option.facts.some((fact) => fact.path.startsWith("authenticationControls.") || fact.path === "facts.MFA")));
   const directory = workos.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");
@@ -172,7 +172,7 @@ test("WorkOS hosted authentication does not populate seven older research, Direc
   const connect = workos.find((option) => option.basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(connect.product, "WorkOS AuthKit Connect");
   assert.equal(connect.facts.find((fact) => fact.path === "compatibility.clients.BROWSER").support, "UNKNOWN");
-  const borrowed = structuredClone(originals.find((entry) => entry.catalogVersion === "workos-connect-staging-public-oidc-clients-draft-2026.10.08"));
+  const borrowed = structuredClone(originals.find((entry) => entry.catalogVersion === "workos-connect-staging-public-oidc-clients-draft-2026.10.10"));
   borrowed.options[0].authenticationControls = structuredClone(draft.options[0].authenticationControls);
   assert.throws(() => inspectScopedBaselineDraft(borrowed, observed));
   const keycloak = report.options.find((option) => option.providerId === "keycloak" && option.basis === "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT");

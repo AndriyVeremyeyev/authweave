@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "PROVIDER_CATALOG_DRAFT",
-  "catalogVersion": "entra-external-id-basic-draft-2026.10.02",
+  "catalogVersion": "entra-external-id-basic-draft-2026.10.10",
   "options": [
     {
       "id": "entra-external-id-basic-standard-native",
@@ -73,7 +73,62 @@
         "tenancy": {},
         "membership": {}
       },
-      "residency": {},
+      "residency": {
+        "USER_PROFILES": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Basic standard-mode external tenant only; no tenant, selected location or entitlement was inspected.",
+            "Microsoft describes geo-location placement and replicated Core Store data, not an exhaustive country inventory for this unselected tenant.",
+            "Australia/Japan external-tenant placement requires the separate Go-Local add-on; do not inherit it, workforce sovereignty or EU-only assurance into Basic."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/fundamentals/data-residency",
+            "observedAt": "2026-10-10T15:31:08Z",
+            "summary": "External-tenant geography, component exceptions and optional Go-Local do not establish all countries for this selected Basic option."
+          }
+        },
+        "CREDENTIALS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Authentication geography is not an exhaustive credential-replica inventory for this Basic external tenant.",
+            "No password, key, tenant configuration, upstream credential store or customer backup was retrieved or changed."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/fundamentals/data-residency",
+            "observedAt": "2026-10-10T15:31:08Z",
+            "summary": "General component placement does not enumerate every credential-copy country or establish key non-exportability."
+          }
+        },
+        "AUDIT_LOGS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Component log destinations may differ from directory geography; no tenant-specific country inventory was established.",
+            "Workforce component examples are not Basic external-tenant entitlement; no retention, completeness, immutability or SIEM configuration is inferred."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/fundamentals/data-residency",
+            "observedAt": "2026-10-10T15:31:08Z",
+            "summary": "The component table is not complete, tenant-specific external-ID log geography. UNKNOWN does not mean logs are absent."
+          }
+        },
+        "BACKUPS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "The Microsoft Entra Backup and Recovery administrator feature excludes External ID tenants; its seven-day and same-geo promises are not inherited.",
+            "This does not prove provider-internal disaster-recovery copies are absent. Their countries, retention and recoverability remain unknown.",
+            "No backup, restore, export, account, add-on, support request or cloud resource was created."
+          ],
+          "evidence": {
+            "sourceUrl": "https://learn.microsoft.com/en-us/entra/backup/overview",
+            "observedAt": "2026-10-10T15:31:08Z",
+            "summary": "Workforce-only customer backup documentation does not establish external-tenant recovery entitlement or the location of all provider-internal copies."
+          }
+        }
+      },
       "authenticationControls": {}
     }
   ]

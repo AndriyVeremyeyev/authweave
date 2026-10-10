@@ -153,7 +153,7 @@ test("Entra paid machine context coexists with seven other scopes without changi
   const report = await inspectBaselinePack(observed);
   const entra = report.options.filter((option) => option.providerId === "entra-external-id");
   assert.equal(entra.length, 8);
-  assert.equal(entra.reduce((count, option) => count + option.facts.length, 0), 28);
+  assert.equal(entra.reduce((count, option) => count + option.facts.length, 0), 32);
   const earlier = entra.filter((option) => option.basis !== "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(earlier.every((option) => !option.facts.some((fact) => paths.includes(fact.path))));
   assert.ok(earlier.filter((option) => option.basis !== "UNRESOLVED_RESEARCH_SCOPE").every((option) => option.sourcePlan === "Basic MAU"));

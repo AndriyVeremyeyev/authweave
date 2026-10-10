@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "kind": "PROVIDER_CATALOG_DRAFT",
-  "catalogVersion": "workos-authkit-staging-browser-authentication-controls-draft-2026.10.08",
+  "catalogVersion": "workos-authkit-staging-browser-authentication-controls-draft-2026.10.10",
   "options": [
     {
       "id": "workos-authkit-staging-browser-authentication-controls",
@@ -34,7 +34,61 @@
         "tenancy": {},
         "membership": {}
       },
-      "residency": {},
+      "residency": {
+        "USER_PROFILES": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Selected AuthKit staging only; no environment, region, account entitlement or applicable agreement was inspected.",
+            "The June 27, 2023 DPA identifies US transfers. A contractual transfer destination is not an exhaustive staging storage-country inventory.",
+            "Application, upstream identity-provider and other WorkOS product copies require separate evidence; do not infer EU-only storage or COMPLETE coverage."
+          ],
+          "evidence": {
+            "sourceUrl": "https://workos.com/legal/data-processing-addendum",
+            "observedAt": "2026-10-10T15:31:08Z",
+            "summary": "General transfer terms do not enumerate every profile replica for this exact staging option. Coverage remains UNKNOWN; no human source verdict is supplied."
+          }
+        },
+        "CREDENTIALS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Selected AuthKit credentials only; no credential, key, token or storage configuration was retrieved.",
+            "DPA encryption safeguards do not identify all credential-copy countries, exportability or actual cryptographic configuration."
+          ],
+          "evidence": {
+            "sourceUrl": "https://workos.com/legal/data-processing-addendum",
+            "observedAt": "2026-10-10T15:31:08Z",
+            "summary": "General safeguards are not category-specific credential geography. UNKNOWN does not assert that credentials are absent."
+          }
+        },
+        "AUDIT_LOGS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "Selected AuthKit staging only; event delivery is not an inventory of provider-internal logs or their storage countries.",
+            "No separate Audit Logs product, retention entitlement, application collector or SIEM deployment is inherited or configured."
+          ],
+          "evidence": {
+            "sourceUrl": "https://workos.com/security",
+            "observedAt": "2026-10-10T15:31:08Z",
+            "summary": "The public security overview is not an exhaustive log-destination inventory for this exact staging product. Absence of country evidence is not absence of logs."
+          }
+        },
+        "BACKUPS": {
+          "coverage": "UNKNOWN",
+          "storageCountries": [],
+          "conditions": [
+            "DPA backup obligations do not identify category-specific replicas, retention or measured recovery for this staging option.",
+            "No backup, export, restore, support request, subscription or cloud resource was created; provider and application recovery remain separate."
+          ],
+          "evidence": {
+            "sourceUrl": "https://workos.com/legal/data-processing-addendum",
+            "observedAt": "2026-10-10T15:31:08Z",
+            "summary": "Provider backup obligations do not establish complete country coverage or tested recovery for this selected staging option."
+          }
+        }
+      },
       "authenticationControls": {
         "BROWSER": {
           "EXTERNAL_CUSTOMERS": {

@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /** Actual build-tool output must remain a valid, untrusted Core draft with the existing review digest. */
 class DecisionCatalogCandidateAssemblyTests {
     private static final JsonMapper MAPPER = JsonMapper.builder().build();
-    private static final Instant NOW = Instant.parse("2026-10-09T17:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-10-10T15:31:08Z");
     private static JsonNode assembly;
 
     @BeforeAll

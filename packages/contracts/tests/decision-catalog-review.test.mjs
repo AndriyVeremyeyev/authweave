@@ -8,15 +8,15 @@ import { assembleDecisionCandidate, decisionDigest, prepareDecisionCandidate, re
 import { renderDecisionReview } from "../scripts/prepare-decision-review.mjs";
 
 const assembly = await prepareDecisionCandidate();
-const clock = new Date("2026-10-09T17:00:00Z");
+const clock = new Date("2026-10-10T15:31:08Z");
 const report = renderDecisionReview(assembly, clock);
 const get = (value, address) => address.split(".").reduce((item, key) => item[key], value);
 
-test("human summary contains all 32 pending exact-scope claims, sources and both distinct binding digests", () => {
-  assert.match(report, /Selected options: 8; pending claims: 32; distinct source URLs: 26/);
+test("human summary contains all 48 pending exact-scope claims, sources and both distinct binding digests", () => {
+  assert.match(report, /Selected options: 8; pending claims: 48; distinct source URLs: 30/);
   assert.equal(report.match(/^### /gm).length, 8);
-  assert.equal(report.match(/^#### /gm).length, 32);
-  assert.equal(report.match(/human verdict: PENDING/g).length, 32);
+  assert.equal(report.match(/^#### /gm).length, 48);
+  assert.equal(report.match(/human verdict: PENDING/g).length, 48);
   for (const task of assembly.reviewTasks) {
     assert.equal(report.split(`Claim SHA-256: ${task.claimSha256}.`).length - 1, 1);
     const option = assembly.candidate.options.find(option => option.id === task.optionId);
@@ -58,10 +58,10 @@ test("missing paths and recorded UNKNOWN proposals do not become unavailable, su
 
 test("freshness is a clock-bound display classification, not a source verdict or observation refresh", () => {
   const before = JSON.stringify(assembly);
-  assert.match(report, /CURRENT=32, STALE=0, FUTURE=0/);
-  assert.match(renderDecisionReview(assembly, new Date("2026-10-01T00:00:00Z")), /CURRENT=0, STALE=0, FUTURE=32/);
-  assert.match(renderDecisionReview(assembly, new Date("2026-10-09T12:00:00Z")), /CURRENT=27, STALE=0, FUTURE=5/);
-  assert.match(renderDecisionReview(assembly, new Date("2027-01-20T00:00:00Z")), /CURRENT=0, STALE=32, FUTURE=0/);
+  assert.match(report, /CURRENT=48, STALE=0, FUTURE=0/);
+  assert.match(renderDecisionReview(assembly, new Date("2026-10-01T00:00:00Z")), /CURRENT=0, STALE=0, FUTURE=48/);
+  assert.match(renderDecisionReview(assembly, new Date("2026-10-09T12:00:00Z")), /CURRENT=27, STALE=0, FUTURE=21/);
+  assert.match(renderDecisionReview(assembly, new Date("2027-01-20T00:00:00Z")), /CURRENT=0, STALE=48, FUTURE=0/);
   assert.equal(renderDecisionReview(assembly, clock), report);
   assert.equal(JSON.stringify(assembly), before);
   assert.match(report, /CURRENT is not source approval/);
@@ -123,7 +123,7 @@ test("stored summaries and conditions remain inert Markdown/HTML data after an e
   assert(!safe.includes("\n# approved")); assert(!safe.includes("\n## approved"));
   assert(safe.includes("&lt;script&gt;")); assert(safe.includes("&amp;"));
   assert(safe.includes("\\[approve\\]")); assert(safe.includes("\\`execute\\`"));
-  assert.equal(safe.match(/human verdict: PENDING/g).length, 32);
+  assert.equal(safe.match(/human verdict: PENDING/g).length, 48);
 });
 
 test("CLI reads fixed local inputs, prints only Markdown and writes nothing in an empty working directory", async () => {

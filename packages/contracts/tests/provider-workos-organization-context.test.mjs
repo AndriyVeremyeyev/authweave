@@ -155,12 +155,13 @@ test("WorkOS primary organization context coexists with research, Connect and Di
   const report = await inspectBaselinePack(observed);
   const workos = report.options.filter((option) => option.providerId === "workos");
   assert.equal(workos.length, 8);
-  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 22);
+  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 34);
   const connect = workos.find((option) => option.basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(connect.product, "WorkOS AuthKit Connect");
-  assert.deepEqual(connect.facts.map((fact) => fact.path), ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE", "facts.OIDC"]);
+  assert.deepEqual(connect.facts.map((fact) => fact.path), ["compatibility.clients.BROWSER", "compatibility.clients.NATIVE_MOBILE", "facts.OIDC",
+    "residency.AUDIT_LOGS", "residency.BACKUPS", "residency.CREDENTIALS", "residency.USER_PROFILES"]);
   assert.equal(connect.facts.find((fact) => fact.path === "compatibility.clients.BROWSER").support, "UNKNOWN");
-  const directory = originals.find((entry) => entry.catalogVersion === "workos-directory-sync-staging-draft-2026.10.02");
+  const directory = originals.find((entry) => entry.catalogVersion === "workos-directory-sync-staging-draft-2026.10.10");
   assert.equal(directory.options[0].facts.SCIM.availability, "OPTIONAL");
   assert.equal(directory.options[0].facts.GROUP_SYNC.availability, "OPTIONAL");
   assert.equal(Object.hasOwn(directory.options[0].facts, "OIDC"), false);

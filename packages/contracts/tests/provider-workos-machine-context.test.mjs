@@ -98,7 +98,7 @@ test("WorkOS machine inventory records two paths without human compatibility, SC
 
 test("WorkOS machine inspection rejects product, audience, credential, source, context and authority substitutions", () => {
   const mutations = [
-    (value) => { value.catalogVersion = "workos-connect-staging-public-oidc-clients-draft-2026.10.08"; },
+    (value) => { value.catalogVersion = "workos-connect-staging-public-oidc-clients-draft-2026.10.10"; },
     (value) => { value.options[0].id = "workos-authkit-staging-organization-context"; },
     (value) => { value.options[0].providerId = "auth0"; },
     (value) => { value.options[0].product = "WorkOS Directory Sync"; },
@@ -154,12 +154,12 @@ test("WorkOS machine context coexists with seven other scopes and deterministic 
   const report = await inspectBaselinePack(observed);
   const workos = report.options.filter((option) => option.providerId === "workos");
   assert.equal(workos.length, 8);
-  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 22);
+  assert.equal(workos.reduce((count, option) => count + option.facts.length, 0), 34);
   const earlier = workos.filter((option) => option.basis !== "MACHINE_SCOPED_DOCUMENTATION_DRAFT");
   assert.ok(earlier.every((option) => !option.facts.some((fact) => paths.includes(fact.path))));
   const native = earlier.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(native.facts.find((fact) => fact.path === "facts.SCIM").evidence.observedAt, "2026-10-02T22:46:13Z");
-  assert.equal(Object.hasOwn(originals.find((entry) => entry.catalogVersion === "workos-directory-sync-staging-draft-2026.10.02").options[0].facts, "OIDC"), false);
+  assert.equal(Object.hasOwn(originals.find((entry) => entry.catalogVersion === "workos-directory-sync-staging-draft-2026.10.10").options[0].facts, "OIDC"), false);
   const publicClients = earlier.find((option) => option.basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(publicClients.facts.find((fact) => fact.path === "compatibility.clients.BROWSER").support, "UNKNOWN");
   assert.equal(earlier.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT").product, "WorkOS AuthKit");

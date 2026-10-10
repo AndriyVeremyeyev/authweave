@@ -49,6 +49,15 @@ const keycloakRelease = Object.freeze({
     GROUP_SYNC: "scim/managing-groups.adoc",
   }),
 });
+const unknownResidency = urls => Object.fromEntries(Object.entries(urls).map(([category, sourceUrl]) => [
+  category, { coverage: "UNKNOWN", storageCountries: [], sourceUrl },
+]));
+const workosStagingResidency = unknownResidency({
+  USER_PROFILES: "https://workos.com/legal/data-processing-addendum",
+  CREDENTIALS: "https://workos.com/legal/data-processing-addendum",
+  AUDIT_LOGS: "https://workos.com/security",
+  BACKUPS: "https://workos.com/legal/data-processing-addendum",
+});
 const scopedBaselines = Object.freeze([
   {
     file: keycloakRelease.file,
@@ -442,7 +451,7 @@ const scopedBaselines = Object.freeze([
   },
   {
     file: "workos-directory-sync-staging.v1.json",
-    catalogVersion: "workos-directory-sync-staging-draft-2026.10.02",
+    catalogVersion: "workos-directory-sync-staging-draft-2026.10.10",
     scope: {
       id: "workos-directory-sync-staging-scim-events", providerId: "workos", product: "WorkOS Directory Sync", deployment: "MANAGED",
       plan: "Staging; testing only, no account or production entitlement verified",
@@ -453,11 +462,12 @@ const scopedBaselines = Object.freeze([
       SCIM: { availability: "OPTIONAL", sourceUrl: "https://workos.com/docs/integrations/scim" },
       GROUP_SYNC: { availability: "OPTIONAL", sourceUrl: "https://workos.com/docs/directory-sync/understanding-events" },
     },
+    residency: workosStagingResidency,
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
   {
     file: "workos-connect-staging-public-oidc-clients.v1.json",
-    catalogVersion: "workos-connect-staging-public-oidc-clients-draft-2026.10.08",
+    catalogVersion: "workos-connect-staging-public-oidc-clients-draft-2026.10.10",
     scope: {
       id: "workos-connect-staging-public-oidc-clients", providerId: "workos", product: "WorkOS AuthKit Connect", deployment: "MANAGED",
       plan: "Staging only; production entitlement and billing unverified",
@@ -471,11 +481,12 @@ const scopedBaselines = Object.freeze([
       "compatibility.clients.BROWSER": { support: "UNKNOWN", sourceUrl: "https://workos.com/docs/reference/workos-connect/token" },
       "compatibility.clients.NATIVE_MOBILE": { support: "SUPPORTED", sourceUrl: "https://workos.com/docs/authkit/connect/oauth" },
     },
+    residency: workosStagingResidency,
     metadata: { basis: "CLIENT_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
   {
     file: "workos-authkit-staging-browser-authentication-controls.v1.json",
-    catalogVersion: "workos-authkit-staging-browser-authentication-controls-draft-2026.10.08",
+    catalogVersion: "workos-authkit-staging-browser-authentication-controls-draft-2026.10.10",
     scope: {
       id: "workos-authkit-staging-browser-authentication-controls", providerId: "workos", product: "WorkOS AuthKit", deployment: "MANAGED",
       plan: "Staging only; hosted MFA/passkey offer documented, production entitlement unverified",
@@ -496,6 +507,7 @@ const scopedBaselines = Object.freeze([
         availability: "UNKNOWN", enforcement: "UNKNOWN", sourceUrl: "https://workos.com/docs/authkit/reauthentication",
       },
     },
+    residency: workosStagingResidency,
     metadata: { basis: "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Staging" },
   },
   {
@@ -557,7 +569,7 @@ const scopedBaselines = Object.freeze([
   })),
   {
     file: "entra-external-id-basic.v1.json",
-    catalogVersion: "entra-external-id-basic-draft-2026.10.02",
+    catalogVersion: "entra-external-id-basic-draft-2026.10.10",
     scope: {
       id: "entra-external-id-basic-standard-native", providerId: "entra-external-id",
       product: "Microsoft Entra External ID - external tenant", deployment: "MANAGED",
@@ -571,6 +583,12 @@ const scopedBaselines = Object.freeze([
       SCIM: { availability: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/identity/app-provisioning/enable-scim-api" },
       GROUP_SYNC: { availability: "UNKNOWN", sourceUrl: "https://learn.microsoft.com/en-us/entra/external-id/customers/reference-group-app-roles-support" },
     },
+    residency: unknownResidency({
+      USER_PROFILES: "https://learn.microsoft.com/en-us/entra/fundamentals/data-residency",
+      CREDENTIALS: "https://learn.microsoft.com/en-us/entra/fundamentals/data-residency",
+      AUDIT_LOGS: "https://learn.microsoft.com/en-us/entra/fundamentals/data-residency",
+      BACKUPS: "https://learn.microsoft.com/en-us/entra/backup/overview",
+    }),
     metadata: { basis: "PLAN_SCOPED_DOCUMENTATION_DRAFT", sourcePlan: "Basic MAU" },
   },
   {

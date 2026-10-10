@@ -25,6 +25,39 @@ class ProviderBaselineDraftTests {
     private final CatalogDraftValidator validator = new CatalogDraftValidator(Clock.fixed(OBSERVED, ZoneOffset.UTC));
 
     @ParameterizedTest
+    @ValueSource(strings = {"workos-directory-sync-staging", "workos-connect-staging-public-oidc-clients",
+            "workos-authkit-staging-browser-authentication-controls", "entra-external-id-basic"})
+    void selectedResidencyRemainsUnknownWithIndependentDatesAndNoTrustPromotion(String file) throws Exception {
+        var draft = mapper.readValue(resource("catalog/baselines/scoped/" + file + ".v1.json"), ProviderCatalogDraft.class);
+        var option = draft.options().getFirst();
+        var observed = Instant.parse("2026-10-10T15:31:08Z");
+        assertEquals(java.util.Set.of(io.authweave.core.assessment.domain.profile.DataResidencyDetails.DataCategory.values()),
+                option.residency().keySet());
+        option.residency().values().forEach(fact -> {
+            assertEquals(ProviderCatalog.ResidencyCoverage.UNKNOWN, fact.coverage());
+            assertTrue(fact.storageCountries().isEmpty());
+            assertEquals(observed, fact.evidence().observedAt());
+            assertEquals(HOSTS.get(option.providerId()), fact.evidence().sourceUrl().getHost());
+            assertFalse(fact.conditions().isEmpty());
+        });
+        assertTrue(CatalogDraftFacts.entries(option).entrySet().stream()
+                .filter(entry -> !entry.getKey().startsWith("residency."))
+                .allMatch(entry -> entry.getValue().evidence().observedAt().isBefore(observed)));
+        for (var at : List.of(observed.minusNanos(1), observed, observed.plusSeconds(90L * 86400),
+                observed.plusSeconds(90L * 86400).plusNanos(1))) {
+            var report = validator.validateAt(draft, at);
+            assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
+            assertUntrusted(report);
+            var residency = report.facts().stream().filter(fact -> fact.path().startsWith("residency.")).toList();
+            assertEquals(4, residency.size());
+            var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
+                    : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
+                    : CatalogDraftValidation.Freshness.CURRENT;
+            assertTrue(residency.stream().allMatch(fact -> fact.freshness() == freshness));
+        }
+    }
+
+    @ParameterizedTest
     @ValueSource(strings = {"entra-external-id", "auth0", "workos", "zitadel", "keycloak"})
     void realProviderResearchUsesTheExistingTypedDraftBoundaryWithoutActivation(String provider) throws Exception {
         var json = resource("catalog/baselines/" + provider + ".v1.json");
@@ -162,11 +195,11 @@ class ProviderBaselineDraftTests {
         var report = validator.validateAt(combined, Instant.parse("2026-10-02T22:07:48Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(2, report.optionCount());
-        assertEquals(provider.equals("workos") ? 5 : provider.equals("keycloak") ? 12 : 7, report.factCount());
+        assertEquals(provider.equals("workos") ? 9 : provider.equals("keycloak") ? 12 : provider.equals("entra-external-id") ? 11 : 7, report.factCount());
         assertUntrusted(report);
         assertNotEquals(validator.validate(research).contentSha256(), report.contentSha256());
         assertNotEquals(validator.validate(scoped).contentSha256(), report.contentSha256());
-        assertTrue(combined.options().stream().allMatch(option -> option.residency().isEmpty()
+        assertTrue(combined.options().stream().allMatch(option -> (option.residency().isEmpty() || option.residency().size() == 4)
                 && option.authenticationControls().isEmpty()
                 && (option.compatibility().clients().isEmpty() || option.id().equals("keycloak-26.8.0-native-self-hosted")
                     && option.compatibility().clients().keySet().equals(java.util.Set.of(io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER)))));
@@ -254,14 +287,14 @@ class ProviderBaselineDraftTests {
         assertTrue(groupConditions.contains("deprecated Directory User groups field"));
         assertTrue(option.compatibility().applications().isEmpty());
         assertTrue(option.compatibility().membership().isEmpty());
-        assertTrue(option.residency().isEmpty());
+        assertEquals(4, option.residency().size());
         assertTrue(option.authenticationControls().isEmpty());
         var current = validator.validateAt(draft, observed);
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
-        assertEquals(2, current.factCount());
+        assertEquals(6, current.factCount());
         assertTrue(current.issues().isEmpty());
         assertUntrusted(current);
-        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertTrue(current.facts().stream().filter(fact -> !fact.path().startsWith("residency.")).allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
         for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
                 observed.plusSeconds(90L * 86400).plusNanos(1))) {
             var report = validator.validateAt(draft, at);
@@ -270,7 +303,7 @@ class ProviderBaselineDraftTests {
             var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
                     : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
                     : CatalogDraftValidation.Freshness.CURRENT;
-            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertTrue(report.facts().stream().filter(fact -> !fact.path().startsWith("residency.")).allMatch(fact -> fact.freshness() == freshness));
         }
         assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
     }
@@ -311,14 +344,14 @@ class ProviderBaselineDraftTests {
                 .contains("not native inbound SCIM Group lifecycle evidence"));
         assertTrue(option.compatibility().applications().isEmpty());
         assertTrue(option.compatibility().membership().isEmpty());
-        assertTrue(option.residency().isEmpty());
+        assertEquals(4, option.residency().size());
         assertTrue(option.authenticationControls().isEmpty());
         var current = validator.validateAt(draft, observed);
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, current.status());
-        assertEquals(4, current.factCount());
+        assertEquals(8, current.factCount());
         assertTrue(current.issues().isEmpty());
         assertUntrusted(current);
-        assertTrue(current.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertTrue(current.facts().stream().filter(fact -> !fact.path().startsWith("residency.")).allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
         for (var at : List.of(observed.minusNanos(1), observed.plusSeconds(90L * 86400),
                 observed.plusSeconds(90L * 86400).plusNanos(1))) {
             var report = validator.validateAt(draft, at);
@@ -327,7 +360,7 @@ class ProviderBaselineDraftTests {
             var freshness = at.isBefore(observed) ? CatalogDraftValidation.Freshness.FUTURE
                     : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
                     : CatalogDraftValidation.Freshness.CURRENT;
-            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertTrue(report.facts().stream().filter(fact -> !fact.path().startsWith("residency.")).allMatch(fact -> fact.freshness() == freshness));
         }
         assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
     }
@@ -674,10 +707,10 @@ class ProviderBaselineDraftTests {
                 && !option.facts().containsKey(ProviderCatalog.Capability.JIT)));
         var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "workos-research-generic-and-upstream-test", options);
-        var report = validator.validateAt(combined, Instant.parse("2026-10-08T05:14:26Z"));
+        var report = validator.validateAt(combined, Instant.parse("2026-10-10T15:31:08Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(4, report.optionCount());
-        assertEquals(9, report.factCount());
+        assertEquals(13, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -785,10 +818,10 @@ class ProviderBaselineDraftTests {
                 && option.facts().get(ProviderCatalog.Capability.GROUP_SYNC).availability() == ProviderCatalog.Availability.UNKNOWN));
         var combined = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "external-id-research-native-and-upstream-test", options);
-        var report = validator.validateAt(combined, Instant.parse("2026-10-08T05:32:34Z"));
+        var report = validator.validateAt(combined, Instant.parse("2026-10-10T15:31:08Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(4, report.optionCount());
-        assertEquals(15, report.factCount());
+        assertEquals(19, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -872,17 +905,17 @@ class ProviderBaselineDraftTests {
                     .forEach(fact -> supportCounts.merge(fact.support(), 1, Integer::sum));
         }
         assertEquals(43, options.stream().map(ProviderCatalogDraft.Option::id).distinct().count());
-        assertEquals(149, recordedCount);
-        assertEquals(2775, omittedCount);
+        assertEquals(165, recordedCount);
+        assertEquals(2759, omittedCount);
         assertEquals(Map.of(ProviderCatalog.Availability.OPTIONAL, 45,
                 ProviderCatalog.Availability.UNAVAILABLE, 3, ProviderCatalog.Availability.UNKNOWN, 34), counts);
         assertEquals(Map.of(ProviderCatalog.Support.SUPPORTED, 36, ProviderCatalog.Support.UNKNOWN, 4), supportCounts);
         var draft = new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "baseline-address-inventory-test", options);
-        var report = validator.validateAt(draft, Instant.parse("2026-10-09T17:00:00Z"));
+        var report = validator.validateAt(draft, Instant.parse("2026-10-10T15:31:08Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(43, report.optionCount());
-        assertEquals(149, report.factCount());
+        assertEquals(165, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == CatalogDraftValidation.Freshness.CURRENT));
@@ -1231,7 +1264,7 @@ class ProviderBaselineDraftTests {
                 "entra-public-client-context-coexistence-test", options), Instant.parse("2026-10-08T07:14:50Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(5, report.optionCount());
-        assertEquals(18, report.factCount());
+        assertEquals(22, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -1242,7 +1275,7 @@ class ProviderBaselineDraftTests {
         var json = resource("catalog/baselines/scoped/workos-connect-staging-public-oidc-clients.v1.json");
         var draft = mapper.readValue(json, ProviderCatalogDraft.class);
         var option = draft.options().getFirst();
-        assertEquals("workos-connect-staging-public-oidc-clients-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("workos-connect-staging-public-oidc-clients-draft-2026.10.10", draft.catalogVersion());
         assertEquals("workos-connect-staging-public-oidc-clients", option.id());
         assertEquals("workos", option.providerId());
         assertEquals("WorkOS AuthKit Connect", option.product());
@@ -1277,14 +1310,14 @@ class ProviderBaselineDraftTests {
         assertTrue(option.compatibility().populations().isEmpty());
         assertTrue(option.compatibility().tenancy().isEmpty());
         assertTrue(option.compatibility().membership().isEmpty());
-        assertTrue(option.residency().isEmpty());
+        assertEquals(4, option.residency().size());
         assertTrue(option.authenticationControls().isEmpty());
         var report = validator.validateAt(draft, fact.evidence().observedAt());
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(3, report.factCount());
+        assertEquals(7, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
-        assertTrue(report.facts().stream().allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
+        assertTrue(report.facts().stream().filter(entry -> !entry.path().startsWith("residency.")).allMatch(entry -> entry.freshness() == CatalogDraftValidation.Freshness.CURRENT));
         assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
         assertThrows(RuntimeException.class, () -> mapper.readValue(json.replace(
                 "\"support\": \"UNKNOWN\"", "\"support\": \"UNKNOWN\", \"evidenceStatus\": \"REVIEWED\""), ProviderCatalogDraft.class));
@@ -1303,7 +1336,7 @@ class ProviderBaselineDraftTests {
                     : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
                     : CatalogDraftValidation.Freshness.CURRENT;
             assertEquals(current.contentSha256(), report.contentSha256());
-            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == expected));
+            assertTrue(report.facts().stream().filter(fact -> !fact.path().startsWith("residency.")).allMatch(fact -> fact.freshness() == expected));
             assertUntrusted(report);
         }
         var clients = draft.options().getFirst().compatibility().clients();
@@ -1335,7 +1368,7 @@ class ProviderBaselineDraftTests {
                 "workos-connect-client-context-coexistence-test", options), Instant.parse("2026-10-08T13:50:08Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(5, report.optionCount());
-        assertEquals(12, report.factCount());
+        assertEquals(20, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -1671,7 +1704,7 @@ class ProviderBaselineDraftTests {
                 "workos-organization-context-coexistence-test", options), Instant.parse("2026-10-08T16:06:12Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(6, report.optionCount());
-        assertEquals(16, report.factCount());
+        assertEquals(24, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -1914,7 +1947,7 @@ class ProviderBaselineDraftTests {
                 "entra-organization-context-coexistence-test", options), Instant.parse("2026-10-08T16:45:49Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(6, report.optionCount());
-        assertEquals(22, report.factCount());
+        assertEquals(26, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -2354,7 +2387,7 @@ class ProviderBaselineDraftTests {
                 "workos-machine-context-coexistence-test", options), Instant.parse("2026-10-08T18:39:35Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(7, report.optionCount());
-        assertEquals(18, report.factCount());
+        assertEquals(26, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -2463,7 +2496,7 @@ class ProviderBaselineDraftTests {
                 "entra-machine-context-coexistence-test", options), Instant.parse("2026-10-08T19:00:07Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(7, report.optionCount());
-        assertEquals(24, report.factCount());
+        assertEquals(28, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -2801,7 +2834,7 @@ class ProviderBaselineDraftTests {
         var json = resource("catalog/baselines/scoped/workos-authkit-staging-browser-authentication-controls.v1.json");
         var draft = mapper.readValue(json, ProviderCatalogDraft.class);
         var option = draft.options().getFirst();
-        assertEquals("workos-authkit-staging-browser-authentication-controls-draft-2026.10.08", draft.catalogVersion());
+        assertEquals("workos-authkit-staging-browser-authentication-controls-draft-2026.10.10", draft.catalogVersion());
         assertEquals("WorkOS AuthKit", option.product());
         assertEquals(ProviderCatalogDraft.Deployment.MANAGED, option.deployment());
         assertEquals(java.util.Set.of(ProviderCatalog.Capability.MFA), option.facts().keySet());
@@ -2838,16 +2871,16 @@ class ProviderBaselineDraftTests {
         assertEquals("/docs/widgets-api/authentication", keys.evidence().sourceUrl().getPath());
         assertEquals("/docs/authkit/reauthentication", step.evidence().sourceUrl().getPath());
         var observed = Instant.parse("2026-10-08T21:09:22Z");
-        for (var fact : CatalogDraftFacts.entries(option).values()) {
+        for (var fact : CatalogDraftFacts.entries(option).entrySet().stream().filter(entry -> !entry.getKey().startsWith("residency.")).map(Map.Entry::getValue).toList()) {
             assertEquals("workos.com", fact.evidence().sourceUrl().getHost());
             assertEquals(observed, fact.evidence().observedAt());
             assertFalse(fact.conditions().isEmpty());
         }
-        assertTrue(option.residency().isEmpty());
+        assertEquals(4, option.residency().size());
         assertTrue(option.compatibility().clients().isEmpty());
         var report = validator.validateAt(draft, observed);
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
-        assertEquals(4, report.factCount());
+        assertEquals(8, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
         assertThrows(RuntimeException.class, () -> mapper.readValue(json, ProviderCatalog.class));
@@ -2874,8 +2907,8 @@ class ProviderBaselineDraftTests {
                     : at.isAfter(observed.plusSeconds(90L * 86400)) ? CatalogDraftValidation.Freshness.STALE
                     : CatalogDraftValidation.Freshness.CURRENT;
             assertEquals(current.contentSha256(), report.contentSha256());
-            assertEquals(4, report.factCount());
-            assertTrue(report.facts().stream().allMatch(fact -> fact.freshness() == freshness));
+            assertEquals(8, report.factCount());
+            assertTrue(report.facts().stream().filter(fact -> !fact.path().startsWith("residency.")).allMatch(fact -> fact.freshness() == freshness));
             assertUntrusted(report);
         }
     }
@@ -2902,12 +2935,12 @@ class ProviderBaselineDraftTests {
                 io.authweave.core.assessment.domain.profile.ApplicationTopology.ClientType.BROWSER).support());
         assertEquals("WorkOS AuthKit", options.getLast().product());
         assertTrue(options.getLast().compatibility().clients().isEmpty());
-        assertTrue(options.getLast().residency().isEmpty());
+        assertEquals(4, options.getLast().residency().size());
         var report = validator.validateAt(new ProviderCatalogDraft(1, ProviderCatalogDraft.Kind.PROVIDER_CATALOG_DRAFT,
                 "workos-authentication-context-coexistence-test", options), Instant.parse("2026-10-08T21:09:22Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(8, report.optionCount());
-        assertEquals(22, report.factCount());
+        assertEquals(34, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }
@@ -3030,7 +3063,7 @@ class ProviderBaselineDraftTests {
                 "entra-authentication-context-coexistence-test", options), Instant.parse("2026-10-08T21:34:08Z"));
         assertEquals(CatalogDraftValidation.Status.VALID_DRAFT, report.status());
         assertEquals(8, report.optionCount());
-        assertEquals(28, report.factCount());
+        assertEquals(32, report.factCount());
         assertTrue(report.issues().isEmpty());
         assertUntrusted(report);
     }

@@ -2689,7 +2689,8 @@ class AssessmentHttpContractIntegrationTests extends PostgresIntegrationTest {
         assertEquals(1, report.get("optionCount").asInt());
         var expectedFactCount = switch (scope) {
             case "keycloak-26.8.0" -> 9;
-            case "workos-directory-sync-staging" -> 2;
+            case "workos-directory-sync-staging" -> 6;
+            case "entra-external-id-basic" -> 8;
             case "auth0-b2b-free-upstream-okta", "auth0-b2b-free-upstream-entra" -> 3;
             default -> 4;
         };

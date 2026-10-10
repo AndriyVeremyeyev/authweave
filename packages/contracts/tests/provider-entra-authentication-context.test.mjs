@@ -163,7 +163,7 @@ test("Entra local-customer authentication does not populate seven older research
   const report = await inspectBaselinePack(observed);
   const entra = report.options.filter((option) => option.providerId === "entra-external-id");
   assert.equal(entra.length, 8);
-  assert.equal(entra.reduce((sum, option) => sum + option.facts.length, 0), 28);
+  assert.equal(entra.reduce((sum, option) => sum + option.facts.length, 0), 32);
   assert.ok(entra.filter((option) => option.basis !== "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT")
     .every((option) => !option.facts.some((fact) => fact.path.startsWith("authenticationControls.") || fact.path === "facts.MFA")));
   const native = entra.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");

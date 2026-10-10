@@ -14,7 +14,7 @@ addFormats(ajv);
 const schema = JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v2.schema.json", import.meta.url), "utf8"));
 const validate = ajv.compile(schema);
 const validateLegacy = ajv.compile(JSON.parse(await readFile(new URL("../schemas/provider-baseline-inventory.v1.schema.json", import.meta.url), "utf8")));
-const at = new Date("2026-10-09T17:00:00Z");
+const at = new Date("2026-10-10T15:31:08Z");
 const research = await readBaselineDrafts();
 const scoped = await readScopedBaselineDrafts();
 const pack = await inspectBaselinePack(at);
@@ -116,12 +116,12 @@ test("the full pack partitions every option independently and replays all aggreg
   assertPartitions(pack);
   assert.equal(inventory.optionCount, 43);
   assert.equal(inventory.optionPathCount, 2924);
-  assert.equal(inventory.recordedPathCount, 149);
-  assert.equal(inventory.omittedPathCount, 2775);
+  assert.equal(inventory.recordedPathCount, 165);
+  assert.equal(inventory.omittedPathCount, 2759);
   assert.deepEqual(inventory.proposedAvailabilityCounts, { OPTIONAL: 45, MANDATORY: 0, UNAVAILABLE: 3, UNKNOWN: 34 });
   assert.deepEqual(inventory.proposedCompatibilityCounts, { SUPPORTED: 36, UNSUPPORTED: 0, UNKNOWN: 4 });
-  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 82, COMPATIBILITY: 40, RESIDENCY: 12, AUTHENTICATION_CONTROL: 15 });
-  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 149, STALE: 0, FUTURE: 0 });
+  assert.deepEqual(inventory.recordedFamilyCounts, { CAPABILITY: 82, COMPATIBILITY: 40, RESIDENCY: 28, AUTHENTICATION_CONTROL: 15 });
+  assert.deepEqual(inventory.recordedFreshnessCounts, { CURRENT: 165, STALE: 0, FUTURE: 0 });
 });
 
 test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct", () => {
@@ -138,7 +138,7 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
   const workos = option("workos-directory-sync-staging-scim-events");
   assert.ok(workos.families[0].omittedPaths.includes("facts.OIDC"));
   const connect = option("workos-connect-staging-public-oidc-clients");
-  assert.deepEqual(connect.recordedUnknownPaths, ["compatibility.clients.BROWSER"]);
+  assert.deepEqual(connect.recordedUnknownPaths, ["compatibility.clients.BROWSER", "residency.AUDIT_LOGS", "residency.BACKUPS", "residency.CREDENTIALS", "residency.USER_PROFILES"]);
   assert.ok(connect.families[1].recordedPaths.includes("compatibility.clients.BROWSER"));
   assert.ok(connect.families[1].omittedPaths.includes("compatibility.clients.MACHINE_TO_MACHINE"));
   const entraOrganizations = option("entra-external-id-basic-organization-context");
@@ -161,7 +161,7 @@ test("recorded UNKNOWN, omitted and proposed unavailable paths remain distinct",
     const expectedControls = basis === "AUTHENTICATION_SCOPED_DOCUMENTATION_DRAFT"
       ? ["NON_EXPORTABLE_KEYS", "PHISHING_RESISTANCE", "STEP_UP_AUTHENTICATION"]
         .map((control) => `authenticationControls.BROWSER.EXTERNAL_CUSTOMERS.${control}`) : [];
-    const expectedResidency = basis === "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT"
+    const expectedResidency = basis === "RESIDENCY_SCOPED_DOCUMENTATION_DRAFT" || ["workos-authkit-staging-browser-authentication-controls", "workos-connect-staging-public-oidc-clients", "workos-directory-sync-staging-scim-events", "entra-external-id-basic-standard-native"].includes(entry.optionId)
       ? ["AUDIT_LOGS", "BACKUPS", "CREDENTIALS", "USER_PROFILES"].map((category) => `residency.${category}`) : [];
     assert.deepEqual(family.recordedPaths, family.family === "COMPATIBILITY" ? expectedContext
       : family.family === "AUTHENTICATION_CONTROL" ? expectedControls
@@ -182,10 +182,10 @@ test("single scoped and research inspections use the same inventory contract wit
 test("freshness counts replay mixed, future and stale observations without readiness promotion", async () => {
   const mixed = await inspectBaselinePack(new Date("2026-10-02T19:58:06Z"));
   assertPartitions(mixed);
-  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 134 });
+  assert.deepEqual(mixed.schemaPathInventory.recordedFreshnessCounts, { CURRENT: 15, STALE: 0, FUTURE: 150 });
   for (const [instant, expected] of [
-    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 149 }],
-    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 149, FUTURE: 0 }],
+    ["2026-10-01T00:00:00Z", { CURRENT: 0, STALE: 0, FUTURE: 165 }],
+    ["2027-01-20T00:00:00Z", { CURRENT: 0, STALE: 165, FUTURE: 0 }],
   ]) {
     const report = await inspectBaselinePack(new Date(instant));
     assertPartitions(report);

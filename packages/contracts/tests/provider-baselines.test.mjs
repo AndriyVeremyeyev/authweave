@@ -266,7 +266,7 @@ test("staging Directory Sync proposes a SCIM/event bridge, not login or free pro
   const report = inspectScopedBaselineDraft(workosDraft, at);
   assertUntrusted(report);
   assert.equal(report.optionCount, 1);
-  assert.equal(report.factCount, 2);
+  assert.equal(report.factCount, 6);
   const option = report.options[0];
   assert.equal(option.basis, "PLAN_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(option.sourcePlan, "Staging");
@@ -274,12 +274,12 @@ test("staging Directory Sync proposes a SCIM/event bridge, not login or free pro
   assert.equal(option.deployment, "MANAGED");
   assert.equal(Object.hasOwn(option, "sourceRelease"), false);
   assert.equal(Object.hasOwn(option, "sourceCommit"), false);
-  assert.deepEqual(Object.fromEntries(option.facts.map((fact) => [fact.path, fact.availability])), {
+  assert.deepEqual(Object.fromEntries(option.facts.filter(fact => fact.path.startsWith("facts.")).map((fact) => [fact.path, fact.availability])), {
     "facts.GROUP_SYNC": "OPTIONAL", "facts.SCIM": "OPTIONAL",
   });
   assert.equal(option.omittedCapabilities.length, 7);
   assert.ok(["OIDC", "SAML", "ENTERPRISE_SSO"].every((capability) => option.omittedCapabilities.includes(capability)));
-  assert.ok(option.facts.every((fact) => fact.freshness === "CURRENT"));
+  assert.ok(option.facts.filter(fact => fact.path.startsWith("facts.")).every((fact) => fact.freshness === "CURRENT"));
   const claims = workosDraft.options[0].facts;
   assert.match(claims.SCIM.conditions.join(" "), /Staging.*not billed.*production.*per-connection/);
   assert.match(claims.SCIM.conditions.join(" "), /not free production Directory Sync/);
@@ -292,7 +292,7 @@ test("staging Directory Sync proposes a SCIM/event bridge, not login or free pro
   for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
     const later = inspectScopedBaselineDraft(workosDraft, new Date(at.getTime() + offset));
     assertUntrusted(later);
-    assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness
+    assert.ok(later.options[0].facts.filter(fact => fact.path.startsWith("facts.")).every((fact) => fact.freshness === freshness
       && fact.evidence.observedAt === "2026-10-02T22:46:13Z"));
   }
   assert.equal(JSON.stringify(workosDraft), before);
@@ -343,7 +343,7 @@ test("Basic external-tenant login does not inherit paid inbound SCIM or Graph gr
   const report = inspectScopedBaselineDraft(entraDraft, at);
   assertUntrusted(report);
   assert.equal(report.optionCount, 1);
-  assert.equal(report.factCount, 4);
+  assert.equal(report.factCount, 8);
   const option = report.options[0];
   assert.equal(option.basis, "PLAN_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(option.sourcePlan, "Basic MAU");
@@ -351,12 +351,12 @@ test("Basic external-tenant login does not inherit paid inbound SCIM or Graph gr
   assert.equal(option.deployment, "MANAGED");
   assert.equal(Object.hasOwn(option, "sourceRelease"), false);
   assert.equal(Object.hasOwn(option, "sourceCommit"), false);
-  assert.deepEqual(Object.fromEntries(option.facts.map((fact) => [fact.path, fact.availability])), {
+  assert.deepEqual(Object.fromEntries(option.facts.filter(fact => fact.path.startsWith("facts.")).map((fact) => [fact.path, fact.availability])), {
     "facts.GROUP_SYNC": "UNKNOWN", "facts.OIDC": "OPTIONAL", "facts.SAML": "OPTIONAL", "facts.SCIM": "UNKNOWN",
   });
   assert.equal(option.omittedCapabilities.length, 5);
   assert.ok(option.omittedCapabilities.includes("ENTERPRISE_SSO"));
-  assert.ok(option.facts.every((fact) => fact.freshness === "CURRENT"));
+  assert.ok(option.facts.filter(fact => fact.path.startsWith("facts.")).every((fact) => fact.freshness === "CURRENT"));
   const claims = entraDraft.options[0].facts;
   assert.match(claims.OIDC.conditions.join(" "), /50,000 MAUs.*not a zero-cost guarantee/);
   assert.match(claims.OIDC.conditions.join(" "), /single-tenant downstream.*ciamlogin.com.*PKCE/);
@@ -371,7 +371,7 @@ test("Basic external-tenant login does not inherit paid inbound SCIM or Graph gr
   for (const [offset, freshness] of [[-1, "FUTURE"], [90 * 86400000, "CURRENT"], [90 * 86400000 + 1, "STALE"]]) {
     const later = inspectScopedBaselineDraft(entraDraft, new Date(at.getTime() + offset));
     assertUntrusted(later);
-    assert.ok(later.options[0].facts.every((fact) => fact.freshness === freshness
+    assert.ok(later.options[0].facts.filter(fact => fact.path.startsWith("facts.")).every((fact) => fact.freshness === freshness
       && fact.evidence.observedAt === "2026-10-02T23:12:01Z"));
   }
   assert.equal(JSON.stringify(entraDraft), before);
@@ -921,12 +921,12 @@ test("External ID pair inspection rejects tenant, client-auth, identity, fact an
 });
 
 test("combined inspection keeps research and scoped options distinct without promoting either", async () => {
-  const at = new Date("2026-10-09T17:00:00Z");
+  const at = new Date("2026-10-10T15:31:08Z");
   const report = await inspectBaselinePack(at);
   assertUntrusted(report);
   assert.equal(report.scope, "PROVIDER_BASELINE_PACK_INSPECTION");
   assert.equal(report.optionCount, 43);
-  assert.equal(report.factCount, 149);
+  assert.equal(report.factCount, 165);
   assert.equal(report.researchOptionCount, 5);
   assert.equal(report.scopedDraftOptionCount, 38);
   const keycloak = report.options.filter((option) => option.providerId === "keycloak");
@@ -1028,7 +1028,7 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.equal(workosAuthentication.product, "WorkOS AuthKit");
   assert.equal(Object.hasOwn(workosAuthentication, "sourceRelease"), false);
   assert.equal(Object.hasOwn(workosAuthentication, "sourceCommit"), false);
-  assert.equal(workosAuthentication.facts.length, 4);
+  assert.equal(workosAuthentication.facts.length, 8);
   assert.equal(workosAuthentication.facts.filter((fact) => fact.path.startsWith("authenticationControls.")).length, 3);
   const workosOrganizations = workos.find((option) => option.basis === "ORGANIZATION_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(workosOrganizations.sourcePlan, "Staging");
@@ -1041,12 +1041,12 @@ test("combined inspection keeps research and scoped options distinct without pro
   assert.equal(workosResearch.facts.find((fact) => fact.path === "facts.OIDC").availability, "UNKNOWN");
   const directory = workos.find((option) => option.basis === "PLAN_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(directory.sourcePlan, "Staging");
-  assert.equal(directory.facts.length, 2);
+  assert.equal(directory.facts.length, 6);
   assert.equal(directory.facts.some((fact) => fact.path === "facts.OIDC"), false);
   const connect = workos.find((option) => option.basis === "CLIENT_SCOPED_DOCUMENTATION_DRAFT");
   assert.equal(connect.sourcePlan, "Staging");
   assert.equal(connect.product, "WorkOS AuthKit Connect");
-  assert.equal(connect.facts.length, 3);
+  assert.equal(connect.facts.length, 7);
   assert.equal(connect.facts.find((fact) => fact.path === "compatibility.clients.BROWSER").support, "UNKNOWN");
   assert.equal(connect.facts.some((fact) => fact.path === "facts.SCIM"), false);
   const workosPairs = workos.filter((option) => option.basis === "UPSTREAM_SCOPED_DOCUMENTATION_DRAFT");
@@ -1134,7 +1134,7 @@ test("CLI reads only fixed local inputs and accepts no arbitrary source argument
   const run = spawnSync(process.execPath, [script.pathname], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
   assertUntrusted(JSON.parse(run.stdout));
-  assert.equal(JSON.parse(run.stdout).factCount, 149);
+  assert.equal(JSON.parse(run.stdout).factCount, 165);
   const rejected = spawnSync(process.execPath, [script.pathname, "https://attacker.invalid/catalog"], { encoding: "utf8" });
   assert.equal(rejected.status, 1);
   assert.equal(rejected.stdout, "");
