@@ -15,6 +15,7 @@ import io.authweave.core.generated.jooq.tables.CatalogFactPathReports;
 import io.authweave.core.generated.jooq.tables.CatalogFactReviews;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions;
+import io.authweave.core.generated.jooq.tables.CatalogProposalPublications;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
 import io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions;
@@ -120,6 +121,12 @@ public class Core extends SchemaImpl {
     public final CatalogProposalDecisions CATALOG_PROPOSAL_DECISIONS = CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
 
     /**
+     * Immutable first-successor Core replay provenance. No external source
+     * certification, active head or assessment result.
+     */
+    public final CatalogProposalPublications CATALOG_PROPOSAL_PUBLICATIONS = CatalogProposalPublications.CATALOG_PROPOSAL_PUBLICATIONS;
+
+    /**
      * Immutable request and preview snapshots. Freshness is historical, never
      * recomputed when reading.
      */
@@ -182,6 +189,7 @@ public class Core extends SchemaImpl {
             CatalogFactReviews.CATALOG_FACT_REVIEWS,
             CatalogImpactReports.CATALOG_IMPACT_REPORTS,
             CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS,
+            CatalogProposalPublications.CATALOG_PROPOSAL_PUBLICATIONS,
             CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS,
             CatalogProposals.CATALOG_PROPOSALS,
             CatalogPublicationDecisions.CATALOG_PUBLICATION_DECISIONS,

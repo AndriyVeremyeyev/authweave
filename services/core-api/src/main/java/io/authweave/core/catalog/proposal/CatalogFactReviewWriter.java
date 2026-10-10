@@ -17,6 +17,7 @@ import static io.authweave.core.generated.jooq.tables.CatalogFactReviews.CATALOG
 import static io.authweave.core.generated.audit.tables.CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS;
 import static io.authweave.core.generated.jooq.tables.CatalogProposals.CATALOG_PROPOSALS;
 import static io.authweave.core.generated.jooq.tables.CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
+import static io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions.CATALOG_PUBLICATION_DECISIONS;
 
 @Service
 public class CatalogFactReviewWriter {
@@ -58,6 +59,8 @@ public class CatalogFactReviewWriter {
             return new Result(CatalogFactReview.from(existing), false);
         }
         if (!request.expectedVersion().equals(head.getVersion())
+                || dsl.fetchExists(CATALOG_PUBLICATION_DECISIONS, CATALOG_PUBLICATION_DECISIONS.PROPOSAL_ID.eq(proposalId)
+                        .and(CATALOG_PUBLICATION_DECISIONS.PROPOSAL_VERSION.eq(head.getVersion())))
                 || dsl.fetchExists(CATALOG_PROPOSAL_DECISIONS,
                         CATALOG_PROPOSAL_DECISIONS.PROPOSAL_ID.eq(proposalId)
                                 .and(CATALOG_PROPOSAL_DECISIONS.PROPOSAL_VERSION.eq(head.getVersion())))) {

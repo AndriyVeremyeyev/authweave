@@ -106,13 +106,16 @@ jobs:
         run: ./mvnw --batch-mode --no-transfer-progress test
       - name: Validate actual HTTP payloads against JSON Schema
         working-directory: ${{ github.workspace }}
-        run: node packages/contracts/scripts/validate-core-http.mjs services/core-api/target/core-http-contract-samples.json services/core-api/target/bootstrap-review-http-contract-samples.json services/core-api/target/auditability-review-http-contract-samples.json services/core-api/target/publication-preflight-http-contract-samples.json services/core-api/target/bootstrap-publication-http-contract-samples.json
+        run: node packages/contracts/scripts/validate-core-http.mjs services/core-api/target/core-http-contract-samples.json services/core-api/target/bootstrap-review-http-contract-samples.json services/core-api/target/auditability-review-http-contract-samples.json services/core-api/target/publication-preflight-http-contract-samples.json services/core-api/target/bootstrap-publication-http-contract-samples.json services/core-api/target/proposal-publication-http-contract-samples.json
       - name: Validate fresh whole-decision publication coverage
         working-directory: ${{ github.workspace }}
         run: node packages/contracts/scripts/check-decision-publication-coverage.mjs services/core-api/target/decision-publication-coverage-samples.json
       - name: Verify actual bootstrap publication proof bindings
         working-directory: ${{ github.workspace }}
         run: node packages/contracts/scripts/check-bootstrap-publication.mjs services/core-api/target/bootstrap-publication-proof-samples.json
+      - name: Verify actual first successor publication proof bindings
+        working-directory: ${{ github.workspace }}
+        run: node packages/contracts/scripts/check-proposal-publication.mjs services/core-api/target/proposal-publication-proof-samples.json
       - name: Verify actual published-baseline proposal decision coverage
         working-directory: ${{ github.workspace }}
         run: node packages/contracts/scripts/check-published-proposal-coverage.mjs services/core-api/target/published-proposal-coverage-samples.json

@@ -14,8 +14,9 @@ import static io.authweave.core.generated.audit.tables.CatalogProposalDecisionEv
 import static io.authweave.core.generated.jooq.tables.CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
 import static io.authweave.core.generated.jooq.tables.CatalogProposalRevisions.CATALOG_PROPOSAL_REVISIONS;
 import static io.authweave.core.generated.jooq.tables.CatalogProposals.CATALOG_PROPOSALS;
+import static io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions.CATALOG_PUBLICATION_DECISIONS;
 
-/** Only a rejection is supported; no approval, provider-fact write or catalog activation. */
+/** Rejection only; the separate opt-in publisher owns approval. Published revisions cannot be rejected. */
 @Service
 public class CatalogProposalRejectionWriter {
     private final DSLContext dsl;
@@ -40,7 +41,9 @@ public class CatalogProposalRejectionWriter {
         if (revision == null || !"PROPOSED".equals(revision.getState())
                 || !request.expectedSha256().equals(revision.getProposalSha256())
                 || dsl.fetchExists(d, d.PROPOSAL_ID.eq(proposalId)
-                        .and(d.PROPOSAL_VERSION.eq(head.getVersion())))) {
+                        .and(d.PROPOSAL_VERSION.eq(head.getVersion())))
+                || dsl.fetchExists(CATALOG_PUBLICATION_DECISIONS, CATALOG_PUBLICATION_DECISIONS.PROPOSAL_ID.eq(proposalId)
+                        .and(CATALOG_PUBLICATION_DECISIONS.PROPOSAL_VERSION.eq(head.getVersion())))) {
             throw new CatalogProposalDecisionConflictException();
         }
         UUID decisionId = UUID.randomUUID();

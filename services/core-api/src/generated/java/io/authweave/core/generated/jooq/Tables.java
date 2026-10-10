@@ -15,6 +15,7 @@ import io.authweave.core.generated.jooq.tables.CatalogFactPathReports;
 import io.authweave.core.generated.jooq.tables.CatalogFactReviews;
 import io.authweave.core.generated.jooq.tables.CatalogImpactReports;
 import io.authweave.core.generated.jooq.tables.CatalogProposalDecisions;
+import io.authweave.core.generated.jooq.tables.CatalogProposalPublications;
 import io.authweave.core.generated.jooq.tables.CatalogProposalRevisions;
 import io.authweave.core.generated.jooq.tables.CatalogProposals;
 import io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions;
@@ -103,6 +104,12 @@ public class Tables {
      * active catalog state.
      */
     public static final CatalogProposalDecisions CATALOG_PROPOSAL_DECISIONS = CatalogProposalDecisions.CATALOG_PROPOSAL_DECISIONS;
+
+    /**
+     * Immutable first-successor Core replay provenance. No external source
+     * certification, active head or assessment result.
+     */
+    public static final CatalogProposalPublications CATALOG_PROPOSAL_PUBLICATIONS = CatalogProposalPublications.CATALOG_PROPOSAL_PUBLICATIONS;
 
     /**
      * Immutable request and preview snapshots. Freshness is historical, never

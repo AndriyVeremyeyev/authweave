@@ -314,8 +314,8 @@ PostgreSQL with fictional `.invalid` sources only.
 Publication records a reviewed advisory catalog; it does not activate the evaluator,
 promote old incomplete receipts or erase the 22 explicit deployment/compliance gaps.
 The legacy preflight and integrity-only lookup retain their existing denial/authority
-contracts. Subsequent proposal approval, owned assessment result pinning and final
-golden/UI acceptance remain open.
+contracts. The separate first-successor workflow below does not close owned assessment
+result pinning or final golden/UI acceptance.
 
 ### Trusted published bootstrap loading
 
@@ -334,8 +334,8 @@ synthetic catalog kind or `.invalid` URL rule. Historical publication verificati
 does not renew evidence: a later calculation still reports stale facts as unknown.
 The 22 verification gaps remain explicit; independent source, configuration and
 compliance verification are not implied. This internal input path has no new HTTP
-route, active-head selection, assessment write or pinned final result. Subsequent
-published revisions will require their own workflow proof support.
+route, active-head selection, assessment write or pinned final result. The first
+published successor uses its own verifier and proof policy described below.
 
 ### Reviewed proposal decision impact
 
@@ -360,8 +360,8 @@ New ledger observations affect new calculation pins, not earlier pinned inputs.
 A later proposal revision does not reuse the prior revision's reviews. Historical
 cutoffs are calculation inputs only: this adapter does not approve stale heads,
 publish a successor, store an assessment result or establish current curator authority.
-The successor publisher still needs fresh full-scope coverage, current-head/parent
-checks, reauthentication, an atomic write and its own trusted workflow proof.
+The separate successor publisher below adds fresh full-scope coverage, current-head/
+parent checks, reauthentication, an atomic write and its own trusted workflow proof.
 
 ### Published-baseline proposal coverage
 
@@ -382,6 +382,49 @@ gaps and authority/write denials remain. Local checks and CI independently recou
 claims and bind four actual Java calculations to their inputs and whole results.
 This is an internal calculation path, not the guarded successor writer, head/parent
 validation, current curator authorization or immutable assessment result pinning.
+
+### Guarded first proposal successor
+
+The separate `catalog-proposal-publication` profile enables only the Core route
+`POST /internal/v1/catalog-curator/proposal-publications`, absent by default. The
+existing service credential, singular scoped curator assertion and fresh reauthentication
+apply to both creation and retry. The request contains an exact trusted bootstrap
+parent, current proposal revision and ordered request digest, latest review-set pin,
+optional candidate-specific auditability review, publication UUID and explicit
+`PUBLISH_REVIEWED_PROPOSAL` confirmation. It accepts no manifest, report, verdicts,
+caller clock or reusable approval token.
+
+Core takes the shared publication lock and proposal-head lock before loading inputs.
+The revision must be current, neither rejected nor already published; the bootstrap
+parent must have no successor and the catalog label must be unused. Even an older
+all-supporting review pin cannot bypass a newer ledger observation. Core recomputes
+four-profile / 34-route whole-decision coverage at its database clock and requires
+every recorded candidate/supplement claim to have supporting current observations.
+Supported claims describing unavailable features remain unavailable; missing required
+supplements and other unknown findings are not invented or promoted to PASS.
+
+A narrow database function atomically stores the immutable successor manifest,
+approval decision, body-free curator audit and `catalog-proposal-publication-1` proof.
+Runtime registry/proof access remains SELECT-only outside this function. Review
+appends and rejection cannot cross a committed approval for the same revision;
+later proposal revisions remain possible without changing published history. Same-key,
+same-input, same-actor retries require current reauthentication but replay original
+evidence/coverage at the original publication clock, without another write or date refresh.
+
+The default-enabled `CatalogProposalPublicationReader` supplies a separately verified
+first-successor input to `TrustedPublishedCatalogService`. It binds exact parent/proposal/
+review pins, bounded manifest/proof data, audit timing and full original coverage replay.
+It does not require the historical proposal to remain the current head, select an active
+catalog, renew evidence or fall back to synthetic data after a failure. Bootstrap proof
+bytes and coverage versions remain unchanged. Frozen proposal coverage policy 1 accepts
+bootstrap baselines only; arbitrary multihop publication needs a new versioned policy.
+
+Tests use disposable PostgreSQL and fictional `.invalid` sources only. Local checks and
+CI independently bind actual base-only and candidate-specific auditability publication
+bundles to their manifests, proofs and whole decisions. No real source approvals, IdP
+role grants or project database publications are performed. The 22 verification gaps,
+legacy BLOCKED preflight, owned assessment result pinning and final human/golden/UI
+acceptance remain open; this is not a complete P3-4 or Phase 3 exit.
 
 ## Local development
 

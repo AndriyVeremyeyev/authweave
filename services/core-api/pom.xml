@@ -214,7 +214,7 @@
 								<database>
 									<name>org.jooq.meta.postgres.PostgresDatabase</name>
 									<inputSchema>core</inputSchema>
-									<includes>workspaces|personal_workspaces|assessments|assessment_revisions|catalog_proposals|catalog_proposal_revisions|catalog_impact_reports|catalog_proposal_decisions|catalog_fact_reviews|catalog_publication_decisions|catalog_published_snapshots|catalog_bootstrap_reviews|catalog_fact_path_reports|catalog_bootstrap_impact_reports|catalog_auditability_reviews|candidate_decision_reports|catalog_bootstrap_publications</includes>
+									<includes>workspaces|personal_workspaces|assessments|assessment_revisions|catalog_proposals|catalog_proposal_revisions|catalog_impact_reports|catalog_proposal_decisions|catalog_fact_reviews|catalog_publication_decisions|catalog_published_snapshots|catalog_bootstrap_reviews|catalog_fact_path_reports|catalog_bootstrap_impact_reports|catalog_auditability_reviews|candidate_decision_reports|catalog_bootstrap_publications|catalog_proposal_publications</includes>
 								</database>
 								<generate>
 									<deprecated>false</deprecated>

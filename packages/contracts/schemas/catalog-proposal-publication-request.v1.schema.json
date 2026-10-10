@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-publication-request.v1.schema.json",
+  "title": "Opt-in first successor publication request v1",
+  "description": "Exact bootstrap baseline and current stored proposal/review pins with explicit confirmation. No caller clock, verdicts, manifest or transported coverage token. Policy 1 supports a first successor only.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "publicationId", "before", "proposal", "confirmation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "publicationId": { "type": "string", "format": "uuid" },
+    "before": { "$ref": "catalog-baseline-reference.v1.schema.json" },
+    "proposal": { "$ref": "publication-proposal-decision-coverage.v1.schema.json#/$defs/proposalReference" },
+    "confirmation": { "const": "PUBLISH_REVIEWED_PROPOSAL" }
+  }
+}

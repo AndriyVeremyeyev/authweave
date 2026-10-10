@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-publication-problem.v1.schema.json",
+  "title": "Proposal publication denial problem v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["type", "title", "status", "detail", "instance", "code"],
+  "properties": {
+    "type": { "type": "string", "format": "uri" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "enum": [400, 403, 409] },
+    "detail": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "instance": { "type": "string", "format": "uri-reference" },
+    "code": { "enum": ["invalid-request", "catalog-proposal-publication-conflict", "catalog-proposal-publication-source-not-eligible", "catalog-proposal-publication-coverage-incomplete", "catalog-proposal-publication-authentication-expired", "catalog-proposal-publication-stored-publication-invalid"] },
+    "violations": { "$ref": "core-problem.v1.schema.json#/properties/violations" }
+  }
+}

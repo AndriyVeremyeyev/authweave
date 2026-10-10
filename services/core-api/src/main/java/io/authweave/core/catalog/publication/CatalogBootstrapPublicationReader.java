@@ -52,7 +52,7 @@ public class CatalogBootstrapPublicationReader {
     record Verified(Proof proof, PublishedCatalogSnapshot snapshot, String proofSha256) { }
 
     /** Internal immutable material; only this verifier constructs it. Not a response DTO or reusable approval token. */
-    public static final class Loaded {
+    public static final class Loaded implements CatalogVerifiedPublication {
         private final Verified verified;
         private Loaded(Verified verified) { this.verified = verified; }
         public PublishedCatalogSnapshot snapshot() { return verified.snapshot(); }
@@ -75,6 +75,11 @@ public class CatalogBootstrapPublicationReader {
         var verified = verified(row);
         if (!reference.equals(verified.proof().snapshot())) throw new CatalogPublishedLoadingException(REFERENCE_MISMATCH);
         return new Loaded(verified);
+    }
+
+    /** Dispatch metadata only, in the caller's consistent transaction. Presence does not establish validity. */
+    public boolean proofStored(UUID id) {
+        return dsl.fetchExists(CATALOG_BOOTSTRAP_PUBLICATIONS, CATALOG_BOOTSTRAP_PUBLICATIONS.ID.eq(Objects.requireNonNull(id)));
     }
 
     // Writer shares precisely the same bounded read and verification, inside its serialized transaction.

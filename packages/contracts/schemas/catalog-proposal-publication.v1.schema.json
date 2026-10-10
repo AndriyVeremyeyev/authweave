@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-proposal-publication.v1.schema.json",
+  "title": "Recorded first successor publication receipt v1",
+  "description": "Body-free historical publication receipt. Does not expose source bodies or curator identities, activate evaluation, pin an assessment result, or certify external sources.",
+  "type": "object", "additionalProperties": false,
+  "required": ["snapshot", "decisionId", "publishedAt", "before", "proposal", "policyVersion", "proofSha256", "coverageManifestSha256", "coverageScope", "verificationGaps", "publicationRecorded", "evaluationReady", "externalSourceVerificationPerformed"],
+  "properties": {
+    "snapshot": { "$ref": "catalog-baseline-reference.v1.schema.json" },
+    "decisionId": { "type": "string", "format": "uuid" },
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "before": { "$ref": "catalog-baseline-reference.v1.schema.json" },
+    "proposal": { "$ref": "publication-proposal-decision-coverage.v1.schema.json#/$defs/proposalReference" },
+    "policyVersion": { "const": "catalog-proposal-publication-1" },
+    "proofSha256": { "$ref": "publication-decision-coverage.v1.schema.json#/$defs/hash" },
+    "coverageManifestSha256": { "$ref": "publication-decision-coverage.v1.schema.json#/$defs/hash" },
+    "coverageScope": { "const": "DECLARED_DECISION_RULES_ONLY" },
+    "verificationGaps": { "$ref": "publication-decision-coverage.v1.schema.json#/properties/verificationGaps" },
+    "publicationRecorded": { "const": true },
+    "evaluationReady": { "const": false },
+    "externalSourceVerificationPerformed": { "const": false }
+  }
+}

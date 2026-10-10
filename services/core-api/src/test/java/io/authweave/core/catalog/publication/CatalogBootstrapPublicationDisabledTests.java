@@ -20,6 +20,9 @@ class CatalogBootstrapPublicationDisabledTests extends PostgresIntegrationTest {
     @Test void publisherAndHttpRouteAreAbsentByDefaultEvenForAFreshCurator() throws Exception {
         assertTrue(context.getBeansOfType(CatalogBootstrapPublisher.class).isEmpty());
         assertTrue(context.getBeansOfType(CatalogBootstrapPublicationController.class).isEmpty());
+        assertTrue(context.getBeansOfType(CatalogProposalPublisher.class).isEmpty());
+        assertTrue(context.getBeansOfType(CatalogProposalPublicationController.class).isEmpty());
+        assertFalse(context.getBeansOfType(CatalogProposalPublicationReader.class).isEmpty());
         mvc.perform(post("/internal/v1/catalog-curator/bootstrap-publications")
                 .header("Authorization", "Bearer synthetic-disabled-publication-token-000000000000000")
                 .header("X-AuthWeave-Oidc-Issuer", "https://identity.example.invalid")
@@ -28,6 +31,14 @@ class CatalogBootstrapPublicationDisabledTests extends PostgresIntegrationTest {
                 .header("X-AuthWeave-Curator-Project-Id", "123").header("X-AuthWeave-Curator-Org-Id", "456")
                 .header("X-AuthWeave-Authenticated-At", java.time.Instant.now().toString())
                 .contentType("application/json").content("{}"))
+                .andExpect(status().isNotFound());
+        mvc.perform(post("/internal/v1/catalog-curator/proposal-publications")
+                .header("Authorization", "Bearer synthetic-disabled-publication-token-000000000000000")
+                .header("X-AuthWeave-Oidc-Issuer", "https://identity.example.invalid")
+                .header("X-AuthWeave-Oidc-Subject", "fictional-curator")
+                .header("X-AuthWeave-Curator-Role", "catalog_curator")
+                .header("X-AuthWeave-Curator-Project-Id", "123").header("X-AuthWeave-Curator-Org-Id", "456")
+                .header("X-AuthWeave-Authenticated-At", java.time.Instant.now().toString()).contentType("application/json").content("{}"))
                 .andExpect(status().isNotFound());
     }
 }

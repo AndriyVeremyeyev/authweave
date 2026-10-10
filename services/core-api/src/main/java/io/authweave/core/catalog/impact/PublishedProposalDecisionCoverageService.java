@@ -99,6 +99,9 @@ public class PublishedProposalDecisionCoverageService {
         return calculate(baseline, proposal, Objects.requireNonNull(at));
     }
     private Check calculate(TrustedPublishedCatalogService.Inputs baseline, StoredProposalDecisionService.Inputs proposal, Instant at) {
+        // Frozen policy 1 binds the bootstrap loader. Multihop publication requires a separately versioned policy.
+        if (!CatalogBootstrapPublicationReader.VERSION.equals(baseline.publication().loaderVersion()))
+            throw new IllegalArgumentException("Coverage policy 1 requires a verified bootstrap baseline");
         StoredProposalDecisionImpactService.requireExactBase(baseline, proposal);
         if (baseline.publication().snapshot().publication().publishedAt().isAfter(at.plusSeconds(30))
                 || proposal.proposalRecordedAt().isAfter(at.plusSeconds(30))

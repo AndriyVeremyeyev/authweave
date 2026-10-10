@@ -745,6 +745,60 @@ paths:
                 $ref: ../schemas/catalog-bootstrap-publication-problem.v1.schema.json
         '503':
           description: Server service credential or curator scope is not configured.
+  /internal/v1/catalog-curator/proposal-publications:
+    post:
+      tags: [Catalog drafts]
+      summary: Publish a reviewed first successor of a trusted bootstrap
+      operationId: publishReviewedCatalogProposal
+      description: >-
+        Available only with the catalog-proposal-publication server profile. Requires
+        the BFF service credential and fresh singular project/organization-scoped curator
+        assertions. Core locks the publication boundary and proposal head, checks the exact
+        current revision and latest review ledger, and replays declared decision coverage
+        with current supporting recorded claims at its database clock. Policy 1 requires
+        an exact verified bootstrap parent with no successor and an unused catalog label.
+        Snapshot, approval decision, body-free audit and replayable proof commit atomically.
+        Same-key/input/actor retries replay historical evidence with current reauthentication.
+        Historical loading does not require the proposal to remain the current head.
+        No caller manifest/report/clock/verdicts, source fetching, role grants, assessment
+        activation or arbitrary multihop publication. Legacy preflight remains BLOCKED.
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-proposal-publication-request.v1.schema.json
+      responses:
+        '201':
+          description: Atomic first successor publication recorded; no evaluator activation.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-publication.v1.schema.json
+        '200':
+          description: Exact same actor/input retry verified without another write.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-proposal-publication.v1.schema.json
+        '400':
+          description: Invalid or non-strict request.
+        '401':
+          description: Missing or invalid service credential or singular OIDC principal.
+        '403':
+          description: Invalid curator scope or expired reauthentication.
+        '404':
+          description: Publisher profile is disabled.
+        '409':
+          description: Exact parent, current revision, ledger, source eligibility or historical replay failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/catalog-proposal-publication-problem.v1.schema.json
+        '503':
+          description: Server credential or curator scope is not configured.
   /api/v1/catalog-bootstrap-reviews:
     post:
       tags: [Catalog drafts]

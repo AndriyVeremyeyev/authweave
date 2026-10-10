@@ -31,6 +31,15 @@ import tools.jackson.core.JacksonException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
 
+    @ExceptionHandler(io.authweave.core.catalog.publication.CatalogProposalPublicationException.class)
+    ResponseEntity<ProblemDetail> proposalPublication(io.authweave.core.catalog.publication.CatalogProposalPublicationException exception, HttpServletRequest request) {
+        var status = exception.reason() == io.authweave.core.catalog.publication.CatalogProposalPublicationException.Reason.AUTHENTICATION_EXPIRED
+                ? HttpStatus.FORBIDDEN : HttpStatus.CONFLICT;
+        return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(problem(status,
+                "catalog-proposal-publication-" + exception.reason().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'),
+                "Proposal publication denied", "The exact current proposal, parent, reviews, fresh authentication or stored replay requirements are not satisfied.", request));
+    }
+
     @ExceptionHandler(io.authweave.core.catalog.publication.CatalogBootstrapPublicationException.class)
     ResponseEntity<ProblemDetail> bootstrapPublication(io.authweave.core.catalog.publication.CatalogBootstrapPublicationException exception, HttpServletRequest request) {
         var status = exception.reason() == io.authweave.core.catalog.publication.CatalogBootstrapPublicationException.Reason.AUTHENTICATION_EXPIRED
