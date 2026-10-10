@@ -28,6 +28,17 @@ public class AssessmentDecisionResultController {
         var saved = results.save(workspaceId, assessmentId, body, actor(request));
         return ResponseEntity.status(saved.created() ? 201 : 200).header("Cache-Control", "no-store").body(saved.receipt());
     }
+    /** Same audited write contract, followed by a bounded independently replayed projection. */
+    @PostMapping("/summary")
+    ResponseEntity<?> saveSummary(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId,
+            @RequestBody AssessmentDecisionResultRequest body, HttpServletRequest request) {
+        int status = credentials.personalWorkspaceStatus(request, workspaceId);
+        if (status != 200) return ResponseEntity.status(status).header("Cache-Control", "no-store").build();
+        query(request, java.util.Set.of());
+        var saved = results.save(workspaceId, assessmentId, body, actor(request));
+        var summary = results.summary(workspaceId, assessmentId, saved.receipt().reference(), actor(request));
+        return ResponseEntity.status(saved.created() ? 201 : 200).header("Cache-Control", "no-store").body(summary);
+    }
     @GetMapping
     ResponseEntity<?> history(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId,
             @RequestParam(required = false) UUID beforeResultId,

@@ -82,7 +82,7 @@ class GuidedAssessmentBrowserIT extends PostgresIntegrationTest {
             assertTrue(process.waitFor(300, TimeUnit.SECONDS), "Browser integration timed out; see " + log);
             var output = Files.readString(log);
             assertEquals(0, process.exitValue(), output);
-            assertTrue(output.contains("Browser/OIDC E2E: 10 passed"), output);
+            assertTrue(output.contains("Browser/OIDC E2E: 12 passed"), output);
             System.out.println(output);
         } finally {
             if (process.isAlive()) {
@@ -101,19 +101,20 @@ class GuidedAssessmentBrowserIT extends PostgresIntegrationTest {
                     FROM core.assessments a JOIN core.personal_workspaces w ON w.workspace_id = a.workspace_id
                     WHERE w.subject LIKE 'synthetic-browser-%'
                     """)) {
-                int guided = 0, security = 0, history = 0;
+                int guided = 0, security = 0, history = 0, recording = 0;
                 while (rows.next()) {
                     boolean failurePath = rows.getString("subject").endsWith("-security-owner");
                     boolean historical = rows.getString("subject").endsWith("-history");
-                    assertEquals(historical ? 2 : failurePath ? 1 : 5, rows.getLong("lock_version"));
-                    assertEquals(historical ? 3 : failurePath ? 2 : 6, rows.getInt("revisions"));
-                    assertEquals(historical ? 3 : failurePath ? 2 : 6, rows.getInt("events"));
-                    if (historical) history++; else if (failurePath) security++; else guided++;
+                    boolean writing = rows.getString("subject").endsWith("-recording");
+                    assertEquals(historical ? 2 : failurePath || writing ? 1 : 5, rows.getLong("lock_version"));
+                    assertEquals(historical ? 3 : failurePath || writing ? 2 : 6, rows.getInt("revisions"));
+                    assertEquals(historical ? 3 : failurePath || writing ? 2 : 6, rows.getInt("events"));
+                    if (historical) history++; else if (failurePath) security++; else if (writing) recording++; else guided++;
                 }
-                assertEquals(6, guided); assertEquals(2, security); assertEquals(2, history);
+                assertEquals(6, guided); assertEquals(2, security); assertEquals(2, history); assertEquals(2, recording);
             }
             for (var table : List.of("core.assessment_decision_results", "audit.assessment_decision_result_events")) {
-                try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) { assertTrue(rows.next()); assertEquals(4, rows.getInt(1)); }
+                try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) { assertTrue(rows.next()); assertEquals(10, rows.getInt(1)); }
             }
             try (var rows = sql.executeQuery("SELECT count(*) FROM web.sessions")) {
                 assertTrue(rows.next()); assertEquals(0, rows.getInt(1));
@@ -143,7 +144,14 @@ class GuidedAssessmentBrowserIT extends PostgresIntegrationTest {
             assessments.updateProfileV6(new WorkspaceId(workspace), new AssessmentId(assessment), 1, mapper.treeToValue(profile, ApplicationIdentityProfile.class));
             var second = results.save(workspace, assessment, new AssessmentDecisionResultRequest(1, UUID.randomUUID(), 2,
                     publication.snapshot(), first.reference(), scenario.weights(), AssessmentDecisionResultRequest.Confirmation.REEVALUATE_DECISION_RESULT), actor).receipt();
-            fixtures.add(Map.of("device", device, "assessmentId", assessment, "first", first.reference(), "second", second.reference()));
+            var writeActor = new AssessmentDecisionResultService.Actor("http://localhost:8081", "synthetic-browser-" + device + "-recording");
+            var writeWorkspace = workspaces.provision(writeActor.issuer(), writeActor.subject()); var writeAssessment = UUID.randomUUID();
+            assessments.createAssessment(new WorkspaceId(writeWorkspace), new AssessmentId(writeAssessment));
+            var writeProfile = (ObjectNode) scenario.profile().deepCopy(); ((ObjectNode) writeProfile.at("/protocols/federation")).put("SAML", "PREFERRED");
+            assessments.updateProfileV6(new WorkspaceId(writeWorkspace), new AssessmentId(writeAssessment), 0,
+                    mapper.treeToValue(writeProfile, ApplicationIdentityProfile.class));
+            fixtures.add(Map.of("device", device, "assessmentId", assessment, "first", first.reference(), "second", second.reference(),
+                    "writeAssessmentId", writeAssessment, "catalog", publication.snapshot()));
         }
         return mapper.writeValueAsString(fixtures);
     }

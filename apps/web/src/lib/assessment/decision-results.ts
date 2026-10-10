@@ -18,7 +18,8 @@ export const resultHistoryByteLimit = 65_536;
 export const resultSummaryByteLimit = 262_144;
 export const resultUuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const sha = /^[a-f0-9]{64}$/;
-const capabilities = ["OIDC", "SAML", "SOCIAL_LOGIN", "PASSKEYS", "SCIM", "JIT", "GROUP_SYNC", "MFA", "OAUTH2_APIS"];
+export const resultCapabilities = ["OIDC", "SAML", "SOCIAL_LOGIN", "ENTERPRISE_SSO", "SCIM", "JIT", "GROUP_SYNC", "MFA", "OAUTH2_APIS"] as const;
+const capabilities: readonly string[] = resultCapabilities;
 const invalid = (): never => { throw new Error("Invalid owned result transport"); };
 function object(value: unknown, keys: string[]): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== keys.length ||

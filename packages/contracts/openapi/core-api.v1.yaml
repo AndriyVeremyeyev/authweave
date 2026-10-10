@@ -121,6 +121,50 @@ paths:
           description: Profile or result exceeds the bounded JSON budget.
         '503':
           description: Internal credential is not configured.
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results/summary:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+    post:
+      tags: [Assessments]
+      operationId: recordAssessmentDecisionSummary
+      summary: Explicitly record owned advice and return its bounded verified summary
+      description: >-
+        Uses the unchanged audited recording request and idempotency semantics.
+        Exact current profile, latest previous result, publication and explicit weights
+        are mandatory. Returns the same original-clock verified projection as an exact
+        summary read, never the full profile/result/source body or owner audit identities.
+        If projection fails after commit, the write may exist: retry the identical
+        request/key explicitly, not a new key or automatic latest selection.
+        No publication, source approval, final decision or assessment state transition.
+        Query parameters are not accepted.
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: ../schemas/assessment-decision-result-request.v1.schema.json }
+      responses:
+        '201':
+          description: New immutable result/audit recorded and exact summary replay verified.
+          content:
+            application/json:
+              schema: { $ref: ../schemas/assessment-decision-result-summary.v1.schema.json }
+        '200':
+          description: Identical historical retry; no new append or changed clock.
+          content:
+            application/json:
+              schema: { $ref: ../schemas/assessment-decision-result-summary.v1.schema.json }
+        '400': { description: 'Non-strict request, query parameters or inconsistent weights.' }
+        '401': { description: Invalid service credential or missing singular principal. }
+        '403': { description: Principal does not own this workspace. }
+        '404': { description: Assessment not found in the owned workspace. }
+        '409': { description: 'Stale input, key conflict, unavailable catalog or replay; a summary failure may occur after commit.' }
+        '413': { description: Bounded profile/result size exceeded. }
+        '503': { description: Credential is not configured; other unconfirmed failures must not trigger automatic retries. }
   /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results/{resultId}:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'

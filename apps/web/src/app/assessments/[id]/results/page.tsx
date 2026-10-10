@@ -28,6 +28,7 @@ export default async function ResultHistoryPage({ params, searchParams }: PagePr
   return <main className="mx-auto max-w-5xl px-5 py-10 text-slate-100 sm:px-8">
     <Link href={`/assessments/${id}?step=review`} className="text-sm text-cyan-200 hover:underline">← Review saved requirements</Link>
     <h1 className="mt-6 text-3xl font-semibold">Decision calculation history</h1>
+    <Link prefetch={false} href={`/assessments/${id}/results/new`} className="mt-5 inline-block rounded-lg border border-cyan-300/30 px-4 py-2 text-sm text-cyan-200 hover:bg-cyan-300/10">Prepare an explicit calculation</Link>
     <ResultHistory page={page} paginated={before !== null} />
   </main>;
 }

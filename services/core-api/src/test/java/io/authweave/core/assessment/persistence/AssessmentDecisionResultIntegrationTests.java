@@ -58,7 +58,7 @@ class AssessmentDecisionResultIntegrationTests {
         r.add("spring.flyway.user", postgres::getUsername); r.add("spring.flyway.password", postgres::getPassword);
     }
     @Autowired DSLContext dsl; @Autowired ObjectMapper mapper; @Autowired MockMvc mvc;
-    @Autowired AssessmentDecisionResultService results; @Autowired AssessmentApplicationService assessments;
+    @MockitoSpyBean AssessmentDecisionResultService results; @Autowired AssessmentApplicationService assessments;
     @Autowired PersonalWorkspaceService workspaces; @Autowired PlatformTransactionManager transactions;
     @Autowired CatalogBootstrapPublisher bootstrap; @Autowired CatalogProposalPublisher publisher;
     @Autowired CatalogBootstrapReviewService reviews; @Autowired CatalogAuditabilityReviewService audits;
@@ -123,6 +123,44 @@ class AssessmentDecisionResultIntegrationTests {
             sample("forged-" + flag, "assessment-decision-result", false, forged);
         }
     }
+    @Test void boundedSummaryWriteRecordsRetriesAndReevaluatesUsingTheUnchangedAuditedContract() throws Exception {
+        var firstRequest = request(root.snapshot(), null); var first = submitSummary(firstRequest, 201);
+        assertEquals(1, first.at("/item/reference/version").asInt());
+        assertEquals(first, submitSummary(firstRequest, 200)); counts(1);
+        assertTrue(first.path("historicalReplayVerified").asBoolean()); assertFalse(first.path("decisionApproved").asBoolean());
+        assertFalse(first.has("result")); assertFalse(first.has("profile")); assertFalse(first.has("auditActor"));
+        var ref = mapper.treeToValue(first.at("/item/reference"), AssessmentDecisionResultRequest.Reference.class);
+        var child = successor(); var next = request(child, ref);
+        var second = submitSummary(next, 201); assertEquals(2, second.at("/item/reference/version").asInt());
+        assertEquals(first, submitSummary(firstRequest, 200)); assertEquals(second, submitSummary(next, 200));
+        assertEquals(first, summary(ref)); counts(2);
+    }
+    @Test void summaryFailureAfterCommitIsNotProofOfNoWriteAndIdenticalRetryNeverAppendsAgain() throws Exception {
+        var request = request(root.snapshot(), null);
+        doThrow(new AssessmentDecisionResultException(READ_UNAVAILABLE)).when(results).summary(any(), any(), any(), any());
+        mvc.perform(auth(post(url() + "/summary").contentType("application/json").content(mapper.writeValueAsString(request)), "ok"))
+                .andExpect(status().isConflict()); counts(1);
+        doCallRealMethod().when(results).summary(any(), any(), any(), any());
+        var retry = submitSummary(request, 200); assertEquals(1, retry.at("/item/reference/version").asInt()); counts(1);
+    }
+    @Test void summaryWritePreservesEnterpriseSsoPreferencesAsARealCapabilityDimension() throws Exception {
+        var profile = (ObjectNode) policy.scenarios().stream().filter(s -> s.id().equals("b2b-saas-scoped")).findFirst().orElseThrow().profile().deepCopy();
+        ((ObjectNode) profile.get("protocols")).put("enterpriseSingleSignOn", "PREFERRED");
+        profileVersion = assessments.updateProfileV6(new WorkspaceId(workspace), new AssessmentId(assessment), profileVersion,
+                mapper.treeToValue(profile, ApplicationIdentityProfile.class)).version();
+        weights = mapper.readTree("{\"mode\":\"EXPLICIT\",\"values\":[{\"capability\":\"ENTERPRISE_SSO\",\"weight\":100}]}");
+        var request = request(root.snapshot(), null); var summary = submitSummary(request, 201);
+        assertEquals(weights, summary.get("weights")); assertEquals(summary, submitSummary(request, 200)); counts(1);
+    }
+    @Test void summaryWriteRefusesQueryAuthorityAndStaleHeadsWithoutAppending() throws Exception {
+        var request = request(root.snapshot(), null);
+        mvc.perform(auth(post(url() + "/summary").param("latest", "true").contentType("application/json").content(mapper.writeValueAsString(request)), "ok"))
+                .andExpect(status().isBadRequest()); counts(0);
+        var first = submitSummary(request, 201);
+        mvc.perform(auth(post(url() + "/summary").contentType("application/json").content(mapper.writeValueAsString(request(root.snapshot(), null))), "ok"))
+                .andExpect(status().isConflict()); counts(1);
+        assertEquals(first, submitSummary(request, 200));
+    }
     @Test void legacyProfileProjectionPinsUnknownsWithoutRewritingTheStoredSnapshot() throws Exception {
         assessment = UUID.randomUUID(); profileVersion = 0;
         assessments.createAssessment(new WorkspaceId(workspace), new AssessmentId(assessment));
@@ -162,6 +200,7 @@ class AssessmentDecisionResultIntegrationTests {
     void personalOwnershipRequiredForCreateReadAndRetry(String issue) throws Exception {
         var request = request(root.snapshot(), null); int status = issue.startsWith("other-") ? 403 : 401;
         mvc.perform(auth(post(url()).contentType("application/json").content(mapper.writeValueAsString(request)), issue)).andExpect(status().is(status)); counts(0);
+        mvc.perform(auth(post(url() + "/summary").contentType("application/json").content(mapper.writeValueAsString(request)), issue)).andExpect(status().is(status)); counts(0);
         var receipt = results.save(workspace, assessment, request, actor()).receipt();
         mvc.perform(auth(read(receipt.reference()), issue)).andExpect(status().is(status));
         mvc.perform(auth(get(url()), issue)).andExpect(status().is(status));
@@ -187,6 +226,7 @@ class AssessmentDecisionResultIntegrationTests {
         if (issue.equals("duplicate")) json = json.substring(0, json.length() - 1) + ",\"schemaVersion\":1}";
         else sample("invalid-" + issue, "assessment-decision-result-request", false, tree);
         mvc.perform(auth(post(url()).contentType("application/json").content(json), "ok")).andExpect(status().isBadRequest()); counts(0);
+        mvc.perform(auth(post(url() + "/summary").contentType("application/json").content(json), "ok")).andExpect(status().isBadRequest()); counts(0);
     }
     @ParameterizedTest @ValueSource(strings = {"stale-profile", "wrong-catalog", "missing-catalog", "implicit-weights", "injected-weights", "result-head", "other-assessment", "same-key"})
     void conflictsAndInvalidInputsDoNotAppendResultsOrAudit(String issue) throws Exception {
@@ -418,6 +458,11 @@ class AssessmentDecisionResultIntegrationTests {
         var response = mvc.perform(auth(post(url()).contentType("application/json").content(mapper.writeValueAsString(body)), "ok"))
                 .andExpect(status().is(status)).andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
         var json = mapper.readTree(response.getContentAsString()); sample("post-" + samples.size(), "assessment-decision-result", true, json); return json;
+    }
+    private JsonNode submitSummary(AssessmentDecisionResultRequest body, int expectedStatus) throws Exception {
+        var response = mvc.perform(auth(post(url() + "/summary").contentType("application/json").content(mapper.writeValueAsString(body)), "ok"))
+                .andExpect(status().is(expectedStatus)).andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
+        var json = mapper.readTree(response.getContentAsString()); sample("post-summary-" + samples.size(), "assessment-decision-result-summary", true, json); return json;
     }
     private JsonNode getResult(AssessmentDecisionResultRequest.Reference ref, int status) throws Exception {
         var response = mvc.perform(auth(read(ref), "ok")).andExpect(status().is(status)).andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();

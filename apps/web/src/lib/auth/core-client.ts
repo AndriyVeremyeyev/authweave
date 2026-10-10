@@ -2,6 +2,7 @@
 import { randomUUID } from "node:crypto";
 import { resultPageFromCore, resultSummaryFromCore, resultReference, resultReferenceQuery, resultUuid,
   resultHistoryByteLimit, resultSummaryByteLimit, type ResultReference, type ResultPage, type ResultSummary } from "../assessment/decision-results.ts";
+import { recordingRequest, recordingSummaryMatches, type RecordingRequest, type RecordingAck } from "../assessment/decision-recording.ts";
 import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
@@ -509,8 +510,26 @@ export async function readPersonalDecisionSummary(session: BrowserSession, id: s
   if (response.status === 404) return null;
   return resultSummaryFromCore(await ownedResultJson(response, resultSummaryByteLimit, signal), session.workspaceId, id, ref);
 }
-async function ownedResultJson(response: Response, limit: number, signal: AbortSignal): Promise<unknown> {
-  if (response.status !== 200 || response.redirected || response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
+/** One explicit POST only; exact retries are initiated by the human, never by this client. */
+export async function recordPersonalDecision(session: BrowserSession, id: string, value: RecordingRequest): Promise<RecordingAck | 400 | 401 | 403 | 404 | 409 | 413> {
+  if (!resultUuid.test(id)) throw new Error("Invalid owned result request");
+  const input = recordingRequest(value), signal = AbortSignal.timeout(20_000);
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/decision-results/summary`, {
+    method: "POST", headers: { ...assessmentHeaders(session), "Content-Type": "application/json" },
+    body: JSON.stringify(input), cache: "no-store", redirect: "error", signal,
+  });
+  if ([400, 401, 403, 404, 409, 413].includes(response.status) && !response.redirected) {
+    void response.body?.cancel().catch(() => {}); return response.status as 400 | 401 | 403 | 404 | 409 | 413;
+  }
+  const raw = await ownedResultJson(response, resultSummaryByteLimit, signal, true);
+  const reference = resultReference((raw as ResultSummary)?.item?.reference);
+  const summary = resultSummaryFromCore(raw, session.workspaceId, id, reference);
+  if (!recordingSummaryMatches(summary, input)) throw new Error("Owned result write unconfirmed");
+  return { scope: "OWNED_ASSESSMENT_RESULT_WRITE_ACK", assessmentId: id, reference,
+    created: response.status === 201, historicalReplayVerified: true };
+}
+async function ownedResultJson(response: Response, limit: number, signal: AbortSignal, write = false): Promise<unknown> {
+  if (!(response.status === 200 || write && response.status === 201) || response.redirected || response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
     void response.body?.cancel().catch(() => {}); throw new Error("Owned result read unavailable");
   }
   return JSON.parse(await boundedPrerequisiteText(response, limit, signal));

@@ -44,6 +44,8 @@ const samples = (await Promise.all(samplePaths.map(async (file) => {
 }))).flat();
 assert.ok(Array.isArray(samples) && samples.length > 0, "HTTP contract samples must not be empty.");
 const covered = new Set();
+assert.ok(samples.some(s => s.valid && s.schema === "assessment-decision-result-summary" && s.name.startsWith("post-summary-")),
+  "Actual HTTP coverage must include the bounded owned result write response, not only summary reads.");
 let auditabilityConsumerSamples = 0;
 let auditabilityDraftSamples = 0;
 let auditabilityReviewSamples = 0;

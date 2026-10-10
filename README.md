@@ -385,7 +385,43 @@ policy are refused. No curator grant or browser credential is needed for owned r
 The Review entry preserves existing unsaved-input navigation guards. Isolated browser
 tests exercise desktop/mobile history, reload, older-profile advice, malformed links,
 cross-owner denial and logout using real Core and fictional published test data only.
-UI recording/re-evaluation and the real human publication workflow are still pending.
+The separate explicit recording form below does not change read-only history/detail semantics.
+The real human publication workflow and final acceptance are still pending.
+
+### Explicit recording and re-evaluation from the assessment UI
+
+Calculation history links to `/assessments/{id}/results/new`. The signed-in owner sees
+the saved profile version and current result head. The first calculation has no selected
+catalog; enter the exact snapshot UUID, catalog version and SHA-256 from a published
+curator receipt. Re-evaluation displays the predecessor's catalog as a convenience,
+not an automatic latest selection. Every operation requires an unchecked explicit
+confirmation. Draft/unreviewed or unavailable publications cannot become a fallback.
+
+Only the current profile's Preferred capability dimensions receive explicit positive
+integer weights totaling 100. With no Preferred dimensions, the request explicitly uses
+`NONE` and no points. Required capabilities remain hard constraints. The nine dimensions
+match the saved profile and Core contract, including `ENTERPRISE_SSO`; authentication
+controls such as passkey requirements are not invented scoring dimensions.
+
+The same-origin/session BFF accepts a strict byte-bounded form and forwards one fixed
+loopback `POST .../decision-results/summary` with the unchanged audited recording request.
+Core appends an immutable result/audit, then returns its exact original-clock verified
+summary. The BFF verifies owner, key/version, profile version, catalog, predecessor,
+weights and non-authority flags before returning a small acknowledgement. Service
+credentials, profiles, sources and audit identities never reach the browser response.
+
+Retries are never automatic. While submitting or after an unconfirmed reply, inputs
+are frozen; an explicit retry reuses the identical captured request/key. A timeout or
+even a post-commit summary conflict cannot prove that the original write did not commit.
+The user must inspect history before preparing another calculation. The pending request
+is held only in this tab's memory; leaving/reloading does not persist an idempotent retry.
+An archived assessment remains readable but cannot record new calculations. No catalog
+publication, source approval, assessment status transition or final decision is performed.
+
+Isolated desktop/mobile browser checks cover initial recording, positive explicit weights,
+identical retry, stale-head refusal, a deliberately lost committed reply and recovery,
+unchanged older results, cross-origin/owner/input denial and logout. Fixtures use fictional
+published data and disposable PostgreSQL, not real human source reviews or IdP grants.
 
 ### Trusted published bootstrap loading
 

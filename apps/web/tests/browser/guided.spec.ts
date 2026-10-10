@@ -93,6 +93,86 @@ test("owned saved result history opens exact original-clock advice without write
   await logout(page); await page.goto(`${assessment}/results`); await expect(page).toHaveURL("http://localhost:3000/account");
 });
 
+test("explicit recording, stale-head refusal and lost-reply identical retry preserve immutable history", async ({ page, browser }, info) => {
+  const fixture = JSON.parse(process.env.AUTHWEAVE_TEST_RESULT_FIXTURES!).find((v: { device: string }) => v.device === info.project.name);
+  const subject = `synthetic-browser-${info.project.name}-recording`, assessment = `/assessments/${fixture.writeAssessmentId}`;
+  const endpoint = `/api/assessments/${fixture.writeAssessmentId}/decision-results`;
+  const headers = { Origin: "http://localhost:3000", Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" };
+  await login(page, subject); await page.goto(`${assessment}?step=review`);
+  await page.getByRole("link", { name: "Open saved calculation history →", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "No saved decision calculations yet", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Prepare an explicit calculation", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Record a decision calculation", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Catalog snapshot ID", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("checkbox")).not.toBeChecked();
+  async function fill(target: Page) {
+    await target.getByLabel("Catalog snapshot ID", { exact: true }).fill(fixture.catalog.snapshotId);
+    await target.getByLabel("Catalog version", { exact: true }).fill(fixture.catalog.catalogVersion);
+    await target.getByLabel("Catalog snapshot SHA-256", { exact: true }).fill(fixture.catalog.snapshotSha256);
+    await target.getByLabel("SAML weight", { exact: true }).fill("100");
+    await target.getByRole("checkbox").check();
+  }
+  async function body(target: Page) {
+    return target.locator("form").evaluate(form => new URLSearchParams([...new FormData(form as HTMLFormElement)].map(([k, v]) => [k, String(v)])).toString());
+  }
+  await fill(page); const initialBody = await body(page);
+  for (const [payload, requestHeaders, status] of [[initialBody, { ...headers, Origin: "https://outside.example.invalid" }, 403],
+    [initialBody + "&workspaceId=forged", headers, 400], [initialBody + "&expectedAssessmentVersion=1", headers, 400],
+    [initialBody, { ...headers, "Content-Type": "application/json" }, 415], ["x".repeat(16385), headers, 400]] as const) {
+    expect((await page.request.post(endpoint, { headers: requestHeaders, data: payload })).status()).toBe(status);
+  }
+  const firstReply = page.waitForResponse(r => new URL(r.url()).pathname === endpoint && r.request().method() === "POST");
+  await page.getByRole("button", { name: "Record initial calculation", exact: true }).click();
+  const firstResponse = await firstReply; expect(firstResponse.status()).toBe(201); const first = await firstResponse.json();
+  expect(first.reference.version).toBe(1); expect(first.reference.resultId).toBe(new URLSearchParams(initialBody).get("resultId"));
+  await expect(page).toHaveURL(`http://localhost:3000${assessment}/results/${first.reference.resultId}?${resultReferenceQuery(first.reference)}`);
+  await expect(page.getByRole("status")).toContainText("whole historical replay"); await expect(page.getByText("SAML: 100", { exact: true })).toBeVisible();
+  const retry = await page.request.post(endpoint, { headers, data: initialBody }); expect(retry.status()).toBe(200);
+  expect((await retry.json()).reference).toEqual(first.reference);
+  await page.goto(`${assessment}/results/new`); await fill(page);
+  const stale = await page.context().newPage(); await stale.goto(`${assessment}/results/new`); await fill(stale);
+  expect(await page.locator('input[name="previousResultId"]').inputValue()).toBe(first.reference.resultId);
+  expect(await page.locator('input[name="resultId"]').inputValue()).not.toBe(await stale.locator('input[name="resultId"]').inputValue());
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: `../../.internal/result-recording-${info.project.name}.png`, fullPage: true });
+  await page.getByRole("button", { name: "Record a new result version", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Result version 2", exact: true })).toBeVisible();
+  await stale.getByRole("button", { name: "Record a new result version", exact: true }).click();
+  await expect(stale.getByRole("main").getByRole("alert")).toContainText("profile/result head changed");
+  await expect(stale.getByLabel("Catalog version", { exact: true })).toBeDisabled(); await stale.close();
+  await page.goto(`${assessment}/results/new`); await fill(page); const lostBody = await body(page);
+  const lostPosts: string[] = [];
+  await page.route(`**${endpoint}`, async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    lostPosts.push(route.request().postData()!);
+    if (lostPosts.length === 1) { expect((await route.fetch()).status()).toBe(201); await route.abort("failed"); }
+    else await route.continue();
+  });
+  await page.getByRole("button", { name: "Record a new result version", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("write may already exist");
+  expect(lostPosts).toEqual([lostBody]);
+  await expect(page.getByLabel("Catalog version", { exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Retry identical request only", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Result version 3", exact: true })).toBeVisible();
+  expect(lostPosts).toEqual([lostBody, lostBody]); await page.unroute(`**${endpoint}`);
+  await page.goto(`${assessment}/results`);
+  for (const version of [1, 2, 3]) await expect(page.getByRole("heading", { name: `Result version ${version}`, exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Verify and open result version 1", exact: true }).click();
+  await expect(page).toHaveURL(`http://localhost:3000${assessment}/results/${first.reference.resultId}?${resultReferenceQuery(first.reference)}`);
+  await expect(page.getByRole("status")).toContainText("whole historical replay");
+  const outsiderContext = await browser.newContext({ baseURL: "http://localhost:3000" });
+  try {
+    const outsider = await outsiderContext.newPage(); await login(outsider, `${subject}-outsider`);
+    expect((await outsider.goto(`${assessment}/results/new`))!.status()).toBe(404);
+    // A globally occupied request key is an opaque conflict even in another owner's workspace.
+    expect((await outsider.request.post(endpoint, { headers, data: initialBody })).status()).toBe(409);
+    const freshForeign = new URLSearchParams(initialBody); freshForeign.set("resultId", crypto.randomUUID());
+    expect((await outsider.request.post(endpoint, { headers, data: freshForeign.toString() })).status()).toBe(404);
+    await logout(outsider);
+  } finally { await outsiderContext.close(); }
+  await logout(page); expect((await page.request.post(endpoint, { headers, data: initialBody })).status()).toBe(401);
+});
+
 test("dirty guard, stale tab, ownership, reauthentication, logout and invalid nonce fail closed", async ({ page, browser }, info) => {
   const subject = `synthetic-browser-${info.project.name}-security-owner`;
   const originalCookie = await login(page, subject), assessment = await create(page);
