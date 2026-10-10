@@ -314,8 +314,28 @@ PostgreSQL with fictional `.invalid` sources only.
 Publication records a reviewed advisory catalog; it does not activate the evaluator,
 promote old incomplete receipts or erase the 22 explicit deployment/compliance gaps.
 The legacy preflight and integrity-only lookup retain their existing denial/authority
-contracts. Subsequent proposal approval, the separate trusted loading path, owned
-assessment result pinning and final golden/UI acceptance remain the next P3-4 work.
+contracts. Subsequent proposal approval, owned assessment result pinning and final
+golden/UI acceptance remain open.
+
+### Trusted published bootstrap loading
+
+The separate Core-only `TrustedPublishedCatalogService` accepts an exact snapshot UUID,
+catalog version and snapshot digest. It works without enabling the publisher profile.
+Within one read-only `REPEATABLE_READ` transaction, it validates the stored manifest,
+decision and curator audit, bounded publication proof, exact source reviews and their
+audits, and the full decision-coverage replay at the original publication clock.
+Missing proofs, mismatched references, checksummed but unreplayable data and invalid
+temporal bindings fail closed. Database failures propagate; no synthetic catalog or
+caller-provided document is used as a fallback.
+
+The adapter retains ordered source JSON, claim-bound human assertions, optional
+auditability inputs and original observation dates. It does not broaden the existing
+synthetic catalog kind or `.invalid` URL rule. Historical publication verification
+does not renew evidence: a later calculation still reports stale facts as unknown.
+The 22 verification gaps remain explicit; independent source, configuration and
+compliance verification are not implied. This internal input path has no new HTTP
+route, active-head selection, assessment write or pinned final result. Subsequent
+published revisions will require their own workflow proof support.
 
 ## Local development
 
