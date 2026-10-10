@@ -4,12 +4,29 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.context.ActiveProfiles;
+import io.authweave.core.assessment.application.*;
+import io.authweave.core.assessment.domain.*;
+import io.authweave.core.assessment.domain.profile.ApplicationIdentityProfile;
+import io.authweave.core.assessment.persistence.AssessmentDecisionResultService;
+import io.authweave.core.assessment.result.AssessmentDecisionResultRequest;
+import io.authweave.core.catalog.impact.*;
+import io.authweave.core.catalog.auditability.*;
+import io.authweave.core.catalog.draft.CatalogAuditabilityDraftValidator;
+import io.authweave.core.catalog.publication.*;
+import io.authweave.core.catalog.proposal.CatalogProposalRejectionWriter.CuratorActor;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import io.authweave.core.PostgresIntegrationTest;
 
@@ -21,9 +38,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         "AUTHWEAVE_CORE_SERVICE_TOKEN=synthetic-browser-core-token-0000000000000000000000"
 })
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
+@ActiveProfiles("catalog-bootstrap-publication")
 class GuidedAssessmentBrowserIT extends PostgresIntegrationTest {
 
     @Value("${local.server.port}") private int port;
+    @Autowired PersonalWorkspaceService workspaces;
+    @Autowired AssessmentApplicationService assessments;
+    @Autowired AssessmentDecisionResultService results;
+    @Autowired CatalogBootstrapPublisher bootstrap;
+    @Autowired CatalogBootstrapReviewService reviews;
+    @Autowired CatalogAuditabilityReviewService auditReviews;
+    @Autowired CatalogAuditabilityDraftValidator auditDrafts;
+    @Autowired DecisionPublicationCoveragePolicy policy;
+    @Autowired ObjectMapper mapper;
 
     @Test
     void desktopAndMobileGuidedFlowsUseOidcLoginAndRealCoreWithoutOwnerData() throws Exception {
@@ -49,12 +76,13 @@ class GuidedAssessmentBrowserIT extends PostgresIntegrationTest {
         env.put("AUTHWEAVE_POSTGRES_DB", postgres.getDatabaseName());
         env.put("AUTHWEAVE_POSTGRES_PORT", String.valueOf(postgres.getMappedPort(5432)));
         env.put("AUTHWEAVE_CORE_SERVICE_TOKEN", "synthetic-browser-core-token-0000000000000000000000");
+        env.put("AUTHWEAVE_TEST_RESULT_FIXTURES", seedHistoricalResults());
         var process = command.start();
         try {
             assertTrue(process.waitFor(300, TimeUnit.SECONDS), "Browser integration timed out; see " + log);
             var output = Files.readString(log);
             assertEquals(0, process.exitValue(), output);
-            assertTrue(output.contains("Browser/OIDC E2E: 8 passed"), output);
+            assertTrue(output.contains("Browser/OIDC E2E: 10 passed"), output);
             System.out.println(output);
         } finally {
             if (process.isAlive()) {
@@ -73,15 +101,19 @@ class GuidedAssessmentBrowserIT extends PostgresIntegrationTest {
                     FROM core.assessments a JOIN core.personal_workspaces w ON w.workspace_id = a.workspace_id
                     WHERE w.subject LIKE 'synthetic-browser-%'
                     """)) {
-                int guided = 0, security = 0;
+                int guided = 0, security = 0, history = 0;
                 while (rows.next()) {
                     boolean failurePath = rows.getString("subject").endsWith("-security-owner");
-                    assertEquals(failurePath ? 1 : 5, rows.getLong("lock_version"));
-                    assertEquals(failurePath ? 2 : 6, rows.getInt("revisions"));
-                    assertEquals(failurePath ? 2 : 6, rows.getInt("events"));
-                    if (failurePath) security++; else guided++;
+                    boolean historical = rows.getString("subject").endsWith("-history");
+                    assertEquals(historical ? 2 : failurePath ? 1 : 5, rows.getLong("lock_version"));
+                    assertEquals(historical ? 3 : failurePath ? 2 : 6, rows.getInt("revisions"));
+                    assertEquals(historical ? 3 : failurePath ? 2 : 6, rows.getInt("events"));
+                    if (historical) history++; else if (failurePath) security++; else guided++;
                 }
-                assertEquals(6, guided); assertEquals(2, security);
+                assertEquals(6, guided); assertEquals(2, security); assertEquals(2, history);
+            }
+            for (var table : List.of("core.assessment_decision_results", "audit.assessment_decision_result_events")) {
+                try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) { assertTrue(rows.next()); assertEquals(4, rows.getInt(1)); }
             }
             try (var rows = sql.executeQuery("SELECT count(*) FROM web.sessions")) {
                 assertTrue(rows.next()); assertEquals(0, rows.getInt(1));
@@ -90,5 +122,29 @@ class GuidedAssessmentBrowserIT extends PostgresIntegrationTest {
                 assertTrue(rows.next()); assertEquals(0, rows.getInt(1));
             }
         }
+    }
+    private String seedHistoricalResults() {
+        // Explicit opt-in, fictional reviews/publication only in this fresh Testcontainers database.
+        var source = new CandidateDecisionReviewFixture(mapper, reviews, auditReviews, auditDrafts).stored().reference();
+        var publication = bootstrap.publish(new CatalogBootstrapPublicationRequest(1, UUID.randomUUID(), source,
+                CatalogBootstrapPublicationRequest.Confirmation.PUBLISH_REVIEWED_BOOTSTRAP),
+                new CuratorActor("https://identity.example.invalid", "fictional-browser-publisher", "123", "456", Instant.now())).receipt();
+        var scenario = policy.scenarios().stream().filter(s -> s.id().equals("b2b-saas-scoped")).findFirst().orElseThrow();
+        var fixtures = new java.util.ArrayList<Object>();
+        for (var device : List.of("desktop", "mobile")) {
+            var actor = new AssessmentDecisionResultService.Actor("http://localhost:8081", "synthetic-browser-" + device + "-history");
+            var workspace = workspaces.provision(actor.issuer(), actor.subject()); var assessment = UUID.randomUUID();
+            assessments.createAssessment(new WorkspaceId(workspace), new AssessmentId(assessment));
+            assessments.updateProfileV6(new WorkspaceId(workspace), new AssessmentId(assessment), 0,
+                    mapper.treeToValue(scenario.profile(), ApplicationIdentityProfile.class));
+            var first = results.save(workspace, assessment, new AssessmentDecisionResultRequest(1, UUID.randomUUID(), 1,
+                    publication.snapshot(), null, scenario.weights(), AssessmentDecisionResultRequest.Confirmation.RECORD_DECISION_RESULT), actor).receipt();
+            var profile = (ObjectNode) scenario.profile().deepCopy(); ((ObjectNode) profile.get("operations")).put("identityExpertise", "ADVANCED");
+            assessments.updateProfileV6(new WorkspaceId(workspace), new AssessmentId(assessment), 1, mapper.treeToValue(profile, ApplicationIdentityProfile.class));
+            var second = results.save(workspace, assessment, new AssessmentDecisionResultRequest(1, UUID.randomUUID(), 2,
+                    publication.snapshot(), first.reference(), scenario.weights(), AssessmentDecisionResultRequest.Confirmation.REEVALUATE_DECISION_RESULT), actor).receipt();
+            fixtures.add(Map.of("device", device, "assessmentId", assessment, "first", first.reference(), "second", second.reference()));
+        }
+        return mapper.writeValueAsString(fixtures);
     }
 }

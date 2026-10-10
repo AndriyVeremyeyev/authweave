@@ -164,6 +164,8 @@ class AssessmentDecisionResultIntegrationTests {
         mvc.perform(auth(post(url()).contentType("application/json").content(mapper.writeValueAsString(request)), issue)).andExpect(status().is(status)); counts(0);
         var receipt = results.save(workspace, assessment, request, actor()).receipt();
         mvc.perform(auth(read(receipt.reference()), issue)).andExpect(status().is(status));
+        mvc.perform(auth(get(url()), issue)).andExpect(status().is(status));
+        mvc.perform(auth(readSummary(receipt.reference()), issue)).andExpect(status().is(status));
         mvc.perform(auth(post(url()).contentType("application/json").content(mapper.writeValueAsString(request)), issue)).andExpect(status().is(status)); counts(1);
         assertEquals(FORBIDDEN, assertThrows(AssessmentDecisionResultException.class,
                 () -> results.save(workspace, assessment, request, new AssessmentDecisionResultService.Actor(actor().issuer(), "stranger"))).reason());
@@ -252,6 +254,7 @@ class AssessmentDecisionResultIntegrationTests {
         var reason = issue.equals("policy") ? UNSUPPORTED_POLICY : READ_UNAVAILABLE;
         assertEquals(reason, assertThrows(AssessmentDecisionResultException.class, () -> results.get(workspace, assessment, ref, actor())).reason());
         getResult(ref, 409);
+        mvc.perform(auth(readSummary(ref), "ok")).andExpect(status().isConflict());
     }
     @Test void runtimePrivilegesBodyFreeAuditAndBoundedReadsAreEnforced() throws Exception {
         var receipt = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt(); var id = receipt.reference().resultId();
@@ -273,6 +276,81 @@ class AssessmentDecisionResultIntegrationTests {
         doAnswer(call -> { assertEquals("on", dsl.fetchValue("show transaction_read_only")); assertEquals("repeatable read", dsl.fetchValue("show transaction_isolation")); return call.callRealMethod(); })
                 .when(repository).find(workspace, assessment, first.reference().resultId());
         assertEquals(first, results.get(workspace, assessment, first.reference(), actor())); counts(1);
+        var summary = results.summary(workspace, assessment, first.reference(), actor());
+        assertEquals(first.reference(), summary.item().reference());
+        assertEquals(first.result().path("decision").path("status").asText(), summary.status()); counts(1);
+    }
+    @Test void historyIsBoundedNewestFirstAndExactCursorKeepsOlderPagesStableAfterAnAppend() throws Exception {
+        var empty = history(null); assertEquals(0, empty.path("items").size()); assertTrue(empty.path("nextBefore").isNull());
+        AssessmentDecisionResultRequest.Reference previous = null;
+        for (int i = 0; i < 23; i++) previous = results.save(workspace, assessment, request(root.snapshot(), previous), actor()).receipt().reference();
+        var first = history(null); assertEquals(20, first.path("items").size());
+        assertEquals(23, first.at("/items/0/reference/version").asInt()); assertEquals(4, first.at("/items/19/reference/version").asInt());
+        var before = mapper.treeToValue(first.get("nextBefore"), AssessmentDecisionResultRequest.Reference.class);
+        assertEquals(first.at("/items/19/reference"), first.path("nextBefore"));
+        results.save(workspace, assessment, request(root.snapshot(), previous), actor());
+        var older = history(before); assertEquals(3, older.path("items").size());
+        assertEquals(3, older.at("/items/0/reference/version").asInt()); assertEquals(1, older.at("/items/2/reference/version").asInt());
+        assertTrue(older.path("nextBefore").isNull()); assertFalse(older.path("historicalReplayVerified").asBoolean());
+        assertEquals(24, history(null).at("/items/0/reference/version").asInt()); counts(24);
+        assertEquals(0, history(mapper.treeToValue(older.at("/items/2/reference"), AssessmentDecisionResultRequest.Reference.class)).path("items").size());
+    }
+    @Test void metadataDoesNotReadBodiesAndArchivedHistoryStillOpensTheOriginalVerifiedSummary() throws Exception {
+        var receipt = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
+        var original = summary(receipt.reference());
+        assertEquals(receipt.result().path("decision").path("candidates").size(), original.path("candidates").size());
+        assertEquals(receipt.result().path("request").path("weights"), original.path("weights"));
+        assertEquals(22, original.path("verificationGapCount").asInt());
+        sql("UPDATE core.assessments SET status='ARCHIVED'");
+        clearInvocations(repository);
+        doAnswer(call -> { assertEquals("on", dsl.fetchValue("show transaction_read_only"));
+            assertEquals("repeatable read", dsl.fetchValue("show transaction_isolation")); return call.callRealMethod(); })
+            .when(repository).index(workspace, assessment, null);
+        var page = history(null); verify(repository, never()).find(any(UUID.class), any(UUID.class), any(UUID.class));
+        assertEquals(receipt.reference().resultId().toString(), page.at("/items/0/reference/resultId").asText());
+        for (String secret : List.of("issuer", "subject", "profileSha256", "weights", "decisionApproved", "sourceUrl")) assertFalse(page.toString().contains(secret));
+        assertEquals(original, summary(receipt.reference())); counts(1);
+        sql("SET session_replication_role=replica; UPDATE core.assessment_decision_results SET result=jsonb_set(result,'{decision,shortlist}','[\"fictional-tamper\"]'::jsonb)");
+        assertEquals(page, history(null)); // Discovery is not a replay assertion, even with a corrupt result body.
+        mvc.perform(auth(readSummary(receipt.reference()), "ok")).andExpect(status().isConflict()); counts(1);
+    }
+    @Test void foreignAssessmentsAndForeignOrMismatchedCursorsNeverRevealResults() throws Exception {
+        var first = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
+        var originalAssessment = assessment;
+        assessment = UUID.randomUUID(); assessments.createAssessment(new WorkspaceId(workspace), new AssessmentId(assessment));
+        assertEquals(CONFLICT, assertThrows(AssessmentDecisionResultException.class,
+                () -> results.history(workspace, assessment, first.reference(), actor())).reason());
+        mvc.perform(auth(readSummary(first.reference()), "ok")).andExpect(status().isNotFound());
+        assessment = originalAssessment;
+        var wrong = new AssessmentDecisionResultRequest.Reference(first.reference().resultId(), 2, first.reference().resultSha256());
+        assertEquals(CONFLICT, assertThrows(AssessmentDecisionResultException.class,
+                () -> results.history(workspace, assessment, wrong, actor())).reason());
+        assertEquals(FORBIDDEN, assertThrows(AssessmentDecisionResultException.class,
+                () -> results.history(workspace, assessment, null, new AssessmentDecisionResultService.Actor(actor().issuer(), "other"))).reason());
+        assertEquals(NOT_FOUND, assertThrows(AssessmentDecisionResultException.class,
+                () -> results.history(workspace, UUID.randomUUID(), null, actor())).reason()); counts(1);
+    }
+    @ParameterizedTest @ValueSource(strings = {"incomplete", "zero", "unsafe", "fraction", "duplicate", "unknown", "wrong-sha"})
+    void historyRejectsMalformedQueryInsteadOfIgnoringIt(String issue) throws Exception {
+        var call = get(url());
+        switch (issue) {
+            case "incomplete" -> call.param("beforeResultId", UUID.randomUUID().toString());
+            case "zero" -> call.param("beforeVersion", "0");
+            case "unsafe" -> call.param("beforeVersion", "9007199254740992");
+            case "fraction" -> call.param("beforeVersion", "1.5");
+            case "duplicate" -> call.param("beforeVersion", "1", "2");
+            case "unknown" -> call.param("latest", "true");
+            case "wrong-sha" -> call.param("beforeResultSha256", "not-a-hash");
+        }
+        mvc.perform(auth(call, "ok")).andExpect(status().isBadRequest()); counts(0);
+    }
+    @Test void summaryRequiresExactReferenceAndRejectsDuplicateOrUnknownParameters() throws Exception {
+        var first = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
+        mvc.perform(auth(readSummary(first.reference()).param("version", "2"), "ok")).andExpect(status().isBadRequest());
+        mvc.perform(auth(readSummary(first.reference()).param("latest", "true"), "ok")).andExpect(status().isBadRequest());
+        var wrong = new AssessmentDecisionResultRequest.Reference(first.reference().resultId(), 1, "0".repeat(64));
+        mvc.perform(auth(readSummary(wrong), "ok")).andExpect(status().isConflict());
+        summary(first.reference()); counts(1);
     }
     @ParameterizedTest @ValueSource(strings = {"profile-edit", "archived", "missing-event", "wrong-owner", "approval", "timestamp"})
     void sqlBoundaryRejectsDirectRuntimeBypassesAndDoesNotCorruptTheOriginalResult(String issue) throws Exception {
@@ -348,6 +426,21 @@ class AssessmentDecisionResultIntegrationTests {
     private MockHttpServletRequestBuilder read(AssessmentDecisionResultRequest.Reference ref) {
         return get(url() + "/" + ref.resultId()).param("version", Long.toString(ref.version())).param("resultSha256", ref.resultSha256());
     }
+    private MockHttpServletRequestBuilder readSummary(AssessmentDecisionResultRequest.Reference ref) {
+        return get(url() + "/" + ref.resultId() + "/summary").param("version", Long.toString(ref.version())).param("resultSha256", ref.resultSha256());
+    }
+    private JsonNode summary(AssessmentDecisionResultRequest.Reference ref) throws Exception {
+        var response = mvc.perform(auth(readSummary(ref), "ok")).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
+        var json = mapper.readTree(response.getContentAsString()); sample("summary-" + samples.size(), "assessment-decision-result-summary", true, json); return json;
+    }
+    private JsonNode history(AssessmentDecisionResultRequest.Reference before) throws Exception {
+        var call = get(url());
+        if (before != null) call.param("beforeResultId", before.resultId().toString()).param("beforeVersion", Long.toString(before.version())).param("beforeResultSha256", before.resultSha256());
+        var response = mvc.perform(auth(call, "ok")).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
+        var json = mapper.readTree(response.getContentAsString()); sample("history-" + samples.size(), "assessment-decision-result-page", true, json); return json;
+    }
     private String url() { return "/api/v6/workspaces/" + workspace + "/assessments/" + assessment + "/decision-results"; }
     private MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder b, String issue) {
         if (!issue.equals("no-token")) b.header("Authorization", issue.equals("bad-token") ? "Bearer bad" : "Bearer synthetic-assessment-result-token-000000000000000");
@@ -361,7 +454,9 @@ class AssessmentDecisionResultIntegrationTests {
     private void sample(String name, String schema, boolean valid, JsonNode payload) { samples.add(Map.of("name", name, "schema", schema, "valid", valid, "payload", payload)); }
     private void bundle(JsonNode receipt) {
         var ref = mapper.treeToValue(receipt.at("/result/request/catalog"), PublishedCatalogSnapshot.Reference.class);
-        bundles.add(Map.of("receipt", receipt, "decisionInputs", trusted.load(ref).decisionInputs()));
+        var resultRef = reference(receipt);
+        bundles.add(Map.of("receipt", receipt, "decisionInputs", trusted.load(ref).decisionInputs(),
+                "summary", results.summary(workspace, assessment, resultRef, actor())));
     }
     private void counts(int n) { for (String t : List.of("core.assessment_decision_results", "audit.assessment_decision_result_events")) assertEquals(n, dsl.fetchOne("select count(*) from " + t).get(0, Integer.class)); }
     private java.sql.Connection admin() throws Exception { return DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()); }

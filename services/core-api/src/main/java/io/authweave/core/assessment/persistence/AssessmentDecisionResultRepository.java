@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.UUID;
+import java.util.List;
 import org.jooq.DSLContext;
 import org.jooq.Condition;
 import org.jooq.JSONB;
@@ -16,6 +17,8 @@ import static io.authweave.core.generated.jooq.tables.AssessmentDecisionResults.
 import static io.authweave.core.generated.audit.tables.AssessmentDecisionResultEvents.ASSESSMENT_DECISION_RESULT_EVENTS;
 import static io.authweave.core.assessment.result.AssessmentDecisionResultException.Reason.*;
 import io.authweave.core.assessment.result.AssessmentDecisionResultException;
+import io.authweave.core.assessment.result.AssessmentDecisionResultViews;
+import io.authweave.core.catalog.publication.PublishedCatalogSnapshot;
 
 /** Bounded exact reads; the profile lock serializes appends with both result and profile writers. */
 @Repository
@@ -54,6 +57,27 @@ public class AssessmentDecisionResultRepository {
         var row = dsl.select(r.ID, r.VERSION, r.RESULT_SHA256).from(r)
                 .where(r.WORKSPACE_ID.eq(workspace).and(r.ASSESSMENT_ID.eq(assessment))).orderBy(r.VERSION.desc()).limit(1).fetchOne();
         return row == null ? null : new Reference(row.get(r.ID), row.get(r.VERSION), row.get(r.RESULT_SHA256));
+    }
+    boolean assessmentExists(UUID workspace, UUID assessment) {
+        return dsl.fetchExists(ASSESSMENTS, ASSESSMENTS.WORKSPACE_ID.eq(workspace).and(ASSESSMENTS.ID.eq(assessment)));
+    }
+    List<AssessmentDecisionResultViews.Item> index(UUID workspace, UUID assessment, Reference before) {
+        var r = ASSESSMENT_DECISION_RESULTS;
+        var scope = r.WORKSPACE_ID.eq(workspace).and(r.ASSESSMENT_ID.eq(assessment));
+        if (before != null && !dsl.fetchExists(r, scope.and(r.ID.eq(before.resultId()))
+                .and(r.VERSION.eq(before.version())).and(r.RESULT_SHA256.eq(before.resultSha256()))))
+            throw new AssessmentDecisionResultException(CONFLICT);
+        // Never select result JSON or audit actor columns for discovery, even when a body is oversized/corrupt.
+        return dsl.select(r.ID, r.VERSION, r.RESULT_SHA256, r.ASSESSMENT_VERSION, r.SNAPSHOT_ID,
+                r.CATALOG_VERSION, r.SNAPSHOT_SHA256, r.PREVIOUS_RESULT_ID, r.PREVIOUS_RESULT_VERSION,
+                r.PREVIOUS_RESULT_SHA256, r.RECORDED_AT).from(r)
+                .where(before == null ? scope : scope.and(r.VERSION.lt(before.version())))
+                .orderBy(r.VERSION.desc()).limit(AssessmentDecisionResultViews.PAGE_SIZE + 1).fetch(row ->
+                    new AssessmentDecisionResultViews.Item(new Reference(row.get(r.ID), row.get(r.VERSION), row.get(r.RESULT_SHA256)),
+                        row.get(r.ASSESSMENT_VERSION), new PublishedCatalogSnapshot.Reference(row.get(r.SNAPSHOT_ID),
+                            row.get(r.CATALOG_VERSION), row.get(r.SNAPSHOT_SHA256)),
+                        row.get(r.PREVIOUS_RESULT_ID) == null ? null : new Reference(row.get(r.PREVIOUS_RESULT_ID),
+                            row.get(r.PREVIOUS_RESULT_VERSION), row.get(r.PREVIOUS_RESULT_SHA256)), row.get(r.RECORDED_AT).toInstant()));
     }
     boolean keyUsedElsewhere(UUID id, UUID workspace, UUID assessment) {
         var r = ASSESSMENT_DECISION_RESULTS;

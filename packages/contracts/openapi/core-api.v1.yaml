@@ -32,6 +32,44 @@ paths:
       - $ref: '#/components/parameters/AssessmentId'
       - $ref: '#/components/parameters/OidcIssuer'
       - $ref: '#/components/parameters/OidcSubject'
+    get:
+      tags: [Assessments]
+      operationId: listAssessmentDecisionResults
+      summary: Discover bounded owned result references without reading result bodies
+      description: >-
+        Read-only newest-first keyset page, fixed at 20 items. The exact before reference
+        is all-or-none and must exist in this owned assessment. New appends cannot change
+        older pages. No stored body, profile, source content or audit identity is loaded.
+        Metadata is explicitly not historical replay verification; open an exact summary
+        or result to verify. Archived assessments retain history. No writes or automatic
+        latest-result selection, calculation, publication or approval.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - name: beforeResultId
+          in: query
+          description: Exact last-seen result key; all three cursor fields must be supplied together.
+          schema: { type: string, format: uuid }
+        - name: beforeVersion
+          in: query
+          description: Exact last-seen result version, exclusive upper bound for older results.
+          schema: { type: integer, minimum: 1, maximum: 9007199254740991 }
+        - name: beforeResultSha256
+          in: query
+          description: Exact last-seen result digest, scoped to this assessment.
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: Metadata-only history; an existing assessment with no results has an empty page.
+          content:
+            application/json:
+              schema: { $ref: ../schemas/assessment-decision-result-page.v1.schema.json }
+        '400': { description: 'Invalid, duplicate, unknown or incomplete query parameters.' }
+        '401': { description: Invalid service credential or missing singular principal. }
+        '403': { description: Principal does not own this workspace. }
+        '404': { description: Assessment not found in the owned workspace. }
+        '409': { description: Cursor reference does not match a result in this assessment. }
+        '503': { description: Internal credential is not configured. }
     post:
       tags: [Assessments]
       operationId: recordAssessmentDecisionResult
@@ -141,6 +179,50 @@ paths:
           description: Reference mismatch, corruption or unsupported historical policy.
         '503':
           description: Internal credential is not configured.
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results/{resultId}/summary:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+      - name: resultId
+        in: path
+        required: true
+        description: Exact immutable owned result key.
+        schema: { type: string, format: uuid }
+      - name: version
+        in: query
+        required: true
+        description: Exact result version, not profile lock version.
+        schema: { type: integer, minimum: 1, maximum: 9007199254740991 }
+      - name: resultSha256
+        in: query
+        required: true
+        description: Exact original result digest.
+        schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    get:
+      tags: [Assessments]
+      operationId: readAssessmentDecisionResultSummary
+      summary: Project bounded decision advice only after full historical replay
+      description: >-
+        Uses the same original-clock, full-body, profile/publication/policy/audit replay
+        as the exact result read, in one read-only REPEATABLE_READ transaction. Returns
+        bounded candidate identities/verdicts/point ranges, explicit weights and original
+        pins. Not a full receipt, current recommendation, approval or source verification.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: Replay-verified summary of the exact historical advice.
+          content:
+            application/json:
+              schema: { $ref: ../schemas/assessment-decision-result-summary.v1.schema.json }
+        '400': { description: 'Invalid, duplicate or unknown query parameters.' }
+        '401': { description: Invalid service credential or missing singular principal. }
+        '403': { description: Principal does not own this workspace. }
+        '404': { description: Exact result not found in the owned assessment. }
+        '409': { description: 'Reference mismatch, tampering or unsupported historical replay.' }
+        '503': { description: Internal credential is not configured. }
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'

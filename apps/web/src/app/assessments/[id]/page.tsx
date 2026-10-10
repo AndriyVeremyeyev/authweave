@@ -156,6 +156,11 @@ export default async function AssessmentPage({ params, searchParams }: PageProps
               <OperationsPreview result={operationsPreview} /></Suspense> : <OperationsPlanningUnavailable />}
           </>,
           review: <>
+            <section aria-labelledby="saved-results-entry" className="mt-6 rounded-xl border border-white/10 p-5">
+              <h3 id="saved-results-entry" className="font-medium">Saved decision calculations</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-300">Browse immutable calculation versions separately from these synthetic previews. Opening history does not record, recalculate or approve a decision.</p>
+              <Link prefetch={false} href={`/assessments/${assessment.id}/results`} className="mt-3 inline-block text-sm text-cyan-200 hover:underline">Open saved calculation history →</Link>
+            </section>
             <SavedRequirementsOverview profile={assessment.profile} version={assessment.version} editable={assessment.status === "DRAFT"}
               exportPanel={<SavedRequirementsExport assessmentId={assessment.id} version={assessment.version} />} />
             {assurancePreview ? <Suspense fallback={<PreviewPending name="Assurance and compliance preview" version={assessment.version} />}>

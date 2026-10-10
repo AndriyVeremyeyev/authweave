@@ -112,10 +112,11 @@ try {
   });
   await runtime.listen(provider, 8081, "localhost");
   const env = await runtime.startWeb({ AUTHWEAVE_OIDC_ISSUER: issuer, AUTHWEAVE_OIDC_CLIENT_ID: clientId });
-  const tests = runtime.run(["node_modules/@playwright/test/cli.js", "test"], process.cwd(), { ...env, AUTHWEAVE_TEST_BROWSER: "synthetic-browser-core-v1" });
+  const tests = runtime.run(["node_modules/@playwright/test/cli.js", "test"], process.cwd(), { ...env,
+    AUTHWEAVE_TEST_BROWSER: "synthetic-browser-core-v1", AUTHWEAVE_TEST_RESULT_FIXTURES: process.env.AUTHWEAVE_TEST_RESULT_FIXTURES });
   assert.equal(await completion(tests), 0, "Browser tests failed");
-  assert.deepEqual(counts, { authorizations: 16, tokens: 16, pkceValidated: 16, reauthRequests: 4, logouts: 10 });
-  console.log("Browser/OIDC E2E: 8 passed; real Core, isolated PostgreSQL, signed ID Tokens and PKCE validated.");
+  assert.deepEqual(counts, { authorizations: 20, tokens: 20, pkceValidated: 20, reauthRequests: 4, logouts: 14 });
+  console.log("Browser/OIDC E2E: 10 passed; real Core, isolated PostgreSQL, signed ID Tokens, PKCE and owned historical results validated.");
 } finally {
   await runtime.close();
 }

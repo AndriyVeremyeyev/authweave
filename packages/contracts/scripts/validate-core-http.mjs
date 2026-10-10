@@ -678,6 +678,8 @@ for (const required of ["comparison-evidence-preview:true", "comparison-evidence
   "assessment-revision-page.v6:true", "assessment-revision-page.v6:false",
   "update-assessment-profile-request.v6:true", "update-assessment-profile-request.v6:false",
   "assessment-list-page:true",
+  "assessment-decision-result:true", "assessment-decision-result-request:true", "assessment-decision-result-request:false",
+  "assessment-decision-result-page:true", "assessment-decision-result-summary:true",
   "assessment-context-list-page:true", "assessment-context-list-page:false",
   "hard-constraint-preflight:true",
   "synthetic-comparison:true",

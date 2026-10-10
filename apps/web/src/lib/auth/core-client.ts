@@ -1,5 +1,7 @@
 // This local-only server-to-server call never exposes its credential to the browser.
 import { randomUUID } from "node:crypto";
+import { resultPageFromCore, resultSummaryFromCore, resultReference, resultReferenceQuery, resultUuid,
+  resultHistoryByteLimit, resultSummaryByteLimit, type ResultReference, type ResultPage, type ResultSummary } from "../assessment/decision-results.ts";
 import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
@@ -484,6 +486,34 @@ function assessmentHeaders(session: BrowserSession): Record<string, string> {
     "X-AuthWeave-Oidc-Issuer": session.issuer,
     "X-AuthWeave-Oidc-Subject": session.subject,
   };
+}
+
+/** Fixed loopback reads with session-only owner assertions. Nothing is selected, published or recalculated. */
+export async function readPersonalDecisionHistory(session: BrowserSession, id: string, before: ResultReference | null = null): Promise<ResultPage | null> {
+  if (!resultUuid.test(id)) throw new Error("Invalid owned result request");
+  const cursor = before === null ? null : resultReference(before);
+  const suffix = cursor ? `?${resultReferenceQuery(cursor, true)}` : "";
+  const signal = AbortSignal.timeout(10_000);
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/decision-results${suffix}`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error", signal,
+  });
+  if (response.status === 404) return null;
+  return resultPageFromCore(await ownedResultJson(response, resultHistoryByteLimit, signal), session.workspaceId, id, cursor);
+}
+export async function readPersonalDecisionSummary(session: BrowserSession, id: string, value: ResultReference): Promise<ResultSummary | null> {
+  if (!resultUuid.test(id)) throw new Error("Invalid owned result request");
+  const ref = resultReference(value), signal = AbortSignal.timeout(10_000);
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/decision-results/${ref.resultId}/summary?${resultReferenceQuery(ref)}`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error", signal,
+  });
+  if (response.status === 404) return null;
+  return resultSummaryFromCore(await ownedResultJson(response, resultSummaryByteLimit, signal), session.workspaceId, id, ref);
+}
+async function ownedResultJson(response: Response, limit: number, signal: AbortSignal): Promise<unknown> {
+  if (response.status !== 200 || response.redirected || response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") {
+    void response.body?.cancel().catch(() => {}); throw new Error("Owned result read unavailable");
+  }
+  return JSON.parse(await boundedPrerequisiteText(response, limit, signal));
 }
 
 function assessmentFromCore(value: unknown, session: BrowserSession, id?: string): PersonalAssessment {

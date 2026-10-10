@@ -98,6 +98,40 @@ public class AssessmentDecisionResultService {
         if (row.version() != reference.version() || !row.resultSha256().equals(reference.resultSha256())) fail(CONFLICT);
         return verify(row, actor);
     }
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public AssessmentDecisionResultViews.Page history(UUID workspace, UUID assessment,
+            AssessmentDecisionResultRequest.Reference before, Actor actor) {
+        owner(workspace, actor); Objects.requireNonNull(assessment);
+        if (!repository.assessmentExists(workspace, assessment)) fail(NOT_FOUND);
+        var rows = repository.index(workspace, assessment, before);
+        boolean more = rows.size() > AssessmentDecisionResultViews.PAGE_SIZE;
+        var items = more ? rows.subList(0, AssessmentDecisionResultViews.PAGE_SIZE) : rows;
+        return new AssessmentDecisionResultViews.Page("OWNED_ASSESSMENT_RESULT_INDEX", workspace, assessment, items,
+                more ? items.getLast().reference() : null, false);
+    }
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public AssessmentDecisionResultViews.Summary summary(UUID workspace, UUID assessment,
+            AssessmentDecisionResultRequest.Reference reference, Actor actor) {
+        // The outer transaction supplies the same read-only snapshot to get(), replay and this bounded projection.
+        var receipt = get(workspace, assessment, reference, actor); var body = receipt.result(); var request = body.get("request");
+        var item = new AssessmentDecisionResultViews.Item(receipt.reference(), request.path("expectedAssessmentVersion").asLong(),
+                mapper.treeToValue(request.get("catalog"), PublishedCatalogSnapshot.Reference.class),
+                request.get("previousResult").isNull() ? null : mapper.treeToValue(request.get("previousResult"), AssessmentDecisionResultRequest.Reference.class),
+                receipt.recordedAt());
+        var candidates = new java.util.ArrayList<AssessmentDecisionResultViews.Candidate>();
+        for (var entry : body.path("decision").path("candidates")) {
+            var hard = entry.get("hardChecks"); var score = entry.get("score");
+            candidates.add(new AssessmentDecisionResultViews.Candidate(hard.path("optionId").asText(), hard.path("product").asText(),
+                    hard.path("plan").asText(), hard.path("region").asText(), hard.path("deployment").asText(), hard.path("hardVerdict").asText(),
+                    score.isNull() ? null : new AssessmentDecisionResultViews.Bounds(score.path("lowerBound").asInt(),
+                        score.path("upperBound").asInt(), score.path("unknownWeight").asInt())));
+        }
+        var shortlist = new java.util.ArrayList<String>(); body.path("decision").path("shortlist").forEach(id -> shortlist.add(id.asText()));
+        return new AssessmentDecisionResultViews.Summary("VERIFIED_ASSESSMENT_DECISION_SUMMARY", workspace, assessment, item,
+                Instant.parse(body.path("evaluatedAt").asText()), body.path("profileSchemaVersion").asInt(), body.path("profileSha256").asText(),
+                body.path("policySha256").asText(), request.get("weights"), body.path("decision").path("status").asText(), shortlist,
+                candidates, body.path("catalog").path("verificationGaps").size(), true, false, false, false, false);
+    }
     private Body compute(UUID workspace, UUID assessment, long version, AssessmentDecisionResultRequest request,
             AssessmentDecisionResultRepository.Profile profile, Instant at) {
         try {

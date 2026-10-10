@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import { guidedScenarios, guidedScenarioForms } from "../fixtures/guided-scenarios.mts";
 import { createGuidedAssessment as create, guidedStep as step, saveGuidedForm as save, runGuidedScenario } from "../guided-browser-flow.mts";
+import { resultReferenceQuery } from "../../src/lib/assessment/decision-results.ts";
 
 test.beforeAll(() => {
   expect(process.env.AUTHWEAVE_TEST_BROWSER).toBe("synthetic-browser-core-v1");
@@ -59,9 +60,46 @@ for (const scenario of guidedScenarios) test(`guided ${scenario.key}: five brows
   await logout(page);
 });
 
+test("owned saved result history opens exact original-clock advice without writes or cross-owner access", async ({ page, browser }, info) => {
+  const fixtures = JSON.parse(process.env.AUTHWEAVE_TEST_RESULT_FIXTURES!);
+  const fixture = fixtures.find((value: { device: string }) => value.device === info.project.name);
+  expect(fixture).toBeTruthy();
+  const subject = `synthetic-browser-${info.project.name}-history`, assessment = `/assessments/${fixture.assessmentId}`;
+  await login(page, subject);
+  await page.goto(`${assessment}?step=review`);
+  await page.getByRole("link", { name: "Open saved calculation history →", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Decision calculation history", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Result version 2", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Result version 1", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Verify and open result version 1", exact: true }).click();
+  await expect(page).toHaveURL(`http://localhost:3000${assessment}/results/${fixture.first.resultId}?${resultReferenceQuery(fixture.first)}`);
+  await expect(page.getByRole("status")).toContainText("Core verified the whole historical replay");
+  await expect(page.getByText("Version 1 · Schema 6", { exact: true })).toBeVisible();
+  await expect(page.getByText(/No decision is approved/)).toBeVisible();
+  await expect(page.getByRole("button", { name: /recalculate|approve|record/i })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: `../../.internal/result-history-${info.project.name}.png`, fullPage: true });
+  await page.reload(); await expect(page.getByRole("heading", { name: "Result version 1", exact: true })).toBeVisible();
+  const invalid = await page.goto(`${assessment}/results/${fixture.first.resultId}?version=1`);
+  expect(invalid!.status()).toBe(200); await expect(page.getByRole("main").getByRole("alert")).toContainText("complete exact result reference");
+  await expect(page.getByText("Core verified the whole historical replay", { exact: false })).toHaveCount(0);
+  const outsiderContext = await browser.newContext({ baseURL: "http://localhost:3000" });
+  try {
+    const outsider = await outsiderContext.newPage(); await login(outsider, `${subject}-outsider`);
+    const deniedHistory = await outsider.goto(`${assessment}/results`); expect(deniedHistory!.status()).toBe(404);
+    const deniedResult = await outsider.goto(`${assessment}/results/${fixture.first.resultId}?${resultReferenceQuery(fixture.first)}`); expect(deniedResult!.status()).toBe(404);
+    await logout(outsider);
+  } finally { await outsiderContext.close(); }
+  await logout(page); await page.goto(`${assessment}/results`); await expect(page).toHaveURL("http://localhost:3000/account");
+});
+
 test("dirty guard, stale tab, ownership, reauthentication, logout and invalid nonce fail closed", async ({ page, browser }, info) => {
   const subject = `synthetic-browser-${info.project.name}-security-owner`;
   const originalCookie = await login(page, subject), assessment = await create(page);
+  await page.goto(`${assessment}?step=review`);
+  await page.getByRole("link", { name: "Open saved calculation history →", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "No saved decision calculations yet", exact: true })).toBeVisible();
+  await page.goto(assessment);
   const stale = await page.context().newPage(); await delayedHydration(stale, assessment);
   await page.locator('select[name="applicationType"]').selectOption("B2B_SAAS");
   await page.getByRole("navigation", { name: "Assessment steps" }).getByRole("button", { name: "Review", exact: true }).click();

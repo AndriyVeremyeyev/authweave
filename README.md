@@ -350,10 +350,42 @@ writes are atomic and append-only; SQL serializes appends with profile edits and
 the exact predecessor, profile revision, catalog and owner. Public/BFF database roles
 cannot read these tables, and runtime cannot rewrite receipts, audits or timestamps.
 
-This slice adds the Core API and offline/isolated checks, not a web result screen or
-real source reviews/publications. Those human gates and final golden/UI acceptance
-remain open. `make check-core` verifies exported actual HTTP payloads and independent
+Real source reviews/publications and final golden/owner acceptance remain open.
+`make check-core` verifies exported actual HTTP payloads and independent
 result/profile/catalog/policy/weights/time, evidence and scoring invariants.
+
+### Read-only saved decision result history
+
+The personal assessment's **Review** step links to `/assessments/{id}/results`.
+The server-side BFF lists owned immutable result references, newest first, through
+`GET .../decision-results`. Pages are fixed at 20 items; older pages require the exact
+all-or-none `beforeResultId`, `beforeVersion`, `beforeResultSha256` tuple. The cursor
+must belong to this assessment. New appends do not shift older pages. An existing
+assessment with no results has an empty history; archived assessments retain it.
+
+Discovery selects only bounded SQL metadata, never result/profile JSON, source bodies
+or audit identities. `historicalReplayVerified: false` deliberately distinguishes a
+reference from a verified calculation. Browsing does not record, re-evaluate, publish,
+approve or silently select a latest result. Existing synthetic previews are not receipts.
+
+Opening a version preserves its result UUID/version/digest and uses the separate
+`GET .../decision-results/{resultId}/summary?version=...&resultSha256=...` read. Core
+performs the same full original-clock historical replay as the full receipt read in
+one read-only `REPEATABLE_READ` transaction, then projects a bounded summary. It shows
+original profile/catalog/clock/policy pins, explicit weights, hard verdicts and preference
+point ranges in saved deterministic option-ID order, not a newly chosen winner or full receipt.
+Replay verification is not source authentication, live interoperability, configuration,
+compliance or decision approval; all 22 verification gaps and non-authority flags remain.
+
+The BFF uses fixed loopback GETs, session-only owner assertions, `no-store`, redirect
+refusal, deadlines, strict exact-bound transport guards and streamed UTF-8 budgets
+(64 KiB history, 256 KiB summary). It never forwards Core error bodies or substitutes
+another result. Incomplete/duplicate/foreign references, corruption and unsupported
+policy are refused. No curator grant or browser credential is needed for owned reads.
+The Review entry preserves existing unsaved-input navigation guards. Isolated browser
+tests exercise desktop/mobile history, reload, older-profile advice, malformed links,
+cross-owner denial and logout using real Core and fictional published test data only.
+UI recording/re-evaluation and the real human publication workflow are still pending.
 
 ### Trusted published bootstrap loading
 

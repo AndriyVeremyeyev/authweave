@@ -28,6 +28,29 @@ public class AssessmentDecisionResultController {
         var saved = results.save(workspaceId, assessmentId, body, actor(request));
         return ResponseEntity.status(saved.created() ? 201 : 200).header("Cache-Control", "no-store").body(saved.receipt());
     }
+    @GetMapping
+    ResponseEntity<?> history(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId,
+            @RequestParam(required = false) UUID beforeResultId,
+            @RequestParam(required = false) @Min(1) @Max(9007199254740991L) Long beforeVersion,
+            @RequestParam(required = false) @Pattern(regexp = "[a-f0-9]{64}") String beforeResultSha256, HttpServletRequest request) {
+        int status = credentials.personalWorkspaceStatus(request, workspaceId);
+        if (status != 200) return ResponseEntity.status(status).header("Cache-Control", "no-store").build();
+        query(request, java.util.Set.of("beforeResultId", "beforeVersion", "beforeResultSha256"));
+        boolean any = beforeResultId != null || beforeVersion != null || beforeResultSha256 != null;
+        if (any && (beforeResultId == null || beforeVersion == null || beforeResultSha256 == null)) invalid();
+        var before = any ? new AssessmentDecisionResultRequest.Reference(beforeResultId, beforeVersion, beforeResultSha256) : null;
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(results.history(workspaceId, assessmentId, before, actor(request)));
+    }
+    @GetMapping("/{resultId}/summary")
+    ResponseEntity<?> summary(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId, @PathVariable UUID resultId,
+            @RequestParam @Min(1) @Max(9007199254740991L) long version,
+            @RequestParam @Pattern(regexp = "[a-f0-9]{64}") String resultSha256, HttpServletRequest request) {
+        int status = credentials.personalWorkspaceStatus(request, workspaceId);
+        if (status != 200) return ResponseEntity.status(status).header("Cache-Control", "no-store").build();
+        query(request, java.util.Set.of("version", "resultSha256"));
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(results.summary(workspaceId, assessmentId,
+                new AssessmentDecisionResultRequest.Reference(resultId, version, resultSha256), actor(request)));
+    }
     @GetMapping("/{resultId}")
     ResponseEntity<?> get(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId, @PathVariable UUID resultId,
             @RequestParam @Min(1) @Max(9007199254740991L) long version,
@@ -39,5 +62,12 @@ public class AssessmentDecisionResultController {
     }
     private static AssessmentDecisionResultService.Actor actor(HttpServletRequest request) {
         return new AssessmentDecisionResultService.Actor(request.getHeader("X-AuthWeave-Oidc-Issuer"), request.getHeader("X-AuthWeave-Oidc-Subject"));
+    }
+    private static void query(HttpServletRequest request, java.util.Set<String> keys) {
+        if (request.getParameterMap().entrySet().stream().anyMatch(e -> !keys.contains(e.getKey()) || e.getValue().length != 1)) invalid();
+    }
+    private static void invalid() {
+        throw new io.authweave.core.assessment.result.AssessmentDecisionResultException(
+                io.authweave.core.assessment.result.AssessmentDecisionResultException.Reason.INVALID_INPUT);
     }
 }
