@@ -99,7 +99,7 @@ export default async function CatalogProposalReviewPage({ params, searchParams }
       <p className="mt-5 rounded-xl border border-amber-700 bg-amber-950/20 p-5 text-amber-100">
         This is a stored, unreviewed comparison of caller-supplied drafts. Sources have not been verified,
         the base is not trusted, and affected assessments have not been fully evaluated. Rejection does not
-        change the active catalog; approval and publication are unavailable.
+        change the active catalog; approval and publication are unavailable in this review screen.
       </p>
       {query.error === "stale" && <p role="alert" className="mt-5 rounded-lg border border-amber-700 p-4 text-amber-100">
         The proposal changed or this revision already has a decision. Review the current version below before trying again.

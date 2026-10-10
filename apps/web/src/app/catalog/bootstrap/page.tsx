@@ -58,6 +58,6 @@ export default async function BootstrapReviewPage({ searchParams }: PageProps<"/
       <p className="mt-4 text-slate-300">This receipt contains no actor, source bodies or candidate. It does not prove current source freshness, full impact coverage, source truth or permission to publish. No source verification, trust promotion, approval or catalog writes were performed.</p>
     </section> : <BootstrapReviewForm />}
     {result?.kind === "ready" && <PublicationPreflight result={publication} />}
-    <p className="mt-8 text-sm text-slate-400">Publication remains blocked pending complete impact coverage and an authenticated atomic publication workflow.</p>
+    <p className="mt-8 text-sm text-slate-400">This page never publishes. Publication requires the separate, explicitly enabled Core workflow, exact reviewed inputs, fresh publication-write authorization and all server-side checks. A source-review receipt is not publication permission.</p>
   </main>;
 }

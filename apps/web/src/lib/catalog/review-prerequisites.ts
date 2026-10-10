@@ -62,8 +62,8 @@ export function catalogReviewPrerequisites(review: CatalogProposalReview, eviden
     "That historical run performed no hypothetical scenario evaluation. Reading this report does not run it again.", "impact-heading");
   add("IMPACT_COVERAGE_INCOMPLETE", "Full impact coverage is not established",
     "Stored scenarios are historical, conditional and incomplete. An analyzed run or zero uncovered changes does not prove current-rule coverage of all affected assessments.", "impact-heading");
-  add("APPROVAL_PUBLICATION_UNAVAILABLE", "Approval and publication are not implemented",
-    "No trusted publication or approval path exists yet. Resolving the displayed gaps does not enable a write or grant permission to publish.", "decision-heading");
+  add("APPROVAL_PUBLICATION_UNAVAILABLE", "Approval and publication are unavailable in this review",
+    "This display-only review cannot invoke the separate opt-in Core workflow. Resolving the displayed gaps does not enable a write or grant permission to publish.", "decision-heading");
   return { proposalId: review.proposalId, proposalVersion: review.version, proposalSha256: review.proposalSha256,
     policyVersion: "catalog-review-prerequisites-display-1", approvalStatus: "UNAVAILABLE",
     evidenceEvaluatedAt: evidence.evaluatedAt, reviewThroughNumber: summary.reviewThroughNumber,

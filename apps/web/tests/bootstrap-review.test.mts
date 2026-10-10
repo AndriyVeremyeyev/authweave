@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import ts from "typescript";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { authConfiguration } from "../src/lib/auth/config.ts";
 import { prepareCatalogBootstrapReview, recordCatalogBootstrapReview, readCatalogBootstrapReview } from "../src/lib/auth/core-client.ts";
 import { BOOTSTRAP_BODY_BYTES, BOOTSTRAP_CANDIDATE_BYTES, bootstrapCandidate, bootstrapPreparationFromCore,
@@ -320,4 +323,28 @@ test("bootstrap HTTP bounds expanded browser responses, including repeated optio
   assert.equal(response.status, 413);
   assert.equal(await response.text(), "");
   assert.equal(response.headers.get("cache-control"), "no-store");
+});
+
+test("bootstrap UI explains provider claims, explicit human conclusions and separate publication without granting authority", async () => {
+  const source = readFileSync(new URL("../src/app/catalog/bootstrap/review-form.tsx", import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext,
+    target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText
+    .replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
+    .replaceAll('"react"', JSON.stringify(import.meta.resolve("react")))
+    .replaceAll('"@/lib/catalog/bootstrap-review"', JSON.stringify(new URL("../src/lib/catalog/bootstrap-review.ts", import.meta.url).href))
+    .replaceAll('"@/lib/catalog/evidence-review"', JSON.stringify(new URL("../src/lib/catalog/evidence-review.ts", import.meta.url).href));
+  const { default: Component } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+  const html = renderToStaticMarkup(createElement(Component));
+  for (const text of ["What am I confirming?", "OPTIONAL describes the provider capability",
+    "REQUIRED SCIM requirement", "UNKNOWN remains unknown", "one explicit conclusion per claim",
+    "does not enable the separate opt-in Core publication workflow", "No conclusion is selected by default"])
+    assert.ok(html.includes(text), text);
+  assert.ok(html.includes("<details")); assert.ok(html.includes("<summary"));
+  assert.ok(html.includes("Prepare manual review"));
+  for (const forbidden of ["Publish catalog", "Grant curator access", "checked=", "localStorage"])
+    assert.equal(html.includes(forbidden), false, forbidden);
+  const page = readFileSync(new URL("../src/app/catalog/bootstrap/page.tsx", import.meta.url), "utf8");
+  assert.ok(page.includes("This page never publishes"));
+  assert.ok(page.includes("separate, explicitly enabled Core workflow"));
+  assert.ok(!page.includes("pending complete impact coverage and an authenticated atomic publication workflow"));
 });

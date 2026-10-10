@@ -11,6 +11,7 @@ export default function PublicationPreflight({ result }: { result: PublicationRe
   const report = result?.kind === "ready" ? result.report : null;
   return <section className="mt-8 rounded-xl border border-amber-700 p-6" aria-labelledby="publication-preflight-heading">
     <h2 id="publication-preflight-heading" className="text-2xl font-semibold">Fresh publication check</h2>
+    <p className="mt-4 text-sm text-slate-400">This is the legacy read-only preflight, not a deployment-status check for the separate opt-in Core publication workflow. Its unchanged BLOCKED contract cannot authorize or invoke that writer. This panel does not enable publication or replace fresh server-side writer checks.</p>
     {!report ? <p role="status" className="mt-4 text-amber-100">{
       result?.kind === "reauth-required" ? "Verify this account again and reload to request a fresh publication check." :
         "The fresh Core check is unavailable. Historical receipts and other review panels cannot replace it; no publication permission is inferred."

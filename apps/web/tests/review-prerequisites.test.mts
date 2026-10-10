@@ -34,6 +34,11 @@ test("prerequisites identify absent observations/report and remain display-only 
   assert.equal(result.reviewThroughNumber, 0);
   assert.equal(result.impactReportNumber, null);
   assert.equal(result.approvalStatus, "UNAVAILABLE");
+  const publication = gap(result, "APPROVAL_PUBLICATION_UNAVAILABLE")!;
+  assert.equal(publication.title, "Approval and publication are unavailable in this review");
+  assert.match(publication.explanation, /separate opt-in Core workflow/);
+  assert.match(publication.explanation, /does not enable a write or grant permission/);
+  assert.ok(!publication.explanation.includes("No trusted publication or approval path exists yet"));
   for (const key of ["approvalGranted", "catalogWritesPerformed", "factTrustChanged", "sourceVerificationPerformed"] as const) {
     assert.equal(result[key], false);
   }

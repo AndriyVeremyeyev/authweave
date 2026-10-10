@@ -82,6 +82,13 @@ export default function BootstrapReviewForm() {
 
   return <section className="mt-8">
     {message && <p role="alert" className="mb-6 rounded-xl border border-amber-700 p-4 text-amber-100">{message}</p>}
+    <details className="mb-6 rounded-xl border border-slate-700 p-5 text-slate-300">
+      <summary className="cursor-pointer font-semibold text-slate-100 focus-visible:outline-2 focus-visible:outline-cyan-200">What am I confirming?</summary>
+      <p className="mt-4">OPTIONAL describes the provider capability: it can be configured, not that your application requirement is optional. A configurable SCIM interface can meet a REQUIRED SCIM requirement only when its exact scope, conditions and evidence satisfy the decision rules.</p>
+      <p className="mt-3">Choose one explicit conclusion per claim: does the source support the submitted value for this exact product, plan and configuration? A supporting verdict for UNKNOWN remains unknown; it does not establish availability. Fresh dates alone do not establish source truth.</p>
+      <p className="mt-3">Recording this review saves your conclusions. It does not enable the separate opt-in Core publication workflow, grant curator access, publish a catalog or verify a deployment. Complete review confirmation and publication authorization are separate decisions.</p>
+      <p className="mt-3 text-sm text-slate-400">No conclusion is selected by default. Preparation does not fetch sources, renew observation dates or record a review. The final confirmation applies to the whole exact candidate, not just the SCIM claim.</p>
+    </details>
     {!prepared ? <form onSubmit={prepare}>
       <label htmlFor="bootstrap-draft" className="block text-xl font-semibold">Import the first candidate</label>
       <p className="mt-3 text-sm text-slate-300">Paste a complete provider-catalog-draft.v1 JSON document (at most 1 MiB UTF-8). Do not include secrets or personal data. Preparation is read-only; it does not fetch sources or save a review.</p>

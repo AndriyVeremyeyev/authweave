@@ -142,7 +142,7 @@ export function publicationBlockerTitle(code: PublicationBlocker): string {
   const titles: Partial<Record<PublicationBlocker, string>> = {
     IMPACT_COVERAGE_INCOMPLETE: "Full impact coverage is incomplete",
     CURATOR_AUTHORIZATION_NOT_PERFORMED: "Publication-write authorization has not been performed",
-    PUBLICATION_WORKFLOW_UNAVAILABLE: "An atomic publication workflow is not available",
+    PUBLICATION_WORKFLOW_UNAVAILABLE: "This legacy preflight cannot invoke the publication workflow",
     BASELINE_AUTHORITY_UNAVAILABLE: "An authoritative baseline is not available",
     BASELINE_REFERENCE_MISSING: "No trusted baseline reference was supplied by Core",
     FACT_OBSERVATIONS_MISSING: "Some candidate facts have no manual source observation",

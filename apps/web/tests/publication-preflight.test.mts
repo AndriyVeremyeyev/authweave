@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import ts from "typescript";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { publicationReviewFromCore, publicationReviewByteLimit, publicationReference } from "../src/lib/catalog/publication-preflight.ts";
+import { publicationReviewFromCore, publicationReviewByteLimit, publicationReference, publicationBlockerTitle } from "../src/lib/catalog/publication-preflight.ts";
 import { readCatalogPublicationPreflight } from "../src/lib/auth/core-client.ts";
 import { publicationAt, publicationBinding, publicationFixture } from "./fixtures/publication-preflight.mts";
 
@@ -120,11 +120,14 @@ test("shared UI renders checked/absent/unavailable states honestly and both prot
   const { default: Component } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
   for (const bootstrap of [false, true]) {
     const html = renderToStaticMarkup(createElement(Component, { result: { kind: "ready", report: publicationReviewFromCore(publicationFixture(bootstrap), publicationBinding(bootstrap), now) } }));
-    for (const text of ["Fresh publication check", "Publication is blocked", "136 structural", "40 structural verification gaps", "22 additional planning", "2016 synthetic", "read only", "not a completion percentage", "separate reads", "Publication-write authorization"]) assert.ok(html.includes(text), text);
+    for (const text of ["Fresh publication check", "Publication is blocked", "136 structural", "40 structural verification gaps", "22 additional planning", "2016 synthetic", "read only", "not a completion percentage", "separate reads", "Publication-write authorization",
+      "legacy read-only preflight", "separate opt-in Core publication workflow", "not a deployment-status check"]) assert.ok(html.includes(text), text);
     for (const forbidden of ["<form", "<button", "sourceUrl", "Bearer", "synthetic-curator", "private"]) assert.equal(html.includes(forbidden), false);
   }
   const unavailable = renderToStaticMarkup(createElement(Component, { result: { kind: "core-unavailable" } }));
   assert.ok(unavailable.includes("Historical receipts and other review panels cannot replace it")); assert.equal(unavailable.includes("136 structural"), false);
+  assert.ok(unavailable.includes("legacy read-only preflight"));
+  assert.equal(publicationBlockerTitle("PUBLICATION_WORKFLOW_UNAVAILABLE"), "This legacy preflight cannot invoke the publication workflow");
   const raw = publicationFixture(); raw.planning = null; raw.blockers.unshift("PROPOSAL_NOT_FOUND"); raw.reviewThroughNumber = 0;
   raw.facts.total = 0; raw.facts.supporting = 0; raw.facts.allFactsHaveSupportingObservation = false;
   const absent = renderToStaticMarkup(createElement(Component, { result: { kind: "ready", report: publicationReviewFromCore(raw, publicationBinding(), now) } }));

@@ -97,6 +97,16 @@ the existing authorized `/catalog/bootstrap` workflow without supplying verdicts
 submitting requests, fetching sources or writing files. This is a review aid, not
 another provider draft, a trusted catalog or an evaluated result.
 
+The protected `/catalog/bootstrap` form explains what the curator confirms: provider
+`OPTIONAL` availability is distinct from an application's `REQUIRED` requirement;
+supporting an `UNKNOWN` claim preserves uncertainty. Every claim needs an explicit
+conclusion, followed by confirmation of the complete exact candidate. Preparation
+does not fetch sources or supply verdicts, and recording a review never publishes.
+The shared legacy publication preflight remains read-only and `BLOCKED`; its display
+is not a deployment-status check for the separate opt-in Core publication writer.
+No review panel enables that writer or substitutes for its fresh authorization and
+server-side checks.
+
 ### Candidate hard-check kernel
 
 The internal [hard-check evaluator](services/core-api/src/main/java/io/authweave/core/catalog/impact/CandidateHardConstraintEvaluator.java)
