@@ -5,7 +5,7 @@ PYTHON ?= python3.13
 
 .PHONY: help setup setup-env setup-web setup-browser setup-ai setup-contracts \
 	check check-policy check-core check-web check-web-auth-db check-guided-bff check-browser check-browser-zitadel check-ai check-contracts \
-	setup-auth setup-core-service-token check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-down \
+	setup-auth setup-core-service-token check-auth-config auth-up auth-status auth-check auth-password-check auth-register auth-registration-check auth-curator-check auth-curator-grant auth-down \
 	inspect-provider-baselines prepare-decision-candidate prepare-decision-review generate-jooq migrate-web-auth infra-up infra-status infra-down seed-core store-catalog-proposal store-catalog-impact store-catalog-regression store-catalog-bootstrap-impact dev-core dev-web dev-ai
 
 help:
@@ -45,6 +45,8 @@ help:
 		'  make auth-password-check  Verify the synthetic admin password; delete the temporary session' \
 		'  make auth-register   Register the local OIDC client and two synthetic users' \
 		'  make auth-registration-check  Verify local OIDC registration without changing it' \
+		'  make auth-curator-check  Check one explicitly selected local Alice/Bob curator assignment; no grant' \
+		'  make auth-curator-grant  Explicitly grant catalog_curator to the selected existing local Alice/Bob user' \
 		'  make auth-down       Stop identity lab; preserve its database and bootstrap volumes' \
 		'  make dev-core        Start the Core API using infra/.env' \
 		'  make dev-web         Start the Next.js development server' \
@@ -109,6 +111,15 @@ auth-register:
 auth-registration-check:
 	$(PYTHON) scripts/local_identity_registration.py check
 
+# No default user and no grant as a side effect of setup, registration or checks.
+export AUTHWEAVE_LOCAL_CURATOR_USER
+
+auth-curator-check:
+	$(PYTHON) scripts/local_identity_curator.py check --user "$${AUTHWEAVE_LOCAL_CURATOR_USER:?Set AUTHWEAVE_LOCAL_CURATOR_USER to an existing local Alice/Bob login}"
+
+auth-curator-grant:
+	$(PYTHON) scripts/local_identity_curator.py grant --user "$${AUTHWEAVE_LOCAL_CURATOR_USER:?Set AUTHWEAVE_LOCAL_CURATOR_USER to an existing local Alice/Bob login}" --confirm-local-curator-grant
+
 auth-down:
 	$(PYTHON) scripts/local_identity.py down
 
@@ -140,8 +151,12 @@ check-browser:
 	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress -Dtest=GuidedAssessmentBrowserIT test
 
 # Existing synthetic IdP users only; fresh application DB. Not included in make check or CI.
+# Copy only two previously verified non-secret scope values; never source private config as shell code.
 check-browser-zitadel: auth-check auth-registration-check
-	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress -Dtest=LocalZitadelBrowserIT -Dauthweave.local-zitadel-browser=true test
+	@AUTHWEAVE_OIDC_PROJECT_ID="$$(awk -F= '$$1 == "AUTHWEAVE_OIDC_PROJECT_ID" { print $$2 }' ./apps/web/.env.local)"; \
+		AUTHWEAVE_OIDC_ORG_ID="$$(awk -F= '$$1 == "AUTHWEAVE_OIDC_ORG_ID" { print $$2 }' ./apps/web/.env.local)"; \
+		export AUTHWEAVE_OIDC_PROJECT_ID AUTHWEAVE_OIDC_ORG_ID; \
+		cd services/core-api; exec ./mvnw --batch-mode --no-transfer-progress -Dtest=LocalZitadelBrowserIT -Dauthweave.local-zitadel-browser=true test
 
 check-ai:
 	cd services/ai-worker && $(AI_WORKER_PYTHON) -m ruff check . && $(AI_WORKER_PYTHON) -m pytest

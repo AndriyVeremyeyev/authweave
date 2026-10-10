@@ -37,6 +37,8 @@ def api(opener, path: str, token: str, payload: dict) -> dict:
         "/zitadel.project.v2.ProjectService/AddProjectRole",
         "/zitadel.application.v2.ApplicationService/ListApplications",
         "/zitadel.application.v2.ApplicationService/CreateApplication",
+        "/zitadel.authorization.v2.AuthorizationService/ListAuthorizations",
+        "/zitadel.authorization.v2.AuthorizationService/CreateAuthorization",
         "/v2/users", "/v2/users/new",
     }, "Unexpected local identity operation.")
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json", "Content-Type": "application/json"}

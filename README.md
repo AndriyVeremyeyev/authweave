@@ -671,7 +671,7 @@ users support the local BFF sign-in flow. First login provisions a personal work
 versioned workspace routes require the BFF's server-only credential and an OIDC identity
 that owns that workspace. Signed-in users can create a private assessment draft, edit
 selected fields through the BFF, and browse a bounded list of their assessments.
-Catalog-curator permissions are not enabled yet. The public browser-only preview is
+Catalog-curator access requires a separate explicit local role assignment. The public browser-only preview is
 unchanged. Ordinary local B2B, citizen-portal and workforce paths through the saved
 editors, Review, fictional Comparison, Architecture and downloaded saved briefs have
 been manually checked with synthetic inputs supported by the current editors.
@@ -729,6 +729,43 @@ and writes the issuer, non-secret client ID, project ID and organization ID to i
 password factors without creating persistent resources or files.
 The check does not audit out-of-band role grants. Both commands create
 short-lived verification sessions and delete them.
+
+Curator assignment is a separate owner action, never a side effect of setup,
+registration or checks. Choose an existing synthetic user explicitly; there is no
+default target, administrator grant, cloud issuer or arbitrary user/project option:
+
+```shell
+make auth-curator-check AUTHWEAVE_LOCAL_CURATOR_USER=alice@authweave.localhost
+make auth-curator-grant AUTHWEAVE_LOCAL_CURATOR_USER=alice@authweave.localhost
+```
+
+The check does not create an assignment. The grant command uses the
+[role-assignment API](https://zitadel.com/docs/reference/api/authorization/zitadel.authorization.v2.AuthorizationService.CreateAuthorization)
+from the [pinned ZITADEL 4.17.3 contract](https://github.com/zitadel/zitadel/blob/v4.17.3/proto/zitadel/authorization/v2/authorization_service.proto),
+only for the existing `AuthWeave Local` project, its exact organization and the chosen
+active Alice/Bob user. It verifies private Web registration without rewriting it,
+refuses incomplete/ambiguous lists, inactive assignments and additional/foreign roles,
+and never updates, deletes or replaces an assignment. An existing exact active grant
+is reused; a new assignment must be read back with the exact returned ID before success
+is reported. A timeout or unverified response may have committed: run the read-only
+check before an explicit retry. There are no automatic write retries or credential,
+token, local-ID or response-body outputs. Temporary administrator sessions are deleted.
+The local assignment persists in the identity volume; it is not a hosted account grant.
+
+Sign out and sign in again to obtain a fresh scoped role claim. Keep the other synthetic
+user ordinary for denial checks. Granting access does not record source conclusions,
+approve the 48 pending claims, publish a catalog or satisfy the owner checkpoint.
+The existing real-IdP checkpoint supports an explicit expected curator:
+
+```shell
+make check-browser-zitadel AUTHWEAVE_LOCAL_CURATOR_USER=alice@authweave.localhost
+```
+
+It expects that selected user's exact project/organization role, read-only preparation
+of the pinned candidate with no default conclusions, and denial for the other user.
+It records no source review or publication. Without a selected curator it retains the
+original two ordinary-user denials; it never grants roles or infers the expectation
+from whichever claims happen to arrive. Use Bob's exact local login instead if chosen.
 
 With the project and organization IDs configured, the BFF requests a project-scoped role
 claim through ZITADEL UserInfo at sign-in. Only the exact `catalog_curator` assignment for

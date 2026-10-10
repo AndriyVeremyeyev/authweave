@@ -3,10 +3,21 @@ import { test } from "node:test";
 import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { localZitadelConfiguration, readLocalZitadelConfiguration } from "./local-zitadel-config.mts";
+import { localZitadelConfiguration, localZitadelCuratorLogin, readLocalZitadelConfiguration } from "./local-zitadel-config.mts";
 
 const web = "AUTHWEAVE_OIDC_ISSUER=http://localhost:8081\nAUTHWEAVE_OIDC_CLIENT_ID=synthetic-local-client\nAUTHWEAVE_OIDC_PROJECT_ID=123\nAUTHWEAVE_OIDC_ORG_ID=456\n";
 const passwords = "AUTHWEAVE_SYNTHETIC_ALICE_PASSWORD=Aa1!synthetic-alice-password\nAUTHWEAVE_SYNTHETIC_BOB_PASSWORD=Aa1!synthetic-bob-password\n";
+
+test("local checkpoint has no default curator and accepts only an explicit existing synthetic login", () => {
+  assert.equal(localZitadelCuratorLogin(undefined), null);
+  assert.equal(localZitadelCuratorLogin(""), null);
+  for (const login of ["alice@authweave.localhost", "bob@authweave.localhost"])
+    assert.equal(localZitadelCuratorLogin(login), login);
+});
+for (const login of ["admin@authweave.localhost", "owner@example.com", "Alice@authweave.localhost", " alice@authweave.localhost"])
+  test(`local checkpoint rejects unexpected curator target ${login}`, () => {
+    assert.throws(() => localZitadelCuratorLogin(login));
+  });
 
 test("local browser config keeps real registration scope and only fixed synthetic users", () => {
   const configuration = localZitadelConfiguration(web + "AUTHWEAVE_UNRELATED_SECRET=do-not-copy\n", passwords);

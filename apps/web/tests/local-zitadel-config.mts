@@ -8,6 +8,13 @@ export const localIssuer = "http://localhost:8081";
 const webKeys = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_OIDC_PROJECT_ID", "AUTHWEAVE_OIDC_ORG_ID"];
 const passwordKeys = ["AUTHWEAVE_SYNTHETIC_ALICE_PASSWORD", "AUTHWEAVE_SYNTHETIC_BOB_PASSWORD"];
 
+export function localZitadelCuratorLogin(value: string | undefined): string | null {
+  if (value === undefined || value === "") return null;
+  assert.ok(["alice@authweave.localhost", "bob@authweave.localhost"].includes(value),
+    "Choose only an explicit existing synthetic curator; no grant is created by this test");
+  return value;
+}
+
 function values(text: string, keys: string[]) {
   assert.ok(Buffer.byteLength(text) <= 16_384, "Private local configuration is too large");
   const all = new Map<string, string>();

@@ -3,7 +3,8 @@ import { chromium, type BrowserContext, type Page } from "@playwright/test";
 import { Pool } from "pg";
 import { opaqueHash } from "../src/lib/auth/session-policy.ts";
 import { BrowserRuntime, browserApp } from "./browser-runtime.mts";
-import { localIssuer, readLocalZitadelConfiguration } from "./local-zitadel-config.mts";
+import { localIssuer, localZitadelCuratorLogin, readLocalZitadelConfiguration } from "./local-zitadel-config.mts";
+import { prepareDecisionCandidate } from "../../../packages/contracts/scripts/prepare-decision-candidate.mjs";
 import { guidedScenarioForms, guidedScenarios } from "./fixtures/guided-scenarios.mts";
 import { runGuidedScenario } from "./guided-browser-flow.mts";
 
@@ -30,13 +31,14 @@ async function appSession(context: BrowserContext) {
   return cookie.value;
 }
 
-async function authenticated(page: Page, name: string) {
+async function authenticated(page: Page, name: string, curator: boolean) {
   detail = "account redirect";
   await page.waitForURL(`${browserApp}/account`);
   detail = "account display name";
   await page.getByText(`Signed in as ${name}.`, { exact: true }).waitFor();
-  detail = "curator denial";
-  await page.getByText("This account has no AuthWeave catalog curator role.", { exact: true }).waitFor();
+  detail = curator ? "scoped curator readiness" : "curator denial";
+  if (curator) await page.getByRole("link", { name: "Review a catalog proposal →", exact: true }).waitFor();
+  else await page.getByText("This account has no AuthWeave catalog curator role.", { exact: true }).waitFor();
   assert.ok(!(await page.evaluate(() => document.cookie)).includes("authweave-session"));
 }
 
@@ -93,6 +95,7 @@ async function signOut(page: Page) {
 
 try {
   assert.equal(process.env.AUTHWEAVE_TEST_BROWSER, "local-zitadel-browser-v1");
+  const expectedCurator = localZitadelCuratorLogin(process.env.AUTHWEAVE_TEST_LOCAL_CURATOR_USER);
   assert.ok(!Object.keys(process.env).some(key => key.startsWith("DEBUG") ||
     ["PWDEBUG", "NODE_DEBUG", "NODE_DEBUG_NATIVE", "NODE_OPTIONS"].includes(key)), "Disable browser and Node debug output");
   progress("read existing private local registration");
@@ -105,6 +108,7 @@ try {
   const assessments: string[][] = [];
   let blockedRequests = 0, guidedRuns = 0;
   for (const [index, user] of users.entries()) {
+    const curator = user.login === expectedCurator;
     const device = index === 0 ? "desktop" : "mobile";
     const context = await browser.newContext({ baseURL: browserApp, serviceWorkers: "block", acceptDownloads: true,
       viewport: index === 0 ? { width: 1440, height: 1000 } : { width: 390, height: 844 },
@@ -118,7 +122,7 @@ try {
     context.setDefaultTimeout(15_000); context.setDefaultNavigationTimeout(30_000);
     const page = await context.newPage();
     progress(index === 0 ? "Alice password login" : "Bob password login");
-    await page.goto("/account"); await signIn(page, user, web); await authenticated(page, user.name);
+    await page.goto("/account"); await signIn(page, user, web); await authenticated(page, user.name, curator);
     const original = await appSession(context);
     if (!database) {
       database = new Pool({ host: "127.0.0.1", port: Number(process.env.AUTHWEAVE_POSTGRES_PORT),
@@ -131,7 +135,8 @@ try {
     assert.equal(identity.rowCount, 1);
     assert.equal(identity.rows[0].issuer, localIssuer); assert.equal(identity.rows[0].email, user.login);
     assert.equal(identity.rows[0].display_name, user.name);
-    assert.equal(identity.rows[0].curator_project_id, null); assert.equal(identity.rows[0].curator_org_id, null);
+    assert.equal(identity.rows[0].curator_project_id, curator ? web.AUTHWEAVE_OIDC_PROJECT_ID : null);
+    assert.equal(identity.rows[0].curator_org_id, curator ? web.AUTHWEAVE_OIDC_ORG_ID : null);
     const personal: string[] = []; assessments.push(personal);
     for (const scenario of guidedScenarios) {
       await page.goto("/account");
@@ -139,16 +144,32 @@ try {
         value => { detail = value; }));
       guidedRuns++;
     }
-    progress(index === 0 ? "Alice curator denial" : "Bob curator denial");
+    progress(`${index === 0 ? "Alice" : "Bob"} ${curator ? "read-only bootstrap preparation" : "curator denial"}`);
     await page.goto("/catalog/review");
-    await page.getByRole("region", { name: "Curator access unavailable" }).waitFor();
-    await page.getByText("This account does not have the scoped AuthWeave catalog curator role.", { exact: true }).waitFor();
-    const denied = await context.request.post("/api/catalog-change-proposals/00000000-0000-0000-0000-000000000001/rejection", {
-      headers: { Origin: browserApp }, data: { expectedVersion: 0, expectedSha256: "0".repeat(64), reasonCode: "OUT_OF_SCOPE" },
-    });
-    assert.equal(denied.status(), 403);
+    if (curator) {
+      await page.getByRole("link", { name: "Review the first bootstrap candidate →", exact: true }).click();
+      const assembly = await prepareDecisionCandidate();
+      await page.getByLabel("Import the first candidate", { exact: true }).fill(JSON.stringify(assembly.candidate));
+      await page.getByRole("button", { name: "Prepare manual review", exact: true }).click();
+      await page.getByRole("heading", { name: "Review every recorded fact", exact: true }).waitFor();
+      assert.equal(await page.locator('input[type="radio"]').count(), assembly.reviewTasks.length * 3);
+      assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
+      assert.equal(await page.locator('input[type="checkbox"]:checked').count(), 0);
+      assert.ok(await page.getByRole("button", { name: "Record manual bootstrap review", exact: true }).isDisabled());
+    } else {
+      await page.getByRole("region", { name: "Curator access unavailable" }).waitFor();
+      await page.getByText("This account does not have the scoped AuthWeave catalog curator role.", { exact: true }).waitFor();
+      const denied = await context.request.post("/api/catalog-change-proposals/00000000-0000-0000-0000-000000000001/rejection", {
+        headers: { Origin: browserApp }, data: { expectedVersion: 0, expectedSha256: "0".repeat(64), reasonCode: "OUT_OF_SCOPE" },
+      });
+      assert.equal(denied.status(), 403);
+      const preparationDenied = await context.request.post("/api/catalog-bootstrap-reviews/prepare", {
+        headers: { Origin: browserApp }, data: {},
+      });
+      assert.equal(preparationDenied.status(), 403);
+    }
     progress(index === 0 ? "Alice same-account reauthentication" : "Bob same-account reauthentication");
-    await page.goto("/account"); await signIn(page, user, web, true); await authenticated(page, user.name);
+    await page.goto("/account"); await signIn(page, user, web, true); await authenticated(page, user.name, curator);
     const rotated = await appSession(context); assert.notEqual(rotated, original);
     const current = await database.query("SELECT issuer, subject, workspace_id FROM web.sessions WHERE session_hash = $1", [opaqueHash(rotated)]);
     assert.equal(current.rowCount, 1);
@@ -212,4 +233,4 @@ try {
     console.error("Real ZITADEL browser cleanup was not confirmed; inspect owned test processes locally.");
   }
 }
-if (success) console.log("Real ZITADEL browser: 2 users passed; 6 guided desktop/mobile flows, 30 form saves, 37 Review/brief rows per flow; 4 PKCE logins/callbacks, 2 same-account rotations, bidirectional isolation, curator denial and logout verified.");
+if (success) console.log("Real ZITADEL browser: 2 users passed; 6 guided desktop/mobile flows, 30 form saves, 37 Review/brief rows per flow; 4 PKCE logins/callbacks, 2 same-account rotations, bidirectional isolation, explicit curator expectations, ordinary-user denial and logout verified. No source verdict or publication was recorded.");

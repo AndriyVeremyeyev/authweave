@@ -50,6 +50,13 @@ class LocalZitadelBrowserIT extends PostgresIntegrationTest {
         env.put("AUTHWEAVE_POSTGRES_DB", postgres.getDatabaseName());
         env.put("AUTHWEAVE_POSTGRES_PORT", String.valueOf(postgres.getMappedPort(5432)));
         env.put("AUTHWEAVE_CORE_SERVICE_TOKEN", "synthetic-browser-core-token-0000000000000000000000");
+        var expectedCurator = System.getenv("AUTHWEAVE_LOCAL_CURATOR_USER");
+        assertTrue(expectedCurator == null || expectedCurator.isEmpty()
+                || List.of("alice@authweave.localhost", "bob@authweave.localhost").contains(expectedCurator),
+                "Choose only an explicit existing local synthetic curator");
+        if (expectedCurator != null && !expectedCurator.isEmpty()) {
+            env.put("AUTHWEAVE_TEST_LOCAL_CURATOR_USER", expectedCurator);
+        }
         var process = command.start();
         try {
             assertTrue(process.waitFor(300, TimeUnit.SECONDS), "Local ZITADEL browser check timed out; see " + log);
@@ -67,6 +74,12 @@ class LocalZitadelBrowserIT extends PostgresIntegrationTest {
         try (var admin = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
              var sql = admin.createStatement()) {
             for (var table : List.of("web.sessions", "web.oidc_login_transactions")) {
+                try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) {
+                    assertTrue(rows.next()); assertEquals(0, rows.getInt(1));
+                }
+            }
+            for (var table : List.of("core.catalog_bootstrap_reviews", "audit.catalog_bootstrap_review_events",
+                    "core.catalog_publication_decisions", "core.catalog_published_snapshots", "audit.catalog_publication_events")) {
                 try (var rows = sql.executeQuery("SELECT count(*) FROM " + table)) {
                     assertTrue(rows.next()); assertEquals(0, rows.getInt(1));
                 }
