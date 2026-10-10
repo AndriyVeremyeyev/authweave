@@ -64,7 +64,7 @@ function finding(value: unknown): AdviceFinding {
     criticality: enumeration(f.criticality, ["CONTEXT", "REQUIRED", "FORBIDDEN", "PREFERRED", "NOT_REQUIRED", "UNKNOWN"]),
     outcome: enumeration(f.outcome, ["PASS", "FAIL", "UNKNOWN", "NOT_APPLIED"]), reasonCode: code(f.reasonCode), evidence: evidence(f.evidence) };
 }
-function optionChecks(value: unknown, summary: ResultSummary): AdviceOptionCheck[] {
+function optionChecks(value: unknown, summary: ResultSummary, eitherSignIn = false): AdviceOptionCheck[] {
   const checks = array(value, 100, v => {
     const o = object(v, ["optionId", "match", "capabilities"]), id = text(o.optionId, 100);
     const candidate = summary.candidates.find(c => c.optionId === id); if (!candidate) fail();
@@ -73,14 +73,18 @@ function optionChecks(value: unknown, summary: ResultSummary): AdviceOptionCheck
       return { capability: enumeration(c.capability, resultCapabilities), usable: bool(c.usable), reasonCode: code(c.reasonCode), evidence: evidence(c.evidence) };
     }); unique(capabilities.map(c => c.capability));
     const match = enumeration(o.match, ["CONDITIONAL_MATCH", "UNRESOLVED", "EXCLUDED"]);
+    // Core's server-side session accepts OIDC OR SAML; the other choices require ALL listed capabilities.
+    // Check the exact alternative protocol set, not an arbitrary usable capability supplied in its place.
+    const usable = eitherSignIn ? JSON.stringify(capabilities.map(c => c.capability)) === JSON.stringify(["OIDC", "SAML"]) && capabilities.some(c => c.usable)
+      : capabilities.every(c => c.usable);
     if ((candidate!.hardVerdict === "EXCLUDED") !== (match === "EXCLUDED") ||
-        (match === "CONDITIONAL_MATCH" && (candidate!.hardVerdict !== "ELIGIBLE" || capabilities.some(c => !c.usable)))) fail();
+        (match === "CONDITIONAL_MATCH" && (candidate!.hardVerdict !== "ELIGIBLE" || !usable))) fail();
     return { optionId: id, match, capabilities };
   }); unique(checks.map(c => c.optionId)); return checks;
 }
 function choice(value: unknown, summary: ResultSummary): AdviceChoice {
   const c = object(value, ["id", "disposition", "reasonCode", "conditionalOptionIds", "optionChecks", "pros", "cons", "conditions", "references"]);
-  const checks = optionChecks(c.optionChecks, summary), ids = unique(array(c.conditionalOptionIds, 100, v => text(v, 100)));
+  const checks = optionChecks(c.optionChecks, summary, c.id === "SERVER_SIDE_SESSION"), ids = unique(array(c.conditionalOptionIds, 100, v => text(v, 100)));
   const disposition = enumeration(c.disposition, ["RECOMMENDED", "ALTERNATIVE", "UNRESOLVED", "NOT_APPLICABLE"]);
   const selected = disposition === "RECOMMENDED" || disposition === "ALTERNATIVE";
   if (JSON.stringify(ids) !== JSON.stringify(selected ? checks.filter(c => c.match === "CONDITIONAL_MATCH").map(c => c.optionId) : [])) fail();

@@ -1,7 +1,8 @@
 import { test, expect, type Page } from "@playwright/test";
 import { guidedScenarios, guidedScenarioForms } from "../fixtures/guided-scenarios.mts";
 import { createGuidedAssessment as create, guidedStep as step, saveGuidedForm as save, runGuidedScenario } from "../guided-browser-flow.mts";
-import { resultReferenceQuery } from "../../src/lib/assessment/decision-results.ts";
+import { resultReferenceQuery, type ResultSummary, type ResultReference } from "../../src/lib/assessment/decision-results.ts";
+import type { RecordingAck } from "../../src/lib/assessment/decision-recording.ts";
 
 test.beforeAll(() => {
   expect(process.env.AUTHWEAVE_TEST_BROWSER).toBe("synthetic-browser-core-v1");
@@ -57,6 +58,120 @@ async function delayedHydration(page: Page, assessment: string) {
 for (const scenario of guidedScenarios) test(`guided ${scenario.key}: five browser saves, Review, brief and saved previews`, async ({ page }, info) => {
   await login(page, `synthetic-browser-${info.project.name}-${scenario.key}`);
   await runGuidedScenario(page, scenario);
+  await logout(page);
+});
+
+for (const key of ["b2b", "citizen", "workforce"]) test(`decision matrix ${key}: explicit positive/negative versions, weights and original replay`, async ({ page }, info) => {
+  const fixture = JSON.parse(process.env.AUTHWEAVE_TEST_RESULT_FIXTURES!).find((f: { device: string }) => f.device === info.project.name);
+  const entry = fixture.matrix.find((s: { key: string }) => s.key === key);
+  const assessment = `/assessments/${entry.assessmentId}`, endpoint = `/api${assessment}/decision-results`;
+  const weighted = key !== "citizen", alpha = "fictional-matrix-alpha", beta = "fictional-matrix-beta";
+  await login(page, `synthetic-browser-${info.project.name}-matrix-${key}`);
+  const external: string[] = [];
+  page.on("request", request => { if (!["http://localhost:3000", "http://localhost:8081"].includes(new URL(request.url()).origin)) external.push(request.url()); });
+  const headers = { Origin: "http://localhost:3000", Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" };
+  async function record(catalog: typeof fixture.catalog, initial: boolean) {
+    await page.goto(`${assessment}/results/new`);
+    await expect(page.getByRole("checkbox")).not.toBeChecked();
+    await page.getByLabel("Catalog snapshot ID", { exact: true }).fill(catalog.snapshotId);
+    await page.getByLabel("Catalog version", { exact: true }).fill(catalog.catalogVersion);
+    await page.getByLabel("Catalog snapshot SHA-256", { exact: true }).fill(catalog.snapshotSha256);
+    if (weighted) {
+      await page.getByLabel("SAML weight", { exact: true }).fill("70");
+      await page.getByLabel("MFA weight", { exact: true }).fill("30");
+    } else await expect(page.getByText(/This explicitly uses NONE with no points or ranking/)).toBeVisible();
+    await page.getByRole("checkbox").check();
+    const body = await page.locator("form").evaluate(form => new URLSearchParams([...new FormData(form as HTMLFormElement)].map(([k, v]) => [k, String(v)])).toString());
+    let reply: { status: number; ack: RecordingAck } | undefined;
+    // Read the real acknowledgement before UI navigation can discard its browser response body.
+    await page.route(`**${endpoint}`, async route => {
+      const response = await route.fetch({ maxRetries: 0, maxRedirects: 0 });
+      reply = { status: response.status(), ack: await response.json() }; await route.fulfill({ response });
+    });
+    await page.getByRole("button", { name: initial ? "Record initial calculation" : "Record a new result version", exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "whole historical replay" })).toBeVisible();
+    await page.unroute(`**${endpoint}`); expect(reply).toBeDefined(); expect(reply!.status).toBe(201);
+    expect(reply!.ack.scope).toBe("OWNED_ASSESSMENT_RESULT_WRITE_ACK");
+    expect(reply!.ack.created).toBe(true); expect(reply!.ack.historicalReplayVerified).toBe(true);
+    return { body, ack: reply!.ack, reference: reply!.ack.reference };
+  }
+  async function readPinnedSummary(reference: ResultReference): Promise<ResultSummary> {
+    // Existing read-only comparison, with exactly the saved weights (including NONE), verifies the same pins.
+    // No extra diagnostic endpoint, caller profile, synthetic response or write is introduced.
+    const data = new URLSearchParams({ version: String(reference.version), resultSha256: reference.resultSha256, weightMode: weighted ? "EXPLICIT" : "NONE" });
+    if (weighted) { data.set("weight_SAML", "70"); data.set("weight_MFA", "30"); }
+    const response = await page.request.post(`${endpoint}/${reference.resultId}/sensitivity`, { headers, data: data.toString() });
+    expect(response.status()).toBe(200); const comparison = await response.json();
+    expect(comparison.writesPerformed).toBe(false); expect(comparison.after).toEqual(comparison.before);
+    expect(comparison.summary.item.reference).toEqual(reference); return comparison.summary;
+  }
+  const positive = await record(fixture.catalog, true);
+  const positiveSummary = await readPinnedSummary(positive.reference);
+  expect(positive.reference.version).toBe(1);
+  expect(positiveSummary.verificationGapCount).toBe(22);
+  for (const flag of ["externalSourceVerificationPerformed", "configurationVerified", "complianceVerified", "decisionApproved"] as const)
+    expect(positiveSummary[flag]).toBe(false);
+  expect(positiveSummary.status).toBe(weighted ? "RANKED_SHORTLIST" : "UNRANKED_SHORTLIST");
+  expect(positiveSummary.shortlist).toEqual(weighted ? [alpha, beta] : [beta]);
+  expect(positiveSummary.candidates.map(c => [c.optionId, c.hardVerdict, c.score?.lowerBound ?? null])).toEqual(
+    weighted ? [[alpha, "ELIGIBLE", 70], [beta, "ELIGIBLE", 30]] : [[alpha, "EXCLUDED", null], [beta, "ELIGIBLE", null]]);
+  const savedOutcome = page.getByText(weighted ? "Ranked conditional shortlist" : "Unranked conditional shortlist", { exact: true });
+  await expect(savedOutcome).toBeVisible();
+  const explain = page.locator("summary").filter({ hasText: `Explain option ${beta} — Eligible` });
+  await explain.focus(); await page.keyboard.press("Enter");
+  await expect(explain.locator("..").getByText("Fictional test evidence — not a real provider source", { exact: true }).first()).toBeVisible();
+  await expect(explain.locator("..").getByText(/365 days; not observed tenant retention/).first()).toBeVisible();
+  await explain.focus(); await page.keyboard.press("Enter");
+  const bff = page.locator("summary").filter({ hasText: /^BFF\/session — Conditionally recommended$/ });
+  await bff.focus(); await page.keyboard.press("Enter");
+  await expect(bff.locator("..").getByRole("heading", { name: "Pros", exact: true })).toBeVisible();
+  await expect(bff.locator("..").getByRole("heading", { name: "Trade-offs", exact: true })).toBeVisible();
+  await expect(bff.locator("..").getByRole("heading", { name: "Unverified design prerequisites", exact: true })).toBeVisible();
+  await bff.focus(); await page.keyboard.press("Enter");
+  await expect(page.getByText(/Neither deployment mode proves a free tier/)).toBeVisible();
+  if (weighted) {
+    await page.getByLabel(/SAML \(saved 70\)/).fill("20"); await page.getByLabel(/MFA \(saved 30\)/).fill("80");
+    const button = page.getByRole("button", { name: "Compare weights without saving", exact: true });
+    await button.focus(); await page.keyboard.press("Enter");
+    await expect(page.getByRole("status").filter({ hasText: "Comparison complete." })).toBeVisible();
+    await expect(page.getByText("Unchanged hard verdict: ELIGIBLE. Saved 70 points → comparison 20 points.", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Saved rank: 1 → comparison rank: 2/)).toBeVisible();
+    await expect(page.getByText(/Saved rank: 2 → comparison rank: 1/)).toBeVisible();
+    await page.getByLabel(/SAML \(saved 70\)/).fill("50"); await page.getByLabel(/MFA \(saved 30\)/).fill("50"); await button.click();
+    await expect(page.getByText(/comparison rank: 1 \(tie\)/)).toHaveCount(2);
+  } else {
+    await expect(page.getByText(/has no explicit capability preferences to reweight/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Compare weights without saving", exact: true })).toHaveCount(0);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  const negative = await record(fixture.successor, false);
+  const negativeSummary = await readPinnedSummary(negative.reference);
+  expect(negative.reference.version).toBe(2); expect(negativeSummary.status).toBe("NO_ELIGIBLE_OPTIONS");
+  expect(negativeSummary.shortlist).toEqual([]);
+  expect(negativeSummary.candidates.map(c => [c.hardVerdict, c.score])).toEqual([["EXCLUDED", null], ["EXCLUDED", null]]);
+  await expect(page.getByText("No eligible options in this calculation", { exact: true })).toBeVisible();
+  const failure = page.locator("summary").filter({ hasText: `Explain option ${beta} — Excluded` });
+  await failure.focus(); await page.keyboard.press("Enter");
+  await expect(failure.locator("..").getByRole("heading", { name: `${entry.failurePath} · REQUIRED · Fail`, exact: true }).first()).toBeVisible();
+  await expect(failure.locator("..").getByText("No preference score was calculated for this option.", { exact: true })).toBeVisible();
+  await failure.focus(); await page.keyboard.press("Enter");
+  if (weighted) {
+    await page.getByLabel(/SAML \(saved 70\)/).fill("20"); await page.getByLabel(/MFA \(saved 30\)/).fill("80");
+    await page.getByRole("button", { name: "Compare weights without saving", exact: true }).click();
+    await expect(page.getByText("Unchanged hard verdict: EXCLUDED. Saved Not scored → comparison Not scored.", { exact: true })).toHaveCount(2);
+  }
+  await page.goto(`${assessment}/results`);
+  await expect(page.getByRole("heading", { name: "Result version 2", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Verify and open result version 1", exact: true }).click();
+  await expect(savedOutcome).toBeVisible();
+  await expect(page).toHaveURL(`http://localhost:3000${assessment}/results/${positive.reference.resultId}?${resultReferenceQuery(positive.reference)}`);
+  // An explicit identical retry after the successor still returns the original immutable acknowledgement.
+  const retry = await page.request.post(endpoint, { headers, data: positive.body }); expect(retry.status()).toBe(200);
+  expect(await retry.json()).toEqual({ ...positive.ack, created: false });
+  expect(await readPinnedSummary(positive.reference)).toEqual(positiveSummary);
+  await expect(page.getByRole("heading", { name: "Result version 1", exact: true })).toBeVisible();
+  await expect(page.getByText(/No decision is approved/)).toBeVisible();
+  expect(external).toEqual([]); expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await logout(page);
 });
 

@@ -115,8 +115,8 @@ try {
   const tests = runtime.run(["node_modules/@playwright/test/cli.js", "test"], process.cwd(), { ...env,
     AUTHWEAVE_TEST_BROWSER: "synthetic-browser-core-v1", AUTHWEAVE_TEST_RESULT_FIXTURES: process.env.AUTHWEAVE_TEST_RESULT_FIXTURES });
   assert.equal(await completion(tests), 0, "Browser tests failed");
-  assert.deepEqual(counts, { authorizations: 24, tokens: 24, pkceValidated: 24, reauthRequests: 4, logouts: 18 });
-  console.log("Browser/OIDC E2E: 12 passed; real Core, isolated PostgreSQL, signed ID Tokens, PKCE and explicit immutable result writes validated.");
+  assert.deepEqual(counts, { authorizations: 30, tokens: 30, pkceValidated: 30, reauthRequests: 4, logouts: 24 });
+  console.log("Browser/OIDC E2E: 18 passed; three-profile positive/negative published-catalog result matrix, real Core, isolated PostgreSQL, signed ID Tokens, PKCE and explicit immutable result writes validated.");
 } finally {
   await runtime.close();
 }

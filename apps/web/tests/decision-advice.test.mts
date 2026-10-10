@@ -24,6 +24,27 @@ test("transport retains equal-score ties and unknown preference intervals withou
   for (const candidate of r.summary.candidates) { candidate.score!.lowerBound = 0; candidate.score!.unknownWeight = 100; }
   r.summary.status = "UNRANKED_SHORTLIST"; r.rankGroups = []; assert.deepEqual(read(r), r);
 });
+test("server-side session requires either exact OIDC or SAML, while BFF still requires all its capabilities", () => {
+  for (const protocol of ["OIDC", "SAML"]) {
+    const r = rankedAdvice(), choice = r.architecture.patterns.find(p => p.choice.id === "SERVER_SIDE_SESSION")!.choice;
+    const evidence = r.candidates[0].hardChecks.findings[0].evidence;
+    choice.disposition = "ALTERNATIVE"; choice.conditionalOptionIds = [r.summary.candidates[0].optionId];
+    choice.optionChecks[0].match = "CONDITIONAL_MATCH";
+    choice.optionChecks[0].capabilities = ["OIDC", "SAML"].map(capability => ({ capability, usable: capability === protocol,
+      reasonCode: capability === protocol ? "SUPPORTED" : "UNSUPPORTED", evidence }));
+    assert.deepEqual(read(r), r);
+    const invalidChoices: ((c: typeof choice.optionChecks[number]) => void)[] = [c => c.capabilities.forEach(cap => cap.usable = false),
+      c => c.capabilities[0].capability = "SCIM", c => c.capabilities.reverse(), c => c.capabilities.pop()];
+    for (const mutate of invalidChoices) {
+      const wrong = structuredClone(r); mutate(wrong.architecture.patterns.find(p => p.choice.id === "SERVER_SIDE_SESSION")!.choice.optionChecks[0]);
+      assert.throws(() => read(wrong));
+    }
+    const bff = r.architecture.patterns.find(p => p.choice.id === "BFF_SESSION")!.choice;
+    bff.disposition = "ALTERNATIVE"; bff.conditionalOptionIds = [...choice.conditionalOptionIds];
+    bff.optionChecks = structuredClone(choice.optionChecks); bff.optionChecks[0].capabilities[1].capability = "OAUTH2_APIS";
+    assert.throws(() => read(r));
+  }
+});
 const mutations: [string, (r: ReturnType<typeof resultAdvice>) => void][] = [
   ["foreign summary", r => r.summary.workspaceId = "foreign"], ["wrong digest", r => r.summary.item.reference.resultSha256 = "f".repeat(64)],
   ["approved decision", r => Object.assign(r.summary, { decisionApproved: true })], ["zero gaps", r => Object.assign(r.summary, { verificationGapCount: 0 })],

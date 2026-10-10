@@ -4376,7 +4376,7 @@ the declared option order for display (countries use code order), so Core's unor
 set serialization cannot reorder Review, list labels or the brief; ordered usage
 assumptions, stored profiles and verdicts are unchanged.
 
-`make check-browser` (also in `make check` and CI) runs eight Chromium E2E cases
+`make check-browser` (also in `make check` and CI) runs 18 Chromium E2E cases
 against an isolated production Next.js standalone build, real Core HTTP and fresh
 Testcontainers PostgreSQL. Run `make check-web` and `make setup-browser` first.
 CI builds without OIDC configuration; `/account` must remain request-time rather
@@ -4390,6 +4390,19 @@ account, invalid nonce and callback replay. A delayed-JavaScript check verifies 
 step/list navigation is disabled until hydration while native Save remains available;
 early clicks after a save/reload must not be silently lost. SQL checks exact revisions/audit counts,
 session cleanup and absence of workspaces for rejected identities.
+
+The result acceptance matrix additionally exercises B2B, public-sector and workforce
+profiles at both widths: explicit recording against a fictional reviewed root, positive
+ranked/unranked advice, exact evidence/retention and conditional design explanations,
+weight reversal/ties without writes, and explicit re-evaluation against a published
+successor. Required SCIM, phishing resistance and group synchronization respectively
+exclude unsupported options; missing successor audit evidence remains unknown, not
+inherited support. Original results and identical retries retain their root pins.
+Seeded history also predates the actual successor publication. SQL verifies all 22
+immutable results and owner audits, with no profile edits from these result interactions.
+Server-side session advice accepts reviewed OIDC **or** SAML; BFF/API choices still
+require all their listed capabilities. This fictional matrix does not complete the
+18 reserved golden cases, real-provider source approval or the owner's learning checkpoint.
 
 The test-only OIDC protocol double checks PKCE S256 and one-use codes and returns
 signed synthetic ID Tokens; the browser uses the actual login/callback/session routes,

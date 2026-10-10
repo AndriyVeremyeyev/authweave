@@ -9,7 +9,8 @@ export default defineConfig({
   retries: 0,
   maxFailures: 1,
   timeout: 60_000,
-  globalTimeout: 240_000,
+  // Fixed 18-case cohort (formerly 12); per-test/action deadlines and zero retries stay unchanged.
+  globalTimeout: 360_000,
   reporter: "line",
   use: { baseURL: "http://localhost:3000", headless: true, trace: "off", screenshot: "only-on-failure",
     actionTimeout: 10_000, navigationTimeout: 15_000 },
