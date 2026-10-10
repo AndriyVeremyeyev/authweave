@@ -108,6 +108,18 @@ public class DecisionPublicationCoverageService {
         if (!beforeReference.decisionCatalogSha256().equals(DecisionCanonicalizer.sha256(before.catalog()))
                 || !afterReference.decisionCatalogSha256().equals(DecisionCanonicalizer.sha256(after.catalog())))
             throw new IllegalArgumentException("Coverage inputs do not match the pinned candidates");
+        var analysis = analyzeInputs(before, after, at);
+        return new Check(DecisionPublicationCoveragePolicy.SCOPE, DecisionPublicationCoveragePolicy.VERSION, DecisionCanonicalizer.VERSION, at,
+                6, CatalogAuditabilityRegressionCases.PROFILE_SCHEMA_SHA256, policy.decisionPolicySha256(), policy.scenarioSetSha256(), policy.manifestSha256(),
+                DecisionPublicationCoveragePolicy.COMPONENT_VERSIONS, beforeReference, afterReference, analysis.scenarios(), analysis.uncoveredFacts(),
+                CatalogProfilePlanningCoverageService.VERIFICATION_GAPS, analysis.status(), analysis.complete(), storedReviewsVerified,
+                false, false, false, false, false, false, false, false, false, false);
+    }
+    /** Shared pure execution, with no fabricated review reference or provenance/authorization flag. */
+    record Analysis(List<ScenarioCheck> scenarios, List<String> uncoveredFacts, Status status, boolean complete) {
+        Analysis { scenarios = List.copyOf(scenarios); uncoveredFacts = List.copyOf(uncoveredFacts); }
+    }
+    Analysis analyzeInputs(CandidateDecisionImpactEvaluator.Snapshot before, CandidateDecisionImpactEvaluator.Snapshot after, Instant at) {
         var checked = new ArrayList<ScenarioCheck>(); var missing = new TreeSet<String>();
         var consumedBefore = new TreeSet<String>(); var consumedAfter = new TreeSet<String>();
         for (var scenario : policy.scenarios()) {
@@ -126,11 +138,7 @@ public class DecisionPublicationCoverageService {
         facts(after).stream().filter(f -> !consumedAfter.contains(f)).forEach(f -> missing.add("after:" + f));
         boolean complete = checked.size() == CatalogScopedProfileCases.COUNT && missing.isEmpty()
                 && checked.stream().allMatch(s -> s.routes().size() == 34 && s.routes().stream().allMatch(RouteCheck::accounted));
-        return new Check(DecisionPublicationCoveragePolicy.SCOPE, DecisionPublicationCoveragePolicy.VERSION, DecisionCanonicalizer.VERSION, at,
-                6, CatalogAuditabilityRegressionCases.PROFILE_SCHEMA_SHA256, policy.decisionPolicySha256(), policy.scenarioSetSha256(), policy.manifestSha256(),
-                DecisionPublicationCoveragePolicy.COMPONENT_VERSIONS, beforeReference, afterReference, checked, List.copyOf(missing),
-                CatalogProfilePlanningCoverageService.VERIFICATION_GAPS, complete ? Status.COMPLETE_DECLARED_SCOPE : Status.INCOMPLETE,
-                complete, storedReviewsVerified, false, false, false, false, false, false, false, false, false, false);
+        return new Analysis(checked, List.copyOf(missing), complete ? Status.COMPLETE_DECLARED_SCOPE : Status.INCOMPLETE, complete);
     }
     private static int outputs(DecisionPublicationCoveragePolicy.Route route, JsonNode profile, CandidateDecisionEvaluator.Result result) {
         if (profile.at("/" + route.profilePath().replace('.', '/')).isMissingNode()) return 0;

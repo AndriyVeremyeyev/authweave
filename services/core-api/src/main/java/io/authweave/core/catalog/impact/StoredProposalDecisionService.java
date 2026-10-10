@@ -48,7 +48,7 @@ public class StoredProposalDecisionService {
     }
     public record Inputs(Reference reference, JsonNode base, String expectedBaseSha256,
             CandidateDecisionImpactEvaluator.Snapshot snapshot, List<CatalogFactReview> observations,
-            CatalogAuditabilityReview auditabilityReview) {
+            CatalogAuditabilityReview auditabilityReview, Instant proposalRecordedAt) {
         public Inputs { base = base.deepCopy(); observations = List.copyOf(observations); }
         @Override public JsonNode base() { return base.deepCopy(); }
     }
@@ -130,7 +130,7 @@ public class StoredProposalDecisionService {
                 claimSha256(options.get(r.optionId()), r.factPath()), Assertion.valueOf(r.verdict().name()))).toList());
         var audit = reviews.loadAuditability(catalogSha, auditability);
         return new Inputs(new Reference(pin, through, reviewSha, auditability), raw.get("base"), request.expectedBaseSha256(),
-                new CandidateDecisionImpactEvaluator.Snapshot(catalog, assertions, audit.supplement()), receipts, audit.receipt());
+                new CandidateDecisionImpactEvaluator.Snapshot(catalog, assertions, audit.supplement()), receipts, audit.receipt(), row.getRecordedAt().toInstant());
     }
     private record ReviewSet(List<CatalogFactReview> observations, List<String> auditSha256) { }
     private static boolean near(Instant a, Instant b) { return !a.isBefore(b.minusSeconds(30)) && !a.isAfter(b.plusSeconds(30)); }

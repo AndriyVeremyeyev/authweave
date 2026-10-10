@@ -66,6 +66,8 @@ class StoredProposalDecisionImpactIntegrationTests {
     @Autowired CatalogFactReviewWriter factReviews;
     @Autowired StoredProposalDecisionService proposals;
     @Autowired StoredProposalDecisionImpactService impacts;
+    @Autowired PublishedProposalDecisionCoverageService proposalCoverage;
+    @Autowired DecisionPublicationCoveragePolicy coveragePolicy;
     @MockitoSpyBean TrustedPublishedCatalogService trusted;
     @MockitoSpyBean Clock clock;
 
@@ -290,6 +292,135 @@ class StoredProposalDecisionImpactIntegrationTests {
         assertThrows(IllegalArgumentException.class, () -> new StoredProposalDecisionService.Reference(revision, -1, "0".repeat(64), null));
         assertThrows(IllegalArgumentException.class, () -> new StoredProposalDecisionService.Revision(UUID.randomUUID(), 9007199254740992L, "0".repeat(64), "0".repeat(64)));
         assertThrows(IllegalArgumentException.class, () -> new StoredProposalDecisionService.Reference(revision, 0, "bad", null));
+    }
+
+    @Test void fullPublishedProposalCoverageBindsRealWholeDecisionsAndSeparatesSourceEligibility() {
+        var root = publish(); var proposal = proposal(root, c -> ((ObjectNode) c.at("/options/0/facts/SCIM")).put("availability", "UNAVAILABLE"));
+        reviewAll(proposal, Verdict.SOURCE_SUPPORTS_CLAIM); var pin = proposals.pin(revision(proposal), supplement(proposal));
+        var before = counts(); var check = proposalCoverage.inspect(root.snapshot(), pin);
+        assertEquals(PublishedProposalDecisionCoverageService.VERSION, check.policyVersion()); assertEquals(root.snapshot(), check.before());
+        assertEquals(root.proofSha256(), check.beforeProofSha256()); assertEquals(pin, check.after());
+        assertTrue(check.historicalPublicationWorkflowVerified()); assertTrue(check.storedSourceReviewsVerified());
+        assertTrue(check.decisionScopeCoverageComplete()); assertTrue(check.candidateClaims().allRecordedClaimsSupportedAndCurrent());
+        assertEquals(136, check.scenarios().stream().mapToInt(s -> s.routes().size()).sum()); assertTrue(check.uncoveredFacts().isEmpty());
+        assertTrue(check.scenarios().stream().anyMatch(DecisionPublicationCoverageService.ScenarioCheck::decisionOutcomesChanged));
+        assertTrue(check.scenarios().stream().anyMatch(s -> s.afterUnknownFindings() > 0)); assertEquals(22, check.verificationGaps().size());
+        assertFalse(check.coverageComplete()); assertFalse(check.currentCuratorAuthorityVerified()); assertFalse(check.sourceVerificationPerformed());
+        assertFalse(check.configurationVerified()); assertFalse(check.complianceVerified()); assertFalse(check.actualGoldenAcceptancePerformed());
+        assertFalse(check.historicalReportPromotionPerformed()); assertFalse(check.assessmentResultPinned()); assertFalse(check.approvalGranted());
+        assertFalse(check.publicationReady()); assertFalse(check.writesPerformed()); assertEquals(before, counts());
+        assertNotEquals(coveragePolicy.manifestSha256(), check.manifestSha256()); assertEquals(23, check.componentVersions().size());
+        assertEquals(check, proposalCoverage.replay(root.snapshot(), pin, check.evaluatedAt()));
+        var inputsBefore = trusted.load(root.snapshot()).decisionInputs(); var inputsAfter = proposals.load(pin).snapshot();
+        for (int i = 0; i < 4; i++) {
+            var scenario = coveragePolicy.scenarios().get(i);
+            var actual = CandidateDecisionImpactEvaluator.evaluate(scenario.profile(), 6, scenario.weights(), inputsBefore, inputsAfter, check.evaluatedAt());
+            assertEquals(DecisionCanonicalizer.sha256(mapper.valueToTree(actual)), check.scenarios().get(i).impactSha256());
+            assertEquals(actual.beforeInputSha256(), check.scenarios().get(i).beforeInputSha256());
+            assertEquals(actual.afterResultSha256(), check.scenarios().get(i).afterResultSha256());
+        }
+    }
+
+    @ParameterizedTest @ValueSource(strings = {"MISSING", "SOURCE_DOES_NOT_SUPPORT_CLAIM", "INSUFFICIENT_EVIDENCE", "STALE", "FUTURE"})
+    void completeRuleCoverageCannotEraseMissingNegativeOrOutdatedSourceObservations(String problem) {
+        var root = publish(); var proposal = proposal(root, c -> {
+            if (problem.equals("STALE") || problem.equals("FUTURE")) ((ObjectNode) c.at("/options/0/facts/SCIM/evidence")).put("observedAt",
+                    (problem.equals("STALE") ? Instant.now().minusSeconds(91L * 86400) : Instant.now().plusSeconds(86400)).toString());
+        });
+        reviewAllExcept(proposal, "facts.SCIM");
+        if (!problem.equals("MISSING")) review(proposal, "facts.SCIM", problem.equals("STALE") || problem.equals("FUTURE")
+                ? Verdict.SOURCE_SUPPORTS_CLAIM : Verdict.valueOf(problem));
+        var pin = proposals.pin(revision(proposal), supplement(proposal)); var result = proposalCoverage.inspect(root.snapshot(), pin);
+        assertTrue(result.decisionScopeCoverageComplete()); assertFalse(result.candidateClaims().allRecordedClaimsSupportedAndCurrent());
+        var claims = result.candidateClaims();
+        assertEquals(problem.equals("MISSING") ? 1 : 0, claims.unreviewed());
+        assertEquals(problem.equals("SOURCE_DOES_NOT_SUPPORT_CLAIM") ? 1 : 0, claims.contradicted());
+        assertEquals(problem.equals("INSUFFICIENT_EVIDENCE") ? 1 : 0, claims.insufficient());
+        assertEquals(problem.equals("STALE") ? 1 : 0, claims.stale()); assertEquals(problem.equals("FUTURE") ? 1 : 0, claims.future());
+        assertFalse(result.publicationReady());
+    }
+
+    @Test void optionalMissingSupplementIsNotAnInventedClaimOrCurrentAuthority() {
+        var root = publish(); var proposal = proposal(root, c -> { }); reviewAll(proposal, Verdict.SOURCE_SUPPORTS_CLAIM);
+        var pin = proposals.pin(revision(proposal), null); var result = proposalCoverage.inspect(root.snapshot(), pin);
+        assertTrue(result.candidateClaims().allRecordedClaimsSupportedAndCurrent());
+        assertEquals(proposals.load(pin).observations().size(), result.candidateClaims().recorded());
+        assertNull(proposals.load(pin).snapshot().auditability());
+        assertTrue(result.scenarios().stream().anyMatch(s -> s.afterUnknownFindings() > s.beforeUnknownFindings()));
+        assertFalse(result.publicationReady()); assertFalse(result.currentCuratorAuthorityVerified());
+    }
+
+    @Test void historicalCutoffsAndLaterClockRemainExplicitInFullCoverage() {
+        var root = publish(); var proposal = proposal(root, c -> { }); reviewAll(proposal, Verdict.SOURCE_SUPPORTS_CLAIM);
+        var audit = supplement(proposal); var pin = proposals.pin(revision(proposal), audit); var first = proposalCoverage.inspect(root.snapshot(), pin);
+        review(proposal, "facts.SCIM", Verdict.SOURCE_DOES_NOT_SUPPORT_CLAIM);
+        assertEquals(first, proposalCoverage.replay(root.snapshot(), pin, first.evaluatedAt()));
+        assertFalse(proposalCoverage.inspect(root.snapshot(), proposals.pin(revision(proposal), audit)).candidateClaims().allRecordedClaimsSupportedAndCurrent());
+        var later = proposalCoverage.replay(root.snapshot(), pin, first.evaluatedAt().plusSeconds(91L * 86400));
+        assertTrue(later.decisionScopeCoverageComplete()); assertEquals(later.candidateClaims().recorded(), later.candidateClaims().stale());
+        assertEquals(first.beforeCatalogSha256(), later.beforeCatalogSha256()); assertEquals(first.afterCatalogSha256(), later.afterCatalogSha256());
+        assertEquals(first.manifestSha256(), later.manifestSha256()); assertNotEquals(first.scenarios().getFirst().impactSha256(), later.scenarios().getFirst().impactSha256());
+    }
+
+    @Test void replayCannotBackdatePublicationProposalOrReviews() {
+        var root = publish(); var proposal = proposal(root, c -> { }); reviewAll(proposal, Verdict.SOURCE_SUPPORTS_CLAIM);
+        var pin = proposals.pin(revision(proposal), supplement(proposal));
+        assertThrows(IllegalArgumentException.class, () -> proposalCoverage.replay(root.snapshot(), pin, root.publishedAt().minusSeconds(31)));
+    }
+
+    @Test void fullCoverageUsesReadOnlyConsistentSnapshotAndOwnedClock() {
+        var root = publish(); var proposal = proposal(root, c -> { }); var pin = proposals.pin(revision(proposal), null);
+        doAnswer(call -> {
+            assertEquals("on", dsl.fetchValue("SHOW transaction_read_only")); assertEquals("repeatable read", dsl.fetchValue("SHOW transaction_isolation"));
+            return call.callRealMethod();
+        }).when(trusted).load(any());
+        var at = Instant.now().plusSeconds(60); doReturn(at).when(clock).instant(); var counts = counts();
+        var check = proposalCoverage.inspect(root.snapshot(), pin); assertEquals(at, check.evaluatedAt());
+        assertEquals(check.candidateClaims().recorded(), check.candidateClaims().unreviewed()); assertEquals(counts, counts());
+    }
+
+    @Test void fullCoveragePropagatesMissingReferencesAndInfrastructureFailures() {
+        var root = publish(); var proposal = proposal(root, c -> { }); var pin = proposals.pin(revision(proposal), null);
+        var wrong = new PublishedCatalogSnapshot.Reference(UUID.randomUUID(), root.snapshot().catalogVersion(), root.snapshot().snapshotSha256());
+        assertThrows(CatalogPublishedLoadingException.class, () -> proposalCoverage.inspect(wrong, pin));
+        doThrow(new org.jooq.exception.DataAccessException("Fictional isolated coverage DB outage")).when(trusted).load(any());
+        assertThrows(org.jooq.exception.DataAccessException.class, () -> proposalCoverage.inspect(root.snapshot(), pin));
+    }
+
+    @Test void coverageOutputCannotInflateAuthorityProvenanceOrCompleteness() {
+        var root = publish(); var proposal = proposal(root, c -> { }); var pin = proposals.pin(revision(proposal), null);
+        var original = (ObjectNode) mapper.valueToTree(proposalCoverage.inspect(root.snapshot(), pin));
+        for (var field : List.of("coverageComplete", "currentCuratorAuthorityVerified", "sourceVerificationPerformed", "configurationVerified",
+                "complianceVerified", "actualGoldenAcceptancePerformed", "historicalReportPromotionPerformed", "assessmentResultPinned",
+                "approvalGranted", "publicationReady", "writesPerformed", "historicalPublicationWorkflowVerified", "storedSourceReviewsVerified",
+                "decisionScopeCoverageComplete", "candidateClaims", "scenarios", "verificationGaps", "beforeProofSha256", "policyVersion")) {
+            var changed = original.deepCopy();
+            if (field.equals("beforeProofSha256") || field.equals("policyVersion")) changed.put(field, "invalid");
+            else if (field.equals("scenarios") || field.equals("verificationGaps")) changed.set(field, mapper.createArrayNode());
+            else if (field.equals("candidateClaims")) ((ObjectNode) changed.get(field)).put("allRecordedClaimsSupportedAndCurrent", true);
+            else changed.put(field, !changed.get(field).asBoolean());
+            assertThrows(RuntimeException.class, () -> mapper.treeToValue(changed, PublishedProposalDecisionCoverageService.Check.class), field);
+        }
+    }
+
+    @Test void exportFourActualVerifiedInputCalculationsForIndependentBindingChecks() throws Exception {
+        var root = publish(); var a = proposal(root, c -> ((ObjectNode) c.at("/options/0/facts/SCIM")).put("availability", "UNAVAILABLE"));
+        reviewAll(a, Verdict.SOURCE_SUPPORTS_CLAIM); var first = proposals.pin(revision(a), supplement(a));
+        var b = proposal(root, c -> { }); reviewAll(b, Verdict.SOURCE_SUPPORTS_CLAIM); review(b, "facts.SCIM", Verdict.SOURCE_DOES_NOT_SUPPORT_CLAIM);
+        var second = proposals.pin(revision(b), null);
+        var c = proposal(root, candidate -> { }); var third = proposals.pin(revision(c), null);
+        var samples = new java.util.ArrayList<Object>();
+        for (var pin : List.of(first, second, third)) samples.add(coverageSample(root, pin, Instant.now()));
+        samples.add(coverageSample(root, first, Instant.now().plusSeconds(91L * 86400)));
+        var path = Path.of(System.getProperty("basedir", "."), "target/published-proposal-coverage-samples.json");
+        java.nio.file.Files.createDirectories(path.getParent()); java.nio.file.Files.writeString(path, mapper.writeValueAsString(samples));
+    }
+    private Object coverageSample(CatalogBootstrapPublisher.Receipt root, StoredProposalDecisionService.Reference pin, Instant at) {
+        var before = trusted.load(root.snapshot()).decisionInputs(); var after = proposals.load(pin).snapshot();
+        var check = proposalCoverage.replay(root.snapshot(), pin, at);
+        var impacts = coveragePolicy.scenarios().stream().map(s -> CandidateDecisionImpactEvaluator.evaluate(s.profile(), 6, s.weights(), before, after, at)).toList();
+        return java.util.Map.of("check", check, "before", before, "after", after, "impacts", impacts,
+                "origin", java.util.Map.of("before", root.snapshot(), "beforeProofSha256", root.proofSha256(), "after", pin, "evaluatedAt", at));
     }
 
     private CatalogBootstrapPublisher.Receipt publish() {

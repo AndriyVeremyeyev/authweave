@@ -30,12 +30,15 @@ public class StoredProposalDecisionImpactService {
             PublishedCatalogSnapshot.Reference baseline, StoredProposalDecisionService.Reference proposal) {
         var profile = Objects.requireNonNull(profileDocument).deepCopy(); var weights = Objects.requireNonNull(weightsDocument).deepCopy();
         var before = published.load(Objects.requireNonNull(baseline)); var after = proposals.load(Objects.requireNonNull(proposal));
+        requireExactBase(before, after);
+        var impact = CandidateDecisionImpactEvaluator.evaluate(profile, profileSchemaVersion, weights, before.decisionInputs(), after.snapshot(), clock.instant());
+        return new Result("PUBLISHED_BASELINE_REVIEWED_PROPOSAL_DECISION_IMPACT", VERSION, baseline, before.publication().proofSha256(), proposal, impact,
+                true, true, false, false, false, false, false, false);
+    }
+    static void requireExactBase(TrustedPublishedCatalogService.Inputs before, StoredProposalDecisionService.Inputs after) {
         // The proposal's claimed base must be this published source, including original array order.
         if (!after.expectedBaseSha256().equals(CatalogDraftCanonicalizer.sha256(before.publication().snapshot().catalog().asDraft()))
                 || !DecisionCanonicalizer.sha256(after.base()).equals(DecisionCanonicalizer.sha256(before.decisionInputs().catalog())))
             throw new CatalogProposalDecisionLoadingException(CatalogProposalDecisionLoadingException.Reason.BASELINE_MISMATCH);
-        var impact = CandidateDecisionImpactEvaluator.evaluate(profile, profileSchemaVersion, weights, before.decisionInputs(), after.snapshot(), clock.instant());
-        return new Result("PUBLISHED_BASELINE_REVIEWED_PROPOSAL_DECISION_IMPACT", VERSION, baseline, before.publication().proofSha256(), proposal, impact,
-                true, true, false, false, false, false, false, false);
     }
 }

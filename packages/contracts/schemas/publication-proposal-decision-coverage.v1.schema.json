@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/publication-proposal-decision-coverage.v1.schema.json",
+  "title": "Fresh published-baseline/proposal decision coverage, not publication authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scope", "policyVersion", "canonicalization", "evaluatedAt", "profileSchemaVersion", "profileSchemaSha256", "decisionPolicySha256", "scenarioSetSha256", "manifestSha256", "componentVersions", "before", "beforeProofSha256", "beforeCatalogSha256", "after", "afterCatalogSha256", "scenarios", "uncoveredFacts", "verificationGaps", "candidateClaims", "status", "decisionScopeCoverageComplete", "historicalPublicationWorkflowVerified", "storedSourceReviewsVerified", "coverageComplete", "currentCuratorAuthorityVerified", "sourceVerificationPerformed", "configurationVerified", "complianceVerified", "actualGoldenAcceptancePerformed", "historicalReportPromotionPerformed", "assessmentResultPinned", "approvalGranted", "publicationReady", "writesPerformed"],
+  "properties": {
+    "scope": { "const": "DECLARED_DECISION_RULES_ONLY" },
+    "policyVersion": { "const": "publication-proposal-decision-coverage-1" },
+    "canonicalization": { "const": "SHA256_UTF8_COMPACT_JSON_SORTED_OBJECT_KEYS_PRESERVED_ARRAY_ORDER" },
+    "evaluatedAt": { "type": "string", "format": "date-time" },
+    "profileSchemaVersion": { "const": 6 },
+    "profileSchemaSha256": { "const": "3d384daf2d98851ebcbe00f90a9c6dabeedbae8361f8a41f58d00b9742c95fbb" },
+    "decisionPolicySha256": { "$ref": "#/$defs/hash" },
+    "scenarioSetSha256": { "$ref": "#/$defs/hash" },
+    "manifestSha256": { "$ref": "#/$defs/hash" },
+    "componentVersions": { "const": { "hardChecks": "decision-hard-check-2", "scoring": "decision-preference-scoring-2", "composition": "decision-candidate-composition-2", "architecture": "decision-conditional-architecture-1", "impact": "decision-candidate-impact-1", "auditability": "decision-auditability-input-1", "patterns": "architecture-pattern-preflight-1", "prerequisites": "architecture-prerequisites-1", "provisioning": "provisioning-lifecycle-design-1", "provisioningConditions": "provisioning-lifecycle-design-2", "claimRules": "assertion-claim-rules-1", "capabilityRules": "capability-preflight-1", "contextRules": "eligibility-preflight-1", "residencyRules": "residency-preflight-1", "authenticationRules": "authentication-controls-preflight-1", "complianceRules": "compliance-scope-preflight-1", "auditabilityRules": "auditability-capability-preflight-1", "evidenceMaxAgeDays": "90", "storedReviewLoading": "decision-stored-review-loading-1", "publishedBaselineLoading": "published-bootstrap-loading-1", "proposalReviewLoading": "decision-proposal-review-loading-1", "publishedProposalImpact": "decision-published-proposal-impact-1", "underlyingCoverage": "publication-decision-coverage-1" } },
+    "before": { "type": "object", "additionalProperties": false, "required": ["snapshotId", "catalogVersion", "snapshotSha256"], "properties": {
+      "snapshotId": { "type": "string", "format": "uuid" }, "catalogVersion": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" }, "snapshotSha256": { "$ref": "#/$defs/hash" }
+    } },
+    "beforeProofSha256": { "$ref": "#/$defs/hash" },
+    "beforeCatalogSha256": { "$ref": "#/$defs/hash" },
+    "after": { "$ref": "#/$defs/proposalReference" },
+    "afterCatalogSha256": { "$ref": "#/$defs/hash" },
+    "scenarios": { "type": "array", "minItems": 4, "maxItems": 4, "uniqueItems": true, "items": { "$ref": "publication-decision-coverage.v1.schema.json#/$defs/scenario" } },
+    "uncoveredFacts": { "$ref": "publication-decision-coverage.v1.schema.json#/properties/uncoveredFacts" },
+    "verificationGaps": { "$ref": "publication-decision-coverage.v1.schema.json#/properties/verificationGaps" },
+    "candidateClaims": { "$ref": "#/$defs/claims" },
+    "status": { "enum": ["COMPLETE_DECLARED_SCOPE", "INCOMPLETE"] },
+    "decisionScopeCoverageComplete": { "type": "boolean" },
+    "historicalPublicationWorkflowVerified": { "const": true },
+    "storedSourceReviewsVerified": { "const": true },
+    "coverageComplete": { "const": false },
+    "currentCuratorAuthorityVerified": { "const": false },
+    "sourceVerificationPerformed": { "const": false },
+    "configurationVerified": { "const": false },
+    "complianceVerified": { "const": false },
+    "actualGoldenAcceptancePerformed": { "const": false },
+    "historicalReportPromotionPerformed": { "const": false },
+    "assessmentResultPinned": { "const": false },
+    "approvalGranted": { "const": false },
+    "publicationReady": { "const": false },
+    "writesPerformed": { "const": false }
+  },
+  "allOf": [{ "$ref": "publication-decision-coverage.v1.schema.json#/allOf/0" }],
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "integer": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "count": { "type": "integer", "minimum": 0, "maximum": 7400 },
+    "proposalReference": { "type": "object", "additionalProperties": false, "required": ["revision", "reviewThroughNumber", "reviewSetSha256", "auditability"], "properties": {
+      "revision": { "type": "object", "additionalProperties": false, "required": ["proposalId", "version", "proposalSha256", "requestSha256"], "properties": {
+        "proposalId": { "type": "string", "format": "uuid" }, "version": { "$ref": "#/$defs/integer" }, "proposalSha256": { "$ref": "#/$defs/hash" }, "requestSha256": { "$ref": "#/$defs/hash" }
+      } },
+      "reviewThroughNumber": { "$ref": "#/$defs/integer" }, "reviewSetSha256": { "$ref": "#/$defs/hash" },
+      "auditability": { "$ref": "publication-decision-coverage.v1.schema.json#/$defs/auditReference" }
+    } },
+    "claims": { "type": "object", "additionalProperties": false,
+      "required": ["recorded", "supporting", "contradicted", "insufficient", "unreviewed", "current", "stale", "future", "allRecordedClaimsSupportedAndCurrent"],
+      "properties": {
+        "recorded": { "type": "integer", "minimum": 1, "maximum": 7400 }, "supporting": { "$ref": "#/$defs/count" }, "contradicted": { "$ref": "#/$defs/count" }, "insufficient": { "$ref": "#/$defs/count" }, "unreviewed": { "$ref": "#/$defs/count" }, "current": { "$ref": "#/$defs/count" }, "stale": { "$ref": "#/$defs/count" }, "future": { "$ref": "#/$defs/count" }, "allRecordedClaimsSupportedAndCurrent": { "type": "boolean" }
+      }, "allOf": [{ "if": { "type": "object", "properties": { "allRecordedClaimsSupportedAndCurrent": { "const": true } }, "required": ["allRecordedClaimsSupportedAndCurrent"] }, "then": {
+        "type": "object", "properties": { "contradicted": { "const": 0 }, "insufficient": { "const": 0 }, "unreviewed": { "const": 0 }, "stale": { "const": 0 }, "future": { "const": 0 } }
+      } }]
+    }
+  }
+}

@@ -363,6 +363,26 @@ publish a successor, store an assessment result or establish current curator aut
 The successor publisher still needs fresh full-scope coverage, current-head/parent
 checks, reauthentication, an atomic write and its own trusted workflow proof.
 
+### Published-baseline proposal coverage
+
+`PublishedProposalDecisionCoverageService` recomputes all four scoped profiles and
+34 declared routes for an exact trusted published bootstrap and reviewed proposal.
+One read-only `REPEATABLE_READ` transaction binds publication proof, revision,
+review cutoff, optional candidate-specific supplement, original dates, server clock
+and complete impact hashes. The separate `publication-proposal-decision-coverage-1`
+policy reuses the actual decision kernels without changing bootstrap proof formats.
+
+Recorded-claim review eligibility is explicit and separate from rule coverage:
+all recorded base/supplement claims must have supporting observations and current
+original evidence dates. Missing, negative, insufficient, stale and future reviews
+cannot be erased by complete rule execution. A missing optional supplement is not
+invented; required missing findings remain unknown. Neither check implies PASS
+decisions, verified external sources or publication permission. All 22 verification
+gaps and authority/write denials remain. Local checks and CI independently recount
+claims and bind four actual Java calculations to their inputs and whole results.
+This is an internal calculation path, not the guarded successor writer, head/parent
+validation, current curator authorization or immutable assessment result pinning.
+
 ## Local development
 
 Required tools are Java 21, Node.js 24 with npm 11, Python 3.13, Docker Desktop and
