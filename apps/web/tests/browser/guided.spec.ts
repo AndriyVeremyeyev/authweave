@@ -140,9 +140,19 @@ test("explicit recording, stale-head refusal and lost-reply identical retry pres
     [initialBody, { ...headers, "Content-Type": "application/json" }, 415], ["x".repeat(16385), headers, 400]] as const) {
     expect((await page.request.post(endpoint, { headers: requestHeaders, data: payload })).status()).toBe(status);
   }
-  const firstReply = page.waitForResponse(r => new URL(r.url()).pathname === endpoint && r.request().method() === "POST");
+  // Capture the actual reply before delivering it: browser navigation can discard a prior CDP response body.
+  // This passes through the one real BFF POST unchanged, with no retry, redirect or synthetic acknowledgement.
+  let initialReply: { status: number; body: { reference: { resultId: string; version: number; resultSha256: string } } } | undefined;
+  await page.route(`**${endpoint}`, async route => {
+    if (route.request().method() !== "POST") return route.continue();
+    const response = await route.fetch({ maxRetries: 0, maxRedirects: 0 });
+    initialReply = { status: response.status(), body: await response.json() };
+    await route.fulfill({ response });
+  });
   await page.getByRole("button", { name: "Record initial calculation", exact: true }).click();
-  const firstResponse = await firstReply; expect(firstResponse.status()).toBe(201); const first = await firstResponse.json();
+  await expect(page.getByRole("status")).toContainText("whole historical replay");
+  await page.unroute(`**${endpoint}`);
+  expect(initialReply).toBeDefined(); expect(initialReply!.status).toBe(201); const first = initialReply!.body;
   expect(first.reference.version).toBe(1); expect(first.reference.resultId).toBe(new URLSearchParams(initialBody).get("resultId"));
   await expect(page).toHaveURL(`http://localhost:3000${assessment}/results/${first.reference.resultId}?${resultReferenceQuery(first.reference)}`);
   await expect(page.getByRole("status")).toContainText("whole historical replay"); await expect(page.getByText("SAML: 100", { exact: true })).toBeVisible();
