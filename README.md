@@ -317,6 +317,44 @@ The legacy preflight and integrity-only lookup retain their existing denial/auth
 contracts. The separate first-successor workflow below does not close owned assessment
 result pinning or final golden/UI acceptance.
 
+### Immutable owned assessment decision advice
+
+The personal Core BFF endpoint `POST /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results`
+records an explicit calculation against the exact current profile revision, exact
+workflow-verified published catalog reference and explicit capability weights. Core
+reloads the inputs and computes the whole decision at its database clock. It never
+accepts a caller profile, clock, policy, verdicts or calculated result. No catalog is
+selected implicitly, and no synthetic fallback or evidence-date refresh is allowed.
+
+Each immutable result pins the original stored profile/schema/digest, its separately
+identified v6 evaluation projection, publication proof/source-input bindings, 21 rule/
+loader components, decision-policy digest, weights and calculation time. Legacy absent
+fields project to their existing explicit UNKNOWN defaults; the stored profile is not
+migrated. This separate advice receipt retains the kernel's non-authority flags and
+22 deployment/compliance gaps. It is not the reserved final `decision-result.v1`
+acceptance contract, a chosen architecture, independent source verification or approval.
+
+First recording requires `previousResult: null` and `RECORD_DECISION_RESULT`. Explicit
+re-evaluation requires a new result UUID, the latest exact previous result reference,
+current profile version and `REEVALUATE_DECISION_RESULT`. Result versions are separate
+from profile lock versions. A new catalog/profile does not rewrite old results or
+automatically move the assessment to `EVALUATED`/`DECIDED`. Same-key/input/owner retries
+return the original receipt without another append, including after later profile edits.
+
+`GET .../decision-results/{resultId}?version=...&resultSha256=...` reads one exact owned
+result in read-only `REPEATABLE_READ`. Core verifies bounded original profile/result
+JSON, mandatory body-free authenticated-owner audit, exact historical publication
+proof and the entire replay at the original clock. Changed/unsupported historical
+policies fail closed; no result is silently recalculated under new rules. Result/audit
+writes are atomic and append-only; SQL serializes appends with profile edits and binds
+the exact predecessor, profile revision, catalog and owner. Public/BFF database roles
+cannot read these tables, and runtime cannot rewrite receipts, audits or timestamps.
+
+This slice adds the Core API and offline/isolated checks, not a web result screen or
+real source reviews/publications. Those human gates and final golden/UI acceptance
+remain open. `make check-core` verifies exported actual HTTP payloads and independent
+result/profile/catalog/policy/weights/time, evidence and scoring invariants.
+
 ### Trusted published bootstrap loading
 
 The separate Core-only `TrustedPublishedCatalogService` accepts an exact snapshot UUID,

@@ -4,6 +4,7 @@
 package io.authweave.core.generated.audit;
 
 
+import io.authweave.core.generated.audit.tables.AssessmentDecisionResultEvents;
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
 import io.authweave.core.generated.audit.tables.CandidateDecisionReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogAuditabilityReviewEvents;
@@ -15,6 +16,7 @@ import io.authweave.core.generated.audit.tables.CatalogImpactReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalDecisionEvents;
 import io.authweave.core.generated.audit.tables.CatalogProposalEvents;
 import io.authweave.core.generated.audit.tables.CatalogPublicationEvents;
+import io.authweave.core.generated.audit.tables.records.AssessmentDecisionResultEventsRecord;
 import io.authweave.core.generated.audit.tables.records.AssessmentEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CandidateDecisionReportEventsRecord;
 import io.authweave.core.generated.audit.tables.records.CatalogAuditabilityReviewEventsRecord;
@@ -53,6 +55,8 @@ public class Keys {
     // UNIQUE and PRIMARY KEY definitions
     // -------------------------------------------------------------------------
 
+    public static final UniqueKey<AssessmentDecisionResultEventsRecord> ASSESSMENT_DECISION_RESULT_EVENTS_PKEY = Internal.createUniqueKey(AssessmentDecisionResultEvents.ASSESSMENT_DECISION_RESULT_EVENTS, DSL.name("assessment_decision_result_events_pkey"), new TableField[] { AssessmentDecisionResultEvents.ASSESSMENT_DECISION_RESULT_EVENTS.ID }, true);
+    public static final UniqueKey<AssessmentDecisionResultEventsRecord> ASSESSMENT_DECISION_RESULT_EVENTS_RESULT_ID_KEY = Internal.createUniqueKey(AssessmentDecisionResultEvents.ASSESSMENT_DECISION_RESULT_EVENTS, DSL.name("assessment_decision_result_events_result_id_key"), new TableField[] { AssessmentDecisionResultEvents.ASSESSMENT_DECISION_RESULT_EVENTS.RESULT_ID }, true);
     public static final UniqueKey<AssessmentEventsRecord> ASSESSMENT_EVENTS_ID_KEY = Internal.createUniqueKey(AssessmentEvents.ASSESSMENT_EVENTS, DSL.name("assessment_events_id_key"), new TableField[] { AssessmentEvents.ASSESSMENT_EVENTS.ID }, true);
     public static final UniqueKey<AssessmentEventsRecord> ASSESSMENT_EVENTS_PK = Internal.createUniqueKey(AssessmentEvents.ASSESSMENT_EVENTS, DSL.name("assessment_events_pk"), new TableField[] { AssessmentEvents.ASSESSMENT_EVENTS.WORKSPACE_ID, AssessmentEvents.ASSESSMENT_EVENTS.ASSESSMENT_ID, AssessmentEvents.ASSESSMENT_EVENTS.VERSION }, true);
     public static final UniqueKey<CandidateDecisionReportEventsRecord> CANDIDATE_DECISION_REPORT_EVENTS_PKEY = Internal.createUniqueKey(CandidateDecisionReportEvents.CANDIDATE_DECISION_REPORT_EVENTS, DSL.name("candidate_decision_report_events_pkey"), new TableField[] { CandidateDecisionReportEvents.CANDIDATE_DECISION_REPORT_EVENTS.ID }, true);

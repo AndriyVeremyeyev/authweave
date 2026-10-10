@@ -4,6 +4,7 @@
 package io.authweave.core.generated.audit;
 
 
+import io.authweave.core.generated.audit.tables.AssessmentDecisionResultEvents;
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
 import io.authweave.core.generated.audit.tables.CandidateDecisionReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogAuditabilityReviewEvents;
@@ -46,6 +47,12 @@ public class Audit extends SchemaImpl {
      * The reference instance of <code>audit</code>
      */
     public static final Audit AUDIT = new Audit();
+
+    /**
+     * Mandatory body-free authenticated-owner result append receipt. Runtime
+     * cannot rewrite results, events or timestamps.
+     */
+    public final AssessmentDecisionResultEvents ASSESSMENT_DECISION_RESULT_EVENTS = AssessmentDecisionResultEvents.ASSESSMENT_DECISION_RESULT_EVENTS;
 
     /**
      * One committed state-change event per assessment revision; runtime cannot
@@ -129,6 +136,7 @@ public class Audit extends SchemaImpl {
     @Override
     public final List<Table<?>> getTables() {
         return Arrays.asList(
+            AssessmentDecisionResultEvents.ASSESSMENT_DECISION_RESULT_EVENTS,
             AssessmentEvents.ASSESSMENT_EVENTS,
             CandidateDecisionReportEvents.CANDIDATE_DECISION_REPORT_EVENTS,
             CatalogAuditabilityReviewEvents.CATALOG_AUDITABILITY_REVIEW_EVENTS,

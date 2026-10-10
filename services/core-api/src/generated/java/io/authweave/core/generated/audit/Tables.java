@@ -4,6 +4,7 @@
 package io.authweave.core.generated.audit;
 
 
+import io.authweave.core.generated.audit.tables.AssessmentDecisionResultEvents;
 import io.authweave.core.generated.audit.tables.AssessmentEvents;
 import io.authweave.core.generated.audit.tables.CandidateDecisionReportEvents;
 import io.authweave.core.generated.audit.tables.CatalogAuditabilityReviewEvents;
@@ -31,6 +32,12 @@ import javax.annotation.processing.Generated;
 )
 @SuppressWarnings({ "all", "unchecked", "rawtypes", "this-escape" })
 public class Tables {
+
+    /**
+     * Mandatory body-free authenticated-owner result append receipt. Runtime
+     * cannot rewrite results, events or timestamps.
+     */
+    public static final AssessmentDecisionResultEvents ASSESSMENT_DECISION_RESULT_EVENTS = AssessmentDecisionResultEvents.ASSESSMENT_DECISION_RESULT_EVENTS;
 
     /**
      * One committed state-change event per assessment revision; runtime cannot

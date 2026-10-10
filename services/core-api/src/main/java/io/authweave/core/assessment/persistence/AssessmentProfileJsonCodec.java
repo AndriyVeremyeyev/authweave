@@ -79,4 +79,17 @@ final class AssessmentProfileJsonCodec {
                     exception);
         }
     }
+
+    /** Same explicit UNKNOWN projection as the v6 assessment API. Never migrates a stored revision. */
+    JsonNode evaluationSnapshot(JSONB stored, short version) {
+        var profile = decode(stored, version);
+        ObjectNode tree = objectMapper.valueToTree(profile);
+        var security = (ObjectNode) tree.get("security");
+        security.set("dataResidencyDetails", objectMapper.valueToTree(profile.security().dataResidencyDetails()));
+        security.set("authenticationControls", objectMapper.valueToTree(profile.security().authenticationControls()));
+        security.set("complianceScopeStatus", objectMapper.valueToTree(profile.security().complianceScopeStatus()));
+        security.set("auditabilityRequirements", objectMapper.valueToTree(profile.security().auditabilityRequirements()));
+        ((ObjectNode) tree.get("operations")).set("usagePlanning", objectMapper.valueToTree(profile.operations().usagePlanning()));
+        return tree;
+    }
 }

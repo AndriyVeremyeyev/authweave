@@ -26,6 +26,121 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+    post:
+      tags: [Assessments]
+      operationId: recordAssessmentDecisionResult
+      summary: Record or explicitly re-evaluate immutable owned decision advice
+      description: >-
+        Core-only personal BFF operation. Pins the current profile revision, exact
+        workflow-verified published snapshot and explicit weights; computes with the
+        database clock. Result versions are independent of profile lock versions.
+        First recording requires a null previousResult; re-evaluation requires a new
+        result key and the latest exact previous result reference. Results and body-free
+        authenticated-owner audit commit together. Same-key/request/owner retries replay
+        the original calculation even after profile or catalog changes. Stored legacy
+        profiles retain their original JSON plus an explicit v6 UNKNOWN projection.
+        No caller clock/profile/policy/result, implicit weights, latest-catalog selection,
+        synthetic fallback, source fetch, decision approval or assessment status transition.
+        This is not the reserved final decision-result v1 acceptance contract.
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/assessment-decision-result-request.v1.schema.json
+      responses:
+        '201':
+          description: Immutable advice and mandatory owner audit recorded.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-decision-result.v1.schema.json
+        '200':
+          description: Exact historical retry verified without another append.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-decision-result.v1.schema.json
+        '400':
+          description: Non-strict request or weights inconsistent with the stored profile.
+        '401':
+          description: Invalid service credential or missing singular principal.
+        '403':
+          description: Principal does not own this workspace.
+        '404':
+          description: Assessment not found within the owned workspace.
+        '409':
+          description: Stale profile/result head, conflicting key, unverified catalog or unavailable historical replay.
+        '413':
+          description: Profile or result exceeds the bounded JSON budget.
+        '503':
+          description: Internal credential is not configured.
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results/{resultId}:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+      - name: resultId
+        in: path
+        required: true
+        description: Exact immutable result key, never an implicit latest result.
+        schema:
+          type: string
+          format: uuid
+      - name: version
+        in: query
+        required: true
+        description: Exact result version, independent of assessment profile version.
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 9007199254740991
+      - name: resultSha256
+        in: query
+        required: true
+        description: Exact original result digest.
+        schema:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+    get:
+      tags: [Assessments]
+      operationId: readAssessmentDecisionResult
+      summary: Replay an exact owned result at its original clock
+      description: >-
+        Read-only REPEATABLE_READ. Verifies original profile revision, publication proof,
+        rule/component policy, inputs, whole computed result and owner audit. A changed
+        current profile, newer catalog or later evidence expiry cannot refresh an old
+        result. Unsupported historical policy is denied, not recalculated with new rules.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: Exact historical result replay verified.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/assessment-decision-result.v1.schema.json
+        '400':
+          description: Invalid result reference.
+        '401':
+          description: Invalid service credential or missing singular principal.
+        '403':
+          description: Principal does not own this workspace.
+        '404':
+          description: Exact result not found in this workspace and assessment.
+        '409':
+          description: Reference mismatch, corruption or unsupported historical policy.
+        '503':
+          description: Internal credential is not configured.
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'

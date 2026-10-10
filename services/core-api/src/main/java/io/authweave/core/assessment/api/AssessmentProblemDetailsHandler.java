@@ -31,6 +31,20 @@ import tools.jackson.core.JacksonException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
 
+    @ExceptionHandler(io.authweave.core.assessment.result.AssessmentDecisionResultException.class)
+    ResponseEntity<ProblemDetail> decisionResult(io.authweave.core.assessment.result.AssessmentDecisionResultException exception, HttpServletRequest request) {
+        var status = switch (exception.reason()) {
+            case FORBIDDEN -> HttpStatus.FORBIDDEN;
+            case NOT_FOUND -> HttpStatus.NOT_FOUND;
+            case INVALID_INPUT -> HttpStatus.BAD_REQUEST;
+            case TOO_LARGE -> HttpStatus.PAYLOAD_TOO_LARGE;
+            default -> HttpStatus.CONFLICT;
+        };
+        var result = problem(status, "assessment-decision-" + exception.reason().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'),
+                "Assessment decision result unavailable", "Use the exact owned assessment revision, catalog, explicit weights and result reference. Stored results require supported historical replay.", request);
+        return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(result);
+    }
+
     @ExceptionHandler(io.authweave.core.catalog.publication.CatalogProposalPublicationException.class)
     ResponseEntity<ProblemDetail> proposalPublication(io.authweave.core.catalog.publication.CatalogProposalPublicationException exception, HttpServletRequest request) {
         var status = exception.reason() == io.authweave.core.catalog.publication.CatalogProposalPublicationException.Reason.AUTHENTICATION_EXPIRED

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-decision-result-problem.v1.schema.json",
+  "title": "Owned assessment decision result denial v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["type", "title", "status", "detail", "instance", "code"],
+  "properties": {
+    "type": { "type": "string", "format": "uri" }, "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "enum": [400, 403, 404, 409, 413] }, "detail": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "instance": { "type": "string", "format": "uri-reference" },
+    "code": { "enum": ["invalid-request", "assessment-decision-forbidden", "assessment-decision-not-found", "assessment-decision-conflict",
+      "assessment-decision-invalid-input", "assessment-decision-read-unavailable", "assessment-decision-unsupported-policy", "assessment-decision-too-large"] },
+    "violations": { "$ref": "core-problem.v1.schema.json#/properties/violations" }
+  }
+}

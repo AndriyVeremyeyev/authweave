@@ -4,6 +4,7 @@
 package io.authweave.core.generated.jooq;
 
 
+import io.authweave.core.generated.jooq.tables.AssessmentDecisionResults;
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CandidateDecisionReports;
@@ -53,6 +54,13 @@ public class Core extends SchemaImpl {
      * The reference instance of <code>core</code>
      */
     public static final Core CORE = new Core();
+
+    /**
+     * Immutable owned assessment decision advice. Explicit exact catalog,
+     * profile revision, weights, policy and clock; no decision approval or
+     * automatic head activation.
+     */
+    public final AssessmentDecisionResults ASSESSMENT_DECISION_RESULTS = AssessmentDecisionResults.ASSESSMENT_DECISION_RESULTS;
 
     /**
      * Immutable assessment snapshots. BASELINE captures an existing state, not
@@ -178,6 +186,7 @@ public class Core extends SchemaImpl {
     @Override
     public final List<Table<?>> getTables() {
         return Arrays.asList(
+            AssessmentDecisionResults.ASSESSMENT_DECISION_RESULTS,
             AssessmentRevisions.ASSESSMENT_REVISIONS,
             Assessments.ASSESSMENTS,
             CandidateDecisionReports.CANDIDATE_DECISION_REPORTS,

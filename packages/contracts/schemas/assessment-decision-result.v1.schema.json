@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-decision-result.v1.schema.json",
+  "title": "Immutable owned assessment decision advice receipt v1",
+  "description": "Separate historical calculation receipt, not the reserved final decision-result v1 acceptance contract, approval or verified deployment. Core replays the entire calculation at its original clock with exact historical profile/publication inputs. Independent binding validation supplements this schema.",
+  "type": "object", "additionalProperties": false,
+  "required": ["reference", "recordedAt", "result", "historicalReplayVerified"],
+  "properties": {
+    "reference": { "$ref": "assessment-decision-result-request.v1.schema.json#/$defs/reference" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "result": { "$ref": "#/$defs/body" },
+    "historicalReplayVerified": { "const": true }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "texts": { "type": "array", "maxItems": 200, "items": { "type": "string", "minLength": 1, "maxLength": 4000 } },
+    "body": { "type": "object", "additionalProperties": false,
+      "required": ["scope", "schemaVersion", "resultVersion", "canonicalization", "workspaceId", "assessmentId", "version", "requestSha256", "evaluatedAt", "request", "profileSchemaVersion", "profileSha256", "profile", "evaluationProfile", "evaluationProfileSha256", "policy", "policySha256", "catalog", "decision", "historicalPublicationWorkflowVerified", "externalSourceVerificationPerformed", "configurationVerified", "complianceVerified", "decisionApproved"],
+      "properties": {
+        "scope": { "const": "PINNED_ASSESSMENT_DECISION_ADVICE" }, "schemaVersion": { "const": 1 },
+        "resultVersion": { "const": "assessment-decision-result-1" },
+        "canonicalization": { "const": "SHA256_UTF8_COMPACT_JSON_SORTED_OBJECT_KEYS_PRESERVED_ARRAY_ORDER" },
+        "workspaceId": { "$ref": "#/$defs/uuid" }, "assessmentId": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "requestSha256": { "$ref": "#/$defs/hash" }, "evaluatedAt": { "type": "string", "format": "date-time" },
+        "request": { "$ref": "assessment-decision-result-request.v1.schema.json" },
+        "profileSchemaVersion": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "profileSha256": { "$ref": "#/$defs/hash" }, "profile": { "type": "object" },
+        "evaluationProfile": { "$ref": "application-identity-profile.v6.schema.json" }, "evaluationProfileSha256": { "$ref": "#/$defs/hash" },
+        "policy": { "$ref": "#/$defs/policy" }, "policySha256": { "$ref": "#/$defs/hash" },
+        "catalog": { "$ref": "#/$defs/catalog" }, "decision": { "$ref": "#/$defs/decision" },
+        "historicalPublicationWorkflowVerified": { "const": true }, "externalSourceVerificationPerformed": { "const": false },
+        "configurationVerified": { "const": false }, "complianceVerified": { "const": false }, "decisionApproved": { "const": false }
+      }
+    },
+    "policy": { "type": "object", "additionalProperties": false,
+      "required": ["evaluationProfileSchemaVersion", "profileSchemaSha256", "decisionPolicySha256", "profileProjectionVersion", "componentVersions"], "properties": {
+        "evaluationProfileSchemaVersion": { "const": 6 },
+        "profileSchemaSha256": { "$ref": "publication-decision-coverage.v1.schema.json#/properties/profileSchemaSha256" },
+        "decisionPolicySha256": { "$ref": "#/$defs/hash" }, "profileProjectionVersion": { "const": "stored-profile-to-v6-unknown-projection-1" },
+        "componentVersions": { "type": "object", "minProperties": 21, "maxProperties": 21, "additionalProperties": { "type": "string", "minLength": 1, "maxLength": 100 } }
+      }
+    },
+    "catalog": { "type": "object", "additionalProperties": false,
+      "required": ["reference", "proofSha256", "publicationPolicyVersion", "coverageManifestSha256", "loaderVersion", "decisionInputsSha256", "verificationGaps"], "properties": {
+        "reference": { "$ref": "catalog-baseline-reference.v1.schema.json" }, "proofSha256": { "$ref": "#/$defs/hash" },
+        "publicationPolicyVersion": { "enum": ["catalog-bootstrap-publication-1", "catalog-proposal-publication-1"] },
+        "coverageManifestSha256": { "$ref": "#/$defs/hash" }, "loaderVersion": { "enum": ["published-bootstrap-loading-1", "published-proposal-loading-1"] },
+        "decisionInputsSha256": { "$ref": "#/$defs/hash" }, "verificationGaps": { "$ref": "publication-decision-coverage.v1.schema.json#/properties/verificationGaps" }
+      }
+    },
+    "decision": { "type": "object", "additionalProperties": false,
+      "required": ["scope", "kernelVersion", "policyVersion", "binding", "status", "weights", "candidates", "shortlist", "rankGroups", "architecture", "limitations", "followUps", "deferredBoundaries", "sourceAuthorityVerified", "configurationVerified", "complianceVerified", "publicationReady", "writesPerformed"], "properties": {
+        "scope": { "const": "UNVERIFIED_CANDIDATE_DECISION_CALCULATION" }, "kernelVersion": { "const": "decision-candidate-composition-2" },
+        "policyVersion": { "const": "decision-core-explicit-1" }, "binding": { "$ref": "#/$defs/binding" },
+        "status": { "enum": ["RANKED_SHORTLIST", "UNRANKED_SHORTLIST", "NEEDS_INFORMATION", "NO_ELIGIBLE_OPTIONS"] },
+        "weights": { "$ref": "decision-result.v1.schema.json#/properties/weights" },
+        "candidates": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/candidate" } },
+        "shortlist": { "$ref": "decision-result.v1.schema.json#/$defs/ids" }, "rankGroups": { "$ref": "decision-result.v1.schema.json#/properties/rankGroups" },
+        "architecture": { "$ref": "#/$defs/architecture" }, "limitations": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/limitation" } },
+        "followUps": { "$ref": "#/$defs/texts" }, "deferredBoundaries": { "$ref": "#/$defs/texts" },
+        "sourceAuthorityVerified": { "const": false }, "configurationVerified": { "const": false }, "complianceVerified": { "const": false },
+        "publicationReady": { "const": false }, "writesPerformed": { "const": false }
+      }
+    },
+    "binding": { "type": "object", "additionalProperties": false,
+      "required": ["inputs", "scoringVersion", "architectureVersion", "patternDefinitionsVersion", "prerequisiteVersion", "provisioningDefinitionsVersion", "provisioningConditionsVersion", "hardKernelVersion", "auditabilityInputVersion"], "properties": {
+        "inputs": { "type": "object", "additionalProperties": false, "required": ["hardChecks", "weightsSha256"], "properties": {
+          "weightsSha256": { "$ref": "#/$defs/hash" }, "hardChecks": { "$ref": "#/$defs/hardBinding" }
+        } },
+        "scoringVersion": { "const": "decision-preference-scoring-2" }, "architectureVersion": { "const": "decision-conditional-architecture-1" },
+        "patternDefinitionsVersion": { "const": "architecture-pattern-preflight-1" }, "prerequisiteVersion": { "const": "architecture-prerequisites-1" },
+        "provisioningDefinitionsVersion": { "const": "provisioning-lifecycle-design-1" }, "provisioningConditionsVersion": { "const": "provisioning-lifecycle-design-2" },
+        "hardKernelVersion": { "const": "decision-hard-check-2" }, "auditabilityInputVersion": { "enum": [null, "decision-auditability-input-1"] }
+      }
+    },
+    "hardBinding": { "type": "object", "additionalProperties": false,
+      "required": ["profileSchemaVersion", "profileSha256", "catalogVersion", "catalogSha256", "sourceAssertionsSha256", "auditabilitySha256", "auditabilityAssertionsSha256", "canonicalization", "evaluatedAt"], "properties": {
+        "profileSchemaVersion": { "const": 6 }, "profileSha256": { "$ref": "#/$defs/hash" },
+        "catalogVersion": { "$ref": "provider-catalog-draft.v1.schema.json#/$defs/identifier" },
+        "catalogSha256": { "$ref": "#/$defs/hash" }, "sourceAssertionsSha256": { "$ref": "#/$defs/hash" },
+        "auditabilitySha256": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/hash" }] },
+        "auditabilityAssertionsSha256": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/hash" }] },
+        "canonicalization": { "const": "SHA256_UTF8_COMPACT_JSON_SORTED_OBJECT_KEYS_PRESERVED_ARRAY_ORDER" },
+        "evaluatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "candidate": { "type": "object", "additionalProperties": false, "required": ["hardChecks", "score"], "properties": {
+      "hardChecks": { "type": "object", "additionalProperties": false,
+        "required": ["optionId", "providerId", "product", "plan", "region", "deployment", "configuration", "hardVerdict", "findings"], "properties": {
+          "optionId": { "type": "string", "maxLength": 100 }, "providerId": { "type": "string", "maxLength": 100 },
+          "product": { "type": "string", "maxLength": 200 }, "plan": { "type": "string", "maxLength": 200 }, "region": { "type": "string", "maxLength": 200 },
+          "deployment": { "enum": ["MANAGED", "SELF_HOSTED"] }, "configuration": { "type": "string", "maxLength": 1000 },
+          "hardVerdict": { "enum": ["ELIGIBLE", "EXCLUDED", "UNRESOLVED"] },
+          "findings": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "$ref": "#/$defs/finding" } }
+        }
+      },
+      "score": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/score" }] }
+    } },
+    "finding": { "type": "object", "additionalProperties": false,
+      "required": ["checkId", "profilePath", "factPath", "criticality", "outcome", "reasonCode", "evidence"], "properties": {
+        "checkId": { "type": "string", "maxLength": 600 }, "profilePath": { "type": "string", "maxLength": 200 },
+        "factPath": { "type": ["string", "null"], "maxLength": 200 }, "criticality": { "enum": ["CONTEXT", "REQUIRED", "FORBIDDEN", "PREFERRED", "NOT_REQUIRED", "UNKNOWN"] },
+        "outcome": { "enum": ["PASS", "FAIL", "UNKNOWN", "NOT_APPLIED"] }, "reasonCode": { "type": "string", "maxLength": 150 },
+        "evidence": { "$ref": "#/$defs/evidence" }
+      }
+    },
+    "evidence": { "type": ["object", "null"], "additionalProperties": false,
+      "required": ["claimSha256", "sourceAssertion", "sourceUrl", "observedAt", "conditions", "documentedMinimumRetentionDays"], "properties": {
+        "claimSha256": { "$ref": "#/$defs/hash" }, "sourceAssertion": { "enum": [null, "SOURCE_SUPPORTS_CLAIM", "SOURCE_DOES_NOT_SUPPORT_CLAIM", "INSUFFICIENT_EVIDENCE"] },
+        "sourceUrl": { "type": "string", "format": "uri", "maxLength": 2048 }, "observedAt": { "type": "string", "format": "date-time" },
+        "conditions": { "$ref": "#/$defs/texts" }, "documentedMinimumRetentionDays": { "type": ["integer", "null"], "minimum": 1, "maximum": 3650 }
+      }
+    },
+    "score": { "type": "object", "additionalProperties": false, "required": ["lowerBound", "upperBound", "unknownWeight", "contributions"], "properties": {
+      "lowerBound": { "type": "integer", "minimum": 0, "maximum": 100 }, "upperBound": { "type": "integer", "minimum": 0, "maximum": 100 },
+      "unknownWeight": { "type": "integer", "minimum": 0, "maximum": 100 }, "contributions": { "type": "array", "maxItems": 9, "items": {
+        "type": "object", "additionalProperties": false, "required": ["capability", "profilePath", "weight", "outcome", "earnedPoints", "reasonCode", "evidence"], "properties": {
+          "capability": { "$ref": "decision-result.v1.schema.json#/$defs/capability" }, "profilePath": { "type": "string", "maxLength": 200 },
+          "weight": { "type": "integer", "minimum": 1, "maximum": 100 }, "outcome": { "enum": ["AVAILABLE", "UNAVAILABLE", "UNKNOWN"] },
+          "earnedPoints": { "type": "integer", "minimum": 0, "maximum": 100 }, "reasonCode": { "type": "string", "maxLength": 150 }, "evidence": { "$ref": "#/$defs/evidence" }
+        }
+      } }
+    } },
+    "architecture": { "type": "object", "additionalProperties": false, "required": ["status", "basis", "patterns", "apiProtection", "provisioning"], "properties": {
+      "status": { "enum": ["CONDITIONAL_ADVICE", "NEEDS_INFORMATION", "NOT_APPLICABLE"] }, "basis": { "type": "string", "maxLength": 200 },
+      "patterns": { "type": "array", "minItems": 5, "maxItems": 5, "items": { "type": "object", "additionalProperties": false,
+        "required": ["choice", "prerequisites"], "properties": { "choice": { "$ref": "#/$defs/choice" }, "prerequisites": { "$ref": "architecture-prerequisite-preview.v1.schema.json#/properties/analysis" } }
+      } },
+      "apiProtection": { "type": "object", "additionalProperties": false, "required": ["status", "optionChecks", "conditions"], "properties": {
+        "status": { "enum": ["REQUIRED_CONDITIONAL", "OPTIONAL_CONDITIONAL", "NEEDS_INFORMATION", "NOT_REQUIRED", "FORBIDDEN"] },
+        "optionChecks": { "$ref": "#/$defs/optionChecks" }, "conditions": { "$ref": "#/$defs/texts" }
+      } },
+      "provisioning": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/choice" } }
+    } },
+    "choice": { "type": "object", "additionalProperties": false, "required": ["id", "disposition", "reasonCode", "conditionalOptionIds", "optionChecks", "pros", "cons", "conditions", "references"], "properties": {
+      "id": { "type": "string", "maxLength": 100 }, "disposition": { "enum": ["RECOMMENDED", "ALTERNATIVE", "UNRESOLVED", "NOT_APPLICABLE"] },
+      "reasonCode": { "type": "string", "maxLength": 150 }, "conditionalOptionIds": { "$ref": "decision-result.v1.schema.json#/$defs/ids" },
+      "optionChecks": { "$ref": "#/$defs/optionChecks" }, "pros": { "$ref": "#/$defs/texts" }, "cons": { "$ref": "#/$defs/texts" }, "conditions": { "$ref": "#/$defs/texts" },
+      "references": { "type": "array", "maxItems": 30, "items": { "type": "string", "format": "uri", "maxLength": 2048 } }
+    } },
+    "optionChecks": { "type": "array", "maxItems": 100, "items": { "type": "object", "additionalProperties": false, "required": ["optionId", "match", "capabilities"], "properties": {
+      "optionId": { "type": "string", "maxLength": 100 }, "match": { "enum": ["CONDITIONAL_MATCH", "UNRESOLVED", "EXCLUDED"] },
+      "capabilities": { "type": "array", "maxItems": 9, "items": { "type": "object", "additionalProperties": false, "required": ["capability", "usable", "reasonCode", "evidence"], "properties": {
+        "capability": { "$ref": "decision-result.v1.schema.json#/$defs/capability" }, "usable": { "type": "boolean" }, "reasonCode": { "type": "string", "maxLength": 150 }, "evidence": { "$ref": "#/$defs/evidence" }
+      } } }
+    } } },
+    "limitation": { "type": "object", "additionalProperties": false, "required": ["profilePath", "declaredValue", "reasonCode", "blocksDeploymentRecommendation", "explanation"], "properties": {
+      "profilePath": { "type": ["string", "null"], "maxLength": 200 }, "declaredValue": { "type": ["string", "null"], "maxLength": 4000 }, "reasonCode": { "type": "string", "maxLength": 150 },
+      "blocksDeploymentRecommendation": { "type": "boolean" }, "explanation": { "type": "string", "maxLength": 4000 }
+    } }
+  }
+}

@@ -4,6 +4,7 @@
 package io.authweave.core.generated.jooq;
 
 
+import io.authweave.core.generated.jooq.tables.AssessmentDecisionResults;
 import io.authweave.core.generated.jooq.tables.AssessmentRevisions;
 import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CandidateDecisionReports;
@@ -38,6 +39,13 @@ import javax.annotation.processing.Generated;
 )
 @SuppressWarnings({ "all", "unchecked", "rawtypes", "this-escape" })
 public class Tables {
+
+    /**
+     * Immutable owned assessment decision advice. Explicit exact catalog,
+     * profile revision, weights, policy and clock; no decision approval or
+     * automatic head activation.
+     */
+    public static final AssessmentDecisionResults ASSESSMENT_DECISION_RESULTS = AssessmentDecisionResults.ASSESSMENT_DECISION_RESULTS;
 
     /**
      * Immutable assessment snapshots. BASELINE captures an existing state, not

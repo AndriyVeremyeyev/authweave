@@ -171,7 +171,7 @@ public class PersonalWorkspaces extends TableImpl<PersonalWorkspacesRecord> {
 
     @Override
     public List<UniqueKey<PersonalWorkspacesRecord>> getUniqueKeys() {
-        return Arrays.asList(Keys.PERSONAL_WORKSPACES_WORKSPACE_ID_KEY);
+        return Arrays.asList(Keys.PERSONAL_WORKSPACE_ACTOR_UK, Keys.PERSONAL_WORKSPACES_WORKSPACE_ID_KEY);
     }
 
     @Override

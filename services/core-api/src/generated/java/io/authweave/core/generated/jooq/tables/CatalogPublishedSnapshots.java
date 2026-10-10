@@ -6,6 +6,7 @@ package io.authweave.core.generated.jooq.tables;
 
 import io.authweave.core.generated.jooq.Core;
 import io.authweave.core.generated.jooq.Keys;
+import io.authweave.core.generated.jooq.tables.AssessmentDecisionResults.AssessmentDecisionResultsPath;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapPublications.CatalogBootstrapPublicationsPath;
 import io.authweave.core.generated.jooq.tables.CatalogProposalPublications.CatalogProposalPublicationsPath;
 import io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions.CatalogPublicationDecisionsPath;
@@ -247,6 +248,19 @@ public class CatalogPublishedSnapshots extends TableImpl<CatalogPublishedSnapsho
             _catalogPublishedSnapshots = new CatalogPublishedSnapshotsPath(this, Keys.CATALOG_PUBLISHED_SNAPSHOTS__CATALOG_PUBLISHED_SNAPSHOT_PARENT_FK, null);
 
         return _catalogPublishedSnapshots;
+    }
+
+    private transient AssessmentDecisionResultsPath _assessmentDecisionResults;
+
+    /**
+     * Get the implicit to-many join path to the
+     * <code>core.assessment_decision_results</code> table
+     */
+    public AssessmentDecisionResultsPath assessmentDecisionResults() {
+        if (_assessmentDecisionResults == null)
+            _assessmentDecisionResults = new AssessmentDecisionResultsPath(this, null, Keys.ASSESSMENT_DECISION_RESULTS__ASSESSMENT_RESULT_CATALOG_FK.getInverseKey());
+
+        return _assessmentDecisionResults;
     }
 
     private transient CatalogBootstrapPublicationsPath _catalogBootstrapPublications;

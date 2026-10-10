@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-decision-result-request.v1.schema.json",
+  "title": "Explicit owned assessment decision calculation request v1",
+  "description": "Pins the current stored profile version, an exact Core-verified published catalog and explicit capability weights. A new result key plus the latest exact previous result creates a re-evaluation; no caller clock, profile, policy, verdicts or calculated result.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "resultId", "expectedAssessmentVersion", "catalog", "previousResult", "weights", "confirmation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "resultId": { "type": "string", "format": "uuid" },
+    "expectedAssessmentVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "catalog": { "$ref": "catalog-baseline-reference.v1.schema.json" },
+    "previousResult": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/reference" }] },
+    "weights": { "$ref": "decision-result.v1.schema.json#/properties/weights" },
+    "confirmation": { "enum": ["RECORD_DECISION_RESULT", "REEVALUATE_DECISION_RESULT"] }
+  },
+  "allOf": [{
+    "if": { "properties": { "confirmation": { "const": "RECORD_DECISION_RESULT" } }, "required": ["confirmation"] },
+    "then": { "properties": { "previousResult": { "type": "null" } } },
+    "else": { "properties": { "previousResult": { "$ref": "#/$defs/reference" } } }
+  }],
+  "$defs": {
+    "reference": { "type": "object", "additionalProperties": false, "required": ["resultId", "version", "resultSha256"], "properties": {
+      "resultId": { "type": "string", "format": "uuid" },
+      "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+      "resultSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+    } }
+  }
+}
