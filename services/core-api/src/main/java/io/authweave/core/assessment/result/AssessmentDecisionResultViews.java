@@ -26,4 +26,17 @@ public final class AssessmentDecisionResultViews {
         public Summary { weights = weights.deepCopy(); shortlist = List.copyOf(shortlist); candidates = List.copyOf(candidates); }
         @Override public JsonNode weights() { return weights.deepCopy(); }
     }
+    /** Allowlisted explanation fields, never the profile, request, curator identities or raw declared values. */
+    public record Advice(String scope, Summary summary, JsonNode candidates, JsonNode rankGroups,
+            JsonNode architecture, JsonNode limitations, JsonNode followUps) {
+        public Advice {
+            candidates = candidates.deepCopy(); rankGroups = rankGroups.deepCopy(); architecture = architecture.deepCopy();
+            limitations = limitations.deepCopy(); followUps = followUps.deepCopy();
+        }
+        @Override public JsonNode candidates() { return candidates.deepCopy(); }
+        @Override public JsonNode rankGroups() { return rankGroups.deepCopy(); }
+        @Override public JsonNode architecture() { return architecture.deepCopy(); }
+        @Override public JsonNode limitations() { return limitations.deepCopy(); }
+        @Override public JsonNode followUps() { return followUps.deepCopy(); }
+    }
 }

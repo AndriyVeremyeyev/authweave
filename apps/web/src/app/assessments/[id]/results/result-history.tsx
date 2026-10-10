@@ -58,7 +58,7 @@ export function ResultSummaryView({ summary }: { summary: ResultSummary }) {
     <p className="mt-2 text-sm text-slate-300">{summary.weights.mode === "NONE" ? "No preference weights or points were used. No ranking is inferred." : "Explicit weights total 100 points. Points measure the declared preferences, not confidence or hard-requirement compliance."}</p>
     {summary.weights.values.length > 0 && <ul className="mt-3 flex flex-wrap gap-3 text-sm">{summary.weights.values.map(value => <li key={value.capability} className="rounded-lg bg-white/5 px-3 py-2">{value.capability}: {value.weight}</li>)}</ul>}
     <h3 className="mt-7 text-lg font-medium">Saved option checks</h3>
-    <p className="mt-2 text-sm text-slate-400">Saved engine order (option ID), not ranking; no winner is selected here. An eligible option is conditional on the checked evidence, not verified live interoperability. The full receipt retains detailed findings and architecture follow-ups.</p>
+    <p className="mt-2 text-sm text-slate-400">Saved engine order (option ID), not ranking; no winner is selected here. An eligible option is conditional on the checked evidence, not verified live interoperability. Detailed findings and architecture follow-ups appear below when the exact advice view is available.</p>
     <ul className="mt-4 grid gap-4 md:grid-cols-2">{summary.candidates.map(candidate => <li key={candidate.optionId} className="min-w-0 rounded-xl border border-white/10 p-5">
       <h4 className="break-words font-medium">{candidate.product}</h4>
       <p className="mt-2 break-words text-sm text-slate-300">{candidate.plan} · {candidate.region} · {candidate.deployment === "MANAGED" ? "Managed" : "Self-hosted"}</p>

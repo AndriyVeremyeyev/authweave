@@ -62,6 +62,16 @@ public class AssessmentDecisionResultController {
         return ResponseEntity.ok().header("Cache-Control", "no-store").body(results.summary(workspaceId, assessmentId,
                 new AssessmentDecisionResultRequest.Reference(resultId, version, resultSha256), actor(request)));
     }
+    @GetMapping("/{resultId}/advice")
+    ResponseEntity<?> advice(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId, @PathVariable UUID resultId,
+            @RequestParam @Min(1) @Max(9007199254740991L) long version,
+            @RequestParam @Pattern(regexp = "[a-f0-9]{64}") String resultSha256, HttpServletRequest request) {
+        int status = credentials.personalWorkspaceStatus(request, workspaceId);
+        if (status != 200) return ResponseEntity.status(status).header("Cache-Control", "no-store").build();
+        query(request, java.util.Set.of("version", "resultSha256"));
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(results.advice(workspaceId, assessmentId,
+                new AssessmentDecisionResultRequest.Reference(resultId, version, resultSha256), actor(request)));
+    }
     @GetMapping("/{resultId}")
     ResponseEntity<?> get(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId, @PathVariable UUID resultId,
             @RequestParam @Min(1) @Max(9007199254740991L) long version,

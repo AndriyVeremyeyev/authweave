@@ -5,6 +5,7 @@ import addFormats from "ajv-formats";
 import { assertAssessmentResult } from "../tests/helpers/assessment-decision-result-spec.mjs";
 import { orderedHash as hash } from "../tests/helpers/publication-decision-coverage-spec.mjs";
 import { resultSummaryFromCore } from "../../../apps/web/src/lib/assessment/decision-results.ts";
+import { resultAdviceFromCore } from "../../../apps/web/src/lib/assessment/decision-advice.ts";
 
 assert.equal(process.argv.length, 3, "Pass actual isolated Core assessment result samples.");
 const ajv = new Ajv2020({ strict: true, allErrors: true }); addFormats(ajv);
@@ -12,6 +13,15 @@ for (const file of await readdir(new URL("../schemas/", import.meta.url))) if (f
   ajv.addSchema(JSON.parse(await readFile(new URL(`../schemas/${file}`, import.meta.url), "utf8")));
 const validate = ajv.getSchema("https://authweave.dev/contracts/assessment-decision-result.v1.schema.json");
 const summarySchema = ajv.getSchema("https://authweave.dev/contracts/assessment-decision-result-summary.v1.schema.json");
+const adviceSchema = ajv.getSchema("https://authweave.dev/contracts/assessment-decision-result-advice.v1.schema.json");
+function verifyAdvice(sample) {
+  const { receipt, advice, summary } = sample, r = receipt.result;
+  assert(adviceSchema(advice), ajv.errorsText(adviceSchema.errors));
+  const actual = resultAdviceFromCore(advice, r.workspaceId, r.assessmentId, receipt.reference);
+  assert.deepEqual(actual, { scope: "VERIFIED_ASSESSMENT_DECISION_ADVICE", summary,
+    candidates: r.decision.candidates, rankGroups: r.decision.rankGroups, architecture: r.decision.architecture,
+    limitations: r.decision.limitations.map(({ declaredValue, ...l }) => l), followUps: r.decision.followUps });
+}
 function verifySummary(sample) {
   const { receipt, summary } = sample, r = receipt.result;
   assert(summarySchema(summary), ajv.errorsText(summarySchema.errors));
@@ -33,6 +43,15 @@ for (const sample of samples) {
   const stored = ajv.getSchema(`https://authweave.dev/contracts/application-identity-profile.v${sample.receipt.result.profileSchemaVersion}.schema.json`);
   assert(stored(sample.receipt.result.profile), ajv.errorsText(stored.errors)); assertAssessmentResult(sample);
   verifySummary(sample);
+  verifyAdvice(sample);
+  for (const change of [s => s.advice.candidates[0].hardChecks.findings[0].reasonCode = "FORGED",
+    s => s.advice.architecture.patterns[0].choice.conditions.push("Forged condition"),
+    s => s.advice.summary.item.reference.resultSha256 = "0".repeat(64),
+    s => s.advice.limitations[0].declaredValue = "private-user-value",
+    s => s.advice.candidates.flatMap(c => c.hardChecks.findings).find(f => f.evidence !== null).evidence = null,
+    s => s.advice.followUps.push("Forged follow-up")]) {
+    const forged = structuredClone(sample); change(forged); assert.throws(() => verifyAdvice(forged));
+  }
   for (const change of [s => s.summary.item.catalog.catalogVersion = "forged-label", s => s.summary.evaluatedAt = "2026-01-01T00:00:00Z",
     s => s.summary.item.reference.resultSha256 = "0".repeat(64), s => s.summary.decisionApproved = true,
     s => s.summary.profileSha256 = "0".repeat(64), s => s.summary.candidates[0].product = "Forged product"]) {
@@ -54,4 +73,4 @@ assert.notEqual(successor.receipt.result.request.catalog.snapshotId, parent.rece
 assert.notEqual(successor.receipt.result.profileSha256, parent.receipt.result.profileSha256);
 assert(samples.some(s => s.receipt.result.profileSchemaVersion === 1));
 assert(samples.some(s => s.decisionInputs.auditability === null)); assert(samples.some(s => s.decisionInputs.auditability !== null));
-console.log(`Verified ${samples.length} actual assessment results and their exact BFF summaries: owned profile/catalog pins, policy/weights/clock hashes, scoring/evidence invariants and explicit result history.`);
+console.log(`Verified ${samples.length} actual assessment results and their exact BFF summaries/advice: owned profile/catalog pins, policy/weights/clock hashes, scoring/evidence invariants, allowlisted explanations and explicit result history.`);

@@ -113,7 +113,25 @@ public class AssessmentDecisionResultService {
     public AssessmentDecisionResultViews.Summary summary(UUID workspace, UUID assessment,
             AssessmentDecisionResultRequest.Reference reference, Actor actor) {
         // The outer transaction supplies the same read-only snapshot to get(), replay and this bounded projection.
-        var receipt = get(workspace, assessment, reference, actor); var body = receipt.result(); var request = body.get("request");
+        return projectSummary(get(workspace, assessment, reference, actor));
+    }
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public AssessmentDecisionResultViews.Advice advice(UUID workspace, UUID assessment,
+            AssessmentDecisionResultRequest.Reference reference, Actor actor) {
+        var receipt = get(workspace, assessment, reference, actor); var decision = receipt.result().get("decision");
+        var limitations = mapper.createArrayNode();
+        for (var entry : decision.get("limitations")) {
+            var view = mapper.createObjectNode();
+            for (var key : List.of("profilePath", "reasonCode", "blocksDeploymentRecommendation", "explanation")) view.set(key, entry.get(key));
+            limitations.add(view); // User-supplied declaredValue is deliberately not part of this view.
+        }
+        var view = new AssessmentDecisionResultViews.Advice("VERIFIED_ASSESSMENT_DECISION_ADVICE", projectSummary(receipt),
+                decision.get("candidates"), decision.get("rankGroups"), decision.get("architecture"), limitations, decision.get("followUps"));
+        if (mapper.writeValueAsString(view).getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 1_048_576) fail(READ_UNAVAILABLE);
+        return view;
+    }
+    private AssessmentDecisionResultViews.Summary projectSummary(Receipt receipt) {
+        var body = receipt.result(); var request = body.get("request");
         var item = new AssessmentDecisionResultViews.Item(receipt.reference(), request.path("expectedAssessmentVersion").asLong(),
                 mapper.treeToValue(request.get("catalog"), PublishedCatalogSnapshot.Reference.class),
                 request.get("previousResult").isNull() ? null : mapper.treeToValue(request.get("previousResult"), AssessmentDecisionResultRequest.Reference.class),
@@ -127,7 +145,8 @@ public class AssessmentDecisionResultService {
                         score.path("upperBound").asInt(), score.path("unknownWeight").asInt())));
         }
         var shortlist = new java.util.ArrayList<String>(); body.path("decision").path("shortlist").forEach(id -> shortlist.add(id.asText()));
-        return new AssessmentDecisionResultViews.Summary("VERIFIED_ASSESSMENT_DECISION_SUMMARY", workspace, assessment, item,
+        return new AssessmentDecisionResultViews.Summary("VERIFIED_ASSESSMENT_DECISION_SUMMARY",
+                UUID.fromString(body.path("workspaceId").asText()), UUID.fromString(body.path("assessmentId").asText()), item,
                 Instant.parse(body.path("evaluatedAt").asText()), body.path("profileSchemaVersion").asInt(), body.path("profileSha256").asText(),
                 body.path("policySha256").asText(), request.get("weights"), body.path("decision").path("status").asText(), shortlist,
                 candidates, body.path("catalog").path("verificationGaps").size(), true, false, false, false, false);

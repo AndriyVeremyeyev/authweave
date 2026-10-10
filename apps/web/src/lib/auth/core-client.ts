@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { resultPageFromCore, resultSummaryFromCore, resultReference, resultReferenceQuery, resultUuid,
   resultHistoryByteLimit, resultSummaryByteLimit, type ResultReference, type ResultPage, type ResultSummary } from "../assessment/decision-results.ts";
 import { recordingRequest, recordingSummaryMatches, type RecordingRequest, type RecordingAck } from "../assessment/decision-recording.ts";
+import { resultAdviceFromCore, resultAdviceByteLimit, type ResultAdvice } from "../assessment/decision-advice.ts";
 import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
 import { freshCuratorGrant } from "./curator.ts";
@@ -509,6 +510,15 @@ export async function readPersonalDecisionSummary(session: BrowserSession, id: s
   });
   if (response.status === 404) return null;
   return resultSummaryFromCore(await ownedResultJson(response, resultSummaryByteLimit, signal), session.workspaceId, id, ref);
+}
+export async function readPersonalDecisionAdvice(session: BrowserSession, id: string, value: ResultReference): Promise<ResultAdvice | null> {
+  if (!resultUuid.test(id)) throw new Error("Invalid owned result request");
+  const ref = resultReference(value), signal = AbortSignal.timeout(10_000);
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/decision-results/${ref.resultId}/advice?${resultReferenceQuery(ref)}`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error", signal,
+  });
+  if (response.status === 404) return null;
+  return resultAdviceFromCore(await ownedResultJson(response, resultAdviceByteLimit, signal), session.workspaceId, id, ref);
 }
 /** One explicit POST only; exact retries are initiated by the human, never by this client. */
 export async function recordPersonalDecision(session: BrowserSession, id: string, value: RecordingRequest): Promise<RecordingAck | 400 | 401 | 403 | 404 | 409 | 413> {

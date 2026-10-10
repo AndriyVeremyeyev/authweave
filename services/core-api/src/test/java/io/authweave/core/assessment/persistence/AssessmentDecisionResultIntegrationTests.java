@@ -114,6 +114,7 @@ class AssessmentDecisionResultIntegrationTests {
         assertNotEquals(first.at("/result/profileSha256"), second.at("/result/profileSha256"));
         assertEquals(first, getResult(old, 200));
         assertEquals(AssessmentStatus.DRAFT, assessments.getAssessment(new WorkspaceId(workspace), new AssessmentId(assessment)).assessment().status());
+        assertEquals(adviceFromReceipt(first), advice(old)); // Changed catalog/profile cannot replace explanation inputs.
         counts(2); assertEquals(List.of("assessment-decision.recorded", "assessment-decision.reevaluated"),
                 dsl.fetch("select action from audit.assessment_decision_result_events order by version").getValues(0, String.class));
         doReturn(Instant.now().plusSeconds(91L * 86400)).when(clock).instant();
@@ -295,6 +296,7 @@ class AssessmentDecisionResultIntegrationTests {
         assertEquals(reason, assertThrows(AssessmentDecisionResultException.class, () -> results.get(workspace, assessment, ref, actor())).reason());
         getResult(ref, 409);
         mvc.perform(auth(readSummary(ref), "ok")).andExpect(status().isConflict());
+        mvc.perform(auth(readAdvice(ref), "ok")).andExpect(status().isConflict());
     }
     @Test void runtimePrivilegesBodyFreeAuditAndBoundedReadsAreEnforced() throws Exception {
         var receipt = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt(); var id = receipt.reference().resultId();
@@ -319,6 +321,47 @@ class AssessmentDecisionResultIntegrationTests {
         var summary = results.summary(workspace, assessment, first.reference(), actor());
         assertEquals(first.reference(), summary.item().reference());
         assertEquals(first.result().path("decision").path("status").asText(), summary.status()); counts(1);
+        assertEquals(mapper.valueToTree(summary), mapper.valueToTree(results.advice(workspace, assessment, first.reference(), actor())).get("summary")); counts(1);
+    }
+    @Test void adviceProjectsOnlyOriginalVerifiedExplanationsAndDefensivelyCopiesEveryJsonField() throws Exception {
+        var receipt = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
+        var view = results.advice(workspace, assessment, receipt.reference(), actor());
+        var original = wire(view); assertEquals(adviceFromReceipt(mapper.valueToTree(receipt)), original);
+        var json = advice(receipt.reference()); assertEquals(original, json);
+        for (String forbidden : List.of("declaredValue", "\"profile\"", "\"evaluationProfile\"", "\"request\"", "\"issuer\"", "\"subject\"", "Bearer")) assertFalse(json.toString().contains(forbidden), forbidden);
+        ((tools.jackson.databind.node.ArrayNode) view.candidates()).removeAll();
+        ((tools.jackson.databind.node.ArrayNode) view.limitations()).removeAll();
+        ((tools.jackson.databind.node.ArrayNode) view.followUps()).removeAll();
+        ((ObjectNode) view.architecture()).put("status", "FORGED");
+        assertEquals(original, wire(view)); counts(1);
+        sql("UPDATE core.assessments SET status='ARCHIVED'");
+        assertEquals(original, advice(receipt.reference())); counts(1);
+    }
+    @Test void adviceNeverReturnsAnOversizedProjection() throws Exception {
+        var receipt = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
+        var body = (ObjectNode) receipt.result();
+        // A verified input handoff is spied solely to exercise the independent output-size guard.
+        ((ObjectNode) body.get("decision")).set("followUps", mapper.valueToTree(List.of("x".repeat(1_048_577))));
+        doReturn(new AssessmentDecisionResultService.Receipt(receipt.reference(), receipt.recordedAt(), body, true))
+                .when(results).get(workspace, assessment, receipt.reference(), actor());
+        mvc.perform(auth(readAdvice(receipt.reference()), "ok")).andExpect(status().isConflict()); counts(1);
+    }
+    @ParameterizedTest @ValueSource(strings = {"no-token", "bad-token", "duplicate-token", "no-subject", "duplicate-subject", "other-owner", "other-issuer"})
+    void adviceRequiresSingularServiceAndOwnerAssertions(String issue) throws Exception {
+        var first = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
+        int status = issue.startsWith("other-") ? 403 : 401;
+        mvc.perform(auth(readAdvice(first.reference()), issue)).andExpect(status().is(status)); counts(1);
+    }
+    @Test void adviceRefusesForeignReferencesDuplicateUnknownAndMissingQueries() throws Exception {
+        var receipt = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
+        mvc.perform(auth(readAdvice(receipt.reference()).param("version", "2"), "ok")).andExpect(status().isBadRequest());
+        mvc.perform(auth(readAdvice(receipt.reference()).param("latest", "true"), "ok")).andExpect(status().isBadRequest());
+        mvc.perform(auth(get(url() + "/" + receipt.reference().resultId() + "/advice"), "ok")).andExpect(status().isBadRequest());
+        mvc.perform(auth(readAdvice(new AssessmentDecisionResultRequest.Reference(receipt.reference().resultId(), 1, "0".repeat(64))), "ok"))
+                .andExpect(status().isConflict());
+        var old = assessment; assessment = UUID.randomUUID();
+        mvc.perform(auth(readAdvice(receipt.reference()), "ok")).andExpect(status().isNotFound());
+        assessment = old; counts(1);
     }
     @Test void historyIsBoundedNewestFirstAndExactCursorKeepsOlderPagesStableAfterAnAppend() throws Exception {
         var empty = history(null); assertEquals(0, empty.path("items").size()); assertTrue(empty.path("nextBefore").isNull());
@@ -353,6 +396,7 @@ class AssessmentDecisionResultIntegrationTests {
         sql("SET session_replication_role=replica; UPDATE core.assessment_decision_results SET result=jsonb_set(result,'{decision,shortlist}','[\"fictional-tamper\"]'::jsonb)");
         assertEquals(page, history(null)); // Discovery is not a replay assertion, even with a corrupt result body.
         mvc.perform(auth(readSummary(receipt.reference()), "ok")).andExpect(status().isConflict()); counts(1);
+        mvc.perform(auth(readAdvice(receipt.reference()), "ok")).andExpect(status().isConflict()); counts(1);
     }
     @Test void foreignAssessmentsAndForeignOrMismatchedCursorsNeverRevealResults() throws Exception {
         var first = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
@@ -474,6 +518,22 @@ class AssessmentDecisionResultIntegrationTests {
     private MockHttpServletRequestBuilder readSummary(AssessmentDecisionResultRequest.Reference ref) {
         return get(url() + "/" + ref.resultId() + "/summary").param("version", Long.toString(ref.version())).param("resultSha256", ref.resultSha256());
     }
+    private MockHttpServletRequestBuilder readAdvice(AssessmentDecisionResultRequest.Reference ref) {
+        return get(url() + "/" + ref.resultId() + "/advice").param("version", Long.toString(ref.version())).param("resultSha256", ref.resultSha256());
+    }
+    private JsonNode advice(AssessmentDecisionResultRequest.Reference ref) throws Exception {
+        var response = mvc.perform(auth(readAdvice(ref), "ok")).andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
+        var json = mapper.readTree(response.getContentAsString()); sample("advice-" + samples.size(), "assessment-decision-result-advice", true, json); return json;
+    }
+    private JsonNode adviceFromReceipt(JsonNode receipt) {
+        var decision = receipt.at("/result/decision"); var limits = mapper.createArrayNode();
+        decision.get("limitations").forEach(l -> { var copy = (ObjectNode) l.deepCopy(); copy.remove("declaredValue"); limits.add(copy); });
+        return wire(Map.of("scope", "VERIFIED_ASSESSMENT_DECISION_ADVICE",
+            "summary", results.summary(workspace, assessment, reference(receipt), actor()), "candidates", decision.get("candidates"),
+            "rankGroups", decision.get("rankGroups"), "architecture", decision.get("architecture"), "limitations", limits, "followUps", decision.get("followUps")));
+    }
+    private JsonNode wire(Object value) { return mapper.readTree(mapper.writeValueAsString(value)); }
     private JsonNode summary(AssessmentDecisionResultRequest.Reference ref) throws Exception {
         var response = mvc.perform(auth(readSummary(ref), "ok")).andExpect(status().isOk())
                 .andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
@@ -501,7 +561,8 @@ class AssessmentDecisionResultIntegrationTests {
         var ref = mapper.treeToValue(receipt.at("/result/request/catalog"), PublishedCatalogSnapshot.Reference.class);
         var resultRef = reference(receipt);
         bundles.add(Map.of("receipt", receipt, "decisionInputs", trusted.load(ref).decisionInputs(),
-                "summary", results.summary(workspace, assessment, resultRef, actor())));
+                "summary", results.summary(workspace, assessment, resultRef, actor()),
+                "advice", results.advice(workspace, assessment, resultRef, actor())));
     }
     private void counts(int n) { for (String t : List.of("core.assessment_decision_results", "audit.assessment_decision_result_events")) assertEquals(n, dsl.fetchOne("select count(*) from " + t).get(0, Integer.class)); }
     private java.sql.Connection admin() throws Exception { return DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword()); }

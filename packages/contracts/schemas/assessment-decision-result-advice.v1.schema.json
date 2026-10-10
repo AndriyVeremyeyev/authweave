@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-decision-result-advice.v1.schema.json",
+  "title": "Replay-verified owned historical decision explanations v1",
+  "description": "Allowlisted original findings, preference contributions and conditional architecture after full historical replay. Maximum UTF-8 transport is 1 MiB. No raw profile, declared values, curator identities, live source verification, approval or new calculation.",
+  "type": "object", "additionalProperties": false,
+  "required": ["scope", "summary", "candidates", "rankGroups", "architecture", "limitations", "followUps"],
+  "properties": {
+    "scope": { "const": "VERIFIED_ASSESSMENT_DECISION_ADVICE" },
+    "summary": { "$ref": "assessment-decision-result-summary.v1.schema.json" },
+    "candidates": { "$ref": "assessment-decision-result.v1.schema.json#/$defs/decision/properties/candidates" },
+    "rankGroups": { "$ref": "decision-result.v1.schema.json#/properties/rankGroups" },
+    "architecture": { "$ref": "assessment-decision-result.v1.schema.json#/$defs/architecture" },
+    "limitations": { "type": "array", "maxItems": 200, "items": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profilePath", "reasonCode", "blocksDeploymentRecommendation", "explanation"],
+      "properties": {
+        "profilePath": { "type": ["string", "null"], "maxLength": 200 },
+        "reasonCode": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "blocksDeploymentRecommendation": { "type": "boolean" },
+        "explanation": { "type": "string", "minLength": 1, "maxLength": 4000 }
+      }
+    } },
+    "followUps": { "$ref": "assessment-decision-result.v1.schema.json#/$defs/texts" }
+  }
+}

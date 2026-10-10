@@ -267,6 +267,52 @@ paths:
         '404': { description: Exact result not found in the owned assessment. }
         '409': { description: 'Reference mismatch, tampering or unsupported historical replay.' }
         '503': { description: Internal credential is not configured. }
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results/{resultId}/advice:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+      - name: resultId
+        in: path
+        required: true
+        description: Exact immutable owned result key.
+        schema: { type: string, format: uuid }
+      - name: version
+        in: query
+        required: true
+        description: Exact historical result version.
+        schema: { type: integer, minimum: 1, maximum: 9007199254740991 }
+      - name: resultSha256
+        in: query
+        required: true
+        description: Exact original result digest.
+        schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+    get:
+      tags: [Assessments]
+      operationId: readAssessmentDecisionResultAdvice
+      summary: Explain an exact owned result after full historical replay
+      description: >-
+        One read-only REPEATABLE_READ transaction verifies the whole original body and
+        projects findings, dated claim evidence, preference contributions, rank groups,
+        conditional architecture and limitations. No raw profile, declared values or
+        curator identities. Maximum 1 MiB UTF-8; oversized views fail closed. Sources
+        are not fetched or authenticated and no new result, approval or deployment
+        verification is created. Existing summary and write contracts are unchanged.
+      security:
+        - BffServiceToken: []
+      responses:
+        '200':
+          description: Replay-verified explanations of the exact historical advice.
+          content:
+            application/json:
+              schema: { $ref: ../schemas/assessment-decision-result-advice.v1.schema.json }
+        '400': { description: 'Invalid, duplicate or unknown query parameters.' }
+        '401': { description: Invalid service credential or missing singular principal. }
+        '403': { description: Principal does not own this workspace. }
+        '404': { description: Exact result not found in the owned assessment. }
+        '409': { description: 'Reference mismatch, tampering, oversized view or unsupported replay.' }
+        '503': { description: Internal credential is not configured. }
   /api/v2/workspaces/{workspaceId}/assessments/{assessmentId}/provisioning-lifecycle-preview:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'

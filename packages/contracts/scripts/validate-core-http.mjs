@@ -25,6 +25,7 @@ import { operationsPlanningValues, operationsPlanningFromCore } from "../../../a
 import { assurancePlanningValues, assurancePlanningFromCore } from "../../../apps/web/src/lib/assessment/assurance-compliance-planning.ts";
 import { publicationReviewFromCore } from "../../../apps/web/src/lib/catalog/publication-preflight.ts";
 import { validateProfileSaveAcknowledgements } from "../tests/helpers/profile-save-acknowledgement-spec.mjs";
+import { resultAdviceFromCore } from "../../../apps/web/src/lib/assessment/decision-advice.ts";
 
 const samplePaths = process.argv.slice(2);
 assert.ok(samplePaths.length > 0, "Pass the samples exported by the current Core API integration test run.");
@@ -46,6 +47,8 @@ assert.ok(Array.isArray(samples) && samples.length > 0, "HTTP contract samples m
 const covered = new Set();
 assert.ok(samples.some(s => s.valid && s.schema === "assessment-decision-result-summary" && s.name.startsWith("post-summary-")),
   "Actual HTTP coverage must include the bounded owned result write response, not only summary reads.");
+assert.ok(samples.some(s => s.valid && s.schema === "assessment-decision-result-advice" && s.name.startsWith("advice-")),
+  "Actual HTTP coverage must include the verified owned explanation projection.");
 let auditabilityConsumerSamples = 0;
 let auditabilityDraftSamples = 0;
 let auditabilityReviewSamples = 0;
@@ -362,6 +365,11 @@ function validateAuditabilityCoverage(payload, name) {
     digest(structural), impact.analysisSha256, payload.dimensions, payload.structuralOnlyDimensions]));
 }
 for (const { name, schema, valid, payload } of samples) {
+  if (schema === "assessment-decision-result-advice" && valid) {
+    const s = payload.summary;
+    assert.deepEqual(resultAdviceFromCore(payload, s.workspaceId, s.assessmentId, s.item.reference), payload,
+      `${name}: actual owned advice must also pass the strict BFF guard without dropping fields`);
+  }
   assert.equal(typeof valid, "boolean", `${name}: expected validity is required`);
   const versionedName = /\.v[0-9]+$/.test(schema) ? schema : `${schema}.v1`;
   const validate = ajv.getSchema(`https://authweave.dev/contracts/${versionedName}.schema.json`);
@@ -681,7 +689,7 @@ for (const required of ["comparison-evidence-preview:true", "comparison-evidence
   "update-assessment-profile-request.v6:true", "update-assessment-profile-request.v6:false",
   "assessment-list-page:true",
   "assessment-decision-result:true", "assessment-decision-result-request:true", "assessment-decision-result-request:false",
-  "assessment-decision-result-page:true", "assessment-decision-result-summary:true",
+  "assessment-decision-result-page:true", "assessment-decision-result-summary:true", "assessment-decision-result-advice:true",
   "assessment-context-list-page:true", "assessment-context-list-page:false",
   "hard-constraint-preflight:true",
   "synthetic-comparison:true",

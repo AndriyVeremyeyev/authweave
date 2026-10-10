@@ -368,8 +368,8 @@ or audit identities. `historicalReplayVerified: false` deliberately distinguishe
 reference from a verified calculation. Browsing does not record, re-evaluate, publish,
 approve or silently select a latest result. Existing synthetic previews are not receipts.
 
-Opening a version preserves its result UUID/version/digest and uses the separate
-`GET .../decision-results/{resultId}/summary?version=...&resultSha256=...` read. Core
+Opening a version preserves its result UUID/version/digest. The separate
+`GET .../decision-results/{resultId}/summary?version=...&resultSha256=...` read remains available. Core
 performs the same full original-clock historical replay as the full receipt read in
 one read-only `REPEATABLE_READ` transaction, then projects a bounded summary. It shows
 original profile/catalog/clock/policy pins, explicit weights, hard verdicts and preference
@@ -387,6 +387,33 @@ tests exercise desktop/mobile history, reload, older-profile advice, malformed l
 cross-owner denial and logout using real Core and fictional published test data only.
 The separate explicit recording form below does not change read-only history/detail semantics.
 The real human publication workflow and final acceptance are still pending.
+
+### Historical decision explanations in the UI
+
+The exact result page now reads `GET .../decision-results/{resultId}/advice` with the
+same explicit version/digest. After whole historical replay in one read-only
+`REPEATABLE_READ` transaction, Core returns an allowlisted view: the unchanged summary,
+original scoped findings and dated claim evidence, preference contributions, saved
+rank groups/ties, conditional architecture alternatives, prerequisites, provisioning
+trade-offs, limitations and follow-ups. It excludes raw profiles, declared values,
+requests and curator identities. Core and the BFF both enforce a 1 MiB UTF-8 budget;
+oversized or unverifiable views fail closed without selecting a substitute.
+
+Expandable, keyboard-accessible sections distinguish hard failures, unresolved checks
+and preference points. Evidence retains its exact claim digest, recorded source verdict,
+scope conditions and original observation date. Fictional `.invalid` sources are labeled
+test evidence. Links never auto-fetch sources and use no-referrer/isolated new tabs;
+non-HTTP(S) and credential-bearing URLs are refused. Historical replay is not external
+source truth, current freshness, deployment verification, compliance or decision approval.
+
+Architecture advice explains conditional fits and alternatives, pros/cons, unverified
+prerequisites and separate API/lifecycle conditions. Required SCIM cannot be replaced
+by JIT. Managed/self-hosted responsibility and cost uncertainty remain explicit: no
+free-tier or price guarantee. This read creates no new version or configuration and
+does not offer interactive weight sensitivity or a full ADR export. Independent checks
+compare every projected field to actual stored replayed receipts; isolated real-Core
+desktop/mobile browser checks cover evidence, keyboard disclosure and ownership denial.
+Real human source review/publication and final Phase 3 acceptance are still pending.
 
 ### Explicit recording and re-evaluation from the assessment UI
 
