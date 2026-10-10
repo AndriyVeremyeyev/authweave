@@ -337,6 +337,32 @@ compliance verification are not implied. This internal input path has no new HTT
 route, active-head selection, assessment write or pinned final result. Subsequent
 published revisions will require their own workflow proof support.
 
+### Reviewed proposal decision impact
+
+The internal `StoredProposalDecisionService` loads an exact proposal revision, not
+an implicitly selected head. The original request is bounded to 32 MiB and bound
+with both the legacy proposal digest and an array-order-preserving request digest.
+Core verifies the proposal service audit and the mandatory curator audit for each
+latest-per-fact observation at an explicit review-ledger cutoff. A review-set digest
+also binds historical audit metadata without disclosing curator identity. These
+checks establish stored provenance, not independent source verification or a signature.
+
+`StoredProposalDecisionImpactService` compares those inputs with an exact trusted
+published bootstrap. The proposal's claimed base must match that published source,
+including array order. Both whole decisions are recomputed with the same profile,
+explicit weights and server clock in one read-only `REPEATABLE_READ` transaction;
+the result includes hard-check, score, shortlist and conditional architecture deltas.
+Missing, contradicted, insufficient, stale and future evidence remains unknown.
+Auditability requires a separate review bound to the exact new candidate; the
+previous published supplement is never automatically inherited.
+
+New ledger observations affect new calculation pins, not earlier pinned inputs.
+A later proposal revision does not reuse the prior revision's reviews. Historical
+cutoffs are calculation inputs only: this adapter does not approve stale heads,
+publish a successor, store an assessment result or establish current curator authority.
+The successor publisher still needs fresh full-scope coverage, current-head/parent
+checks, reauthentication, an atomic write and its own trusted workflow proof.
+
 ## Local development
 
 Required tools are Java 21, Node.js 24 with npm 11, Python 3.13, Docker Desktop and

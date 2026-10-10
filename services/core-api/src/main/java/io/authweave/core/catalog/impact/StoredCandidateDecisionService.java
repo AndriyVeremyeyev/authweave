@@ -64,20 +64,26 @@ public class StoredCandidateDecisionService {
         var options = new HashMap<String, JsonNode>(); catalog.get("options").forEach(o -> options.put(o.get("id").asText(), o));
         var assertions = new SourceAssertions(reference.decisionCatalogSha256(), base.observations().stream().map(o ->
                 new FactAssertion(o.optionId(), o.factPath(), claimSha256(options.get(o.optionId()), o.factPath()), Assertion.valueOf(o.verdict().name()))).toList());
+        var audit = loadAuditability(reference.decisionCatalogSha256(), reference.auditability());
+        return new Inputs(new CandidateDecisionImpactEvaluator.Snapshot(catalog, assertions, audit.supplement()), base.review(), audit.receipt());
+    }
+    record AuditInputs(CandidateAuditabilityInput supplement, CatalogAuditabilityReview receipt) { }
+    /** Reusable exact-candidate loader; never inherit a previous catalog's supplemental review. */
+    AuditInputs loadAuditability(String catalogSha256, AuditReference pin) {
         CandidateAuditabilityInput supplement = null; CatalogAuditabilityReview receipt = null;
-        if (reference.auditability() != null) {
-            var pin = reference.auditability(); var audit = auditReviews.loadForDecision(pin.reviewId(), pin.reviewSha256());
+        if (pin != null) {
+            var audit = auditReviews.loadForDecision(pin.reviewId(), pin.reviewSha256());
             var candidate = MAPPER.readTree(audit.candidateJson()); var draft = candidate.get("auditabilityDraft");
-            if (!reference.decisionCatalogSha256().equals(DecisionCanonicalizer.sha256(candidate.get("baseDraft")))
+            if (!catalogSha256.equals(DecisionCanonicalizer.sha256(candidate.get("baseDraft")))
                     || !pin.decisionSupplementSha256().equals(DecisionCanonicalizer.sha256(draft)))
                 throw new CatalogAuditabilityReviewException(CatalogAuditabilityReviewException.Reason.CONFLICT);
             var claimDigests = CandidateAuditabilityInput.claimDigests(draft);
-            supplement = new CandidateAuditabilityInput(reference.decisionCatalogSha256(), draft, audit.observations().stream().map(o ->
+            supplement = new CandidateAuditabilityInput(catalogSha256, draft, audit.observations().stream().map(o ->
                     new CandidateAuditabilityInput.FactAssertion(o.optionId(), o.criterion(),
                             claimDigests.get(new CandidateAuditabilityInput.Address(o.optionId(), o.criterion())), Assertion.valueOf(o.verdict().name()))).toList());
             receipt = audit.review();
         }
-        return new Inputs(new CandidateDecisionImpactEvaluator.Snapshot(catalog, assertions, supplement), base.review(), receipt);
+        return new AuditInputs(supplement, receipt);
     }
     static Result calculate(JsonNode profile, int profileSchemaVersion, Inputs inputs, JsonNode weights, Instant at) {
         var snapshot = inputs.snapshot();
