@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-bootstrap-publication-request.v1.schema.json",
+  "title": "Opt-in curator bootstrap publication request v1",
+  "description": "Exact stored source pins and explicit publication confirmation only. Current scoped curator authorization is checked separately; no transported manifest, impact report, verdict, clock or readiness flag is accepted.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "publicationId", "source", "confirmation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "publicationId": { "type": "string", "format": "uuid" },
+    "source": { "$ref": "publication-decision-coverage.v1.schema.json#/$defs/reference" },
+    "confirmation": { "const": "PUBLISH_REVIEWED_BOOTSTRAP" }
+  }
+}

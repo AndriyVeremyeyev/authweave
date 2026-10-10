@@ -8,6 +8,7 @@ import io.authweave.core.generated.jooq.Core;
 import io.authweave.core.generated.jooq.Keys;
 import io.authweave.core.generated.jooq.tables.CandidateDecisionReports.CandidateDecisionReportsPath;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports.CatalogBootstrapImpactReportsPath;
+import io.authweave.core.generated.jooq.tables.CatalogBootstrapPublications.CatalogBootstrapPublicationsPath;
 import io.authweave.core.generated.jooq.tables.records.CatalogBootstrapReviewsRecord;
 
 import java.time.OffsetDateTime;
@@ -243,6 +244,19 @@ public class CatalogBootstrapReviews extends TableImpl<CatalogBootstrapReviewsRe
             _catalogBootstrapImpactReports = new CatalogBootstrapImpactReportsPath(this, null, Keys.CATALOG_BOOTSTRAP_IMPACT_REPORTS__CATALOG_BOOTSTRAP_IMPACT_REVIEW_FK.getInverseKey());
 
         return _catalogBootstrapImpactReports;
+    }
+
+    private transient CatalogBootstrapPublicationsPath _catalogBootstrapPublications;
+
+    /**
+     * Get the implicit to-many join path to the
+     * <code>core.catalog_bootstrap_publications</code> table
+     */
+    public CatalogBootstrapPublicationsPath catalogBootstrapPublications() {
+        if (_catalogBootstrapPublications == null)
+            _catalogBootstrapPublications = new CatalogBootstrapPublicationsPath(this, null, Keys.CATALOG_BOOTSTRAP_PUBLICATIONS__CATALOG_BOOTSTRAP_PUBLICATION_REVIEW_FK.getInverseKey());
+
+        return _catalogBootstrapPublications;
     }
 
     @Override

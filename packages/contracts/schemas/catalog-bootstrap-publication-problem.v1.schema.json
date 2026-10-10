@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-bootstrap-publication-problem.v1.schema.json",
+  "title": "Bootstrap publication denial problem v1",
+  "type": "object", "additionalProperties": false,
+  "required": ["type", "title", "status", "detail", "instance", "code"],
+  "properties": {
+    "type": { "type": "string", "format": "uri" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": { "enum": [400, 403, 404, 409] },
+    "detail": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "instance": { "type": "string", "format": "uri-reference" },
+    "code": { "enum": ["invalid-request", "catalog-bootstrap-publication-conflict", "catalog-bootstrap-publication-source-not-eligible", "catalog-bootstrap-publication-coverage-incomplete", "catalog-bootstrap-publication-authentication-expired", "catalog-bootstrap-publication-stored-publication-invalid", "catalog-bootstrap-review-not-found", "catalog-bootstrap-review-conflict", "catalog-bootstrap-review-unavailable", "catalog-auditability-review-not-found", "catalog-auditability-review-conflict", "catalog-auditability-review-unavailable"] },
+    "violations": { "$ref": "core-problem.v1.schema.json#/properties/violations" }
+  }
+}

@@ -253,7 +253,7 @@ final-result contract, publisher-coverage certification or an active trusted cat
 Source/configuration/compliance verification, approval and publication remain false;
 the calculation itself reports no writes, while the explicit save receipt reports
 whether it was created. Tests use fictional `.invalid` sources and isolated databases.
-The real eight-option source review, safe publisher/trusted loading, final assessment
+The real eight-option source review, complete publisher/trusted loading, final assessment
 pinning, user-visible results and final golden/owner acceptance are still open.
 
 ### Versioned publication decision-rule coverage
@@ -281,8 +281,41 @@ incomplete reports are not relabelled, and the legacy publication preflight rema
 blocked. Stored-review provenance is not current curator authority, independent source
 verification, approval or publication readiness. This policy does not replace the 18
 final golden acceptance cases, publish a catalog or pin an assessment result. The next
-P3-4 step is the authorized publication workflow using fresh checks, not this output as
-a reusable approval token. The real candidate still awaits human source review.
+P3-4 workflow uses fresh checks, not this output as a reusable approval token. The real
+candidate still awaits human source review.
+
+### Guarded first catalog publication
+
+The `catalog-bootstrap-publication` server profile explicitly enables the Core-only
+`POST /internal/v1/catalog-curator/bootstrap-publications` route. It is absent by default.
+The existing service credential, singular OIDC principal, project/organization-scoped
+curator assertion and reauthentication within 15 minutes are required. No role is
+created or granted by enabling the profile. This technical route has no browser or AI
+counterpart yet; real source approval remains a separate human action.
+
+The request contains only a publication UUID, exact stored base/optional auditability
+review pins and `PUBLISH_REVIEWED_BOOTSTRAP`. Core reloads and validates those reviews
+and their audits. Every recorded fact must have a supporting human observation, with
+the original evidence date within the 90-day policy and not in the future. It freshly
+recomputes the four-profile, 34-route decision coverage at a database-owned clock;
+unknown findings remain unknown and do not mean missing execution coverage.
+
+One shared transaction lock protects the empty-registry bootstrap boundary. A narrow
+database function atomically stores the immutable manifest, publication decision,
+body-free curator audit and exact-request/source/policy coverage proof. Core and Web
+still cannot directly insert, update or delete the registry or proof. SQL binds storage
+identities and time, not OIDC authority, canonical hashes or independent source truth.
+Same-key, same-input, same-actor retries recheck current authentication and fully replay
+the historical proof at its original clock, without another write or evidence refresh.
+Competing first publications, changed pins, stale/contradicted evidence, incomplete
+coverage, forged stored results and audit/proof insertion failures are tested in isolated
+PostgreSQL with fictional `.invalid` sources only.
+
+Publication records a reviewed advisory catalog; it does not activate the evaluator,
+promote old incomplete receipts or erase the 22 explicit deployment/compliance gaps.
+The legacy preflight and integrity-only lookup retain their existing denial/authority
+contracts. Subsequent proposal approval, the separate trusted loading path, owned
+assessment result pinning and final golden/UI acceptance remain the next P3-4 work.
 
 ## Local development
 

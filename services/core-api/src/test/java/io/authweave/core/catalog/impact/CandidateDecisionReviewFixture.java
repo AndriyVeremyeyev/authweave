@@ -14,16 +14,16 @@ import tools.jackson.databind.node.ObjectNode;
 import static io.authweave.core.catalog.impact.CandidateAuditabilityInputTests.*;
 
 /** Shared isolated-test DB setup. Fictional human assertions, never local IdP/application data. */
-final class CandidateDecisionReviewFixture {
+public final class CandidateDecisionReviewFixture {
     private final ObjectMapper mapper;
     private final CatalogBootstrapReviewService bases;
     private final CatalogAuditabilityReviewService audits;
     private final CatalogAuditabilityDraftValidator drafts;
-    CandidateDecisionReviewFixture(ObjectMapper mapper, CatalogBootstrapReviewService bases, CatalogAuditabilityReviewService audits,
+    public CandidateDecisionReviewFixture(ObjectMapper mapper, CatalogBootstrapReviewService bases, CatalogAuditabilityReviewService audits,
             CatalogAuditabilityDraftValidator drafts) { this.mapper = mapper; this.bases = bases; this.audits = audits; this.drafts = drafts; }
-    record Fixture(CatalogBootstrapReview base, CatalogAuditabilityReview audit, StoredCandidateDecisionService.Reference reference) { }
-    Fixture stored() { return stored(b -> { }, a -> { }, Verdict.SOURCE_SUPPORTS_CLAIM); }
-    Fixture stored(Consumer<ObjectNode> baseChange, Consumer<ObjectNode> auditChange, Verdict verdict) {
+    public record Fixture(CatalogBootstrapReview base, CatalogAuditabilityReview audit, StoredCandidateDecisionService.Reference reference) { }
+    public Fixture stored() { return stored(b -> { }, a -> { }, Verdict.SOURCE_SUPPORTS_CLAIM); }
+    public Fixture stored(Consumer<ObjectNode> baseChange, Consumer<ObjectNode> auditChange, Verdict verdict) {
         var raw = (ObjectNode) base(); freshSourceDates(raw); baseChange.accept(raw);
         var base = mapper.treeToValue(raw, ProviderCatalogDraft.class);
         var observations = base.options().stream().flatMap(o -> CatalogDraftFacts.entries(o).keySet().stream().sorted()

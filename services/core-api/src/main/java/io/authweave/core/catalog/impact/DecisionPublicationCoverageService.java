@@ -80,7 +80,18 @@ public class DecisionPublicationCoverageService {
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public Check inspect(StoredCandidateDecisionService.Reference beforeReference, StoredCandidateDecisionService.Reference afterReference) {
-        var before = loader.load(beforeReference); var after = loader.load(afterReference); var at = clock.instant();
+        var before = loader.load(beforeReference); var after = loader.load(afterReference);
+        return stored(beforeReference, afterReference, before, after, clock.instant());
+    }
+
+    /** Internal deterministic replay at a server-owned publication time, never exposed as caller-controlled HTTP input. */
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public Check replay(StoredCandidateDecisionService.Reference beforeReference, StoredCandidateDecisionService.Reference afterReference, Instant at) {
+        var before = loader.load(beforeReference); var after = loader.load(afterReference);
+        return stored(beforeReference, afterReference, before, after, at);
+    }
+    private Check stored(StoredCandidateDecisionService.Reference beforeReference, StoredCandidateDecisionService.Reference afterReference,
+            StoredCandidateDecisionService.Inputs before, StoredCandidateDecisionService.Inputs after, Instant at) {
         for (var input : List.of(before, after)) if (input.baseReview().recordedAt().isAfter(at.plusSeconds(30))
                 || input.auditabilityReview() != null && input.auditabilityReview().recordedAt().isAfter(at.plusSeconds(30)))
             throw new IllegalArgumentException("Source review is ahead of the server clock");

@@ -9,6 +9,7 @@ import io.authweave.core.generated.jooq.tables.Assessments;
 import io.authweave.core.generated.jooq.tables.CandidateDecisionReports;
 import io.authweave.core.generated.jooq.tables.CatalogAuditabilityReviews;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapImpactReports;
+import io.authweave.core.generated.jooq.tables.CatalogBootstrapPublications;
 import io.authweave.core.generated.jooq.tables.CatalogBootstrapReviews;
 import io.authweave.core.generated.jooq.tables.CatalogFactPathReports;
 import io.authweave.core.generated.jooq.tables.CatalogFactReviews;
@@ -66,6 +67,12 @@ public class Tables {
      * profile coverage, approval or publication authority.
      */
     public static final CatalogBootstrapImpactReports CATALOG_BOOTSTRAP_IMPACT_REPORTS = CatalogBootstrapImpactReports.CATALOG_BOOTSTRAP_IMPACT_REPORTS;
+
+    /**
+     * Immutable Core-replayed bootstrap provenance, separate from legacy
+     * incomplete impact receipts. Not evaluator activation.
+     */
+    public static final CatalogBootstrapPublications CATALOG_BOOTSTRAP_PUBLICATIONS = CatalogBootstrapPublications.CATALOG_BOOTSTRAP_PUBLICATIONS;
 
     /**
      * Immutable exact-candidate manual observations. No automatic truth,

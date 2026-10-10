@@ -689,6 +689,62 @@ paths:
           description: Invalid curator role/scope or stale authentication.
         '503':
           description: Server credential or curator scope is not configured.
+  /internal/v1/catalog-curator/bootstrap-publications:
+    post:
+      tags: [Catalog drafts]
+      summary: Publish the first reviewed catalog through the opt-in curator workflow
+      operationId: publishReviewedCatalogBootstrap
+      description: >-
+        Available only with the catalog-bootstrap-publication server profile. Requires
+        the existing BFF service credential and fresh singular project/organization-scoped
+        curator assertions. Core loads exact stored source reviews, checks supporting
+        observations and current evidence, and recomputes declared decision-rule coverage
+        at a server-owned database clock. Only an empty publication registry can be bootstrapped.
+        Snapshot, decision, body-free curator audit and replayable proof commit atomically.
+        Same-key, same-input, same-actor retries return the original receipt with current
+        reauthentication and historical replay. No transported manifest, report, verdicts
+        or clock is accepted. No automatic role grant, live source fetch, evaluator activation
+        or subsequent proposal approval. Legacy preflight remains BLOCKED.
+      security:
+        - BffServiceToken: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: ../schemas/catalog-bootstrap-publication-request.v1.schema.json
+      responses:
+        '201':
+          description: Atomic first publication recorded; evaluator activation remains unavailable.
+          headers:
+            Cache-Control:
+              schema: { type: string, const: no-store }
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-bootstrap-publication.v1.schema.json
+        '200':
+          description: Same actor/input retry validated and returned without another write.
+          content:
+            application/json:
+              schema:
+                $ref: ../schemas/catalog-bootstrap-publication.v1.schema.json
+        '400':
+          description: Invalid or non-strict publication request.
+        '401':
+          description: Missing/invalid service credential or singular OIDC principal.
+        '403':
+          description: Invalid curator scope or expired reauthentication.
+        '404':
+          description: Exact source review does not exist, or publisher profile is disabled.
+        '409':
+          description: Source, coverage, registry, actor/input idempotency or stored replay requirements failed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: ../schemas/catalog-bootstrap-publication-problem.v1.schema.json
+        '503':
+          description: Server service credential or curator scope is not configured.
   /api/v1/catalog-bootstrap-reviews:
     post:
       tags: [Catalog drafts]

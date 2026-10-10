@@ -31,6 +31,15 @@ import tools.jackson.core.JacksonException;
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class AssessmentProblemDetailsHandler {
 
+    @ExceptionHandler(io.authweave.core.catalog.publication.CatalogBootstrapPublicationException.class)
+    ResponseEntity<ProblemDetail> bootstrapPublication(io.authweave.core.catalog.publication.CatalogBootstrapPublicationException exception, HttpServletRequest request) {
+        var status = exception.reason() == io.authweave.core.catalog.publication.CatalogBootstrapPublicationException.Reason.AUTHENTICATION_EXPIRED
+                ? HttpStatus.FORBIDDEN : HttpStatus.CONFLICT;
+        var result = problem(status, "catalog-bootstrap-publication-" + exception.reason().name().toLowerCase(java.util.Locale.ROOT).replace('_', '-'),
+                "Bootstrap publication denied", "The exact source, publication key, fresh authentication or stored replay requirements are not satisfied.", request);
+        return ResponseEntity.status(status).cacheControl(CacheControl.noStore()).body(result);
+    }
+
     @ExceptionHandler(io.authweave.core.catalog.auditability.CatalogAuditabilityReviewException.class)
     ResponseEntity<ProblemDetail> auditabilityReview(io.authweave.core.catalog.auditability.CatalogAuditabilityReviewException exception, HttpServletRequest request) {
         var result = switch (exception.reason()) {

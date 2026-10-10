@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-bootstrap-publication.v1.schema.json",
+  "title": "Recorded bootstrap publication receipt v1",
+  "description": "Body-free historical receipt of the protected opt-in publisher. Publication does not activate evaluation or independently fetch/verify sources; existing human observations are checked and bound. Curator identity and source bodies are never exposed.",
+  "type": "object", "additionalProperties": false,
+  "required": ["snapshot", "decisionId", "publishedAt", "source", "policyVersion", "proofSha256", "coverageManifestSha256", "coverageScope", "verificationGaps", "publicationRecorded", "evaluationReady", "externalSourceVerificationPerformed"],
+  "properties": {
+    "snapshot": { "$ref": "catalog-baseline-reference.v1.schema.json" },
+    "decisionId": { "type": "string", "format": "uuid" },
+    "publishedAt": { "type": "string", "format": "date-time" },
+    "source": { "$ref": "publication-decision-coverage.v1.schema.json#/$defs/reference" },
+    "policyVersion": { "const": "catalog-bootstrap-publication-1" },
+    "proofSha256": { "$ref": "publication-decision-coverage.v1.schema.json#/$defs/hash" },
+    "coverageManifestSha256": { "$ref": "publication-decision-coverage.v1.schema.json#/$defs/hash" },
+    "coverageScope": { "const": "DECLARED_DECISION_RULES_ONLY" },
+    "verificationGaps": { "$ref": "publication-decision-coverage.v1.schema.json#/properties/verificationGaps" },
+    "publicationRecorded": { "const": true },
+    "evaluationReady": { "const": false },
+    "externalSourceVerificationPerformed": { "const": false }
+  }
+}

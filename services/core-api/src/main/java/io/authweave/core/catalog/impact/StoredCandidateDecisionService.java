@@ -34,7 +34,8 @@ public class StoredCandidateDecisionService {
     public record AuditReference(UUID reviewId, String reviewSha256, String decisionSupplementSha256) {
         public AuditReference { Objects.requireNonNull(reviewId); digest(reviewSha256); digest(decisionSupplementSha256); }
     }
-    public record Reference(UUID reviewId, String reviewSha256, String decisionCatalogSha256, AuditReference auditability) {
+    public record Reference(UUID reviewId, String reviewSha256, String decisionCatalogSha256,
+            @com.fasterxml.jackson.annotation.JsonProperty(required = true) AuditReference auditability) {
         public Reference { Objects.requireNonNull(reviewId); digest(reviewSha256); digest(decisionCatalogSha256); }
     }
     public record Result(String scope, String loaderVersion, CatalogBootstrapReview baseReview, CatalogAuditabilityReview auditabilityReview,

@@ -117,8 +117,9 @@ check-policy:
 
 check-core:
 	cd services/core-api && ./mvnw --batch-mode --no-transfer-progress test
-	node packages/contracts/scripts/validate-core-http.mjs services/core-api/target/core-http-contract-samples.json services/core-api/target/bootstrap-review-http-contract-samples.json services/core-api/target/auditability-review-http-contract-samples.json services/core-api/target/publication-preflight-http-contract-samples.json
+	node packages/contracts/scripts/validate-core-http.mjs services/core-api/target/core-http-contract-samples.json services/core-api/target/bootstrap-review-http-contract-samples.json services/core-api/target/auditability-review-http-contract-samples.json services/core-api/target/publication-preflight-http-contract-samples.json services/core-api/target/bootstrap-publication-http-contract-samples.json
 	node packages/contracts/scripts/check-decision-publication-coverage.mjs services/core-api/target/decision-publication-coverage-samples.json
+	node packages/contracts/scripts/check-bootstrap-publication.mjs services/core-api/target/bootstrap-publication-proof-samples.json
 
 check-web:
 	cd apps/web && npm run lint && npm test && npm run build
