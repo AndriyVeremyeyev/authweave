@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import { planningInputRoutes } from "./helpers/profile-planning-coverage-spec.mjs";
 import { assertDecisionSpec, hash, policy, profileFor, profiles, resultFixture, schemaValidate, suite } from "./helpers/decision-result-spec.mjs";
 
@@ -33,6 +34,22 @@ test("18 acceptance targets remain six normal, six incomplete and six adversaria
     assert(c.checks.every(check => policy.inputRoutes.some(r => r.profilePath === check[1])));
     assert.equal(c.expected.verdicts.length, 2);
     if (c.profileId === "b2b-saas-scoped") assert.equal(profileFor(c).provisioning.scim, "REQUIRED");
+  }
+});
+
+test("real-kernel inputs cover the same 18 cases independently of expected outputs", async () => {
+  const inputs = JSON.parse(await readFile(new URL("../decision-core/inputs.v1.json", import.meta.url), "utf8"));
+  assert.equal(inputs.caseSetVersion, suite.caseSetVersion); assert.equal(inputs.cases.length, 18);
+  assert.equal(new Set(inputs.cases.map(c => c.id)).size, 18);
+  assert.deepEqual(inputs.cases.map(c => c.id).sort(), suite.cases.map(c => c.id).sort());
+  for (const c of inputs.cases) {
+    assert(Array.isArray(c.changes));
+    assert(Object.keys(c).every(key => ["id", "changes", "removeFacts", "omitAssertions", "auditChanges", "rejectBorrowedAssertion", "rejectForgedScore", "verifyPinnedReplay"].includes(key)));
+    assert(!Object.hasOwn(c, "expected"));
+  }
+  for (const c of suite.cases.filter(c => c.kernelChecks)) {
+    assert.equal(c.kernelChecks.length, c.checks.length);
+    assert.deepEqual(c.kernelChecks.map(check => check.slice(0, 4)), c.checks.map(check => check.slice(0, 4)), "Only specific reason vocabulary differs, not criticality or outcome");
   }
 });
 

@@ -25,9 +25,9 @@ shaped.
 
 The [reserved result schema](packages/contracts/schemas/decision-result.v1.schema.json),
 [decision policy](packages/contracts/decision-core/policy.v1.json) and
-[18 acceptance cases](packages/contracts/decision-core/cases.v1.json) specify the next
-deterministic result. This is a tested contract target, **not an implemented endpoint,
-verified vendor catalog, publisher or finished recommendation engine**.
+[18 acceptance cases](packages/contracts/decision-core/cases.v1.json) specify bounded
+deterministic outcomes. The reserved wire schema is not the implemented immutable
+assessment-result contract. Neither contract implies verified vendor facts or deployment approval.
 
 All 34 existing profile inputs have explicit routes. Numeric scoring covers only the
 nine explicitly preferred capabilities: weights total 100 and have no hidden defaults.
@@ -39,10 +39,22 @@ Other operational, cost, assurance and compliance inputs remain explicit limitat
 not invented scores or proof of deployment/certification.
 
 The cases are six normal, six missing/contradictory and six adversarial/failure targets
-across B2B, public-sector and workforce profiles. Tests validate frozen expected envelopes,
-input coverage, arithmetic, source gating and exact profile/catalog/policy/weights/time
-bindings. They do not run a complete provider decision engine. The current runtime continues
-to use the unchanged synthetic preflights and closed publication policy.
+across B2B, public-sector and workforce profiles. The
+[real-kernel golden suite](services/core-api/src/test/java/io/authweave/core/catalog/impact/DecisionCoreGoldenAcceptanceTests.java)
+now executes all 18 against independently authored [fictional inputs](packages/contracts/decision-core/inputs.v1.json),
+not injected expected verdicts. `make check-core` and CI also run an
+[independent check](packages/contracts/scripts/check-decision-golden.mjs) of actual exported
+decisions, exact reasons/evidence, arithmetic, ties, weight sensitivity and
+profile/catalog/source-assertion/policy/weights/time bindings. Forged scores, borrowed
+scope assertions and silent newer-catalog substitution are rejected.
+
+Case-set revision 2 explicitly records no-preference SAML and no-API session inputs,
+and withholds eligibility for unassessed assurance/compliance context. Specific kernel
+audit/compliance reasons remain distinct from the reserved schema's general reason
+vocabulary. Production policies, stored-result versions and endpoints are unchanged.
+All inputs and source assertions are fictional `.invalid` calculation hypotheses.
+This technical acceptance does not approve real sources, publish a vendor catalog,
+close the owner's learning checkpoint or complete Phase 3.
 
 ### Pinned candidate assembly
 
@@ -108,11 +120,11 @@ has no typed disablement evidence. Required auditability remains unknown without
 separate scoped supplement; elevated/unknown assurance and identified/unknown compliance
 scope withhold an unqualified result. Existing synthetic fixtures cannot fill these gaps.
 
-There is no new endpoint or UI result. The composed calculation below adds conditional
+This kernel is not itself an endpoint or UI result. The composed calculation below adds conditional
 architecture advice, and the stored-review adapter below connects historical reviews
-and scoped auditability evidence. Published result pinning remains unfinished.
+and scoped auditability evidence. The implemented published-result pinning path is described below.
 The kernel report is not the reserved final-result contract, and these tests
-do not complete the 18 engine acceptance cases or source-review gate. Tests exercise
+are now complemented by the 18 actual golden calculations above. Tests exercise
 the actual pinned candidate and explicit in-memory rule hypotheses, never real approvals.
 
 ### Candidate preference scoring and sensitivity
@@ -4402,7 +4414,8 @@ Seeded history also predates the actual successor publication. SQL verifies all 
 immutable results and owner audits, with no profile edits from these result interactions.
 Server-side session advice accepts reviewed OIDC **or** SAML; BFF/API choices still
 require all their listed capabilities. This fictional matrix does not complete the
-18 reserved golden cases, real-provider source approval or the owner's learning checkpoint.
+real-provider source approval or the owner's learning checkpoint; the separate golden
+suite above now proves the 18 actual fictional engine calculations.
 
 The test-only OIDC protocol double checks PKCE S256 and one-use codes and returns
 signed synthetic ID Tokens; the browser uses the actual login/callback/session routes,

@@ -123,6 +123,7 @@ check-core:
 	node packages/contracts/scripts/check-bootstrap-publication.mjs services/core-api/target/bootstrap-publication-proof-samples.json
 	node packages/contracts/scripts/check-proposal-publication.mjs services/core-api/target/proposal-publication-proof-samples.json
 	node packages/contracts/scripts/check-assessment-results.mjs services/core-api/target/assessment-result-proof-samples.json
+	node packages/contracts/scripts/check-decision-golden.mjs services/core-api/target/decision-core-golden-runtime-samples.json
 
 check-web:
 	cd apps/web && npm run lint && npm test && npm run build

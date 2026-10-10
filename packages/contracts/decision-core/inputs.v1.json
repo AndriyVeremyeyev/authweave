@@ -1,0 +1,27 @@
+{
+  "inputSetVersion": "decision-core-fictional-inputs-1",
+  "caseSetVersion": "decision-core-acceptance-2",
+  "basis": "FICTIONAL_CALCULATION_HYPOTHESES_NOT_SOURCE_APPROVAL",
+  "observedAt": "2026-10-09T11:00:00Z",
+  "baseline": "Two independently scoped .invalid options; all nine capability facts MANDATORY, complete DE residency, supported topology and human-client controls, all six audit criteria supported with 365-day minimum. SOCIAL_LOGIN is UNAVAILABLE only for profiles explicitly forbidding it. Assertions support each exact claim unless an input below omits one. Expected outputs are NOT used to assemble inputs.",
+  "cases": [
+    { "id": "normal-b2b-required-scim", "changes": [["beta", "facts.SCIM.availability", "UNAVAILABLE"]] },
+    { "id": "normal-b2b-shared-tie", "changes": [] },
+    { "id": "normal-public-no-preferences", "changes": [["beta", "facts.SOCIAL_LOGIN.availability", "MANDATORY"]] },
+    { "id": "normal-public-explicit-preferences", "changes": [["beta", "facts.SAML.availability", "UNAVAILABLE"]] },
+    { "id": "normal-workforce-api-m2m", "changes": [["beta", "facts.OAUTH2_APIS.availability", "UNAVAILABLE"]] },
+    { "id": "normal-workforce-sensitivity", "changes": [["alpha", "facts.MFA.availability", "UNAVAILABLE"], ["beta", "facts.SAML.availability", "UNAVAILABLE"]] },
+    { "id": "missing-b2b-required-scim", "removeFacts": [["alpha", "facts.SCIM"]], "changes": [["beta", "facts.SCIM.availability", "UNAVAILABLE"]] },
+    { "id": "missing-b2b-preference-range", "changes": [["alpha", "facts.MFA.availability", "UNKNOWN"]] },
+    { "id": "missing-public-stale-residency", "changes": [["alpha", "residency.USER_PROFILES.evidence.observedAt", "2026-07-10T11:00:00Z"], ["beta", "residency.USER_PROFILES.storageCountries", ["US"]]] },
+    { "id": "missing-public-assurance-compliance", "changes": [] },
+    { "id": "missing-workforce-audit-retention", "auditChanges": [["alpha", "AUDIT_LOG_RETENTION", "documentedMinimumRetentionDays", null], ["beta", "AUDIT_LOG_RETENTION", "documentedMinimumRetentionDays", 10]], "changes": [] },
+    { "id": "missing-workforce-failure-precedence", "auditChanges": [["alpha", "AUTHENTICATION_SUCCESS_EVENTS", "support", "UNKNOWN"]], "changes": [["alpha", "facts.SCIM.availability", "UNAVAILABLE"], ["beta", "facts.SCIM.availability", "UNAVAILABLE"]] },
+    { "id": "adversarial-b2b-weights-no-rescue", "changes": [["alpha", "facts.SCIM.availability", "UNAVAILABLE"], ["beta", "facts.MFA.availability", "UNAVAILABLE"]] },
+    { "id": "adversarial-b2b-unreviewed-source", "omitAssertions": [["alpha", "facts.SCIM"]], "changes": [["beta", "facts.SCIM.availability", "UNAVAILABLE"]] },
+    { "id": "adversarial-public-cross-option-scope", "omitAssertions": [["alpha", "residency.USER_PROFILES"]], "rejectBorrowedAssertion": true, "changes": [["beta", "residency.USER_PROFILES.storageCountries", ["US"]]] },
+    { "id": "adversarial-public-future-evidence", "changes": [["alpha", "residency.USER_PROFILES.evidence.observedAt", "2026-10-10T12:00:00Z"], ["beta", "residency.USER_PROFILES.storageCountries", ["US"]]] },
+    { "id": "adversarial-workforce-forged-score", "rejectForgedScore": true, "changes": [["alpha", "facts.MFA.availability", "UNAVAILABLE"], ["beta", "facts.SAML.availability", "UNAVAILABLE"]] },
+    { "id": "adversarial-workforce-pinned-result", "verifyPinnedReplay": true, "changes": [] }
+  ]
+}

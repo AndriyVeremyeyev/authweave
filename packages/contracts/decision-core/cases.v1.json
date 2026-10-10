@@ -1,11 +1,13 @@
 {
-  "caseSetVersion": "decision-core-acceptance-1",
+  "caseSetVersion": "decision-core-acceptance-2",
   "policyVersion": "decision-core-explicit-1",
   "implementation": "EXPECTED_CONTRACT_CASES_NOT_RUNTIME_ENGINE_PROOF",
   "basis": "SYNTHETIC_ACCEPTANCE",
   "evaluatedAt": "2026-10-09T12:00:00Z",
   "catalogVersion": "fictional-acceptance-1",
   "profileSource": "services/core-api/src/main/resources/catalog/scoped-impact-scenarios.v1.json",
+  "runtimeInputSource": "packages/contracts/decision-core/inputs.v1.json",
+  "revisionNote": "Revision 2 makes no-preference and no-API inputs explicit, withholds eligibility for unassessed assurance/compliance context, and names actual audit reasons. Wrong-scope assertion borrowing is rejected before calculation; the legitimate unreviewed claim stays UNKNOWN. No hard requirement is relaxed.",
   "baselineProfileOverrides": {
     "security.assurance": "BASELINE",
     "security.complianceScopeStatus": "NONE_IDENTIFIED",
@@ -14,7 +16,7 @@
   },
   "profileSpecificOverrides": {
     "public-sector-scoped": { "protocols.federation.SAML": "NOT_REQUIRED", "provisioning.justInTimeProvisioning": "NOT_REQUIRED" },
-    "internal-workforce-scoped": { "provisioning.justInTimeProvisioning": "NOT_REQUIRED" }
+    "internal-workforce-scoped": { "provisioning.justInTimeProvisioning": "NOT_REQUIRED", "protocols.federation.SAML": "NOT_REQUIRED" }
   },
   "baselineAssumption": "All non-targeted requirements have fresh scoped reviewed synthetic support. This is an explicit test hypothesis, not a vendor assertion or observed configuration.",
   "cases": [
@@ -37,8 +39,8 @@
     {
       "id": "normal-public-no-preferences", "category": "NORMAL", "profileId": "public-sector-scoped",
       "description": "No explicit preferences yields an unranked eligible set and conditional server-side advice.",
-      "profileOverrides": { "security.assurance": "BASELINE", "security.complianceScopeStatus": "NONE_IDENTIFIED", "security.complianceTargets": [] },
-      "checks": [["alpha", "protocols.socialLogin", "FORBIDDEN", "PASS", "UNSUPPORTED"], ["beta", "protocols.socialLogin", "FORBIDDEN", "FAIL", "SUPPORTED"]],
+      "profileOverrides": { "protocols.oauth2ProtectedApis": "NOT_REQUIRED", "security.assurance": "BASELINE", "security.complianceScopeStatus": "NONE_IDENTIFIED", "security.complianceTargets": [] },
+      "checks": [["alpha", "protocols.socialLogin", "FORBIDDEN", "PASS", "SUPPORTED"], ["beta", "protocols.socialLogin", "FORBIDDEN", "FAIL", "UNSUPPORTED"]],
       "weights": {}, "preferences": {},
       "expected": { "status": "UNRANKED_SHORTLIST", "verdicts": ["ELIGIBLE", "EXCLUDED"], "shortlist": ["alpha"], "ranks": [], "bounds": {}, "pattern": "SERVER_SIDE_SESSION" }
     },
@@ -66,7 +68,7 @@
     {
       "id": "normal-workforce-sensitivity", "category": "NORMAL", "profileId": "internal-workforce-scoped",
       "description": "Paired explicit weights reverse preference ordering without changing eligibility or the snapshot.",
-      "profileOverrides": { "security.multiFactorAuthentication": "PREFERRED", "security.assurance": "BASELINE", "security.complianceScopeStatus": "NONE_IDENTIFIED" },
+      "profileOverrides": { "protocols.federation.SAML": "PREFERRED", "security.multiFactorAuthentication": "PREFERRED", "security.assurance": "BASELINE", "security.complianceScopeStatus": "NONE_IDENTIFIED" },
       "checks": [["alpha", "provisioning.scim", "REQUIRED", "PASS", "SUPPORTED"], ["beta", "provisioning.scim", "REQUIRED", "PASS", "SUPPORTED"]],
       "weights": { "SAML": 40, "MFA": 60 }, "preferences": { "alpha": { "SAML": "AVAILABLE", "MFA": "UNAVAILABLE" }, "beta": { "SAML": "UNAVAILABLE", "MFA": "AVAILABLE" } },
       "expected": { "status": "RANKED_SHORTLIST", "verdicts": ["ELIGIBLE", "ELIGIBLE"], "shortlist": ["alpha", "beta"], "ranks": [["beta"], ["alpha"]], "bounds": { "alpha": [40, 40, 0], "beta": [60, 60, 0] }, "pattern": "BFF_SESSION" },
@@ -98,11 +100,12 @@
     },
     {
       "id": "missing-public-assurance-compliance", "category": "MISSING_OR_CONTRADICTORY", "profileId": "public-sector-scoped",
-      "description": "Eligible capability checks do not certify HIGH assurance or identified compliance targets.",
+      "description": "Passing capability checks cannot clear unresolved HIGH assurance or identified compliance context.",
       "profileOverrides": { "security.assurance": "HIGH", "security.complianceScopeStatus": "TARGETS_IDENTIFIED", "security.complianceTargets": ["GDPR"] },
-      "checks": [["alpha", "protocols.federation.OIDC", "REQUIRED", "PASS", "SUPPORTED"], ["beta", "protocols.federation.OIDC", "REQUIRED", "PASS", "SUPPORTED"]],
+      "checks": [["alpha", "protocols.federation.OIDC", "REQUIRED", "PASS", "SUPPORTED"], ["beta", "protocols.federation.OIDC", "REQUIRED", "PASS", "SUPPORTED"], ["alpha", "security.complianceScopeStatus", "CONTEXT", "UNKNOWN", "REQUIRED_UNKNOWN"], ["beta", "security.complianceScopeStatus", "CONTEXT", "UNKNOWN", "REQUIRED_UNKNOWN"], ["alpha", "security.assurance", "CONTEXT", "UNKNOWN", "PLANNING_ONLY"], ["beta", "security.assurance", "CONTEXT", "UNKNOWN", "PLANNING_ONLY"]],
+      "kernelChecks": [["alpha", "protocols.federation.OIDC", "REQUIRED", "PASS", "SUPPORTED"], ["beta", "protocols.federation.OIDC", "REQUIRED", "PASS", "SUPPORTED"], ["alpha", "security.complianceScopeStatus", "CONTEXT", "UNKNOWN", "COMPLIANCE_TARGETS_NOT_EVALUATED"], ["beta", "security.complianceScopeStatus", "CONTEXT", "UNKNOWN", "COMPLIANCE_TARGETS_NOT_EVALUATED"], ["alpha", "security.assurance", "CONTEXT", "UNKNOWN", "PLANNING_ONLY"], ["beta", "security.assurance", "CONTEXT", "UNKNOWN", "PLANNING_ONLY"]],
       "weights": {}, "preferences": {},
-      "expected": { "status": "NEEDS_INFORMATION", "verdicts": ["ELIGIBLE", "ELIGIBLE"], "shortlist": ["alpha", "beta"], "ranks": [], "bounds": {}, "pattern": null,
+      "expected": { "status": "NEEDS_INFORMATION", "verdicts": ["UNRESOLVED", "UNRESOLVED"], "shortlist": [], "ranks": [], "bounds": {}, "pattern": null,
         "blockingLimitations": ["security.assurance", "security.complianceTargets"] }
     },
     {
@@ -110,6 +113,7 @@
       "description": "Required audit retention depends on explicit criteria/duration and scoped capability evidence, not source age.",
       "profileOverrides": { "security.auditabilityRequirements": { "selectedCriteria": ["AUDIT_LOG_RETENTION"], "minimumRetentionDays": 30 } },
       "checks": [["alpha", "security.auditabilityRequirements.minimumRetentionDays", "REQUIRED", "UNKNOWN", "REQUIRED_UNKNOWN"], ["beta", "security.auditabilityRequirements.minimumRetentionDays", "REQUIRED", "FAIL", "UNSUPPORTED"]],
+      "kernelChecks": [["alpha", "security.auditabilityRequirements.minimumRetentionDays", "REQUIRED", "UNKNOWN", "RETENTION_DURATION_UNKNOWN"], ["beta", "security.auditabilityRequirements.minimumRetentionDays", "REQUIRED", "FAIL", "RETENTION_BELOW_MINIMUM"]],
       "weights": {}, "preferences": {},
       "expected": { "status": "NEEDS_INFORMATION", "verdicts": ["UNRESOLVED", "EXCLUDED"], "shortlist": [], "ranks": [], "bounds": {}, "pattern": null }
     },
@@ -118,6 +122,7 @@
       "description": "Confirmed SCIM failure takes precedence over independent unresolved auditability.",
       "profileOverrides": {},
       "checks": [["alpha", "provisioning.scim", "REQUIRED", "FAIL", "UNSUPPORTED"], ["alpha", "security.auditability", "REQUIRED", "UNKNOWN", "REQUIRED_UNKNOWN"], ["beta", "provisioning.scim", "REQUIRED", "FAIL", "UNSUPPORTED"]],
+      "kernelChecks": [["alpha", "provisioning.scim", "REQUIRED", "FAIL", "UNSUPPORTED"], ["alpha", "security.auditability", "REQUIRED", "UNKNOWN", "CAPABILITY_UNKNOWN"], ["beta", "provisioning.scim", "REQUIRED", "FAIL", "UNSUPPORTED"]],
       "weights": {}, "preferences": {},
       "expected": { "status": "NO_ELIGIBLE_OPTIONS", "verdicts": ["EXCLUDED", "EXCLUDED"], "shortlist": [], "ranks": [], "bounds": {}, "pattern": null }
     },
@@ -139,9 +144,9 @@
     },
     {
       "id": "adversarial-public-cross-option-scope", "category": "ADVERSARIAL_OR_FAILURE", "profileId": "public-sector-scoped",
-      "description": "A fact from another option/region or independent product cannot be borrowed to satisfy this scope.",
+      "description": "Borrowed option/scope assertions are rejected; without its own assertion, the positive alpha residency claim remains unreviewed and UNKNOWN.",
       "profileOverrides": {},
-      "checks": [["alpha", "security.dataResidency", "REQUIRED", "UNKNOWN", "SCOPE_MISMATCH"], ["beta", "security.dataResidency", "REQUIRED", "FAIL", "UNSUPPORTED"]],
+      "checks": [["alpha", "security.dataResidency", "REQUIRED", "UNKNOWN", "EVIDENCE_UNREVIEWED"], ["beta", "security.dataResidency", "REQUIRED", "FAIL", "UNSUPPORTED"]],
       "weights": {}, "preferences": {},
       "expected": { "status": "NEEDS_INFORMATION", "verdicts": ["UNRESOLVED", "EXCLUDED"], "shortlist": [], "ranks": [], "bounds": {}, "pattern": null }
     },
@@ -156,7 +161,7 @@
     {
       "id": "adversarial-workforce-forged-score", "category": "ADVERSARIAL_OR_FAILURE", "profileId": "internal-workforce-scoped",
       "description": "Totals and rank groups must replay explicit contribution arithmetic; changing a score is not a new decision.",
-      "profileOverrides": { "security.multiFactorAuthentication": "PREFERRED", "security.assurance": "BASELINE", "security.complianceScopeStatus": "NONE_IDENTIFIED" },
+      "profileOverrides": { "protocols.federation.SAML": "PREFERRED", "security.multiFactorAuthentication": "PREFERRED", "security.assurance": "BASELINE", "security.complianceScopeStatus": "NONE_IDENTIFIED" },
       "checks": [["alpha", "provisioning.scim", "REQUIRED", "PASS", "SUPPORTED"], ["beta", "provisioning.scim", "REQUIRED", "PASS", "SUPPORTED"]],
       "weights": { "SAML": 60, "MFA": 40 }, "preferences": { "alpha": { "SAML": "AVAILABLE", "MFA": "UNAVAILABLE" }, "beta": { "SAML": "UNAVAILABLE", "MFA": "AVAILABLE" } },
       "expected": { "status": "RANKED_SHORTLIST", "verdicts": ["ELIGIBLE", "ELIGIBLE"], "shortlist": ["alpha", "beta"], "ranks": [["alpha"], ["beta"]], "bounds": { "alpha": [60, 60, 0], "beta": [40, 40, 0] }, "pattern": "BFF_SESSION" }

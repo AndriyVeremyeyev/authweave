@@ -39,6 +39,7 @@ export function profileFor(c) {
 function criticality(profile, route) {
   const value = get(profile, route.profilePath);
   if (route.routes.includes("CONTEXT")) return "CONTEXT";
+  if (route.profilePath === "security.assurance") return "CONTEXT";
   if (route.profilePath === "security.auditabilityRequirements.minimumRetentionDays"
       && !profile.security.auditabilityRequirements.selectedCriteria.includes("AUDIT_LOG_RETENTION")) return "NOT_REQUIRED";
   if (["REQUIRED", "FORBIDDEN", "PREFERRED", "NOT_REQUIRED", "UNKNOWN"].includes(value)
@@ -101,7 +102,7 @@ export function resultFixture(c) {
       policyVersion: policy.policyVersion, weightsSha256: hash({ mode: weights.length ? "EXPLICIT" : "NONE", values: weights }), evaluatedAt: suite.evaluatedAt },
     status: c.expected.status, weights: { mode: weights.length ? "EXPLICIT" : "NONE", values: weights }, candidates,
     shortlist: c.expected.shortlist.map(fixtureId), rankGroups: c.expected.ranks.map((ids, i) => ({ rank: i + 1, optionIds: ids.map(fixtureId) })), evidence,
-    architecture: { status: pattern ? "CONDITIONAL_ADVICE" : "NEEDS_INFORMATION", apiProtection: "REQUIRED_CONDITIONAL",
+    architecture: { status: pattern ? "CONDITIONAL_ADVICE" : "NEEDS_INFORMATION", apiProtection: profile.protocols.oauth2ProtectedApis === "NOT_REQUIRED" ? "NOT_REQUIRED" : "REQUIRED_CONDITIONAL",
       patterns: policy.architecture.patterns.map(patternId => {
         const client = patternId === "NATIVE_CODE_PKCE" ? "NATIVE_MOBILE" : patternId === "M2M_CLIENT_CREDENTIALS" ? "MACHINE_TO_MACHINE" : "BROWSER";
         const selected = profile.application.clients.includes(client);
