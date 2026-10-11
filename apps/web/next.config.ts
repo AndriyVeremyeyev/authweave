@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   output: process.env.VERCEL ? undefined : "standalone",
   poweredByHeader: false,
   reactStrictMode: true,
+  // Incoming URLs can contain one-use OIDC codes/state, including encoded paths.
+  // Keep other development diagnostics; never print incoming request URLs.
+  logging: { incomingRequests: false },
 };
 
 export default nextConfig;

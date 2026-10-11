@@ -774,6 +774,15 @@ It records no source review or publication. Without a selected curator it retain
 original two ordinary-user denials; it never grants roles or infers the expectation
 from whichever claims happen to arrive. Use Bob's exact local login instead if chosen.
 
+The [Next.js development configuration](apps/web/next.config.ts) disables incoming-request
+URL logging: OIDC callbacks can carry one-use authorization codes and state, including
+on encoded paths. Other framework diagnostics remain enabled. This setting applies
+to `next dev`, not production, external proxies or custom/application loggers; it is
+not a general redaction guarantee. Never enable URL/debug, browser trace or token
+logging during real local authentication. The
+[logging regression](apps/web/tests/development-logging.test.mts) checks both the
+configuration and the installed, project-pinned Next.js request-logging guard.
+
 With the project and organization IDs configured, the BFF requests a project-scoped role
 claim through ZITADEL UserInfo at sign-in. Only the exact `catalog_curator` assignment for
 both IDs is recorded in the server-side session; a failed lookup grants no curator access.
