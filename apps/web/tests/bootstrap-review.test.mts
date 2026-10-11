@@ -8,7 +8,7 @@ import { authConfiguration } from "../src/lib/auth/config.ts";
 import { prepareCatalogBootstrapReview, recordCatalogBootstrapReview, readCatalogBootstrapReview } from "../src/lib/auth/core-client.ts";
 import { BOOTSTRAP_BODY_BYTES, BOOTSTRAP_CANDIDATE_BYTES, bootstrapCandidate, bootstrapPreparationFromCore,
   bootstrapReviewInput, bootstrapReviewSubmission, bootstrapReceiptFromCore, bootstrapReceiptReference,
-  bootstrapReceiptHref, boundedBootstrapJson, type BootstrapReceipt } from "../src/lib/catalog/bootstrap-review.ts";
+  bootstrapReceiptHref, boundedBootstrapJson, assistantAssessmentFromInput, type BootstrapReceipt } from "../src/lib/catalog/bootstrap-review.ts";
 import { bootstrapMutation, bootstrapRead, type BootstrapDependencies } from "../src/lib/catalog/bootstrap-http.ts";
 import { candidateClaimSummary } from "../src/lib/catalog/evidence-review.ts";
 
@@ -58,6 +58,40 @@ function receipt(): BootstrapReceipt {
     policyVersion: "catalog-bootstrap-source-review-1", kind: "HUMAN_BOOTSTRAP_SOURCE_REVIEW",
     sourceVerificationPerformed: false, approvalGranted: false, catalogWritesPerformed: false, factTrustChanged: false };
 }
+
+test("assistant preparation imports exact complete findings without owner approval or manual-review impersonation", () => {
+  const preparation = prepared(), original = input();
+  const artifact = { schemaVersion: 1, kind: "ASSISTANT_PREPARED_BOOTSTRAP_ASSESSMENT",
+    candidateSha256, observations: original.observations };
+  const choices = assistantAssessmentFromInput(artifact, preparation)!;
+  assert.ok(choices);
+  assert.equal(bootstrapReviewSubmission(preparation, choices, false, "ASSISTANT"), null);
+  const endorsed = bootstrapReviewSubmission(preparation, choices, true, "ASSISTANT")!;
+  assert.equal(endorsed.schemaVersion, 2);
+  assert.equal(endorsed.confirmation, "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT");
+  assert.deepEqual(endorsed.observations, original.observations);
+  assert.equal(bootstrapReviewInput({ ...endorsed, schemaVersion: 1 }), null);
+  assert.equal(bootstrapReviewInput({ ...endorsed, confirmation: "MANUAL_BOOTSTRAP_SOURCE_REVIEW" }), null);
+  for (const change of [{ candidateSha256: "c".repeat(64) }, { confirmation: endorsed.confirmation },
+    { kind: "HUMAN_BOOTSTRAP_SOURCE_REVIEW" }, { sourceVerificationPerformed: true },
+    { observations: original.observations.slice(1) },
+    { observations: [...original.observations.slice(1), original.observations[1]] },
+    { observations: original.observations.map((o, i) => i ? o : { ...o, verdict: "APPROVED" }) }])
+    assert.equal(assistantAssessmentFromInput({ ...artifact, ...change }, preparation), null);
+  assert.equal(assistantAssessmentFromInput({ ...artifact, observations: original.observations.map((o, i) =>
+    i ? o : { ...o, verdict: "INSUFFICIENT_EVIDENCE" }) }, preparation)![`${original.observations[0].optionId}\0${original.observations[0].factPath}`], "INSUFFICIENT_EVIDENCE");
+});
+
+test("assistant endorsement receipts keep their own provenance and cannot be relabeled as personal manual review", () => {
+  const original = input();
+  const assisted = { ...original, schemaVersion: 2 as const, confirmation: "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" as const };
+  const result = { ...receipt(), policyVersion: "catalog-bootstrap-assistant-endorsement-1",
+    kind: "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" };
+  assert.deepEqual(bootstrapReceiptFromCore(result, { id: reviewId, digest: reviewSha256 }, assisted), result);
+  assert.throws(() => bootstrapReceiptFromCore(result, { id: reviewId }, original));
+  assert.throws(() => bootstrapReceiptFromCore(receipt(), { id: reviewId }, assisted));
+  assert.throws(() => bootstrapReceiptFromCore({ ...result, kind: "HUMAN_BOOTSTRAP_SOURCE_REVIEW" }, { id: reviewId }));
+});
 
 test("bootstrap display covers every recorded fact and all four typed claim families with no authority", () => {
   const preparation = prepared();
@@ -231,6 +265,41 @@ test("bootstrap writes and exact receipt reads use only fresh server-session hea
   });
 });
 
+test("BFF preserves owner endorsement on write/read/retry and refuses a manual receipt for the same input", async () => {
+  const original = input();
+  const endorsed = { ...original, schemaVersion: 2 as const, confirmation: "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" as const };
+  const result: BootstrapReceipt = { ...receipt(), policyVersion: "catalog-bootstrap-assistant-endorsement-1",
+    kind: "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" };
+  let writes = 0, relabel = false;
+  await fakeCore(async () => {
+    for (const created of [true, false]) {
+      const saved = await recordCatalogBootstrapReview(session, config, endorsed, now);
+      assert.deepEqual(saved, { kind: "recorded", created, receipt: result });
+    }
+    assert.deepEqual(await readCatalogBootstrapReview(session, config, reviewId, reviewSha256, now), { kind: "ready", receipt: result });
+    relabel = true;
+    assert.deepEqual(await recordCatalogBootstrapReview(session, config, endorsed, now), { kind: "core-unavailable" });
+    assert.deepEqual(endorsed.observations, original.observations);
+    assert.equal((await recordCatalogBootstrapReview({ ...session, curatorScope: null }, config, endorsed, now)).kind, "not-granted");
+    const deps = dependencies();
+    deps.record = async (_session, _config, body) => {
+      assert.deepEqual(body, endorsed); return { kind: "recorded", created: true, receipt: result };
+    };
+    const response = await bootstrapMutation(request(endorsed), "record", deps);
+    assert.equal(response.status, 201); assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), result);
+    assert.equal((await bootstrapMutation(request({ ...endorsed, confirmation: "MANUAL_BOOTSTRAP_SOURCE_REVIEW" }), "record", deps)).status, 400);
+  }, async (url, init) => {
+    const headers = init?.headers as Record<string, string>;
+    assert.equal(headers["X-AuthWeave-Oidc-Subject"], session.subject);
+    assert.equal(headers["X-AuthWeave-Curator-Project-Id"], scope.projectId);
+    if (String(url).endsWith("/authorization")) return new Response(null, { status: 204 });
+    if (init?.method === "POST") { assert.deepEqual(JSON.parse(String(init.body)), endorsed); writes++; }
+    return Response.json(relabel ? receipt() : result, { status: init?.method === "POST" && writes === 1 ? 201 : 200 });
+  });
+  assert.equal(writes, 3);
+});
+
 test("bootstrap Core denials and malformed/promoted receipts never become success or silently alter retry payload", async () => {
   for (const [status, kind] of [[400, "invalid"], [409, "conflict"], [401, "core-rejected"], [403, "core-rejected"], [500, "core-unavailable"]] as const) {
     await fakeCore(async () => assert.deepEqual(await recordCatalogBootstrapReview(session, config, input(), now), { kind }),
@@ -337,7 +406,8 @@ test("bootstrap UI explains provider claims, explicit human conclusions and sepa
   const html = renderToStaticMarkup(createElement(Component));
   for (const text of ["What am I confirming?", "OPTIONAL describes the provider capability",
     "REQUIRED SCIM requirement", "UNKNOWN remains unknown", "one explicit conclusion per claim",
-    "does not enable the separate opt-in Core publication workflow", "No conclusion is selected by default"])
+    "does not enable the separate opt-in Core publication workflow", "No conclusion is selected by default",
+    "Endorsement does not claim you personally read every source", "not authenticated assistant provenance"])
     assert.ok(html.includes(text), text);
   assert.ok(html.includes("<details")); assert.ok(html.includes("<summary"));
   assert.ok(html.includes("Prepare manual review"));

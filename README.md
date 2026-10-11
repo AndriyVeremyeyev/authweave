@@ -115,8 +115,10 @@ Sources: [WorkOS DPA](https://workos.com/legal/data-processing-addendum),
 The protected `/catalog/bootstrap` form explains what the curator confirms: provider
 `OPTIONAL` availability is distinct from an application's `REQUIRED` requirement;
 supporting an `UNKNOWN` claim preserves uncertainty. Every claim needs an explicit
-conclusion, followed by confirmation of the complete exact candidate. Preparation
-does not fetch sources or supply verdicts, and recording a review never publishes.
+conclusion, followed by confirmation of the complete exact candidate. The form distinguishes
+personal manual review from the owner's endorsement of assistant-prepared findings;
+endorsement does not claim personal source reading. Preparation does not fetch sources
+or supply verdicts, importing findings never confirms them, and recording never publishes.
 The shared legacy publication preflight remains read-only and `BLOCKED`; its display
 is not a deployment-status check for the separate opt-in Core publication writer.
 No review panel enables that writer or substitutes for its fresh authorization and
@@ -4116,20 +4118,47 @@ evaluator unchanged.
 
 ### Protected bootstrap source review
 
-Core now supports a separate whole-candidate manual source-review workflow for the
-first catalog version. This is not a proposal revision, curator approval, a published
+Core supports personal manual source review and a distinct owner endorsement of
+assistant-prepared findings for the first catalog version. Neither is a proposal revision, catalog approval, a published
 root or catalog activation. The protected local BFF form at `/catalog/bootstrap` is
 linked from the curator review index. Never send the server-only Core credential from
 a browser or expose the local Core service through a tunnel.
 
 `POST /api/v1/catalog-bootstrap-reviews` requires the existing BFF credential and a
 fresh, singular, project/organization-scoped `catalog_curator` assertion, including on
-retries. The request supplies a fresh review UUID, exact **draft** candidate SHA-256,
+retries. The legacy v1 request supplies a fresh review UUID, exact **draft** candidate SHA-256,
 the full candidate, one verdict per recorded fact and the distinct
 `MANUAL_BOOTSTRAP_SOURCE_REVIEW` confirmation. Core recomputes the digest and checks
 semantic validity and the entire fact target set across all four families: no missing,
 foreign or duplicate targets. A supporting verdict for an unknown claim does not turn
 it into an available capability. Unrecorded facts remain unknown.
+
+The [v2 request](packages/contracts/schemas/catalog-bootstrap-review-request.v2.schema.json)
+uses the same exact candidate and complete verdict set with
+`OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT`. It records the owner's endorsement of
+assistant-prepared findings, **not** a claim that the owner personally read every source.
+The UI's assistant mode imports the bounded
+[assessment artifact](packages/contracts/schemas/assistant-bootstrap-assessment.v1.schema.json):
+exactly `schemaVersion: 1`, `kind: ASSISTANT_PREPARED_BOOTSTRAP_ASSESSMENT`,
+`candidateSha256` and complete unique `observations` (`optionId`, `factPath`, `verdict`).
+It contains no owner confirmation, actor, review UUID, refreshed date or trust flag.
+Import is local validation only: it verifies the candidate pin and target set, locks the
+findings for display and leaves the separate owner checkbox unchecked. Changing the
+artifact or mode clears findings/confirmation. This import makes no AI/API call;
+the assistant-origin label is caller-declared, not authenticated AI provenance or proof
+of source truth. Prepare the assessment externally and review it before endorsing it.
+
+V24 preserves historical v1 rows and permits only exact version/confirmation/policy
+pairs. V2 uses `catalog-bootstrap.assessment-approved` in the atomic audit and
+`OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT` / `catalog-bootstrap-assistant-endorsement-1`
+in its [body-free receipt](packages/contracts/schemas/catalog-bootstrap-review.v2.schema.json).
+The audit actor is the actual authenticated curator who endorsed the findings; no
+assistant principal is invented. The entire request, including confirmation type,
+is part of its digest. A manual review cannot be relabeled as an endorsement or reused
+under the same UUID. Both versions retain all source dates, UNKNOWN semantics,
+actor-bound immutable retries, fresh role/reauthentication checks and the separate
+opt-in publication boundary. Receipt `approvalGranted: false` refers to **catalog
+approval/publication authority**, not the owner's recorded endorsement.
 
 V15 stores one immutable review and a mandatory, body-free curator assertion audit in
 the same transaction. Core gets SELECT and column-limited INSERT on only these review
@@ -4160,14 +4189,14 @@ Database outages propagate rather than becoming not-found or approval.
 
 The internal preflight can now load an exact stored review UUID/digest instead of
 accepting verdict totals from the caller. It reevaluates source-date freshness, registry
-emptiness and catalog-label reuse. Manual review can include stale/future evidence,
+emptiness and catalog-label reuse. Both review modes can include stale/future evidence,
 contradictions or insufficient evidence, but those remain publication blockers; it
 never refreshes `observedAt`. Even all-supporting, current observations and consistent
 administrator assertions do not establish authenticated publication authority. Full
-impact coverage, fresh authorization at an eventual atomic write and the publication
-workflow remain unimplemented blockers. Source verification, approval, fact trust,
-catalog writes and publication/evaluation readiness are not granted. No real curator
-role, source fetch, account, paid call or deployment is created by this slice.
+impact coverage and fresh authorization at an eventual atomic write remain required.
+The legacy preflight stays read-only and BLOCKED; the separate opt-in publisher is not
+enabled by a review. Source verification, catalog approval, fact trust, catalog writes
+and publication/evaluation readiness are not granted by recording either version.
 
 The BFF first imports an explicit complete `provider-catalog-draft.v1` candidate,
 limited to 1 MiB of UTF-8 JSON. `POST /api/catalog-bootstrap-reviews/prepare` checks the
@@ -4180,8 +4209,10 @@ assessment. Unknown, partial and availability/enforcement distinctions are prese
 Source links open separately without a referrer; neither BFF nor Core fetches sources.
 
 Every fact needs an explicit supporting, contradicting or insufficient-evidence
-conclusion; none is selected by default. A separate whole-review checkbox supplies
-`MANUAL_BOOTSTRAP_SOURCE_REVIEW`. `POST /api/catalog-bootstrap-reviews` enforces exact
+conclusion; none is selected by default. In manual mode the separate whole-review
+checkbox supplies `MANUAL_BOOTSTRAP_SOURCE_REVIEW`; in assistant mode it supplies the
+distinct owner endorsement only after complete valid findings are imported.
+`POST /api/catalog-bootstrap-reviews` enforces exact
 same-origin Origin, a server-side session, fresh scoped authorization, a closed request
 shape and the complete unique target set; Core recomputes hashes and enforces the
 empty-registry/immutable actor-bound retry policy. Browser-supplied actor/approval
@@ -4190,7 +4221,7 @@ request/response bodies are capped at 4 MiB, including chunked requests; malform
 UTF-8 is rejected. Responses are no-store and do not disclose raw service errors.
 
 Before the first write, the browser freezes the UUID and full candidate/conclusion
-payload in memory. A timeout or uncertain/malformed write response never creates a
+payload, including its confirmation type, in memory. A timeout or uncertain/malformed write response never creates a
 new key, changes conclusions or claims success. Keep that tab open: reload loses the
 in-memory retry payload. Verify the same account in a separate tab if needed, then
 explicitly confirm retrying the exact review. Retries still require fresh authorization.
@@ -4198,7 +4229,7 @@ After a validated receipt, the stored-receipt link pins UUID and **review** SHA-
 not the candidate digest. Both the page and
 `GET /api/catalog-bootstrap-reviews/{reviewId}?expectedSha256=<review-sha256>` require
 fresh scoped authorization and return only checked body-free receipt metadata/counts.
-No latest/label-only lookup, verdict inheritance, approval action or publication button
+No latest/label-only lookup, verdict inheritance, catalog approval action or publication button
 is added. Existing impact/publication blockers and the active evaluator are unchanged.
 
 ### Conditional catalog impact

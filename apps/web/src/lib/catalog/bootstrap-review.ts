@@ -10,9 +10,9 @@ export type BootstrapVerdict = (typeof bootstrapVerdicts)[number];
 export type BootstrapCandidate = Record<string, unknown> & { catalogVersion: string; options: unknown[] };
 export type BootstrapObservation = { optionId: string; factPath: string; verdict: BootstrapVerdict };
 export type BootstrapReviewInput = {
-  schemaVersion: 1; reviewId: string; expectedCandidateSha256: string; candidate: BootstrapCandidate;
-  observations: BootstrapObservation[]; confirmation: "MANUAL_BOOTSTRAP_SOURCE_REVIEW";
-};
+  reviewId: string; expectedCandidateSha256: string; candidate: BootstrapCandidate; observations: BootstrapObservation[];
+} & ({ schemaVersion: 1; confirmation: "MANUAL_BOOTSTRAP_SOURCE_REVIEW" }
+  | { schemaVersion: 2; confirmation: "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" });
 export type BootstrapPreparation = {
   reviewId: string; candidateSha256: string; candidate: BootstrapCandidate; evaluatedAt: string;
   facts: CandidateEvidenceItem[];
@@ -20,7 +20,9 @@ export type BootstrapPreparation = {
 export type BootstrapReceipt = {
   reviewId: string; candidateSha256: string; reviewSha256: string; catalogVersion: string;
   factCount: number; counts: { supporting: number; contradicting: number; insufficient: number };
-  recordedAt: string; policyVersion: "catalog-bootstrap-source-review-1"; kind: "HUMAN_BOOTSTRAP_SOURCE_REVIEW";
+  recordedAt: string;
+  policyVersion: "catalog-bootstrap-source-review-1" | "catalog-bootstrap-assistant-endorsement-1";
+  kind: "HUMAN_BOOTSTRAP_SOURCE_REVIEW" | "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT";
   sourceVerificationPerformed: false; approvalGranted: false; catalogWritesPerformed: false; factTrustChanged: false;
 };
 function object(value: unknown): Record<string, unknown> | null {
@@ -138,10 +140,11 @@ export function bootstrapPreparationFromCore(value: unknown, candidate: Bootstra
 
 export function bootstrapReviewInput(value: unknown): BootstrapReviewInput | null {
   const body = object(value);
+  const method = body?.schemaVersion === 1 && body.confirmation === "MANUAL_BOOTSTRAP_SOURCE_REVIEW"
+    || body?.schemaVersion === 2 && body.confirmation === "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT";
   if (!exact(body, ["schemaVersion", "reviewId", "expectedCandidateSha256", "candidate", "observations", "confirmation"]) ||
-      body!.schemaVersion !== 1 || typeof body!.reviewId !== "string" || !UUID.test(body!.reviewId) ||
-      typeof body!.expectedCandidateSha256 !== "string" || !SHA256.test(body!.expectedCandidateSha256) ||
-      body!.confirmation !== "MANUAL_BOOTSTRAP_SOURCE_REVIEW") return null;
+      !method || typeof body!.reviewId !== "string" || !UUID.test(body!.reviewId) ||
+      typeof body!.expectedCandidateSha256 !== "string" || !SHA256.test(body!.expectedCandidateSha256)) return null;
   const candidate = bootstrapCandidate(body!.candidate);
   if (!candidate || !Array.isArray(body!.observations) || body!.observations.length < 1 || body!.observations.length > 6800) return null;
   try {
@@ -158,15 +161,34 @@ export function bootstrapReviewInput(value: unknown): BootstrapReviewInput | nul
   return body as BootstrapReviewInput;
 }
 
-export function bootstrapReviewSubmission(prepared: BootstrapPreparation, verdicts: Record<string, string>, confirmed: boolean): BootstrapReviewInput | null {
+/** Preparation supplies findings only; importing it never supplies an owner confirmation or review UUID. */
+export function assistantAssessmentFromInput(value: unknown, prepared: BootstrapPreparation): Record<string, BootstrapVerdict> | null {
+  const body = object(value);
+  if (!exact(body, ["schemaVersion", "kind", "candidateSha256", "observations"]) || body!.schemaVersion !== 1 ||
+      body!.kind !== "ASSISTANT_PREPARED_BOOTSTRAP_ASSESSMENT" || body!.candidateSha256 !== prepared.candidateSha256) return null;
+  try {
+    if (new TextEncoder().encode(JSON.stringify(body)).length > BOOTSTRAP_BODY_BYTES) return null;
+  } catch { return null; }
+  // Validation only. This internal object is not sent or used as an owner decision.
+  const bound = bootstrapReviewInput({ schemaVersion: 2, reviewId: prepared.reviewId, expectedCandidateSha256: prepared.candidateSha256,
+    candidate: prepared.candidate, observations: body!.observations, confirmation: "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" });
+  return bound ? Object.fromEntries(bound.observations.map(o => [`${o.optionId}\0${o.factPath}`, o.verdict])) : null;
+}
+
+export function bootstrapReviewSubmission(prepared: BootstrapPreparation, verdicts: Record<string, string>, confirmed: boolean,
+    method: "MANUAL" | "ASSISTANT" = "MANUAL"): BootstrapReviewInput | null {
   if (!confirmed) return null;
-  return bootstrapReviewInput({ schemaVersion: 1, reviewId: prepared.reviewId, expectedCandidateSha256: prepared.candidateSha256,
-    candidate: prepared.candidate, confirmation: "MANUAL_BOOTSTRAP_SOURCE_REVIEW", observations: prepared.facts.map(fact =>
+  if (method !== "MANUAL" && method !== "ASSISTANT") return null;
+  return bootstrapReviewInput({ schemaVersion: method === "MANUAL" ? 1 : 2, reviewId: prepared.reviewId, expectedCandidateSha256: prepared.candidateSha256,
+    candidate: prepared.candidate, confirmation: method === "MANUAL" ? "MANUAL_BOOTSTRAP_SOURCE_REVIEW" : "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT",
+    observations: prepared.facts.map(fact =>
       ({ optionId: fact.optionId, factPath: fact.path, verdict: verdicts[`${fact.optionId}\0${fact.path}`] })) });
 }
 
 export function bootstrapReceiptFromCore(value: unknown, reference: { id: string; digest?: string }, input?: BootstrapReviewInput): BootstrapReceipt {
   const body = object(value); const counts = object(body?.counts);
+  const method = body?.policyVersion === "catalog-bootstrap-source-review-1" && body.kind === "HUMAN_BOOTSTRAP_SOURCE_REVIEW" ? 1
+    : body?.policyVersion === "catalog-bootstrap-assistant-endorsement-1" && body.kind === "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" ? 2 : null;
   if (!exact(body, ["reviewId", "candidateSha256", "reviewSha256", "catalogVersion", "factCount", "counts", "recordedAt",
     "policyVersion", "kind", "sourceVerificationPerformed", "approvalGranted", "catalogWritesPerformed", "factTrustChanged"]) ||
       body!.reviewId !== reference.id || typeof body!.candidateSha256 !== "string" || !SHA256.test(body!.candidateSha256) ||
@@ -175,11 +197,11 @@ export function bootstrapReceiptFromCore(value: unknown, reference: { id: string
       typeof body!.catalogVersion !== "string" || !IDENTIFIER.test(body!.catalogVersion) || !count(body!.factCount) || body!.factCount === 0 ||
       !exact(counts, ["supporting", "contradicting", "insufficient"]) || !count(counts!.supporting) || !count(counts!.contradicting) ||
       !count(counts!.insufficient) || counts!.supporting + counts!.contradicting + counts!.insufficient !== body!.factCount ||
-      !instant(body!.recordedAt) || body!.policyVersion !== "catalog-bootstrap-source-review-1" || body!.kind !== "HUMAN_BOOTSTRAP_SOURCE_REVIEW" ||
+      !instant(body!.recordedAt) || method === null ||
       body!.sourceVerificationPerformed !== false || body!.approvalGranted !== false || body!.catalogWritesPerformed !== false || body!.factTrustChanged !== false) {
     throw new Error("Invalid bootstrap receipt");
   }
-  if (input && (body!.candidateSha256 !== input.expectedCandidateSha256 || body!.catalogVersion !== input.candidate.catalogVersion ||
+  if (input && (method !== input.schemaVersion || body!.candidateSha256 !== input.expectedCandidateSha256 || body!.catalogVersion !== input.candidate.catalogVersion ||
       body!.factCount !== input.observations.length || counts!.supporting !== input.observations.filter(o => o.verdict === "SOURCE_SUPPORTS_CLAIM").length ||
       counts!.contradicting !== input.observations.filter(o => o.verdict === "SOURCE_DOES_NOT_SUPPORT_CLAIM").length ||
       counts!.insufficient !== input.observations.filter(o => o.verdict === "INSUFFICIENT_EVIDENCE").length)) throw new Error("Unbound bootstrap receipt");

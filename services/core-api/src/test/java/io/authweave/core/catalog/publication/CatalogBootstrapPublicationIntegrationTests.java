@@ -74,7 +74,8 @@ class CatalogBootstrapPublicationIntegrationTests {
         Files.writeString(Path.of("target/bootstrap-publication-proof-samples.json"), mapper.writeValueAsString(evidenceSamples));
     }
     record Sample(String name, String schema, boolean valid, JsonNode payload) { }
-    record EvidenceSample(JsonNode proof, String proofSha256, JsonNode snapshot, JsonNode receipt, JsonNode candidate, JsonNode auditabilitySupplement) { }
+    record EvidenceSample(JsonNode proof, String proofSha256, JsonNode snapshot, JsonNode receipt, JsonNode candidate, JsonNode auditabilitySupplement,
+            CatalogBootstrapReview sourceReview) { }
 
     @Test void publicationIsAtomicExactPinnedBodyFreeAndActorBoundIdempotentWithoutActivatingEvaluator() throws Exception {
         var request = source("current", Verdict.SOURCE_SUPPORTS_CLAIM);
@@ -248,14 +249,25 @@ class CatalogBootstrapPublicationIntegrationTests {
             assertFalse(publisher.publish(request, actor()).created());
         } else { assertThrows(RuntimeException.class, () -> publisher.publish(request, actor())); bundle(0); }
     }
+    @Test void ownerEndorsementCanFeedTheSeparatePublisherWithoutLosingItsConfirmationType() throws Exception {
+        var input = source("assistant", Verdict.SOURCE_SUPPORTS_CLAIM);
+        var original = reviews.get(input.source().reviewId(), input.source().reviewSha256());
+        assertEquals("OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT", original.kind()); bundle(0);
+        var result = publisher.publish(input, actor()); assertTrue(result.created()); bundle(1);
+        assertFalse(publisher.publish(input, actor()).created());
+        assertEquals(original, reviews.get(original.reviewId(), original.reviewSha256()));
+        assertFalse(result.receipt().externalSourceVerificationPerformed());
+        evidence(result.receipt());
+    }
     private CatalogBootstrapPublicationRequest source(String change, Verdict verdict) throws Exception {
         var raw = (ObjectNode) mapper.readTree(Files.readString(Path.of("../../packages/contracts/tests/fixtures/provider-catalog-draft.valid.json")));
         dates(raw, Instant.now().minusSeconds(change.equals("stale") ? 91 * 86400 : change.equals("future") ? -3600 : 86400).toString());
         var draft = mapper.treeToValue(raw, ProviderCatalogDraft.class);
         var observations = draft.options().stream().flatMap(o -> CatalogDraftFacts.entries(o).keySet().stream()
                 .map(p -> new CatalogBootstrapReviewRequest.Observation(o.id(), p, verdict))).toList();
-        var request = new CatalogBootstrapReviewRequest(1, UUID.randomUUID(), CatalogDraftCanonicalizer.sha256(draft), draft, observations,
-                CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
+        var request = new CatalogBootstrapReviewRequest(change.equals("assistant") ? 2 : 1, UUID.randomUUID(), CatalogDraftCanonicalizer.sha256(draft), draft, observations,
+                change.equals("assistant") ? CatalogBootstrapReviewRequest.Confirmation.OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT
+                  : CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
         var review = reviews.record(request, actor()).review(); var saved = mapper.readTree(reviews.loadForDecision(review.reviewId(), review.reviewSha256()).candidateJson());
         return new CatalogBootstrapPublicationRequest(1, UUID.randomUUID(),
                 new StoredCandidateDecisionService.Reference(review.reviewId(), review.reviewSha256(), DecisionCanonicalizer.sha256(saved), null),
@@ -291,6 +303,7 @@ class CatalogBootstrapPublicationIntegrationTests {
                 mapper.valueToTree(lookup.lookup(receipt.snapshot()).snapshot()), mapper.valueToTree(receipt),
                 mapper.readTree(reviews.loadForDecision(receipt.source().reviewId(), receipt.source().reviewSha256()).candidateJson()),
                 receipt.source().auditability() == null ? null : mapper.readTree(audits.loadForDecision(receipt.source().auditability().reviewId(),
-                    receipt.source().auditability().reviewSha256()).candidateJson()).get("auditabilityDraft")));
+                    receipt.source().auditability().reviewSha256()).candidateJson()).get("auditabilityDraft"),
+                reviews.get(receipt.source().reviewId(), receipt.source().reviewSha256())));
     }
 }

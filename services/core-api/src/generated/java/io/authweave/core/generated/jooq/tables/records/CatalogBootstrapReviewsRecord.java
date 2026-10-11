@@ -17,8 +17,8 @@ import org.jooq.impl.UpdatableRecordImpl;
 
 
 /**
- * Immutable exact-candidate manual observations. No automatic truth, curator
- * approval or catalog publication.
+ * Immutable exact findings. V1 is personal manual review; v2 is owner-endorsed
+ * assistant assessment. Neither is source truth or publication.
  */
 @Generated(
     value = {

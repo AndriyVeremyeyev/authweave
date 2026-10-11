@@ -1130,19 +1130,22 @@ paths:
   /api/v1/catalog-bootstrap-reviews:
     post:
       tags: [Catalog drafts]
-      summary: Record a distinct whole-candidate manual bootstrap source review
+      summary: Record a whole-candidate manual review or owner endorsement of assistant findings
       operationId: recordCatalogBootstrapSourceReview
       description: >-
         BFF-to-Core only, requiring a fresh scoped curator assertion. Every recorded
-        candidate fact requires exactly one explicit human verdict and a separate
-        MANUAL_BOOTSTRAP_SOURCE_REVIEW confirmation. Core verifies the full candidate
+        candidate fact requires exactly one explicit verdict. V1 requires personal
+        MANUAL_BOOTSTRAP_SOURCE_REVIEW confirmation; v2 requires the owner's separate
+        OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT endorsement of assistant-prepared
+        findings, not a declaration of personal source reading. Core does not call an
+        AI model or authenticate assistant provenance. Core verifies the full candidate
         digest and target set, then atomically stores an immutable review and body-free
         audit. No source is fetched or independently verified. Stale/future evidence
         can be reviewed but is not refreshed or made publishable. A new review requires
         an empty publication registry; exact retries by the same actor remain possible
         after publication with fresh authorization. Canonical typed arrays are unordered.
         Changed observations/candidate or another actor must use a fresh UUID. This is
-        not approval, a proposal revision, a published root or catalog activation.
+        not catalog approval, a proposal revision, a published root or catalog activation.
       security:
         - BffServiceToken: []
       requestBody:
@@ -1150,20 +1153,26 @@ paths:
         content:
           application/json:
             schema:
-              $ref: ../schemas/catalog-bootstrap-review-request.v1.schema.json
+              oneOf:
+                - $ref: ../schemas/catalog-bootstrap-review-request.v1.schema.json
+                - $ref: ../schemas/catalog-bootstrap-review-request.v2.schema.json
       responses:
         '201':
-          description: New manual assertion with an atomic audit, never publication.
+          description: New manual assertion or owner endorsement with a distinct atomic audit, never publication.
           content:
             application/json:
               schema:
-                $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+                oneOf:
+                  - $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+                  - $ref: ../schemas/catalog-bootstrap-review.v2.schema.json
         '200':
           description: Equivalent retry by the same actor; original receipt retained.
           content:
             application/json:
               schema:
-                $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+                oneOf:
+                  - $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+                  - $ref: ../schemas/catalog-bootstrap-review.v2.schema.json
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':
@@ -1198,11 +1207,13 @@ paths:
           schema: { type: string, pattern: '^[a-f0-9]{64}$' }
       responses:
         '200':
-          description: Original manual source-review receipt without actor or source bodies.
+          description: Original receipt identifying personal manual review or owner endorsement, without actor or source bodies.
           content:
             application/json:
               schema:
-                $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+                oneOf:
+                  - $ref: ../schemas/catalog-bootstrap-review.v1.schema.json
+                  - $ref: ../schemas/catalog-bootstrap-review.v2.schema.json
         '400':
           $ref: '#/components/responses/InvalidRequest'
         '401':

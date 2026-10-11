@@ -196,7 +196,7 @@ public class CatalogBootstrapReviewEvents extends TableImpl<CatalogBootstrapRevi
     public List<Check<CatalogBootstrapReviewEventsRecord>> getChecks() {
         return Arrays.asList(
             Internal.createCheck(this, DSL.name("catalog_bootstrap_review_event_freshness_ck"), "(((authenticated_at >= (occurred_at - '00:15:00'::interval)) AND (authenticated_at <= (occurred_at + '00:00:30'::interval))))", true),
-            Internal.createCheck(this, DSL.name("catalog_bootstrap_review_events_action_check"), "(((action)::text = 'catalog-bootstrap.source-reviewed'::text))", true),
+            Internal.createCheck(this, DSL.name("catalog_bootstrap_review_events_action_check"), "(((action)::text = ANY ((ARRAY['catalog-bootstrap.source-reviewed'::character varying, 'catalog-bootstrap.assessment-approved'::character varying])::text[])))", true),
             Internal.createCheck(this, DSL.name("catalog_bootstrap_review_events_actor_issuer_check"), "(((length(btrim((actor_issuer)::text)) >= 1) AND (length(btrim((actor_issuer)::text)) <= 2048)))", true),
             Internal.createCheck(this, DSL.name("catalog_bootstrap_review_events_actor_org_id_check"), "(((actor_org_id)::text ~ '^[0-9]{1,40}$'::text))", true),
             Internal.createCheck(this, DSL.name("catalog_bootstrap_review_events_actor_project_id_check"), "(((actor_project_id)::text ~ '^[0-9]{1,40}$'::text))", true),

@@ -648,6 +648,8 @@ for (const required of ["comparison-evidence-preview:true", "comparison-evidence
   "provisioning-lifecycle-request.v2:true", "provisioning-lifecycle-request.v2:false", "provisioning-lifecycle-preview.v2:true", "provisioning-lifecycle-preview.v2:false",
   "catalog-bootstrap-review-request:true", "catalog-bootstrap-review-request:false",
   "catalog-bootstrap-review:true", "catalog-bootstrap-review:false",
+  "catalog-bootstrap-review-request.v2:true", "catalog-bootstrap-review-request.v2:false",
+  "catalog-bootstrap-review.v2:true", "catalog-bootstrap-review.v2:false",
   "catalog-fact-review-request:true", "catalog-fact-review-request:false",
   "catalog-fact-review:true", "catalog-fact-review:false",
   "catalog-fact-review-page:true", "catalog-fact-review-page:false",

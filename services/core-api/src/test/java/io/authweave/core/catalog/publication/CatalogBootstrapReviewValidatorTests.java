@@ -23,6 +23,21 @@ class CatalogBootstrapReviewValidatorTests {
     private final CatalogBootstrapReviewValidator validator = new CatalogBootstrapReviewValidator(drafts);
 
     @Test
+    void assistantFindingsRequireTheirOwnExplicitOwnerConfirmationAndDifferentDigest() {
+        var manual = request();
+        var assisted = new CatalogBootstrapReviewRequest(2, manual.reviewId(), manual.expectedCandidateSha256(),
+                manual.candidate(), manual.observations(),
+                CatalogBootstrapReviewRequest.Confirmation.OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT);
+        assertEquals(validator.validate(manual), validator.validate(assisted));
+        assertNotEquals(CatalogDraftCanonicalizer.sha256(manual), CatalogDraftCanonicalizer.sha256(assisted));
+        assertThrows(IllegalArgumentException.class, () -> new CatalogBootstrapReviewRequest(1, manual.reviewId(),
+                manual.expectedCandidateSha256(), manual.candidate(), manual.observations(), assisted.confirmation()));
+        assertThrows(IllegalArgumentException.class, () -> new CatalogBootstrapReviewRequest(2, manual.reviewId(),
+                manual.expectedCandidateSha256(), manual.candidate(), manual.observations(), manual.confirmation()));
+        assertThrows(CatalogBootstrapReviewException.class, () -> validator.validate(with(assisted, "expectedCandidateSha256", "0".repeat(64))));
+    }
+
+    @Test
     void allFourFamiliesRequireOneVerdictAndCountsNeverClaimSourceTruth() {
         var request = request();
         assertEquals(new CatalogBootstrapReview.Counts(9, 0, 0), validator.validate(request));

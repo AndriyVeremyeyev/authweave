@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-bootstrap-review.v2.schema.json",
+  "title": "Body-free owner-endorsed assistant assessment receipt v2",
+  "description": "Historical owner endorsement of exact assistant-prepared findings, not personal source reading, authenticated AI provenance, current authority or catalog publication. The separate body-free audit records the actual curator, never an invented assistant principal.",
+  "type": "object", "additionalProperties": false,
+  "required": ["reviewId", "candidateSha256", "reviewSha256", "catalogVersion", "factCount", "counts", "recordedAt", "policyVersion", "kind", "sourceVerificationPerformed", "approvalGranted", "catalogWritesPerformed", "factTrustChanged"],
+  "properties": {
+    "reviewId": { "type": "string", "format": "uuid" },
+    "candidateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "reviewSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "catalogVersion": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+    "factCount": { "type": "integer", "minimum": 1, "maximum": 6800 },
+    "counts": { "$ref": "catalog-bootstrap-review.v1.schema.json#/properties/counts" },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "policyVersion": { "const": "catalog-bootstrap-assistant-endorsement-1" },
+    "kind": { "const": "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" },
+    "sourceVerificationPerformed": { "const": false },
+    "approvalGranted": { "const": false },
+    "catalogWritesPerformed": { "const": false },
+    "factTrustChanged": { "const": false }
+  }
+}

@@ -45,8 +45,8 @@ import org.jooq.impl.TableImpl;
 
 
 /**
- * Immutable exact-candidate manual observations. No automatic truth, curator
- * approval or catalog publication.
+ * Immutable exact findings. V1 is personal manual review; v2 is owner-endorsed
+ * assistant assessment. Neither is source truth or publication.
  */
 @Generated(
     value = {
@@ -124,7 +124,7 @@ public class CatalogBootstrapReviews extends TableImpl<CatalogBootstrapReviewsRe
     }
 
     private CatalogBootstrapReviews(Name alias, Table<CatalogBootstrapReviewsRecord> aliased, Field<?>[] parameters, Condition where) {
-        super(alias, null, aliased, parameters, DSL.comment("Immutable exact-candidate manual observations. No automatic truth, curator approval or catalog publication."), TableOptions.table(), where);
+        super(alias, null, aliased, parameters, DSL.comment("Immutable exact findings. V1 is personal manual review; v2 is owner-endorsed assistant assessment. Neither is source truth or publication."), TableOptions.table(), where);
     }
 
     /**
@@ -262,13 +262,13 @@ public class CatalogBootstrapReviews extends TableImpl<CatalogBootstrapReviewsRe
     @Override
     public List<Check<CatalogBootstrapReviewsRecord>> getChecks() {
         return Arrays.asList(
-            Internal.createCheck(this, DSL.name("catalog_bootstrap_review_request_ck"), "((((jsonb_typeof(request) = 'object'::text) AND ((octet_length((request)::text) >= 1) AND (octet_length((request)::text) <= 33554432)) AND (request ?& ARRAY['schemaVersion'::text, 'reviewId'::text, 'expectedCandidateSha256'::text, 'candidate'::text, 'observations'::text, 'confirmation'::text]) AND ((request - ARRAY['schemaVersion'::text, 'reviewId'::text, 'expectedCandidateSha256'::text, 'candidate'::text, 'observations'::text, 'confirmation'::text]) = '{}'::jsonb) AND ((request -> 'schemaVersion'::text) = '1'::jsonb) AND ((request ->> 'reviewId'::text) = (id)::text) AND ((request ->> 'expectedCandidateSha256'::text) = (candidate_sha256)::text) AND ((request ->> 'confirmation'::text) = 'MANUAL_BOOTSTRAP_SOURCE_REVIEW'::text) AND (jsonb_typeof((request -> 'candidate'::text)) = 'object'::text) AND (((request -> 'candidate'::text) -> 'schemaVersion'::text) = '1'::jsonb) AND (((request -> 'candidate'::text) ->> 'kind'::text) = 'PROVIDER_CATALOG_DRAFT'::text) AND (((request -> 'candidate'::text) ->> 'catalogVersion'::text) = (catalog_version)::text) AND\nCASE\n    WHEN (jsonb_typeof((request -> 'observations'::text)) = 'array'::text) THEN (jsonb_array_length((request -> 'observations'::text)) = fact_count)\n    ELSE false\nEND) IS TRUE))", true),
+            Internal.createCheck(this, DSL.name("catalog_bootstrap_review_request_ck"), "((((jsonb_typeof(request) = 'object'::text) AND ((octet_length((request)::text) >= 1) AND (octet_length((request)::text) <= 33554432)) AND (request ?& ARRAY['schemaVersion'::text, 'reviewId'::text, 'expectedCandidateSha256'::text, 'candidate'::text, 'observations'::text, 'confirmation'::text]) AND ((request - ARRAY['schemaVersion'::text, 'reviewId'::text, 'expectedCandidateSha256'::text, 'candidate'::text, 'observations'::text, 'confirmation'::text]) = '{}'::jsonb) AND ((request -> 'schemaVersion'::text) = to_jsonb(request_schema_version)) AND (((request_schema_version = 1) AND ((request ->> 'confirmation'::text) = 'MANUAL_BOOTSTRAP_SOURCE_REVIEW'::text)) OR ((request_schema_version = 2) AND ((request ->> 'confirmation'::text) = 'OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT'::text))) AND ((request ->> 'reviewId'::text) = (id)::text) AND ((request ->> 'expectedCandidateSha256'::text) = (candidate_sha256)::text) AND (jsonb_typeof((request -> 'candidate'::text)) = 'object'::text) AND (((request -> 'candidate'::text) -> 'schemaVersion'::text) = '1'::jsonb) AND (((request -> 'candidate'::text) ->> 'kind'::text) = 'PROVIDER_CATALOG_DRAFT'::text) AND (((request -> 'candidate'::text) ->> 'catalogVersion'::text) = (catalog_version)::text) AND\nCASE\n    WHEN (jsonb_typeof((request -> 'observations'::text)) = 'array'::text) THEN (jsonb_array_length((request -> 'observations'::text)) = fact_count)\n    ELSE false\nEND) IS TRUE))", true),
             Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_candidate_sha256_check"), "(((candidate_sha256)::text ~ '^[0-9a-f]{64}$'::text))", true),
             Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_catalog_version_check"), "(((catalog_version)::text ~ '^[a-z0-9][a-z0-9.-]{0,99}$'::text))", true),
             Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_fact_count_check"), "(((fact_count >= 1) AND (fact_count <= 6800)))", true),
-            Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_policy_version_check"), "(((policy_version)::text = 'catalog-bootstrap-source-review-1'::text))", true),
+            Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_policy_version_check"), "((((request_schema_version = 1) AND ((policy_version)::text = 'catalog-bootstrap-source-review-1'::text)) OR ((request_schema_version = 2) AND ((policy_version)::text = 'catalog-bootstrap-assistant-endorsement-1'::text))))", true),
             Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_recorded_at_check"), "(isfinite(recorded_at))", true),
-            Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_request_schema_version_check"), "((request_schema_version = 1))", true),
+            Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_request_schema_version_check"), "((request_schema_version = ANY (ARRAY[1, 2])))", true),
             Internal.createCheck(this, DSL.name("catalog_bootstrap_reviews_review_sha256_check"), "(((review_sha256)::text ~ '^[0-9a-f]{64}$'::text))", true)
         );
     }

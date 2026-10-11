@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type FormEvent } from "react";
-import { bootstrapCandidate, bootstrapReceiptFromCore, bootstrapReceiptHref, bootstrapReviewSubmission,
+import { assistantAssessmentFromInput, bootstrapCandidate, bootstrapReceiptFromCore, bootstrapReceiptHref, bootstrapReviewSubmission,
   bootstrapVerdicts, type BootstrapPreparation, type BootstrapReceipt, type BootstrapReviewInput } from "@/lib/catalog/bootstrap-review";
 import { candidateClaimSummary } from "@/lib/catalog/evidence-review";
 
@@ -28,6 +28,8 @@ export default function BootstrapReviewForm() {
   const [prepared, setPrepared] = useState<BootstrapPreparation | null>(null);
   const [verdicts, setVerdicts] = useState<Record<string, string>>({});
   const [confirmed, setConfirmed] = useState(false);
+  const [method, setMethod] = useState<"MANUAL" | "ASSISTANT">("MANUAL");
+  const [assessment, setAssessment] = useState("");
   const [pending, setPending] = useState(false);
   const busy = useRef(false);
   const [submission, setSubmission] = useState<BootstrapReviewInput | null>(null);
@@ -49,6 +51,7 @@ export default function BootstrapReviewForm() {
         return;
       }
       setPrepared(await response.json() as BootstrapPreparation); setVerdicts({}); setConfirmed(false);
+      setMethod("MANUAL"); setAssessment("");
     } catch { setMessage("Preparation is unavailable. No review was submitted."); }
     finally { busy.current = false; setPending(false); }
   }
@@ -56,8 +59,8 @@ export default function BootstrapReviewForm() {
   async function record(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy.current || !prepared || !confirmed) return;
-    const input = submission ?? bootstrapReviewSubmission(prepared, verdicts, confirmed);
-    if (!input) { setMessage("Choose a verdict for every recorded fact and explicitly confirm the complete manual review."); return; }
+    const input = submission ?? bootstrapReviewSubmission(prepared, verdicts, confirmed, method);
+    if (!input) { setMessage("Provide a verdict for every recorded fact and explicitly confirm the complete review in the selected mode."); return; }
     // Freeze the whole payload before the first write. Network failure must not silently mint a new retry key or assertions.
     busy.current = true; setSubmission(input); setPending(true); setMessage(""); setConfirmed(false);
     try {
@@ -73,10 +76,10 @@ export default function BootstrapReviewForm() {
   }
 
   if (receipt) return <section className="mt-8 rounded-xl border border-cyan-700 p-6" aria-label="Bootstrap receipt">
-    <h2 className="text-xl font-semibold">Manual bootstrap review recorded</h2>
+    <h2 className="text-xl font-semibold">{receipt.kind === "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" ? "Owner endorsement of assistant findings recorded" : "Manual bootstrap review recorded"}</h2>
     <p className="mt-3">Supporting: {receipt.counts.supporting} · Contradicting: {receipt.counts.contradicting} · Insufficient: {receipt.counts.insufficient}</p>
     <p className="mt-3 break-all text-sm">Review UUID: {receipt.reviewId}<br />Review SHA-256: {receipt.reviewSha256}</p>
-    <p className="mt-3 text-slate-300">No source verification, trust promotion, approval or catalog publication was performed.</p>
+    <p className="mt-3 text-slate-300">No independent source verification, trust promotion, catalog approval or publication was performed. Owner endorsement is a separate recorded decision, not publication permission.</p>
     <a href={bootstrapReceiptHref(receipt)} className="mt-4 inline-block text-cyan-200 hover:underline">Read this exact stored receipt →</a>
   </section>;
 
@@ -86,7 +89,8 @@ export default function BootstrapReviewForm() {
       <summary className="cursor-pointer font-semibold text-slate-100 focus-visible:outline-2 focus-visible:outline-cyan-200">What am I confirming?</summary>
       <p className="mt-4">OPTIONAL describes the provider capability: it can be configured, not that your application requirement is optional. A configurable SCIM interface can meet a REQUIRED SCIM requirement only when its exact scope, conditions and evidence satisfy the decision rules.</p>
       <p className="mt-3">Choose one explicit conclusion per claim: does the source support the submitted value for this exact product, plan and configuration? A supporting verdict for UNKNOWN remains unknown; it does not establish availability. Fresh dates alone do not establish source truth.</p>
-      <p className="mt-3">Recording this review saves your conclusions. It does not enable the separate opt-in Core publication workflow, grant curator access, publish a catalog or verify a deployment. Complete review confirmation and publication authorization are separate decisions.</p>
+      <p className="mt-3">Choose personal manual review, or import assistant-prepared findings and separately endorse the whole assessment as the owner. Endorsement does not claim you personally read every source. An imported label is not authenticated assistant provenance or proof of source truth; this page does not call an AI model.</p>
+      <p className="mt-3">Recording this review saves the selected conclusions and their confirmation type. It does not enable the separate opt-in Core publication workflow, grant curator access, publish a catalog or verify a deployment. Complete review confirmation and publication authorization are separate decisions.</p>
       <p className="mt-3 text-sm text-slate-400">No conclusion is selected by default. Preparation does not fetch sources, renew observation dates or record a review. The final confirmation applies to the whole exact candidate, not just the SCIM claim.</p>
     </details>
     {!prepared ? <form onSubmit={prepare}>
@@ -100,12 +104,32 @@ export default function BootstrapReviewForm() {
       <h2 className="text-2xl font-semibold">Review every recorded fact</h2>
       <p className="mt-3">Catalog: {prepared.candidate.catalogVersion} · {prepared.facts.length} facts · Assessed at {prepared.evaluatedAt}</p>
       <p className="mt-3 break-all text-sm text-slate-400">Review UUID: {prepared.reviewId}<br />Candidate draft SHA-256: {prepared.candidateSha256}</p>
-      <p className="mt-4 text-slate-300">Open and assess each source yourself. Dates describe freshness only, not source truth. A supporting verdict for UNKNOWN does not make a capability available; absent facts remain unknown. All evidence stays UNREVIEWED.</p>
+      <label htmlFor="bootstrap-review-method" className="mt-5 block font-semibold">Review method</label>
+      <select id="bootstrap-review-method" value={method} disabled={pending || !!submission}
+        onChange={event => { setMethod(event.target.value as "MANUAL" | "ASSISTANT"); setVerdicts({}); setConfirmed(false); setAssessment(""); setMessage(""); }}
+        className="mt-2 w-full rounded-lg border border-slate-600 bg-slate-900 p-3">
+        <option value="MANUAL">Personal manual source review</option>
+        <option value="ASSISTANT">Owner endorsement of assistant-prepared findings</option>
+      </select>
+      <p className="mt-4 text-slate-300">{method === "MANUAL" ? "Open and assess each source yourself." : "Review the assistant's exact findings, then decide whether to endorse the complete assessment. You are not declaring personal source reading."} Dates describe freshness only, not source truth. A supporting verdict for UNKNOWN does not make a capability available; absent facts remain unknown. All evidence stays UNREVIEWED.</p>
+      {method === "ASSISTANT" && <div className="mt-5 rounded-xl border border-slate-700 p-5">
+        <label htmlFor="bootstrap-assessment" className="block font-semibold">Assistant assessment JSON</label>
+        <p className="mt-3 text-sm text-slate-300">Paste assistant-bootstrap-assessment.v1: the exact candidate SHA-256 and one verdict for every recorded fact (at most 4 MiB UTF-8). Import is local validation only, not approval, authenticated AI provenance or independent source verification. Imported findings are read-only; replacing them clears your confirmation.</p>
+        <textarea id="bootstrap-assessment" rows={8} value={assessment} disabled={pending || !!submission}
+          maxLength={4 * 1024 * 1024} spellCheck={false} onChange={event => { setAssessment(event.target.value); setVerdicts({}); setConfirmed(false); }}
+          className="mt-3 w-full rounded-lg border border-slate-600 bg-slate-900 p-3 font-mono text-sm" />
+        <button type="button" disabled={pending || !!submission} onClick={() => {
+          let findings;
+          try { findings = assistantAssessmentFromInput(JSON.parse(assessment), prepared); } catch { /* Safe local parse error. */ }
+          setConfirmed(false); setVerdicts(findings ?? {});
+          setMessage(findings ? "Complete assistant findings imported. No approval or review write occurred. Read them before deciding whether to endorse." : "Assessment rejected: require the exact candidate digest, complete unique fact set and valid verdicts, with no extra fields.");
+        }} className="mt-3 rounded-lg border border-cyan-600 px-4 py-2 disabled:opacity-50">Import assistant findings</button>
+      </div>}
       <p className="mt-3 text-sm text-slate-400">{Object.keys(verdicts).length} / {prepared.facts.length} explicit conclusions. No conclusion is selected by default.</p>
       {submission && <p className="mt-4 rounded-xl border border-amber-700 p-4 text-amber-100">This UUID and complete payload are frozen for exact retries. Keep this tab open; reloading loses the in-memory retry payload. <a href="/account" target="_blank" rel="noopener noreferrer" className="underline">Open account in another tab</a> to verify the same account again if needed. Retries still require fresh authorization.</p>}
       <div className="mt-6 space-y-5">{prepared.facts.map((fact, index) => {
         const key = `${fact.optionId}\0${fact.path}`;
-        return <fieldset key={key} disabled={pending || !!submission} className="rounded-xl border border-slate-700 p-5">
+        return <fieldset key={key} disabled={pending || !!submission || method === "ASSISTANT"} className="rounded-xl border border-slate-700 p-5">
           <legend className="break-all px-2 font-semibold">{index + 1}. {fact.optionId} · {fact.path}</legend>
           <p className="text-sm text-slate-300">{fact.scope.providerId} · {fact.scope.product} · {fact.scope.plan} · {fact.scope.deployment} · {fact.scope.region} · {fact.scope.configuration}</p>
           {candidateClaimSummary(fact.claim).map(line => <p key={line} className="mt-3 font-medium">{line}</p>)}
@@ -115,18 +139,19 @@ export default function BootstrapReviewForm() {
           <p className="mt-3 text-sm text-slate-400">Conditions: {fact.conditions.length ? fact.conditions.join("; ") : "None recorded"}</p>
           <div className="mt-4 space-y-2">{bootstrapVerdicts.map(verdict => <label key={verdict} className="flex items-start gap-3">
             <input type="radio" name={`fact-${index}`} required value={verdict} checked={verdicts[key] === verdict}
-              onChange={() => setVerdicts(current => ({ ...current, [key]: verdict }))} className="mt-1" />{labels[verdict]}
+              onChange={() => { setVerdicts(current => ({ ...current, [key]: verdict })); setConfirmed(false); }} className="mt-1" />{labels[verdict]}
           </label>)}</div>
         </fieldset>;
       })}</div>
       <label className="mt-8 flex items-start gap-3 rounded-xl border border-amber-700 p-5">
         <input type="checkbox" required checked={confirmed} onChange={event => setConfirmed(event.target.checked)} disabled={pending} className="mt-1" />
-        {submission ? "I explicitly confirm retrying this exact complete manual bootstrap source review with the same UUID, candidate and conclusions." :
+        {submission ? "I explicitly confirm retrying this exact complete review with the same UUID, candidate, conclusions and confirmation type." : method === "ASSISTANT" ?
+          "I, the owner, approve this complete assistant-prepared assessment for this exact candidate. I am not claiming personal source reading or independently verified AI provenance. This is not catalog approval or publication authorization." :
           "I manually assessed every recorded claim and source and confirm this complete bootstrap source review. This is not independent source verification, trust promotion, approval or publication."}
       </label>
       <button disabled={pending || !confirmed || Object.keys(verdicts).length !== prepared.facts.length}
-        className="mt-5 rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-950 disabled:opacity-50">{pending ? "Recording…" : submission ? "Retry this exact review" : "Record manual bootstrap review"}</button>
-      {!submission && <button type="button" disabled={pending} onClick={() => { setPrepared(null); setVerdicts({}); setConfirmed(false); setMessage(""); }}
+        className="mt-5 rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-950 disabled:opacity-50">{pending ? "Recording…" : submission ? "Retry this exact review" : method === "ASSISTANT" ? "Record owner endorsement" : "Record manual bootstrap review"}</button>
+      {!submission && <button type="button" disabled={pending} onClick={() => { setPrepared(null); setVerdicts({}); setConfirmed(false); setMethod("MANUAL"); setAssessment(""); setMessage(""); }}
         className="ml-4 mt-5 text-cyan-200 underline">Change candidate (discard these unsaved conclusions)</button>}
     </form>}
   </section>;

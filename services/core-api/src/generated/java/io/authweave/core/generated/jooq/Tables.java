@@ -84,8 +84,9 @@ public class Tables {
     public static final CatalogBootstrapPublications CATALOG_BOOTSTRAP_PUBLICATIONS = CatalogBootstrapPublications.CATALOG_BOOTSTRAP_PUBLICATIONS;
 
     /**
-     * Immutable exact-candidate manual observations. No automatic truth,
-     * curator approval or catalog publication.
+     * Immutable exact findings. V1 is personal manual review; v2 is
+     * owner-endorsed assistant assessment. Neither is source truth or
+     * publication.
      */
     public static final CatalogBootstrapReviews CATALOG_BOOTSTRAP_REVIEWS = CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS;
 

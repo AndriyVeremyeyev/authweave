@@ -156,6 +156,28 @@ try {
       assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
       assert.equal(await page.locator('input[type="checkbox"]:checked').count(), 0);
       assert.ok(await page.getByRole("button", { name: "Record manual bootstrap review", exact: true }).isDisabled());
+      // Synthetic import-only fixture, not an assistant's assessment of these real sources.
+      const artifact = { schemaVersion: 1, kind: "ASSISTANT_PREPARED_BOOTSTRAP_ASSESSMENT",
+        candidateSha256: assembly.bindings.bootstrapCandidateSha256,
+        observations: assembly.reviewTasks.map(row => ({ optionId: row.optionId, factPath: row.factPath, verdict: "INSUFFICIENT_EVIDENCE" })) };
+      await page.getByLabel("Review method", { exact: true }).selectOption("ASSISTANT");
+      await page.getByLabel("Assistant assessment JSON", { exact: true }).fill(JSON.stringify(artifact));
+      await page.getByRole("button", { name: "Import assistant findings", exact: true }).click();
+      await page.getByText("Complete assistant findings imported. No approval or review write occurred. Read them before deciding whether to endorse.", { exact: true }).waitFor();
+      assert.equal(await page.locator('input[type="radio"]:checked').count(), assembly.reviewTasks.length);
+      assert.equal(await page.locator('input[type="radio"]:enabled').count(), 0);
+      assert.equal(await page.locator('input[type="checkbox"]:checked').count(), 0);
+      assert.ok(await page.getByRole("button", { name: "Record owner endorsement", exact: true }).isDisabled());
+      // A changed imported payload must clear findings and the owner decision before validation.
+      await page.locator('input[type="checkbox"]').check();
+      await page.getByLabel("Assistant assessment JSON", { exact: true }).fill(JSON.stringify({ ...artifact, candidateSha256: "0".repeat(64) }));
+      assert.equal(await page.locator('input[type="checkbox"]:checked').count(), 0);
+      await page.getByRole("button", { name: "Import assistant findings", exact: true }).click();
+      assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
+      assert.ok(await page.getByRole("button", { name: "Record owner endorsement", exact: true }).isDisabled());
+      await page.getByLabel("Review method", { exact: true }).selectOption("MANUAL");
+      assert.equal(await page.locator('input[type="radio"]:checked').count(), 0);
+      assert.equal(await page.locator('input[type="checkbox"]:checked').count(), 0);
     } else {
       await page.getByRole("region", { name: "Curator access unavailable" }).waitFor();
       await page.getByText("This account does not have the scoped AuthWeave catalog curator role.", { exact: true }).waitFor();

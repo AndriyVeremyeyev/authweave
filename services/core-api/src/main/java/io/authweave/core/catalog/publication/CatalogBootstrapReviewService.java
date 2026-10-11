@@ -18,10 +18,17 @@ import static io.authweave.core.catalog.publication.CatalogBootstrapReviewExcept
 import static io.authweave.core.generated.jooq.tables.CatalogBootstrapReviews.CATALOG_BOOTSTRAP_REVIEWS;
 import static io.authweave.core.generated.audit.tables.CatalogBootstrapReviewEvents.CATALOG_BOOTSTRAP_REVIEW_EVENTS;
 
-/** Atomic manual assertion + body-free audit. The HTTP boundary, not database rows, validates current curator assertions. */
+/** Atomic exact findings + body-free human decision audit. Current authority is checked at HTTP. */
 @Service
 public class CatalogBootstrapReviewService {
     public static final String POLICY_VERSION = "catalog-bootstrap-source-review-1";
+    public static final String ASSISTANT_POLICY_VERSION = "catalog-bootstrap-assistant-endorsement-1";
+    private static String policy(CatalogBootstrapReviewRequest request) {
+        return request.schemaVersion() == 1 ? POLICY_VERSION : ASSISTANT_POLICY_VERSION;
+    }
+    private static String action(CatalogBootstrapReviewRequest request) {
+        return request.schemaVersion() == 1 ? "catalog-bootstrap.source-reviewed" : "catalog-bootstrap.assessment-approved";
+    }
     private final DSLContext dsl;
     private final CatalogBootstrapReviewRepository repository;
     private final CatalogPublicationPreflightRepository registry;
@@ -67,12 +74,12 @@ public class CatalogBootstrapReviewService {
                 || repository.jsonBytes(json) > CatalogBootstrapReviewRepository.MAX_JSON_BYTES) throw new CatalogBootstrapReviewException(INVALID_REQUEST);
         var r = CATALOG_BOOTSTRAP_REVIEWS; var e = CATALOG_BOOTSTRAP_REVIEW_EVENTS;
         dsl.insertInto(r).set(r.ID, request.reviewId()).set(r.CANDIDATE_SHA256, request.expectedCandidateSha256())
-                .set(r.REVIEW_SHA256, digest).set(r.REQUEST_SCHEMA_VERSION, (short) 1).set(r.POLICY_VERSION, POLICY_VERSION)
+                .set(r.REVIEW_SHA256, digest).set(r.REQUEST_SCHEMA_VERSION, (short) request.schemaVersion()).set(r.POLICY_VERSION, policy(request))
                 .set(r.CATALOG_VERSION, request.candidate().catalogVersion()).set(r.FACT_COUNT, request.observations().size())
                 .set(r.REQUEST, JSONB.jsonb(json)).execute();
         dsl.insertInto(e).set(e.ID, UUID.randomUUID()).set(e.REVIEW_ID, request.reviewId())
                 .set(e.CANDIDATE_SHA256, request.expectedCandidateSha256()).set(e.REVIEW_SHA256, digest)
-                .set(e.ACTION, "catalog-bootstrap.source-reviewed").set(e.ACTOR_TYPE, "CURATOR")
+                .set(e.ACTION, action(request)).set(e.ACTOR_TYPE, "CURATOR")
                 .set(e.ACTOR_ISSUER, actor.issuer()).set(e.ACTOR_SUBJECT, actor.subject())
                 .set(e.ACTOR_PROJECT_ID, actor.projectId()).set(e.ACTOR_ORG_ID, actor.organizationId())
                 .set(e.AUTHENTICATED_AT, OffsetDateTime.ofInstant(actor.authenticatedAt(), ZoneOffset.UTC))
@@ -101,16 +108,17 @@ public class CatalogBootstrapReviewService {
     private ReviewedCandidate validateStored(CatalogBootstrapReviewRepository.Stored row) {
         try {
             if (row.request() == null || row.requestBytes() <= 0 || row.requestBytes() > CatalogBootstrapReviewRepository.MAX_JSON_BYTES
-                    || row.schemaVersion() != 1 || !POLICY_VERSION.equals(row.policyVersion())) throw new IllegalArgumentException();
+                    || (row.schemaVersion() != 1 && row.schemaVersion() != 2)) throw new IllegalArgumentException();
             var request = mapper.readValue(row.request(), CatalogBootstrapReviewRequest.class);
-            if (request == null || !row.id().equals(request.reviewId()) || !row.candidateSha256().equals(request.expectedCandidateSha256())
+            if (request == null || row.schemaVersion() != request.schemaVersion() || !policy(request).equals(row.policyVersion())
+                    || !row.id().equals(request.reviewId()) || !row.candidateSha256().equals(request.expectedCandidateSha256())
                     || !row.reviewSha256().equals(CatalogDraftCanonicalizer.sha256(request))
                     || !row.catalogVersion().equals(request.candidate().catalogVersion()) || row.factCount() != request.observations().size()) {
                 throw new IllegalArgumentException();
             }
             var counts = validator.validate(request); var audit = row.audit();
             if (audit == null || audit.id() == null || !row.id().equals(audit.reviewId()) || !row.candidateSha256().equals(audit.candidateSha256())
-                    || !row.reviewSha256().equals(audit.reviewSha256()) || !"catalog-bootstrap.source-reviewed".equals(audit.action())
+                    || !row.reviewSha256().equals(audit.reviewSha256()) || !action(request).equals(audit.action())
                     || !"CURATOR".equals(audit.actorType()) || !text(audit.issuer(), 2048) || !text(audit.subject(), 256)
                     || !digits(audit.projectId()) || !digits(audit.organizationId()) || audit.correlationId() == null
                     || !"SUCCEEDED".equals(audit.outcome()) || audit.authenticatedAt() == null || audit.occurredAt() == null
@@ -119,7 +127,8 @@ public class CatalogBootstrapReviewService {
                     || audit.authenticatedAt().isBefore(audit.occurredAt().minusSeconds(900))
                     || audit.authenticatedAt().isAfter(audit.occurredAt().plusSeconds(30))) throw new IllegalArgumentException();
             return new ReviewedCandidate(request, new CatalogBootstrapReview(row.id(), row.candidateSha256(), row.reviewSha256(),
-                    row.catalogVersion(), row.factCount(), counts, row.recordedAt()));
+                    row.catalogVersion(), row.factCount(), counts, row.recordedAt(), row.policyVersion(), request.schemaVersion() == 1
+                        ? "HUMAN_BOOTSTRAP_SOURCE_REVIEW" : "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT"));
         } catch (tools.jackson.core.JacksonException | IllegalArgumentException | CatalogBootstrapReviewException invalid) {
             throw new CatalogBootstrapReviewException(READ_UNAVAILABLE);
         }

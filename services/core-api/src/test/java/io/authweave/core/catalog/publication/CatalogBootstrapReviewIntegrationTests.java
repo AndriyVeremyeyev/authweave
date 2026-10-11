@@ -84,11 +84,13 @@ class CatalogBootstrapReviewIntegrationTests {
             "role", "duplicate-role", "project", "organization", "stale", "future", "invalid-time"})
     void credentialScopeFreshnessAndSingularIdentityAreRequiredForReadsWritesAndUnknownVersions(String guard) throws Exception {
         var body = request();
+        for (var typed : List.of(body, assisted(body))) {
         for (String path : List.of(BASE, "/api/v2/catalog-bootstrap-reviews")) {
-            var action = auth(post(path).contentType("application/json").content(mapper.writeValueAsString(body)), guard);
+            var action = auth(post(path).contentType("application/json").content(mapper.writeValueAsString(typed)), guard);
             int expected = List.of("no-credential", "bad-credential", "duplicate-credential", "no-subject", "no-issuer", "duplicate-subject").contains(guard) ? 401 : 403;
             mvc.perform(action).andExpect(status().is(expected));
             mvc.perform(auth(get(path + "/" + body.reviewId()).param("expectedSha256", "a".repeat(64)), guard)).andExpect(status().is(expected));
+        }
         }
         assertEquals(0, dsl.fetchCount(CATALOG_BOOTSTRAP_REVIEWS)); assertEquals(0, dsl.fetchCount(CATALOG_BOOTSTRAP_REVIEW_EVENTS));
     }
@@ -277,6 +279,67 @@ class CatalogBootstrapReviewIntegrationTests {
         assertEquals(receipt, service.get(input.reviewId(), receipt.reviewSha256()));
     }
 
+    @Order(9) @Test
+    void ownerEndorsementPersistsDistinctProvenanceWithoutClaimingPersonalSourceReviewOrPublication() throws Exception {
+        var manual = request(); var input = assisted(manual);
+        sample("assistant-endorsed-request", "catalog-bootstrap-review-request.v2", true, mapper.valueToTree(input));
+        assertNotEquals(CatalogDraftCanonicalizer.sha256(manual), CatalogDraftCanonicalizer.sha256(input));
+        var created = mvc.perform(auth(post(BASE).contentType("application/json").content(mapper.writeValueAsString(input)), "ok"))
+                .andExpect(status().isCreated()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.kind").value("OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT"))
+                .andExpect(jsonPath("$.policyVersion").value(CatalogBootstrapReviewService.ASSISTANT_POLICY_VERSION)).andReturn();
+        var receipt = payload(created); String digest = receipt.get("reviewSha256").asText();
+        sample("assistant-endorsed-receipt", "catalog-bootstrap-review.v2", true, receipt);
+        var read = mvc.perform(auth(get(BASE + "/" + input.reviewId()).param("expectedSha256", digest), "ok"))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andReturn();
+        assertEquals(receipt, payload(read)); sample("assistant-endorsed-read", "catalog-bootstrap-review.v2", true, payload(read));
+        var retry = mvc.perform(auth(post(BASE).contentType("application/json").content(mapper.writeValueAsString(input)), "ok"))
+                .andExpect(status().isOk()).andReturn(); assertEquals(receipt, payload(retry));
+        mvc.perform(auth(post(BASE).contentType("application/json").content(mapper.writeValueAsString(manual)), "ok"))
+                .andExpect(status().isConflict());
+        mvc.perform(auth(post(BASE).contentType("application/json").content(mapper.writeValueAsString(input)), "another-subject"))
+                .andExpect(status().isConflict());
+        assertEquals(1, reviews(input.reviewId())); assertEquals(1, events(input.reviewId()));
+        var event = dsl.selectFrom(CATALOG_BOOTSTRAP_REVIEW_EVENTS).where(CATALOG_BOOTSTRAP_REVIEW_EVENTS.REVIEW_ID.eq(input.reviewId())).fetchOne();
+        assertEquals("catalog-bootstrap.assessment-approved", event.getAction());
+        assertEquals("CURATOR", event.getActorType()); assertEquals("bootstrap-curator", event.getActorSubject());
+        var exact = service.loadForDecision(input.reviewId(), digest);
+        assertEquals(input.observations(), exact.observations());
+        assertEquals(mapper.valueToTree(input.candidate()), mapper.readTree(exact.candidateJson()));
+        assertEquals(mapper.valueToTree(exact.review()), receipt);
+        var planning = preflight.bootstrap(input.reviewId(), digest);
+        assertTrue(planning.facts().allFactsHaveSupportingObservation());
+        assertFalse(planning.approvalGranted()); assertFalse(planning.publicationReady()); assertFalse(planning.sourceVerificationPerformed());
+        for (String flag : List.of("approvalGranted", "sourceVerificationPerformed", "catalogWritesPerformed", "factTrustChanged")) {
+            assertFalse(receipt.get(flag).asBoolean());
+            var forged = (ObjectNode) receipt.deepCopy(); forged.put(flag, true);
+            sample("assistant-forged-" + flag, "catalog-bootstrap-review.v2", false, forged);
+        }
+        var crossed = (ObjectNode) mapper.valueToTree(input); crossed.put("confirmation", "MANUAL_BOOTSTRAP_SOURCE_REVIEW");
+        sample("assistant-crossed-confirmation", "catalog-bootstrap-review-request.v2", false, crossed);
+        mvc.perform(auth(post(BASE).contentType("application/json").content(mapper.writeValueAsString(crossed)), "ok"))
+                .andExpect(status().isBadRequest());
+        registryEmpty();
+    }
+
+    @Order(10) @Test
+    void crossedStoredPolicyAndAuditCannotMasqueradeAsAnOwnerEndorsement() throws Exception {
+        var input = assisted(request()); var receipt = service.record(input, actor()).review();
+        try (var connection = admin()) {
+            var admin = DSL.using(connection, SQLDialect.POSTGRES); var r = CATALOG_BOOTSTRAP_REVIEWS; var e = CATALOG_BOOTSTRAP_REVIEW_EVENTS;
+            assertThrows(org.jooq.exception.IntegrityConstraintViolationException.class, () -> admin.update(r)
+                    .set(r.POLICY_VERSION, CatalogBootstrapReviewService.POLICY_VERSION).where(r.ID.eq(input.reviewId())).execute());
+            try {
+                admin.update(e).set(e.ACTION, "catalog-bootstrap.source-reviewed").where(e.REVIEW_ID.eq(input.reviewId())).execute();
+                assertThrows(CatalogBootstrapReviewException.class, () -> service.get(input.reviewId(), receipt.reviewSha256()));
+                assertThrows(CatalogBootstrapReviewException.class, () -> service.loadForDecision(input.reviewId(), receipt.reviewSha256()));
+            } finally {
+                admin.update(e).set(e.ACTION, "catalog-bootstrap.assessment-approved").where(e.REVIEW_ID.eq(input.reviewId())).execute();
+            }
+        }
+        assertEquals(receipt, service.get(input.reviewId(), receipt.reviewSha256())); registryEmpty();
+    }
+
     @Order(99) @Test
     void committedPublicationClosesNewReviewsButNotFreshActorBoundHistoricalRetries() throws Exception {
         var input = request(); var receipt = service.record(input, actor()).review();
@@ -315,6 +378,10 @@ class CatalogBootstrapReviewIntegrationTests {
         var observations = drafts.validate(draft).facts().stream().map(f -> new CatalogBootstrapReviewRequest.Observation(f.optionId(), f.path(), SOURCE_SUPPORTS_CLAIM)).toList();
         return new CatalogBootstrapReviewRequest(1, UUID.randomUUID(), CatalogDraftCanonicalizer.sha256(draft), draft, observations,
                 CatalogBootstrapReviewRequest.Confirmation.MANUAL_BOOTSTRAP_SOURCE_REVIEW);
+    }
+    private CatalogBootstrapReviewRequest assisted(CatalogBootstrapReviewRequest manual) {
+        return new CatalogBootstrapReviewRequest(2, manual.reviewId(), manual.expectedCandidateSha256(), manual.candidate(), manual.observations(),
+                CatalogBootstrapReviewRequest.Confirmation.OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT);
     }
     private MockHttpServletRequestBuilder auth(MockHttpServletRequestBuilder request, String change) {
         if (!change.equals("no-credential")) request.header("Authorization", change.equals("bad-credential") ? "Bearer invalid" : TOKEN);

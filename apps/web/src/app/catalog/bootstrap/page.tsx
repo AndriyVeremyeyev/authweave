@@ -44,18 +44,18 @@ export default async function BootstrapReviewPage({ searchParams }: PageProps<"/
   return <main className="mx-auto max-w-4xl px-6 py-20 text-slate-100">
     <Link href="/catalog/review" className="text-sm text-cyan-200 hover:underline">← Catalog review</Link>
     <h1 className="mt-8 text-4xl font-semibold">Bootstrap source review</h1>
-    <p className="mt-5 text-slate-300">Manually review the first catalog candidate while the publication registry is empty. This separate workflow records human conclusions only; it does not establish a trusted baseline or enable publication.</p>
+    <p className="mt-5 text-slate-300">Review the first catalog candidate while the publication registry is empty: personally assess sources or endorse assistant-prepared findings as the owner. The recorded confirmation distinguishes these decisions; neither establishes a trusted baseline or enables publication.</p>
     {status !== "ready" ? <section className="mt-8 rounded-xl border border-amber-700 p-6" aria-label="Bootstrap review unavailable">
       <p className="text-amber-100">{messages[status] ?? messages["core-unavailable"]}</p>
       {status === "reauth-required" && <form action="/api/auth/reauth" method="post" className="mt-5">
         <button className="rounded-lg bg-cyan-300 px-4 py-2 font-semibold text-slate-950">Verify this account again</button>
       </form>}
     </section> : result?.kind === "ready" ? <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-label="Exact stored bootstrap receipt">
-      <h2 className="text-xl font-semibold">Exact stored manual review</h2>
+      <h2 className="text-xl font-semibold">{result.receipt.kind === "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" ? "Exact stored owner endorsement of assistant findings" : "Exact stored manual review"}</h2>
       <p className="mt-4">Catalog: {result.receipt.catalogVersion} · {result.receipt.factCount} facts · Recorded {result.receipt.recordedAt}</p>
       <p className="mt-3">Supporting: {result.receipt.counts.supporting} · Contradicting: {result.receipt.counts.contradicting} · Insufficient: {result.receipt.counts.insufficient}</p>
       <p className="mt-4 break-all text-sm text-slate-400">Review UUID: {result.receipt.reviewId}<br />Candidate draft SHA-256: {result.receipt.candidateSha256}<br />Complete review SHA-256: {result.receipt.reviewSha256}</p>
-      <p className="mt-4 text-slate-300">This receipt contains no actor, source bodies or candidate. It does not prove current source freshness, full impact coverage, source truth or permission to publish. No source verification, trust promotion, approval or catalog writes were performed.</p>
+      <p className="mt-4 text-slate-300">This receipt contains no actor, source bodies or candidate. Its kind identifies personal manual review or owner endorsement, not independently authenticated assistant provenance. It does not prove current source freshness, full impact coverage, source truth or permission to publish. No source verification, trust promotion, catalog approval or catalog writes were performed.</p>
     </section> : <BootstrapReviewForm />}
     {result?.kind === "ready" && <PublicationPreflight result={publication} />}
     <p className="mt-8 text-sm text-slate-400">This page never publishes. Publication requires the separate, explicitly enabled Core workflow, exact reviewed inputs, fresh publication-write authorization and all server-side checks. A source-review receipt is not publication permission.</p>

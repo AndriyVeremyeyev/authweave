@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assistant-bootstrap-assessment.v1.schema.json",
+  "title": "Assistant-prepared bootstrap findings, before owner endorsement",
+  "description": "Offline input for the existing review UI. This label does not authenticate the assistant or prove source truth. No owner confirmation, actor, trust flag, review UUID or publication authorization is supplied. Import must match the prepared Core candidate digest and complete unique target set.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "candidateSha256", "observations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "ASSISTANT_PREPARED_BOOTSTRAP_ASSESSMENT" },
+    "candidateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "observations": { "$ref": "catalog-bootstrap-review-request.v1.schema.json#/properties/observations" }
+  }
+}

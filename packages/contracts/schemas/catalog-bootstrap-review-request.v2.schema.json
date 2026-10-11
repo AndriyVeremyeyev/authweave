@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/catalog-bootstrap-review-request.v2.schema.json",
+  "title": "Owner endorsement of assistant-prepared bootstrap findings v2",
+  "description": "The observations are assistant-prepared input; a fresh scoped human curator separately endorses this exact complete candidate and findings. This is not personal manual source reading, authenticated AI provenance, independent verification or publication permission. Core enforces the digest and complete target set.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "reviewId", "expectedCandidateSha256", "candidate", "observations", "confirmation"],
+  "properties": {
+    "schemaVersion": { "const": 2 },
+    "reviewId": { "type": "string", "format": "uuid" },
+    "expectedCandidateSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "candidate": { "$ref": "provider-catalog-draft.v1.schema.json" },
+    "observations": { "$ref": "catalog-bootstrap-review-request.v1.schema.json#/properties/observations" },
+    "confirmation": { "const": "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" }
+  }
+}
