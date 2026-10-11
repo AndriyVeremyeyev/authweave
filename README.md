@@ -124,6 +124,11 @@ is not a deployment-status check for the separate opt-in Core publication writer
 No review panel enables that writer or substitutes for its fresh authorization and
 server-side checks.
 
+The dated [assistant findings](packages/contracts/decision-core/assistant-assessment.2026-10-11.v1.json)
+now cover the exact 48 claims. The source assessment and its unresolved limitations
+are explained under [protected bootstrap source review](#protected-bootstrap-source-review).
+This file is not loaded automatically and is not an endorsed review or active catalog.
+
 ### Candidate hard-check kernel
 
 The internal [hard-check evaluator](services/core-api/src/main/java/io/authweave/core/catalog/impact/CandidateHardConstraintEvaluator.java)
@@ -4147,6 +4152,61 @@ findings for display and leaves the separate owner checkbox unchecked. Changing 
 artifact or mode clears findings/confirmation. This import makes no AI/API call;
 the assistant-origin label is caller-declared, not authenticated AI provenance or proof
 of source truth. Prepare the assessment externally and review it before endorsing it.
+
+The repository includes a [dated assessment](packages/contracts/decision-core/assistant-assessment.2026-10-11.v1.json)
+prepared on 2026-10-11 for `decision-core-candidate-2026.10.10-residency1`, bootstrap
+SHA-256 `a951b581550c0330c0404a49cce8f8fe4bfdf51181eda211c24bd69fab300159`.
+The assistant inspected the 30 recorded official source URLs and relevant linked
+scope/prerequisite documentation. Keycloak files were read from the exact pinned
+commit via raw HTTPS when the GitHub viewer was unavailable; managed-service pages
+are mutable, not release snapshots. No original claim, source date or selection pin
+was changed. Tests check the artifact's schema and complete unique target/digest
+binding; they do not fetch sources or independently certify these conclusions.
+
+All 48 findings are `SOURCE_SUPPORTS_CLAIM` **for the scoped, conditional proposals**:
+23 conditional positive claims, one explicit native-SCIM group absence, 23 wholly
+unknown claims, and one passkey mechanism claim whose enforcement remains unknown.
+There were no identified source contradictions requiring a candidate revision.
+This is provider-comparison data; AuthWeave's own ZITADEL-backed authentication is
+unchanged. None of these eight provider options was deployed by this research.
+Supporting uncertainty means the inspected evidence does not settle the exact
+scope; it is not proof that no other evidence exists. It cannot clear a required
+UNKNOWN, infer an omitted capability or verify an account, integration or deployment.
+
+| Selected option | Claims | Assessment and retained limitations |
+| --- | ---: | --- |
+| Keycloak upstream 26.8.0 | 9 | Realm, confidential browser OIDC, SAML and inbound realm SCIM/groups support the conditional single-customer case. Single application-organization mapping is a design inference, not native Organizations or tested business isolation. |
+| ZITADEL Cloud Free | 4 | OIDC/SAML are configurable within the advertised Free scope. Preview SCIM availability for an actual Free instance stays UNKNOWN; the native User-only SCIM interface excludes Groups. |
+| Auth0 B2B Free | 4 | Downstream OIDC, one generic enterprise OIDC connection and inbound SCIM User lifecycle are documented. Group-specific Free entitlement remains UNKNOWN; local SaaS authorization/offboarding is separate. |
+| WorkOS AuthKit staging | 8 | Hosted non-SSO TOTP is configurable; domain-bound passkeys support a conditional phishing-resistant mechanism inference, not compulsory journey protection. Hardware-only keys, stronger-factor step-up and all four residency categories remain UNKNOWN. |
+| WorkOS Connect staging | 7 | Public native/code-PKCE and OIDC are documented conditionally. Browser CORS and all four residency categories remain UNKNOWN; this is not primary AuthKit or a BFF claim. |
+| WorkOS Directory Sync staging | 6 | Inbound custom SCIM and group/membership events require an application-owned bridge, replay handling and reconciliation. All four residency categories remain UNKNOWN; production connections are separately billed. |
+| Entra External ID Basic, standard mode | 8 | Downstream customer OIDC/SAML is documented. Native inbound SCIM/groups and four residency categories stay UNKNOWN; paid SCIM, Go-Local and workforce backup are not inherited. |
+| Entra External ID M2M Premium add-on | 2 | Conditional machine client/API app-role design is documented separately from Basic. This is a paid comparison scope, not a purchased entitlement, live token exchange or verified resource isolation. |
+
+In particular, the Connect [Public application branch](https://workos.com/docs/authkit/connect/oauth)
+requires PKCE, and its [authorization-server metadata example](https://workos.com/docs/reference/workos-connect/metadata)
+advertises S256 and token authentication `none`. Together these reconcile the selected
+credential-free public-client design with the generic confidential token example;
+they do not establish token-endpoint browser CORS or observed S256-only enforcement.
+For AuthKit, [passkeys](https://workos.com/docs/authkit/passkeys) and
+[reauthentication](https://workos.com/docs/authkit/reauthentication) do not establish
+hardware-only key storage or a guaranteed stronger factor. General
+[WorkOS transfer/backup terms](https://workos.com/legal/data-processing-addendum)
+and [Entra component placement](https://learn.microsoft.com/en-us/entra/fundamentals/data-residency)
+do not provide complete per-option country inventories; the
+[Entra backup prerequisites](https://learn.microsoft.com/en-us/entra/backup/overview)
+explicitly exclude external tenants.
+
+For the local owner review, first prepare the `candidate` field from
+`make prepare-decision-candidate`, then explicitly import this artifact in assistant
+mode. The complete source conditions remain visible in `make prepare-decision-review`.
+The owner endorsement checkbox must still be selected separately after reading the
+assessment; this file supplies no owner decision, authenticated curator, review UUID
+or publication authorization. Nothing automatically submits it or activates it.
+If the candidate changes, this dated artifact must not be silently repinned; perform
+a new source assessment. Recheck the original dates at the actual review/evaluation
+clock. Research completion does not close the human P3-2 gate or the Phase 3 exit gates.
 
 V24 preserves historical v1 rows and permits only exact version/confirmation/policy
 pairs. V2 uses `catalog-bootstrap.assessment-approved` in the atomic audit and
