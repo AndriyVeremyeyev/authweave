@@ -9,7 +9,7 @@ assert.equal(process.argv.length, 3, "Pass actual isolated Core successor public
 const ajv = new Ajv2020({ strict: true, allErrors: true }); addFormats(ajv);
 for (const file of await readdir(new URL("../schemas/", import.meta.url))) if (file.endsWith(".schema.json"))
   ajv.addSchema(JSON.parse(await readFile(new URL(`../schemas/${file}`, import.meta.url), "utf8")));
-const samples = JSON.parse(await readFile(process.argv[2], "utf8")); assert.equal(samples.length, 2);
+const samples = JSON.parse(await readFile(process.argv[2], "utf8")); assert.equal(samples.length, 3);
 for (const sample of samples) {
   for (const [schema, value] of [["catalog-proposal-publication-request", sample.proof.request], ["catalog-proposal-publication", sample.receipt],
     ["published-provider-catalog-snapshot", sample.snapshot], ["publication-proposal-decision-coverage", sample.proof.coverage]]) {
@@ -25,4 +25,5 @@ for (const sample of samples) {
   }
 }
 assert(samples.some(s => s.calculation.after.auditability === null)); assert(samples.some(s => s.calculation.after.auditability !== null));
+assert(samples.some(s => s.calculation.after.catalog.options[0].facts.SCIM.availability === "UNKNOWN"));
 console.log(`Verified ${samples.length} actual first successor publications: immutable parent/proposal/review pins, manifest/proof hashes and full decision coverage.`);

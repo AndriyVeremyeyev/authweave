@@ -3743,11 +3743,15 @@ the web role cannot read or insert these records. Core now accepts a protected
 same-origin BFF JSON endpoint `/api/catalog-change-proposals/{id}/fact-reviews`.
 Both boundaries require the configured curator scope and authentication within 15 minutes;
 the browser cannot supply the audit actor. A request supplies a UUID `reviewId`, expected
-revision and digest, option ID, fact path, verdict and `MANUAL_SOURCE_REVIEW` confirmation.
+revision and digest, option ID, fact path, verdict and an explicit confirmation mode:
+`MANUAL_SOURCE_REVIEW` for personal assessment or
+`OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT` for endorsement of an assistant-prepared
+conclusion. Owner endorsement does not claim personal source reading or authenticated
+assistant provenance. Receipt kind, history and evidence displays preserve that distinction.
 Core revalidates the immutable candidate and digest before a new write. The same key,
 payload and actor return the original receipt (200 rather than 201) without another
 audit event, even after head changes or rejection; authorization must still be fresh.
-Reusing a key for another payload or actor conflicts. New observations on stale, rejected
+Reusing a key for another payload, origin or actor conflicts. New observations on stale, rejected
 or absent fact targets fail closed. No source-review CLI is available.
 Database identity/freshness constraints do not prove an OIDC login. A human verdict is
 not automatic source verification, evidence freshness,
@@ -3765,10 +3769,11 @@ not verified fact statuses. Browser pagination binds the cursor to the displayed
 revision and requires a restart if the head changes. An empty history does not mean
 verification or approval. The existing rejection action is unchanged.
 
-Each displayed candidate fact now has a native HTML form for a manual source-review
-observation. The curator must choose one of the three verdicts (none is preselected)
-and explicitly confirm manual assessment of the source, typed claim, option scope
-and conditions. The form binds the displayed revision/digest, option and fact path
+Each displayed candidate fact has a native HTML source-review form. The curator must
+choose one of the three verdicts and explicitly select personal assessment or owner
+endorsement of assistant findings; neither is preselected. The confirmation names the
+exact source, claim, option scope and conditions and does not authorize publication.
+The form binds the displayed revision/digest, option and fact path
 and includes a server-generated UUID observation ID. It is unavailable on a rejected
 revision. The existing BFF endpoint accepts JSON or strict URL-encoded forms, both
 limited to 2,048 actual body bytes with the same origin, session and curator checks.
@@ -3779,9 +3784,19 @@ conflict returns to current facts for review. An uncertain Core outcome returns 
 no-store 503 page retaining the exact payload/key with an explicit retry form; it does
 not claim failure to write or mint a replacement key. Check history before retrying.
 Reusing that original key/payload/actor returns an existing receipt without another
-observation, while a deliberate correction uses a new form/key. Sources remain
-unreviewed, observation dates and active evaluation behavior are unchanged, and
-approval/publication are still unavailable.
+observation with the same origin, while a deliberate correction uses a new form/key.
+Independent source verification is not performed, dates are not refreshed, and
+approval/publication remain unavailable in this review screen.
+
+V25 binds the confirmation origin atomically in the review receipt and its curator
+audit through a foreign key. Legacy rows retain the manual origin; the existing manual
+audit-digest shape deliberately excludes the new default column, preserving historical
+pins. New owner-endorsed origin is included in the digest. The first-successor proof
+reader verifies both origin equality and the full original-clock publication calculation.
+Neither origin upgrades UNKNOWN, configuration, deployment or compliance. The existing
+default-disabled writer and its current-head, exact-parent and fresh-curator guards remain.
+Isolated regressions exercise an explicit supported-to-UNKNOWN withdrawal, guarded
+publication, independent whole-decision/proof checks and unchanged historical results.
 
 The protected
 `GET /api/v1/catalog-change-proposals/{proposalId}/revisions/{version}/fact-reviews/summary`

@@ -112,14 +112,15 @@ public class StoredProposalDecisionService {
                         || e == null || e.getId() == null || !r.getId().equals(e.getReviewId()) || !pin.proposalId().equals(e.getProposalId())
                         || e.getProposalVersion() != pin.version() || !pin.proposalSha256().equals(e.getProposalSha256())
                         || !r.getOptionId().equals(e.getOptionId()) || !r.getFactPath().equals(e.getFactPath()) || !r.getVerdict().equals(e.getVerdict())
+                        || r.getReviewOrigin() == null || !r.getReviewOrigin().equals(e.getReviewOrigin())
                         || !"catalog-fact.review-recorded".equals(e.getAction()) || !"CURATOR".equals(e.getActorType())
                         || !text(e.getActorIssuer(), 2048) || !text(e.getActorSubject(), 256) || !digits(e.getActorProjectId()) || !digits(e.getActorOrgId())
                         || e.getCorrelationId() == null || !"SUCCEEDED".equals(e.getOutcome()) || occurred == null || e.getAuthenticatedAt() == null
                         || !near(at.toInstant(), occurred.toInstant()) || e.getAuthenticatedAt().isBefore(occurred.minusSeconds(900))
                         || e.getAuthenticatedAt().isAfter(occurred.plusSeconds(30))) throw new IllegalArgumentException();
                 receipts.add(new CatalogFactReview(r.getId(), pin.proposalId(), pin.version(), pin.proposalSha256(), r.getReviewNumber(),
-                        r.getOptionId(), r.getFactPath(), Verdict.valueOf(r.getVerdict()), at.toInstant(), "HUMAN_SOURCE_REVIEW_OBSERVATION", false, false, false, false));
-                auditDigests.add(DecisionCanonicalizer.sha256(mapper.valueToTree(e.intoMap())));
+                        r.getOptionId(), r.getFactPath(), Verdict.valueOf(r.getVerdict()), at.toInstant(), CatalogFactReview.kind(r.getReviewOrigin()), false, false, false, false));
+                auditDigests.add(DecisionCanonicalizer.sha256(mapper.valueToTree(factReviewAuditPayload(e))));
             } catch (IllegalArgumentException invalid) { throw new CatalogProposalDecisionLoadingException(STORED_PROPOSAL_INVALID); }
         }
         if (receipts.stream().mapToLong(CatalogFactReview::reviewNumber).max().orElse(0) != through)
@@ -133,6 +134,13 @@ public class StoredProposalDecisionService {
                 new CandidateDecisionImpactEvaluator.Snapshot(catalog, assertions, audit.supplement()), receipts, audit.receipt(), row.getRecordedAt().toInstant());
     }
     private record ReviewSet(List<CatalogFactReview> observations, List<String> auditSha256) { }
+    /** V25 must not add a field to historical manual audit digests. New owner origins are bound explicitly. */
+    static java.util.Map<String, Object> factReviewAuditPayload(io.authweave.core.generated.audit.tables.records.CatalogFactReviewEventsRecord event) {
+        CatalogFactReview.kind(event.getReviewOrigin()); // Refuse unrecognized/corrupt origins.
+        var payload = new java.util.LinkedHashMap<>(event.intoMap());
+        if ("MANUAL_SOURCE_REVIEW".equals(event.getReviewOrigin())) payload.remove("review_origin");
+        return payload;
+    }
     private static boolean near(Instant a, Instant b) { return !a.isBefore(b.minusSeconds(30)) && !a.isAfter(b.plusSeconds(30)); }
     private static boolean text(String s, int max) { return s != null && !s.isBlank() && s.length() <= max; }
     private static boolean digits(String s) { return s != null && s.matches("[0-9]{1,40}"); }

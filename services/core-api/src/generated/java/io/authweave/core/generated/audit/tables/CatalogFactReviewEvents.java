@@ -158,6 +158,13 @@ public class CatalogFactReviewEvents extends TableImpl<CatalogFactReviewEventsRe
      */
     public final TableField<CatalogFactReviewEventsRecord, OffsetDateTime> OCCURRED_AT = createField(DSL.name("occurred_at"), SQLDataType.TIMESTAMPWITHTIMEZONE(6).nullable(false).defaultValue(DSL.field(DSL.raw("clock_timestamp()"), SQLDataType.TIMESTAMPWITHTIMEZONE)), this, "");
 
+    /**
+     * The column <code>audit.catalog_fact_review_events.review_origin</code>.
+     * Atomically bound to receipt origin; no source truth or publication
+     * authority is inferred.
+     */
+    public final TableField<CatalogFactReviewEventsRecord, String> REVIEW_ORIGIN = createField(DSL.name("review_origin"), SQLDataType.VARCHAR(64).nullable(false).defaultValue(DSL.field(DSL.raw("'MANUAL_SOURCE_REVIEW'::character varying"), SQLDataType.VARCHAR)), this, "Atomically bound to receipt origin; no source truth or publication authority is inferred.");
+
     private CatalogFactReviewEvents(Name alias, Table<CatalogFactReviewEventsRecord> aliased) {
         this(alias, aliased, (Field<?>[]) null, null);
     }
@@ -208,6 +215,7 @@ public class CatalogFactReviewEvents extends TableImpl<CatalogFactReviewEventsRe
     public List<Check<CatalogFactReviewEventsRecord>> getChecks() {
         return Arrays.asList(
             Internal.createCheck(this, DSL.name("catalog_fact_review_event_freshness_ck"), "(((authenticated_at >= (occurred_at - '00:15:00'::interval)) AND (authenticated_at <= (occurred_at + '00:00:30'::interval))))", true),
+            Internal.createCheck(this, DSL.name("catalog_fact_review_event_origin_ck"), "(((review_origin)::text = ANY ((ARRAY['MANUAL_SOURCE_REVIEW'::character varying, 'OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT'::character varying])::text[])))", true),
             Internal.createCheck(this, DSL.name("catalog_fact_review_events_action_check"), "(((action)::text = 'catalog-fact.review-recorded'::text))", true),
             Internal.createCheck(this, DSL.name("catalog_fact_review_events_actor_issuer_check"), "(((length(btrim((actor_issuer)::text)) >= 1) AND (length(btrim((actor_issuer)::text)) <= 2048)))", true),
             Internal.createCheck(this, DSL.name("catalog_fact_review_events_actor_org_id_check"), "(((actor_org_id)::text ~ '^[0-9]{1,40}$'::text))", true),

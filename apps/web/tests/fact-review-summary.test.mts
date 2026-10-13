@@ -52,6 +52,11 @@ test("summary rejects foreign revisions/targets, inconsistent counts/boundaries 
   assert.throws(() => factReviewSummaryFromCore({ ...supported, reviewThroughNumber: 3 }, review, evidence), /counts/);
 });
 
+test("summary retains owner-endorsed origin instead of claiming personal reading", () => {
+  const input = { ...supported, items: [{ ...supported.items[0], latestObservation: { ...receipt, kind: "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" } }] };
+  assert.deepEqual(factReviewSummaryFromCore(input, review, evidence), input);
+});
+
 test("summary receipts have unique numbers and IDs and global counts need not be page counts", () => {
   const secondTarget = { ...evidence.items[0], path: "facts.SCIM" };
   const two = { ...evidence, factCount: 2, items: [evidence.items[0], secondTarget] };

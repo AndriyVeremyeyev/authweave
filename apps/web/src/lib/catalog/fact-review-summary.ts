@@ -53,7 +53,7 @@ export function factReviewSummaryFromCore(value: unknown,
     const observation = object(row.latestObservation);
     const input = factReviewInput({ reviewId: observation?.reviewId, expectedVersion: review.version,
       expectedSha256: review.proposalSha256, optionId: target.optionId, factPath: target.path,
-      verdict: observation?.verdict, confirmation: "MANUAL_SOURCE_REVIEW" });
+      verdict: observation?.verdict, confirmation: observation?.kind === "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" ? "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" : "MANUAL_SOURCE_REVIEW" });
     if (!input) throw new Error("Invalid summary observation");
     const receipt = factReviewFromCore(observation, review.proposalId, input);
     if (receipt.reviewNumber > through || seenIds.has(receipt.reviewId) || seenNumbers.has(receipt.reviewNumber)) {

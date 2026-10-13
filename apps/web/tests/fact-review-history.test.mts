@@ -41,6 +41,12 @@ test("history rejects another revision, forged authority, private actor data and
   assert.throws(() => factReviewHistoryFromCore(page(Array.from({ length: 20 }, (_, i) => row(i + 1)), 0, 19), review, 0), /cursor/);
 });
 
+test("history preserves owner endorsement and manual origins separately without extra authority", () => {
+  const input = page([row(1), { ...row(2), kind: "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" }]);
+  assert.deepEqual(factReviewHistoryFromCore(input, review, 0), input);
+  assert.throws(() => factReviewHistoryFromCore(page([{ ...row(1), kind: "AUTOMATIC_SOURCE_VERIFICATION" }]), review, 0));
+});
+
 test("browser history cursors are canonical pairs bound to a proposal revision", () => {
   assert.equal(factReviewHistoryCursorFromQuery(undefined, undefined), null);
   assert.deepEqual(factReviewHistoryCursorFromQuery("0", "0"), { version: 0, afterReviewNumber: 0 });

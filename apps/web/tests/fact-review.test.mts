@@ -20,7 +20,7 @@ test("manual review input is strict, bounded, explicit and covers digit-bearing 
   }
   for (const change of [{ expectedVersion: "2" }, { expectedVersion: -1 }, { expectedVersion: 2.5 },
     { expectedVersion: Number.MAX_SAFE_INTEGER + 1 }, { expectedSha256: "A".repeat(64) }, { actor: "forged" },
-    { confirmation: null }, { factPath: "../facts.OIDC" }, { factPath: `facts.${"A".repeat(200)}` },
+    { confirmation: null }, { confirmation: ["MANUAL_SOURCE_REVIEW"] }, { factPath: "../facts.OIDC" }, { factPath: `facts.${"A".repeat(200)}` },
     { reviewId: "not-a-uuid" }, { optionId: "example/other" }, { verdict: "VERIFIED" }]) {
     assert.equal(factReviewInput({ ...input, ...change }), null);
   }
@@ -37,6 +37,18 @@ test("manual review receipt is exactly request-bound and cannot imply approval o
     { factTrustChanged: true }, { actorSubject: "private" }]) {
     assert.throws(() => factReviewFromCore({ ...receipt, ...change }, id, input), /Invalid/);
   }
+});
+
+test("owner endorsement is explicit, preserves false authority and cannot be relabeled as personal source reading", () => {
+  const owner: FactReviewInput = { ...input, confirmation: "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" };
+  const endorsed = { ...receipt, kind: "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" };
+  assert.deepEqual(factReviewInput(owner), owner);
+  assert.deepEqual(factReviewFormInput(new URLSearchParams(Object.entries(owner).map(([k, v]) => [k, String(v)])).toString()), owner);
+  assert.deepEqual(factReviewFromCore(endorsed, id, owner), endorsed);
+  assert.throws(() => factReviewFromCore(endorsed, id, input));
+  assert.throws(() => factReviewFromCore(receipt, id, owner));
+  for (const key of ["sourceVerificationPerformed", "approvalGranted", "catalogWritesPerformed", "factTrustChanged"])
+    assert.throws(() => factReviewFromCore({ ...endorsed, [key]: true }, id, owner));
 });
 
 test("native manual-review forms require exact fields, canonical revision and explicit human confirmation", () => {

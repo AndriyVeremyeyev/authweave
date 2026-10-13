@@ -37,7 +37,7 @@ function retryObservation(id: string, input: FactReviewInput): Response {
     <p>Revision: ${escape(input.expectedVersion)}. SHA-256: ${escape(input.expectedSha256)}. Observation ID: ${escape(input.reviewId)}.</p>
     <p>This is a human observation only, not source verification, trust promotion, approval or publication.</p>
     <form method="post" action="/api/catalog-change-proposals/${escape(id)}/fact-reviews">${fields}
-      <label><input type="checkbox" name="confirmation" value="MANUAL_SOURCE_REVIEW" required>I confirm retrying this exact manually assessed observation. If it is already recorded, the same payload and actor return the existing receipt rather than another observation.</label>
+      <label><input type="checkbox" name="confirmation" value="${escape(input.confirmation)}" required>I confirm retrying this exact ${input.confirmation === "MANUAL_SOURCE_REVIEW" ? "manually assessed observation" : "owner-endorsed assistant conclusion (not personal source reading)"}. If it is already recorded, the same payload, origin and actor return the existing receipt rather than another observation.</label>
       <button type="submit">Retry this exact observation</button>
     </form></main></body></html>`, { status: 503,
     headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "Content-Type": "text/html; charset=utf-8" } });

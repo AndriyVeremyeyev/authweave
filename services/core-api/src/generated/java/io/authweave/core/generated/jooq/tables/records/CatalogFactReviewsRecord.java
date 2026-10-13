@@ -157,6 +157,24 @@ public class CatalogFactReviewsRecord extends UpdatableRecordImpl<CatalogFactRev
         return (OffsetDateTime) get(8);
     }
 
+    /**
+     * Setter for <code>core.catalog_fact_reviews.review_origin</code>. Explicit
+     * curator confirmation mode. Owner endorsement does not claim personal
+     * source reading.
+     */
+    public void setReviewOrigin(String value) {
+        set(9, value);
+    }
+
+    /**
+     * Getter for <code>core.catalog_fact_reviews.review_origin</code>. Explicit
+     * curator confirmation mode. Owner endorsement does not claim personal
+     * source reading.
+     */
+    public String getReviewOrigin() {
+        return (String) get(9);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -180,7 +198,7 @@ public class CatalogFactReviewsRecord extends UpdatableRecordImpl<CatalogFactRev
     /**
      * Create a detached, initialised CatalogFactReviewsRecord
      */
-    public CatalogFactReviewsRecord(UUID id, UUID proposalId, Long proposalVersion, String proposalSha256, Long reviewNumber, String optionId, String factPath, String verdict, OffsetDateTime recordedAt) {
+    public CatalogFactReviewsRecord(UUID id, UUID proposalId, Long proposalVersion, String proposalSha256, Long reviewNumber, String optionId, String factPath, String verdict, OffsetDateTime recordedAt, String reviewOrigin) {
         super(CatalogFactReviews.CATALOG_FACT_REVIEWS);
 
         setId(id);
@@ -192,6 +210,7 @@ public class CatalogFactReviewsRecord extends UpdatableRecordImpl<CatalogFactRev
         setFactPath(factPath);
         setVerdict(verdict);
         setRecordedAt(recordedAt);
+        setReviewOrigin(reviewOrigin);
         resetTouchedOnNotNull();
     }
 }

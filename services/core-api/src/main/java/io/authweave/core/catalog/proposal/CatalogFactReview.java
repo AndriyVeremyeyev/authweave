@@ -13,6 +13,12 @@ public record CatalogFactReview(UUID reviewId, UUID proposalId, long proposalVer
         return new CatalogFactReview(row.getId(), row.getProposalId(), row.getProposalVersion(), row.getProposalSha256(),
                 row.getReviewNumber(), row.getOptionId(), row.getFactPath(),
                 CatalogFactReviewRequest.Verdict.valueOf(row.getVerdict()), row.getRecordedAt().toInstant(),
-                "HUMAN_SOURCE_REVIEW_OBSERVATION", false, false, false, false);
+                kind(row.getReviewOrigin()), false, false, false, false);
+    }
+    public static String kind(String origin) {
+        return switch (CatalogFactReviewRequest.Confirmation.valueOf(origin)) {
+            case MANUAL_SOURCE_REVIEW -> "HUMAN_SOURCE_REVIEW_OBSERVATION";
+            case OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT -> "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT";
+        };
     }
 }

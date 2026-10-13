@@ -6,12 +6,12 @@ const verdicts = ["SOURCE_SUPPORTS_CLAIM", "SOURCE_DOES_NOT_SUPPORT_CLAIM", "INS
 export type FactReviewInput = {
   reviewId: string; expectedVersion: number; expectedSha256: string;
   optionId: string; factPath: string; verdict: (typeof verdicts)[number];
-  confirmation: "MANUAL_SOURCE_REVIEW";
+  confirmation: "MANUAL_SOURCE_REVIEW" | "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT";
 };
 export type FactReviewReceipt = {
   reviewId: string; proposalId: string; proposalVersion: number; proposalSha256: string;
   reviewNumber: number; optionId: string; factPath: string; verdict: FactReviewInput["verdict"];
-  recordedAt: string; kind: "HUMAN_SOURCE_REVIEW_OBSERVATION";
+  recordedAt: string; kind: "HUMAN_SOURCE_REVIEW_OBSERVATION" | "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT";
   sourceVerificationPerformed: false; approvalGranted: false; catalogWritesPerformed: false; factTrustChanged: false;
 };
 
@@ -26,7 +26,7 @@ export function factReviewInput(value: unknown): FactReviewInput | null {
       typeof body.optionId !== "string" || !/^[a-z0-9][a-z0-9.-]{0,99}$/.test(body.optionId) ||
       typeof body.factPath !== "string" || body.factPath.length > 200 || !FACT_PATH.test(body.factPath) ||
       typeof body.verdict !== "string" || !verdicts.some(verdict => verdict === body.verdict) ||
-      body.confirmation !== "MANUAL_SOURCE_REVIEW") return null;
+      typeof body.confirmation !== "string" || !["MANUAL_SOURCE_REVIEW", "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT"].includes(body.confirmation)) return null;
   return body as FactReviewInput;
 }
 
@@ -51,7 +51,7 @@ export function factReviewFromCore(value: unknown, proposalId: string, input: Fa
       body.proposalSha256 !== input.expectedSha256 || body.optionId !== input.optionId || body.factPath !== input.factPath ||
       body.verdict !== input.verdict || !Number.isSafeInteger(body.reviewNumber) || Number(body.reviewNumber) < 1 ||
       typeof body.recordedAt !== "string" || !Number.isFinite(Date.parse(body.recordedAt)) ||
-      body.kind !== "HUMAN_SOURCE_REVIEW_OBSERVATION" || body.sourceVerificationPerformed !== false ||
+      body.kind !== (input.confirmation === "MANUAL_SOURCE_REVIEW" ? "HUMAN_SOURCE_REVIEW_OBSERVATION" : "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT") || body.sourceVerificationPerformed !== false ||
       body.approvalGranted !== false || body.catalogWritesPerformed !== false || body.factTrustChanged !== false) {
     throw new Error("Invalid fact review receipt");
   }

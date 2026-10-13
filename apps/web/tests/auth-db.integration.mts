@@ -1263,7 +1263,7 @@ test("manual fact-review route bounds JSON/native forms and uses only fresh scop
     if (coreStatus !== 201 && coreStatus !== 200) return new Response(null, { status: coreStatus });
     return Response.json({ reviewId: input.reviewId, proposalId: id, proposalVersion: 0, proposalSha256: input.expectedSha256,
       reviewNumber, optionId: input.optionId, factPath: input.factPath, verdict: input.verdict, recordedAt: new Date().toISOString(),
-      kind: "HUMAN_SOURCE_REVIEW_OBSERVATION", sourceVerificationPerformed: false, approvalGranted: false,
+      kind: input.confirmation === "MANUAL_SOURCE_REVIEW" ? "HUMAN_SOURCE_REVIEW_OBSERVATION" : "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT", sourceVerificationPerformed: false, approvalGranted: false,
       catalogWritesPerformed: false, factTrustChanged: forgedReceipt }, { status: coreStatus });
   };
   try {
@@ -1332,6 +1332,14 @@ test("manual fact-review route bounds JSON/native forms and uses only fresh scop
       assert.match(html, /name="confirmation"[^>]*required/);
     }
     forgedReceipt = false;
+    input.confirmation = "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT"; form.set("confirmation", input.confirmation);
+    coreStatus = 201;
+    assert.equal((await (await factReviewRoute(request(curator), context)).json()).kind, "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT");
+    coreStatus = 503;
+    const ownerRetry = await factReviewRoute(formRequest(curator), context);
+    assert.equal(ownerRetry.status, 503); const ownerHtml = await ownerRetry.text();
+    assert.ok(ownerHtml.includes('value="OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT"'));
+    assert.ok(ownerHtml.includes("not personal source reading")); assert.equal(ownerHtml.includes("exact manually assessed"), false);
     calls.length = 0;
     await authDatabase().query(`UPDATE web.sessions SET authenticated_at = CURRENT_TIMESTAMP - INTERVAL '16 minutes'
       WHERE session_hash = $1`, [opaqueHash(curator)]);

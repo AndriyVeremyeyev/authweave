@@ -49,7 +49,9 @@ public class CatalogFactReviewWriter {
                     || !request.optionId().equals(existing.getOptionId())
                     || !request.factPath().equals(existing.getFactPath())
                     || !request.verdict().name().equals(existing.getVerdict())
+                    || !request.confirmation().name().equals(existing.getReviewOrigin())
                     || audit == null || !actor.issuer().equals(audit.getActorIssuer())
+                    || !existing.getReviewOrigin().equals(audit.getReviewOrigin())
                     || !actor.subject().equals(audit.getActorSubject())
                     || !actor.projectId().equals(audit.getActorProjectId())
                     || !actor.organizationId().equals(audit.getActorOrgId())) {
@@ -74,11 +76,12 @@ public class CatalogFactReviewWriter {
         var saved = dsl.insertInto(r).set(r.ID, request.reviewId()).set(r.PROPOSAL_ID, proposalId)
                 .set(r.PROPOSAL_VERSION, request.expectedVersion()).set(r.PROPOSAL_SHA256, request.expectedSha256())
                 .set(r.OPTION_ID, request.optionId()).set(r.FACT_PATH, request.factPath())
-                .set(r.VERDICT, request.verdict().name()).returning().fetchOne();
+                .set(r.VERDICT, request.verdict().name()).set(r.REVIEW_ORIGIN, request.confirmation().name()).returning().fetchOne();
         dsl.insertInto(e).set(e.ID, UUID.randomUUID()).set(e.REVIEW_ID, request.reviewId())
                 .set(e.PROPOSAL_ID, proposalId).set(e.PROPOSAL_VERSION, request.expectedVersion())
                 .set(e.PROPOSAL_SHA256, request.expectedSha256()).set(e.OPTION_ID, request.optionId())
                 .set(e.FACT_PATH, request.factPath()).set(e.VERDICT, request.verdict().name())
+                .set(e.REVIEW_ORIGIN, request.confirmation().name())
                 .set(e.ACTION, "catalog-fact.review-recorded").set(e.ACTOR_TYPE, "CURATOR")
                 .set(e.ACTOR_ISSUER, actor.issuer()).set(e.ACTOR_SUBJECT, actor.subject())
                 .set(e.ACTOR_PROJECT_ID, actor.projectId()).set(e.ACTOR_ORG_ID, actor.organizationId())

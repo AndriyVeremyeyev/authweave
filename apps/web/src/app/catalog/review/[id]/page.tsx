@@ -166,7 +166,7 @@ function ReviewPrerequisites({ report }: { report: CatalogReviewPrerequisites })
     <h2 id="prerequisites-heading" className="text-2xl font-semibold">Why approval is unavailable</h2>
     <p className="mt-3 text-amber-100">Read-only prerequisites report for revision {report.proposalVersion}. This is an informational display, not an exhaustive checklist, a Core approval gate or permission to publish.</p>
     <p className="mt-3 text-sm text-slate-400">Uses whole-candidate counts, not the visible evidence or history page. Gaps can overlap; do not sum their fact counts.</p>
-    <p className="mt-3 text-sm text-slate-400">Evidence dates checked at <time dateTime={report.evidenceEvaluatedAt}>{report.evidenceEvaluatedAt}</time>; manual observations included through #{report.reviewThroughNumber}; latest stored scenario report: {report.impactReportNumber === null ? "none" : `#${report.impactReportNumber}`}.</p>
+    <p className="mt-3 text-sm text-slate-400">Evidence dates checked at <time dateTime={report.evidenceEvaluatedAt}>{report.evidenceEvaluatedAt}</time>; curator conclusions included through #{report.reviewThroughNumber}; latest stored scenario report: {report.impactReportNumber === null ? "none" : `#${report.impactReportNumber}`}.</p>
     <p className="mt-2 text-sm text-slate-400">These are independent Core reads, not an atomic approval snapshot. A new observation, report, revision or rejection can change later reads. Reload before any curator action; Core rechecks write preconditions.</p>
     <ul className="mt-6 space-y-5">
       {report.gaps.map(gap => <li key={gap.code} data-prerequisite={gap.code}>
@@ -181,17 +181,18 @@ function ReviewPrerequisites({ report }: { report: CatalogReviewPrerequisites })
 
 function FactReviewHistorySection({ history }: { history: FactReviewHistoryPage }) {
   return <section id="fact-review-history" className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="fact-review-history-heading">
-    <h2 id="fact-review-history-heading" className="text-2xl font-semibold">Manual source-review history</h2>
+    <h2 id="fact-review-history-heading" className="text-2xl font-semibold">Source-review history</h2>
     <p className="mt-3 text-slate-300">Historical curator observations for revision {history.proposalVersion}, in recording order. Corrections append another observation; earlier conclusions remain visible. This is not a verified fact status or approval.</p>
     <p className="mt-3 break-all text-sm text-slate-400">Revision SHA-256: {history.proposalSha256}</p>
     <p className="mt-3 text-sm text-amber-100">Recording or reading these observations does not fetch a source, refresh observedAt, promote evidence trust or publish a catalog. Actor identities are not shown.</p>
     {history.items.length === 0 ? <p className="mt-5 text-slate-300">{
-      history.afterReviewNumber === 0 ? "No manual source-review observations are stored for this revision. This does not mean the facts are verified." :
+      history.afterReviewNumber === 0 ? "No source-review conclusions are stored for this revision. This does not mean the facts are verified." :
         "No later observations are stored after this cursor. Return to the first page to read the history."
     }</p> : <ol className="mt-5 space-y-4">
       {history.items.map(item => <li key={item.reviewId} className="rounded-lg border border-slate-600 p-4">
         <h3 className="break-words font-medium">#{item.reviewNumber} · {item.optionId} · {item.factPath}</h3>
         <p className="mt-2 text-slate-300">{factReviewVerdictLabel(item.verdict)}</p>
+        <p className="mt-2 text-sm text-slate-400">{item.kind === "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" ? "Owner-approved assistant conclusion — not personal source reading" : "Reported personal manual source review"}</p>
         <p className="mt-2 text-sm text-slate-400">Recorded <time dateTime={item.recordedAt}>{item.recordedAt}</time>.</p>
         <p className="mt-1 break-all font-mono text-xs text-slate-400">Observation ID: {item.reviewId}</p>
       </li>)}
@@ -205,11 +206,11 @@ function FactReviewHistorySection({ history }: { history: FactReviewHistoryPage 
 
 function ManualObservationSummary({ summary }: { summary: FactReviewSummaryPage }) {
   return <section className="mt-8 rounded-xl border border-slate-700 p-6" aria-labelledby="observation-summary-heading">
-    <h2 id="observation-summary-heading" className="text-2xl font-semibold">Manual observation coverage</h2>
+    <h2 id="observation-summary-heading" className="text-2xl font-semibold">Curator conclusion coverage</h2>
     <p className="mt-3 text-slate-300">Counts cover all {summary.factCount} recorded candidate facts in revision {summary.proposalVersion}, not just this page. Each fact uses its latest recorded human observation by review number. Earlier conclusions remain in history; omitted facts remain unknown.</p>
     <p className="mt-3 text-sm text-slate-400">Observations included through review number {summary.reviewThroughNumber}. New observations can change later reads; the separately read history may be newer. Reload to refresh this summary.</p>
     <dl className="mt-5 grid gap-4 sm:grid-cols-2">
-      <div><dt className="text-sm text-slate-400">No manual observation</dt><dd>{summary.counts.noObservation}</dd></div>
+      <div><dt className="text-sm text-slate-400">No recorded conclusion</dt><dd>{summary.counts.noObservation}</dd></div>
       <div><dt className="text-sm text-slate-400">Curator reported: source supports claim</dt><dd>{summary.counts.sourceSupportsClaim}</dd></div>
       <div><dt className="text-sm text-slate-400">Curator reported: source does not support claim</dt><dd>{summary.counts.sourceDoesNotSupportClaim}</dd></div>
       <div><dt className="text-sm text-slate-400">Curator reported: insufficient evidence</dt><dd>{summary.counts.insufficientEvidence}</dd></div>
@@ -246,9 +247,10 @@ function EvidenceSection({ proposalId, evidence, review, summary, canRecord }: {
         <h4 className="mt-4 text-sm font-semibold">Latest reported human observation</h4>
         {summary.items[index].latestObservation ? <>
           <p className="mt-2 text-sm text-slate-300">{factReviewVerdictLabel(summary.items[index].latestObservation.verdict)} · observation #{summary.items[index].latestObservation.reviewNumber}.</p>
+          <p className="mt-2 text-sm text-slate-400">{summary.items[index].latestObservation.kind === "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" ? "Owner-approved assistant conclusion — not personal source reading" : "Reported personal manual source review"}</p>
           <Link href={factReviewHistoryHref(proposalId, review.version,
             Math.max(0, summary.items[index].latestObservation.reviewNumber - 20))} className="mt-2 inline-block text-sm text-cyan-200 hover:underline">Read observation history →</Link>
-        </> : <p className="mt-2 text-sm text-slate-400">No manual observation recorded for this fact. Its evidence remains unreviewed.</p>}
+        </> : <p className="mt-2 text-sm text-slate-400">No conclusion recorded for this fact. Its evidence remains unreviewed.</p>}
         {canRecord && <ManualFactReviewForm proposalId={proposalId} version={review.version}
           digest={review.proposalSha256} optionId={item.optionId} factPath={item.path} />}
       </article>)}</div>
@@ -275,17 +277,20 @@ function ManualFactReviewForm({ proposalId, version, digest, optionId, factPath 
       <input type="hidden" name="expectedSha256" value={digest} />
       <input type="hidden" name="optionId" value={optionId} />
       <input type="hidden" name="factPath" value={factPath} />
-      <label htmlFor={verdictId} className="block text-sm font-medium">Your manual conclusion</label>
+      <label htmlFor={verdictId} className="block text-sm font-medium">Conclusion for this exact claim</label>
       <select id={verdictId} name="verdict" required defaultValue="" className="w-full rounded-lg border border-slate-500 bg-slate-900 px-3 py-2">
         <option value="" disabled>Select a conclusion</option>
         <option value="SOURCE_SUPPORTS_CLAIM">Source supports the submitted claim in this scope</option>
         <option value="SOURCE_DOES_NOT_SUPPORT_CLAIM">Source does not support the submitted claim in this scope</option>
         <option value="INSUFFICIENT_EVIDENCE">Insufficient evidence to decide</option>
       </select>
-      <label className="flex gap-3 text-sm text-slate-300">
-        <input type="checkbox" name="confirmation" value="MANUAL_SOURCE_REVIEW" required className="mt-1" />
-        <span>I manually assessed this source, claim, scope and conditions. Record my conclusion for {optionId} · {factPath}, revision {version}, SHA-256 {digest}. This is not approval.</span>
-      </label>
+      <fieldset className="space-y-3 text-sm text-slate-300">
+        <legend className="mb-2 font-medium">How was this conclusion assessed? Choose explicitly; neither option approves publication.</legend>
+        <label className="flex gap-3"><input type="radio" name="confirmation" value="MANUAL_SOURCE_REVIEW" required className="mt-1" />
+          <span>I manually assessed this source, claim, scope and conditions. Record my conclusion for {optionId} · {factPath}, revision {version}, SHA-256 {digest}. This is not approval.</span></label>
+        <label className="flex gap-3"><input type="radio" name="confirmation" value="OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" required className="mt-1" />
+          <span>I approve the assistant-prepared conclusion for this exact source, claim, scope and conditions. This does not claim that I personally read the source. Record my endorsement for {optionId} · {factPath}, revision {version}, SHA-256 {digest}; it does not approve publication.</span></label>
+      </fieldset>
       <p className="break-all text-xs text-slate-400">Observation ID: {reviewId}. If the outcome is uncertain, check history and retry this original form unchanged; do not create a new observation just to retry.</p>
       <button type="submit" className="rounded-lg bg-cyan-300 px-5 py-2 font-semibold text-slate-950 hover:bg-cyan-200">Record observation</button>
     </form>

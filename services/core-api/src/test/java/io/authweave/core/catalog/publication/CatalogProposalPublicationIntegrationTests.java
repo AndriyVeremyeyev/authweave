@@ -194,7 +194,10 @@ class CatalogProposalPublicationIntegrationTests {
                 () -> publisher.publish(f.request(), actor())).reason());
     }
     @Test void exactReferenceAndFreshServiceActorRemainRequired() {
-        var f = fixture(false, c -> { }); var expired = new CuratorActor(actor().issuer(), actor().subject(), "123", "456", Instant.now().minusSeconds(901));
+        var f = fixture(false, c -> { });
+        // Authorization is checked against the database clock, not the host/Docker clock offset.
+        var databaseNow = dsl.fetchOne("select clock_timestamp()").get(0, java.time.OffsetDateTime.class).toInstant();
+        var expired = new CuratorActor(actor().issuer(), actor().subject(), "123", "456", databaseNow.minusSeconds(901));
         assertEquals(CatalogProposalPublicationException.Reason.AUTHENTICATION_EXPIRED, assertThrows(CatalogProposalPublicationException.class,
                 () -> publisher.publish(f.request(), expired)).reason()); bundle(0);
         var receipt = publisher.publish(f.request(), actor()).receipt();
@@ -244,8 +247,23 @@ class CatalogProposalPublicationIntegrationTests {
     private CatalogProposalRejectionRequest rejection(CatalogProposalSnapshot p) {
         return new CatalogProposalRejectionRequest(p.version(), p.proposalSha256(), CatalogProposalRejectionRequest.ReasonCode.INSUFFICIENT_EVIDENCE);
     }
+    @Test void ownerEndorsedWithdrawalRemainsUnknownAndIsReplayableWithoutPersonalReadingClaim() {
+        var f = fixture(false, c -> ((ObjectNode) c.at("/options/0/facts/SCIM")).put("availability", "UNKNOWN"), false,
+                CatalogFactReviewRequest.Confirmation.OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT);
+        assertTrue(proposals.load(f.request().proposal()).observations().stream().allMatch(r -> r.kind().equals("OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT")));
+        var root = trusted.load(f.root().snapshot()); var saved = publisher.publish(f.request(), actor()).receipt();
+        var child = trusted.load(saved.snapshot());
+        assertEquals("UNKNOWN", child.decisionInputs().catalog().at("/options/0/facts/SCIM/availability").asText());
+        assertEquals(root.decisionInputs().catalog(), trusted.load(f.root().snapshot()).decisionInputs().catalog());
+        assertEquals(saved, publisher.publish(f.request(), actor()).receipt());
+        assertFalse(saved.evaluationReady()); assertFalse(saved.externalSourceVerificationPerformed()); bundle(1);
+        evidence(f, saved);
+    }
     private Fixture fixture(boolean audit, Consumer<ObjectNode> change) { return fixture(audit, change, false); }
     private Fixture fixture(boolean audit, Consumer<ObjectNode> change, boolean missing) {
+        return fixture(audit, change, missing, CatalogFactReviewRequest.Confirmation.MANUAL_SOURCE_REVIEW);
+    }
+    private Fixture fixture(boolean audit, Consumer<ObjectNode> change, boolean missing, CatalogFactReviewRequest.Confirmation origin) {
         var source = new CandidateDecisionReviewFixture(mapper, reviews, audits, auditDrafts).stored().reference();
         var root = bootstrap.publish(new CatalogBootstrapPublicationRequest(1, UUID.randomUUID(), source, CatalogBootstrapPublicationRequest.Confirmation.PUBLISH_REVIEWED_BOOTSTRAP), actor()).receipt();
         var base = mapper.treeToValue(trusted.load(root.snapshot()).decisionInputs().catalog(), ProviderCatalogDraft.class);
@@ -256,7 +274,7 @@ class CatalogProposalPublicationIntegrationTests {
         var request = mapper.treeToValue(p.request(), CatalogChangePreviewRequest.class);
         request.candidate().options().forEach(o -> CatalogDraftFacts.entries(o).keySet().stream().sorted().filter(path -> !missing || !path.equals("facts.SCIM"))
                 .forEach(path -> facts.record(p.proposalId(), new CatalogFactReviewRequest(UUID.randomUUID(), p.version(), p.proposalSha256(), o.id(), path,
-                        Verdict.SOURCE_SUPPORTS_CLAIM, CatalogFactReviewRequest.Confirmation.MANUAL_SOURCE_REVIEW), actor())));
+                        Verdict.SOURCE_SUPPORTS_CLAIM, origin), actor())));
         return new Fixture(root, p, request(root, p, audit ? supplement(p) : null));
     }
     private CatalogProposalPublicationRequest request(CatalogBootstrapPublisher.Receipt root, CatalogProposalSnapshot p, StoredCandidateDecisionService.AuditReference audit) {

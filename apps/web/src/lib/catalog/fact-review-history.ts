@@ -34,7 +34,7 @@ export function factReviewHistoryFromCore(value: unknown,
     const row = value as Record<string, unknown>;
     const input = factReviewInput({ reviewId: row.reviewId, expectedVersion: review.version,
       expectedSha256: review.proposalSha256, optionId: row.optionId, factPath: row.factPath,
-      verdict: row.verdict, confirmation: "MANUAL_SOURCE_REVIEW" });
+      verdict: row.verdict, confirmation: row.kind === "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" ? "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" : "MANUAL_SOURCE_REVIEW" });
     if (!input) throw new Error("Invalid review history item");
     const receipt = factReviewFromCore(row, review.proposalId, input);
     if (receipt.reviewNumber <= previous || ids.has(receipt.reviewId)) throw new Error("Invalid review history order");

@@ -117,6 +117,13 @@ public class CatalogFactReviews extends TableImpl<CatalogFactReviewsRecord> {
      */
     public final TableField<CatalogFactReviewsRecord, OffsetDateTime> RECORDED_AT = createField(DSL.name("recorded_at"), SQLDataType.TIMESTAMPWITHTIMEZONE(6).nullable(false).defaultValue(DSL.field(DSL.raw("clock_timestamp()"), SQLDataType.TIMESTAMPWITHTIMEZONE)), this, "");
 
+    /**
+     * The column <code>core.catalog_fact_reviews.review_origin</code>. Explicit
+     * curator confirmation mode. Owner endorsement does not claim personal
+     * source reading.
+     */
+    public final TableField<CatalogFactReviewsRecord, String> REVIEW_ORIGIN = createField(DSL.name("review_origin"), SQLDataType.VARCHAR(64).nullable(false).defaultValue(DSL.field(DSL.raw("'MANUAL_SOURCE_REVIEW'::character varying"), SQLDataType.VARCHAR)), this, "Explicit curator confirmation mode. Owner endorsement does not claim personal source reading.");
+
     private CatalogFactReviews(Name alias, Table<CatalogFactReviewsRecord> aliased) {
         this(alias, aliased, (Field<?>[]) null, null);
     }
@@ -203,7 +210,7 @@ public class CatalogFactReviews extends TableImpl<CatalogFactReviewsRecord> {
 
     @Override
     public List<UniqueKey<CatalogFactReviewsRecord>> getUniqueKeys() {
-        return Arrays.asList(Keys.CATALOG_FACT_REVIEW_EVENT_BINDING_UK, Keys.CATALOG_FACT_REVIEW_NUMBER_UK);
+        return Arrays.asList(Keys.CATALOG_FACT_REVIEW_EVENT_BINDING_UK, Keys.CATALOG_FACT_REVIEW_NUMBER_UK, Keys.CATALOG_FACT_REVIEW_ORIGIN_BINDING_UK);
     }
 
     @Override
@@ -227,6 +234,7 @@ public class CatalogFactReviews extends TableImpl<CatalogFactReviewsRecord> {
     @Override
     public List<Check<CatalogFactReviewsRecord>> getChecks() {
         return Arrays.asList(
+            Internal.createCheck(this, DSL.name("catalog_fact_review_origin_ck"), "(((review_origin)::text = ANY ((ARRAY['MANUAL_SOURCE_REVIEW'::character varying, 'OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT'::character varying])::text[])))", true),
             Internal.createCheck(this, DSL.name("catalog_fact_reviews_fact_path_check"), "(((fact_path)::text ~ '^(facts\\.[A-Z0-9_]+|compatibility\\.(applications|clients|populations|tenancy|membership)\\.[A-Z0-9_]+|residency\\.[A-Z0-9_]+|authenticationControls\\.[A-Z0-9_]+\\.[A-Z0-9_]+\\.[A-Z0-9_]+)$'::text))", true),
             Internal.createCheck(this, DSL.name("catalog_fact_reviews_option_id_check"), "(((option_id)::text ~ '^[a-z0-9][a-z0-9.-]{0,99}$'::text))", true),
             Internal.createCheck(this, DSL.name("catalog_fact_reviews_proposal_sha256_check"), "(((proposal_sha256)::text ~ '^[0-9a-f]{64}$'::text))", true),

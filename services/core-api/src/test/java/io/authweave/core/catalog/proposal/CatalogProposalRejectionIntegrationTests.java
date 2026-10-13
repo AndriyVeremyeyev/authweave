@@ -261,6 +261,31 @@ class CatalogProposalRejectionIntegrationTests extends PostgresIntegrationTest {
     }
 
     @Test
+    void ownerEndorsementIsExplicitAtomicAndCannotBeRetriedAsPersonalReading() throws Exception {
+        var stored = proposals.save(proposal(), null).proposal();
+        var manual = factReview(stored, "facts.OIDC");
+        var body = (ObjectNode) mapper.valueToTree(manual);
+        body.put("confirmation", "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT");
+        String path = factReviewPath(stored.proposalId());
+        var receipt = mvc.perform(authorized(path, Instant.now()).content(body.toString()))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.kind").value("OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT"))
+                .andExpect(jsonPath("$.sourceVerificationPerformed").value(false)).andExpect(jsonPath("$.approvalGranted").value(false))
+                .andReturn().getResponse().getContentAsString();
+        assertEquals(receipt, mvc.perform(authorized(path, Instant.now()).content(body.toString())).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        mvc.perform(authorized(path, Instant.now()).content(mapper.writeValueAsString(manual))).andExpect(status().isConflict());
+        mvc.perform(authorized(path, Instant.now().minusSeconds(901)).content(body.toString())).andExpect(status().isForbidden());
+        mvc.perform(withCuratorHeaders(get(path.replace("/fact-reviews", "/revisions/0/fact-reviews")), Instant.now()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].kind").value("OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT"));
+        var row = dsl.fetchOne("select r.review_origin, e.review_origin from core.catalog_fact_reviews r join audit.catalog_fact_review_events e on e.review_id=r.id where r.id=?", manual.reviewId());
+        assertEquals("OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT", row.get(0)); assertEquals(row.get(0), row.get(1));
+        assertEquals("OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT", summaries.summary(stored.proposalId(), 0, 0).items().stream()
+                .filter(i -> i.latestObservation() != null).findFirst().orElseThrow().latestObservation().kind());
+        var publications = io.authweave.core.generated.jooq.tables.CatalogPublicationDecisions.CATALOG_PUBLICATION_DECISIONS;
+        assertTrue(!dsl.fetchExists(publications, publications.PROPOSAL_ID.eq(stored.proposalId())));
+    }
+
+    @Test
     void sourceReviewIsAtomicActorBoundAndIdempotentEvenAfterRevisionChangesOrRejection() throws Exception {
         var request = proposal();
         var stored = proposals.save(request, null).proposal();

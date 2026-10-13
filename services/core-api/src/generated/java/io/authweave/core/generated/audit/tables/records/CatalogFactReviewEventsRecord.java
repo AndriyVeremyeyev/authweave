@@ -289,6 +289,24 @@ public class CatalogFactReviewEventsRecord extends UpdatableRecordImpl<CatalogFa
         return (OffsetDateTime) get(17);
     }
 
+    /**
+     * Setter for <code>audit.catalog_fact_review_events.review_origin</code>.
+     * Atomically bound to receipt origin; no source truth or publication
+     * authority is inferred.
+     */
+    public void setReviewOrigin(String value) {
+        set(18, value);
+    }
+
+    /**
+     * Getter for <code>audit.catalog_fact_review_events.review_origin</code>.
+     * Atomically bound to receipt origin; no source truth or publication
+     * authority is inferred.
+     */
+    public String getReviewOrigin() {
+        return (String) get(18);
+    }
+
     // -------------------------------------------------------------------------
     // Primary key information
     // -------------------------------------------------------------------------
@@ -312,7 +330,7 @@ public class CatalogFactReviewEventsRecord extends UpdatableRecordImpl<CatalogFa
     /**
      * Create a detached, initialised CatalogFactReviewEventsRecord
      */
-    public CatalogFactReviewEventsRecord(UUID id, UUID reviewId, UUID proposalId, Long proposalVersion, String proposalSha256, String optionId, String factPath, String verdict, String action, String actorType, String actorIssuer, String actorSubject, String actorProjectId, String actorOrgId, OffsetDateTime authenticatedAt, UUID correlationId, String outcome, OffsetDateTime occurredAt) {
+    public CatalogFactReviewEventsRecord(UUID id, UUID reviewId, UUID proposalId, Long proposalVersion, String proposalSha256, String optionId, String factPath, String verdict, String action, String actorType, String actorIssuer, String actorSubject, String actorProjectId, String actorOrgId, OffsetDateTime authenticatedAt, UUID correlationId, String outcome, OffsetDateTime occurredAt, String reviewOrigin) {
         super(CatalogFactReviewEvents.CATALOG_FACT_REVIEW_EVENTS);
 
         setId(id);
@@ -333,6 +351,7 @@ public class CatalogFactReviewEventsRecord extends UpdatableRecordImpl<CatalogFa
         setCorrelationId(correlationId);
         setOutcome(outcome);
         setOccurredAt(occurredAt);
+        setReviewOrigin(reviewOrigin);
         resetTouchedOnNotNull();
     }
 }

@@ -17,5 +17,5 @@ public record CatalogFactReviewRequest(
         @NotNull Verdict verdict,
         @NotNull Confirmation confirmation) {
     public enum Verdict { SOURCE_SUPPORTS_CLAIM, SOURCE_DOES_NOT_SUPPORT_CLAIM, INSUFFICIENT_EVIDENCE }
-    public enum Confirmation { MANUAL_SOURCE_REVIEW }
+    public enum Confirmation { MANUAL_SOURCE_REVIEW, OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT }
 }

@@ -566,6 +566,11 @@ test("manual source-review contracts bind a fact observation without granting tr
     catalogWritesPerformed: false, factTrustChanged: false };
   assert.equal(response(receipt), true, ajv.errorsText(response.errors));
   const history = ajv.getSchema("https://authweave.dev/contracts/catalog-fact-review-page.v1.schema.json");
+  assert.equal(request({ ...input, confirmation: "OWNER_APPROVES_ASSISTANT_SOURCE_ASSESSMENT" }), true);
+  const owner = { ...receipt, kind: "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT" };
+  assert.equal(response(owner), true); assert.equal(response({ ...owner, sourceVerificationPerformed: true }), false);
+  assert.equal(response({ ...owner, kind: "INDEPENDENTLY_VERIFIED_SOURCE" }), false);
+  assert.equal(request({ ...input, confirmation: "APPROVE_PUBLICATION" }), false);
   const page = { proposalId: receipt.proposalId, proposalVersion: receipt.proposalVersion,
     proposalSha256: receipt.proposalSha256, afterReviewNumber: 0, items: [receipt], nextAfterReviewNumber: null };
   assert.equal(history(page), true, ajv.errorsText(history.errors));

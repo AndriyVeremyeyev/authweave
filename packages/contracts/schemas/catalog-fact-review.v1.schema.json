@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://authweave.dev/contracts/catalog-fact-review.v1.schema.json",
-  "title": "Recorded manual source-review observation v1",
+  "title": "Recorded source-review conclusion with explicit origin v1",
   "type": "object",
   "additionalProperties": false,
   "required": ["reviewId", "proposalId", "proposalVersion", "proposalSha256", "reviewNumber", "optionId", "factPath", "verdict", "recordedAt", "kind", "sourceVerificationPerformed", "approvalGranted", "catalogWritesPerformed", "factTrustChanged"],
@@ -15,7 +15,7 @@
     "factPath": { "$ref": "catalog-fact-review-request.v1.schema.json#/properties/factPath" },
     "verdict": { "$ref": "catalog-fact-review-request.v1.schema.json#/properties/verdict" },
     "recordedAt": { "type": "string", "format": "date-time" },
-    "kind": { "const": "HUMAN_SOURCE_REVIEW_OBSERVATION" },
+    "kind": { "enum": ["HUMAN_SOURCE_REVIEW_OBSERVATION", "OWNER_APPROVED_ASSISTANT_SOURCE_ASSESSMENT"] },
     "sourceVerificationPerformed": { "const": false },
     "approvalGranted": { "const": false },
     "catalogWritesPerformed": { "const": false },
