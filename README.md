@@ -662,6 +662,13 @@ make check
 
 Run `make help` to see component-specific checks and development-server commands.
 
+`make dev-web` (or `npm run dev` inside `apps/web`) explicitly uses port 3000.
+If another application occupies it, startup fails with `EADDRINUSE` instead of
+silently switching ports. The local BFF origin and registered ZITADEL callback are
+both `http://localhost:3000`; another port is not an authenticated development URL.
+Stop the conflicting server in its own terminal before starting AuthWeave. Do not
+kill unrelated processes or change OIDC security checks to work around the conflict.
+
 CI audits both npm workspaces, including development dependencies, and fails on
 known moderate-or-higher vulnerabilities. Run `npm audit --audit-level=moderate`
 inside `apps/web` or `packages/contracts` for the same check locally. A clean audit
