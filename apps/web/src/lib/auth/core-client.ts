@@ -4,6 +4,7 @@ import { resultPageFromCore, resultSummaryFromCore, resultReference, resultRefer
   resultHistoryByteLimit, resultSummaryByteLimit, type ResultReference, type ResultPage, type ResultSummary } from "../assessment/decision-results.ts";
 import { recordingRequest, recordingSummaryMatches, type RecordingRequest, type RecordingAck } from "../assessment/decision-recording.ts";
 import { resultAdviceFromCore, resultAdviceByteLimit, type ResultAdvice } from "../assessment/decision-advice.ts";
+import { catalogReference, catalogCursorQuery, catalogChoicesFromCore, catalogChoicesByteLimit, type CatalogReference, type CatalogChoices } from "../assessment/catalog-choices.ts";
 import { sensitivityRequest, sensitivityFromCore as pinnedSensitivityFromCore, sensitivityByteLimit, type SensitivityRequest, type ResultSensitivity } from "../assessment/decision-sensitivity.ts";
 import type { BrowserSession } from "./store.ts";
 import type { AuthConfiguration } from "./config.ts";
@@ -492,6 +493,16 @@ function assessmentHeaders(session: BrowserSession): Record<string, string> {
 }
 
 /** Fixed loopback reads with session-only owner assertions. Nothing is selected, published or recalculated. */
+export async function readPersonalCatalogChoices(session: BrowserSession, id: string, before: CatalogReference | null = null): Promise<CatalogChoices | null> {
+  if (!resultUuid.test(id)) throw new Error("Invalid owned catalog request");
+  const cursor = before === null ? null : catalogReference(before), signal = AbortSignal.timeout(10_000);
+  const suffix = cursor ? `?${catalogCursorQuery(cursor)}` : "";
+  const response = await fetch(`${CORE_ORIGIN}/api/v6/workspaces/${session.workspaceId}/assessments/${id}/decision-results/catalogs${suffix}`, {
+    method: "GET", headers: assessmentHeaders(session), cache: "no-store", redirect: "error", signal,
+  });
+  if (response.status === 404) return null;
+  return catalogChoicesFromCore(await ownedResultJson(response, catalogChoicesByteLimit, signal), session.workspaceId, id, cursor);
+}
 export async function readPersonalDecisionHistory(session: BrowserSession, id: string, before: ResultReference | null = null): Promise<ResultPage | null> {
   if (!resultUuid.test(id)) throw new Error("Invalid owned result request");
   const cursor = before === null ? null : resultReference(before);

@@ -1,5 +1,6 @@
 import type { AdviceChoice, AdviceEvidence, AdviceOptionCheck, ResultAdvice } from "@/lib/assessment/decision-advice";
 import { savedBlockerGroups } from "../../../../lib/assessment/result-blockers.ts";
+import { reviewedAdviceText } from "../../../../lib/assessment/reviewed-advice.ts";
 export { savedBlockerGroups } from "../../../../lib/assessment/result-blockers.ts";
 
 const label = (value: string) => value.toLowerCase().replaceAll("_", " ").replace(/^./, c => c.toUpperCase());
@@ -105,6 +106,7 @@ function Choice({ choice }: { choice: AdviceChoice }) {
   </>;
 }
 export function ResultAdviceView({ advice }: { advice: ResultAdvice }) {
+  const reviewed = reviewedAdviceText(advice);
   return <section aria-labelledby="explanation-heading" className="mt-10 min-w-0 space-y-8">
     <div><h2 id="explanation-heading" className="text-2xl font-semibold">Why this saved result?</h2>
       <p className="mt-3 text-sm leading-6 text-slate-300">Every finding below belongs to the exact historical version above. Source dates and verdicts are preserved, not refreshed. Fictional .invalid claims are test data, never real provider evidence. Links open only when you choose them; this page fetches no external source.</p>
@@ -157,11 +159,13 @@ export function ResultAdviceView({ advice }: { advice: ResultAdvice }) {
     </div>
     <div><h3 className="text-xl font-medium">Responsibilities and cost uncertainty</h3>
       <p className="mt-3 text-sm leading-6 text-slate-300">Managed hosting does not remove application responsibilities for tenant mapping, authorization, lifecycle and operational review. Self-hosting adds responsibility for infrastructure, upgrades, backups and availability. Neither deployment mode proves a free tier, workload fit or total cost.</p>
-      <ul className="mt-4 space-y-3">{advice.limitations.map((l, i) => <li key={i} className="rounded-lg border border-white/10 p-4 text-sm leading-6 text-slate-300">
+      <p className="mt-4 text-sm leading-6 text-slate-300">{reviewed.context}</p>
+      <p className="mt-2 text-xs text-slate-400">Review wording is contextual presentation; the immutable calculation and its digest are unchanged.</p>
+      <ul className="mt-4 space-y-3">{reviewed.limitations.map((l, i) => <li key={i} className="rounded-lg border border-white/10 p-4 text-sm leading-6 text-slate-300">
         <p className="break-words font-medium">{l.profilePath ?? "Source authority"}{l.blocksDeploymentRecommendation ? " — blocks verified deployment recommendation" : ""}</p>
         <p className="mt-2">{l.explanation}</p><p className="mt-2 break-all text-xs text-slate-500">{l.reasonCode}</p>
       </li>)}</ul>
     </div>
-    <div><h3 className="text-xl font-medium">Next actions from this saved calculation</h3><TextList title="Review before relying on this advice" values={advice.followUps} /></div>
+    <div><h3 className="text-xl font-medium">Next actions for this saved result</h3><TextList title="Review before relying on this advice" values={reviewed.followUps} /></div>
   </section>;
 }

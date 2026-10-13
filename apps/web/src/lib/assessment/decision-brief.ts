@@ -2,6 +2,7 @@ import { boundedPrerequisiteText } from "./architecture-prerequisites.ts";
 import { resultAdviceFromCore, type AdviceChoice, type ResultAdvice } from "./decision-advice.ts";
 import { resultReference, resultUuid, type ResultReference } from "./decision-results.ts";
 import { savedBlockerGroups } from "./result-blockers.ts";
+import { reviewedAdviceText } from "./reviewed-advice.ts";
 import { literalBriefText as literal } from "./requirements-brief.ts";
 
 export const decisionBriefFormat = "authweave-saved-decision-brief-v1";
@@ -42,6 +43,7 @@ function choice(lines: string[], value: AdviceChoice) {
 export function savedDecisionMarkdown(input: ResultAdvice, workspace: string, id: string, reference: ResultReference): string {
   decisionBriefFilename(id, reference);
   const advice = resultAdviceFromCore(input, workspace, id, reference), s = advice.summary, item = s.item;
+  const reviewed = reviewedAdviceText(advice);
   const lines = ["# AuthWeave saved calculation brief", "",
     "> Historical conditional advice, not a final ADR, approved decision, deployment recommendation or compliance verification.", "",
     `- Export format: \`${decisionBriefFormat}\``, `- Assessment ID: \`${id}\``,
@@ -87,8 +89,9 @@ export function savedDecisionMarkdown(input: ResultAdvice, workspace: string, id
   for (const value of advice.architecture.provisioning) choice(lines, value);
   lines.push("## Limitations and next actions", "", `- Recorded verification gaps: ${s.verificationGapCount}.`,
     "- External source verification performed: false.", "- Configuration verified: false.", "- Compliance verified: false.", "- Decision approved: false.", "");
-  for (const limitation of advice.limitations) lines.push(`- ${literal(limitation.profilePath ?? "Source authority")} / ${limitation.reasonCode}${limitation.blocksDeploymentRecommendation ? " — blocks verified deployment recommendation" : ""}: ${literal(limitation.explanation)}`);
-  lines.push(""); list(lines, "Next actions from this calculation", advice.followUps);
+  lines.push(reviewed.context, "", "Review wording below is contextual presentation, not a modification of the immutable calculation.", "");
+  for (const limitation of reviewed.limitations) lines.push(`- ${literal(limitation.profilePath ?? "Source authority")} / ${limitation.reasonCode}${limitation.blocksDeploymentRecommendation ? " — blocks verified deployment recommendation" : ""}: ${literal(limitation.explanation)}`);
+  lines.push(""); list(lines, "Next actions for this saved result", reviewed.followUps);
   lines.push("", "## Scope and handling", "",
     "This compact brief omits per-check evidence, source URLs/dates/verdicts, preference contributions and detailed option-compatibility checks. Inspect those in the exact saved result identified above; a grouped count is not source evidence. Fictional .invalid claims in test results are never real provider evidence.", "",
     "Managed hosting still leaves tenant mapping, authorization, lifecycle and operational review to the application. Self-hosting adds infrastructure, upgrades, backups and availability. Neither proves a free tier, workload fit or total cost.", "",

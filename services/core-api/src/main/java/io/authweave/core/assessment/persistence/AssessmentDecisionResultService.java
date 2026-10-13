@@ -110,6 +110,17 @@ public class AssessmentDecisionResultService {
                 more ? items.getLast().reference() : null, false);
     }
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public AssessmentCatalogChoices catalogChoices(UUID workspace, UUID assessment,
+            PublishedCatalogSnapshot.Reference before, Actor actor) {
+        owner(workspace, actor); Objects.requireNonNull(assessment);
+        if (!repository.assessmentExists(workspace, assessment)) fail(NOT_FOUND);
+        var rows = repository.catalogChoices(before);
+        boolean more = rows.size() > AssessmentCatalogChoices.PAGE_SIZE;
+        var items = more ? rows.subList(0, AssessmentCatalogChoices.PAGE_SIZE) : rows;
+        return new AssessmentCatalogChoices("OWNED_ASSESSMENT_CATALOG_CHOICES", workspace, assessment,
+                items, more ? items.getLast().reference() : null, false);
+    }
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public AssessmentDecisionResultViews.Summary summary(UUID workspace, UUID assessment,
             AssessmentDecisionResultRequest.Reference reference, Actor actor) {
         // The outer transaction supplies the same read-only snapshot to get(), replay and this bounded projection.

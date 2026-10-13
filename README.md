@@ -539,10 +539,26 @@ unchanged result/audit counts. This does not close real human review or final ac
 
 Calculation history links to `/assessments/{id}/results/new`. The signed-in owner sees
 the saved profile version and current result head. The first calculation has no selected
-catalog; enter the exact snapshot UUID, catalog version and SHA-256 from a published
-curator receipt. Re-evaluation displays the predecessor's catalog as a convenience,
-not an automatic latest selection. Every operation requires an unchecked explicit
-confirmation. Draft/unreviewed or unavailable publications cannot become a fallback.
+catalog; choose a published version from the dropdown. Its exact snapshot UUID and
+SHA-256 are attached automatically and remain inspectable in version details, without
+manual copying. Re-evaluation displays the predecessor's catalog as a convenience,
+not an automatic latest selection. Changing the selection clears confirmation.
+Every operation requires explicit confirmation. Draft/unreviewed or unavailable
+publications cannot become a fallback.
+
+The owned `GET .../decision-results/catalogs` reads a 20-item metadata-only keyset page
+(publication time, then UUID descending). Older versions are browsable. Only snapshots
+with stored publication proofs are listed; discovery itself does not verify those proofs
+or claim source support. The unchanged recording boundary verifies the exact selection.
+Empty discovery disables the initial calculation with a curator-publication explanation;
+transport failure is not represented as an empty catalog. No source/review/audit bodies
+or curator identities are exposed, and no version is activated by browsing.
+
+Saved-result UI and downloaded briefs distinguish completed historical catalog review
+from unverified external claims, configuration and compliance. A shared presentation
+adapter contextualizes the kernel's draft-oriented source-review wording only after
+strict replay-verified advice validation. Original stored JSON, kernel policy, advice
+API fields, source dates, result digests and non-approval flags remain unchanged.
 
 Only the current profile's Preferred capability dimensions receive explicit positive
 integer weights totaling 100. With no Preferred dimensions, the request explicitly uses

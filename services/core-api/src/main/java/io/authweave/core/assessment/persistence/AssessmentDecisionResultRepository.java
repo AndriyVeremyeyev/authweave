@@ -18,7 +18,11 @@ import static io.authweave.core.generated.audit.tables.AssessmentDecisionResultE
 import static io.authweave.core.assessment.result.AssessmentDecisionResultException.Reason.*;
 import io.authweave.core.assessment.result.AssessmentDecisionResultException;
 import io.authweave.core.assessment.result.AssessmentDecisionResultViews;
+import io.authweave.core.assessment.result.AssessmentCatalogChoices;
 import io.authweave.core.catalog.publication.PublishedCatalogSnapshot;
+import static io.authweave.core.generated.jooq.tables.CatalogPublishedSnapshots.CATALOG_PUBLISHED_SNAPSHOTS;
+import static io.authweave.core.generated.jooq.tables.CatalogBootstrapPublications.CATALOG_BOOTSTRAP_PUBLICATIONS;
+import static io.authweave.core.generated.jooq.tables.CatalogProposalPublications.CATALOG_PROPOSAL_PUBLICATIONS;
 
 /** Bounded exact reads; the profile lock serializes appends with both result and profile writers. */
 @Repository
@@ -60,6 +64,23 @@ public class AssessmentDecisionResultRepository {
     }
     boolean assessmentExists(UUID workspace, UUID assessment) {
         return dsl.fetchExists(ASSESSMENTS, ASSESSMENTS.WORKSPACE_ID.eq(workspace).and(ASSESSMENTS.ID.eq(assessment)));
+    }
+    List<AssessmentCatalogChoices.Item> catalogChoices(PublishedCatalogSnapshot.Reference before) {
+        var s = CATALOG_PUBLISHED_SNAPSHOTS;
+        // Proof presence is discovery metadata, never proof validity. No draft/source/reviewer bodies are read.
+        var scope = DSL.exists(DSL.selectOne().from(CATALOG_BOOTSTRAP_PUBLICATIONS).where(CATALOG_BOOTSTRAP_PUBLICATIONS.ID.eq(s.ID)))
+                .or(DSL.exists(DSL.selectOne().from(CATALOG_PROPOSAL_PUBLICATIONS).where(CATALOG_PROPOSAL_PUBLICATIONS.ID.eq(s.ID))));
+        Condition window = scope;
+        if (before != null) {
+            var at = dsl.select(s.PUBLISHED_AT).from(s).where(scope.and(s.ID.eq(before.snapshotId()))
+                    .and(s.CATALOG_VERSION.eq(before.catalogVersion())).and(s.SNAPSHOT_SHA256.eq(before.snapshotSha256()))).fetchOne(s.PUBLISHED_AT);
+            if (at == null) throw new AssessmentDecisionResultException(CONFLICT);
+            window = scope.and(s.PUBLISHED_AT.lt(at).or(s.PUBLISHED_AT.eq(at).and(s.ID.lt(before.snapshotId()))));
+        }
+        return dsl.select(s.ID, s.CATALOG_VERSION, s.SNAPSHOT_SHA256, s.PUBLISHED_AT).from(s).where(window)
+                .orderBy(s.PUBLISHED_AT.desc(), s.ID.desc()).limit(AssessmentCatalogChoices.PAGE_SIZE + 1).fetch(row ->
+                    new AssessmentCatalogChoices.Item(new PublishedCatalogSnapshot.Reference(row.get(s.ID),
+                            row.get(s.CATALOG_VERSION), row.get(s.SNAPSHOT_SHA256)), row.get(s.PUBLISHED_AT).toInstant()));
     }
     List<AssessmentDecisionResultViews.Item> index(UUID workspace, UUID assessment, Reference before) {
         var r = ASSESSMENT_DECISION_RESULTS;

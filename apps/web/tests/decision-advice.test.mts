@@ -7,6 +7,8 @@ import ts from "typescript";
 import { resultAdviceFromCore, resultAdviceByteLimit } from "../src/lib/assessment/decision-advice.ts";
 import { readPersonalDecisionAdvice } from "../src/lib/auth/core-client.ts";
 import { resultAdvice, rankedAdvice } from "./fixtures/decision-advice.mts";
+import { reviewedAdviceText } from "../src/lib/assessment/reviewed-advice.ts";
+import { savedDecisionMarkdown } from "../src/lib/assessment/decision-brief.ts";
 import { firstResult, resultAssessment, resultWorkspace } from "./fixtures/decision-results.mts";
 const read = (v: unknown) => resultAdviceFromCore(v, resultWorkspace, resultAssessment, firstResult);
 const session = { workspaceId: resultWorkspace, issuer: "https://identity.example.invalid", subject: "fictional-owner" };
@@ -15,8 +17,32 @@ async function adviceUi() {
   const source = await readFile(new URL("../src/app/assessments/[id]/results/result-advice.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   return import(`data:text/javascript;base64,${Buffer.from(compiled.replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
-    .replaceAll('"../../../../lib/assessment/result-blockers.ts"', JSON.stringify(new URL("../src/lib/assessment/result-blockers.ts", import.meta.url).href))).toString("base64")}`);
+    .replaceAll('"../../../../lib/assessment/result-blockers.ts"', JSON.stringify(new URL("../src/lib/assessment/result-blockers.ts", import.meta.url).href))
+    .replaceAll('"../../../../lib/assessment/reviewed-advice.ts"', JSON.stringify(new URL("../src/lib/assessment/reviewed-advice.ts", import.meta.url).href))).toString("base64")}`);
 }
+
+test("reviewed result UI and brief distinguish completed publication review from unverified vendor/deployment truth without rewriting history", async () => {
+  const advice = resultAdvice();
+  const old = "Obtain authenticated source review for each exact option claim; calculation assertions are not curator approvals.";
+  advice.followUps.unshift(old);
+  advice.limitations.unshift({ profilePath: null, reasonCode: "SOURCE_AUTHORITY_UNVERIFIED", blocksDeploymentRecommendation: true,
+    explanation: "All assertions are calculation hypotheses, not authenticated review receipts; no trusted catalog or deployment approval is produced." });
+  const before = structuredClone(advice), presented = reviewedAdviceText(advice);
+  assert.deepEqual(advice, before); assert.equal(presented.followUps.includes(old), false);
+  assert.match(presented.followUps[0], /UNKNOWN, stale or disputed/);
+  assert.match(presented.limitations[0].explanation, /actual provider configuration remain unverified/);
+  assert.equal(presented.limitations[0].blocksDeploymentRecommendation, true);
+  assert.deepEqual(presented.followUps.slice(1), advice.followUps.slice(1));
+  const component = await adviceUi(), html = renderToStaticMarkup(createElement(component.ResultAdviceView, { advice }));
+  const brief = savedDecisionMarkdown(advice, resultWorkspace, resultAssessment, firstResult).replaceAll("\\", "");
+  for (const text of [html, brief]) {
+    assert.ok(text.includes("That historical review is complete")); assert.ok(text.includes("not independent verification"));
+    assert.ok(text.includes("does not need to be repeated")); assert.equal(text.includes(old), false);
+    assert.equal(text.includes("All assertions are calculation hypotheses"), false);
+  }
+  assert.deepEqual(advice, before);
+  Object.assign(advice.summary, { historicalReplayVerified: false }); assert.throws(() => reviewedAdviceText(advice));
+});
 
 test("owned historical advice preserves exact fields, unknowns and source dates without mutation", () => {
   for (const r of [resultAdvice(), rankedAdvice()]) { const before = structuredClone(r); assert.deepEqual(read(r), r); assert.deepEqual(r, before); }

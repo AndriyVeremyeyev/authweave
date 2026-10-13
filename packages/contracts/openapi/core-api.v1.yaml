@@ -26,6 +26,51 @@ tags:
   - name: Catalog drafts
     description: Validates proposed catalog data locally without approval, publication or network access.
 paths:
+  /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results/catalogs:
+    parameters:
+      - $ref: '#/components/parameters/WorkspaceId'
+      - $ref: '#/components/parameters/AssessmentId'
+      - $ref: '#/components/parameters/OidcIssuer'
+      - $ref: '#/components/parameters/OidcSubject'
+    get:
+      tags: [Assessments]
+      operationId: listAssessmentCatalogChoices
+      summary: Discover published catalog versions for explicit owned calculation selection
+      description: >-
+        Read-only 20-item keyset page, ordered by publication time then UUID descending.
+        Requires the owned assessment, not a curator role. Returns only exact references
+        and publication timestamps from snapshots with stored bootstrap or proposal proofs.
+        Discovery does not verify those proofs, select or activate a version, refresh
+        evidence, or expose reviewer/source/audit bodies. The unchanged recording boundary
+        verifies the exact chosen publication; invalid or unavailable proof fails closed.
+        Cursor fields are all-or-none and must match a discoverable publication.
+      security:
+        - BffServiceToken: []
+      parameters:
+        - name: beforeSnapshotId
+          in: query
+          description: Exact last-seen snapshot ID, supplied with both other cursor fields.
+          schema: { type: string, format: uuid }
+        - name: beforeCatalogVersion
+          in: query
+          description: Exact last-seen catalog label, not an automatic latest selector.
+          schema: { type: string, pattern: '^[a-z0-9][a-z0-9.-]{0,99}$' }
+        - name: beforeSnapshotSha256
+          in: query
+          description: Exact last-seen snapshot digest.
+          schema: { type: string, pattern: '^[a-f0-9]{64}$' }
+      responses:
+        '200':
+          description: Bounded metadata; empty means no matching publications on this page, not a service error.
+          content:
+            application/json:
+              schema: { $ref: ../schemas/assessment-catalog-choices.v1.schema.json }
+        '400': { description: 'Malformed, duplicate, unknown or incomplete cursor parameters.' }
+        '401': { description: Invalid service credential or missing singular owner assertions. }
+        '403': { description: Principal does not own this workspace. }
+        '404': { description: Assessment not found within the owned workspace. }
+        '409': { description: Cursor does not match a discoverable publication. }
+        '503': { description: Internal credential is not configured. }
   /api/v6/workspaces/{workspaceId}/assessments/{assessmentId}/decision-results:
     parameters:
       - $ref: '#/components/parameters/WorkspaceId'

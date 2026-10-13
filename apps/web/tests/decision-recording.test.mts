@@ -134,10 +134,16 @@ test("actual recording component renders unselected initial catalog, unchecked e
   const component = await import(url(compiled.replaceAll('"next/link"', JSON.stringify(link)).replaceAll('"next/navigation"', JSON.stringify(navigation))
     .replaceAll('"react"', JSON.stringify(import.meta.resolve("react"))).replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
     .replaceAll('"@/lib/assessment/decision-results"', JSON.stringify(new URL("../src/lib/assessment/decision-results.ts", import.meta.url).href))
-    .replaceAll('"@/lib/assessment/decision-recording"', JSON.stringify(new URL("../src/lib/assessment/decision-recording.ts", import.meta.url).href))));
-  const html = renderToStaticMarkup(createElement(component.DecisionRecordingForm, { assessmentId: id, assessmentVersion: 1, resultId: firstResult.resultId, previous: null, preferred: ["SAML"] }));
+    .replaceAll('"@/lib/assessment/decision-recording"', JSON.stringify(new URL("../src/lib/assessment/decision-recording.ts", import.meta.url).href))
+    .replaceAll('"@/lib/assessment/catalog-choices"', JSON.stringify(new URL("../src/lib/assessment/catalog-choices.ts", import.meta.url).href))));
+  const catalogProps = { catalogs: [{ reference: resultItem().catalog, publishedAt: "2026-01-01T00:00:00Z" }], olderCatalogsHref: null, olderPage: false };
+  const html = renderToStaticMarkup(createElement(component.DecisionRecordingForm, { ...catalogProps, assessmentId: id, assessmentVersion: 1, resultId: firstResult.resultId, previous: null, preferred: ["SAML"] }));
   for (const s of ["No catalog is selected automatically", "name=\"snapshotId\"", "name=\"confirmation\"", "name=\"weight_SAML\"", "disabled=\"\"", "Idempotency key", "This does not approve"]) assert.ok(html.includes(s), s);
   assert.equal(html.includes("checked="), false); assert.equal(html.includes("Bearer"), false); assert.equal(html.includes(resultItem().catalog.snapshotSha256), false);
-  const none = renderToStaticMarkup(createElement(component.DecisionRecordingForm, { assessmentId: id, assessmentVersion: 1, resultId: secondResult.resultId, previous: resultItem(), preferred: [] }));
+  assert.ok(html.includes("<select")); assert.equal(html.includes('type="text"'), false);
+  const none = renderToStaticMarkup(createElement(component.DecisionRecordingForm, { ...catalogProps, assessmentId: id, assessmentVersion: 1, resultId: secondResult.resultId, previous: resultItem(), preferred: [] }));
   assert.ok(none.includes("NONE with no points")); assert.ok(none.includes(firstResult.resultSha256)); assert.ok(none.includes("Older results stay unchanged"));
+  assert.ok(none.includes("Exact version details")); assert.ok(none.includes("previous result"));
+  const empty = renderToStaticMarkup(createElement(component.DecisionRecordingForm, { ...catalogProps, catalogs: [], assessmentId: id, assessmentVersion: 1, resultId: firstResult.resultId, previous: null, preferred: [] }));
+  assert.ok(empty.includes("No published catalog is available")); assert.ok(empty.includes('disabled=""'));
 });

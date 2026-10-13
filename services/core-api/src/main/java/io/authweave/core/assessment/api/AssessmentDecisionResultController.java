@@ -63,6 +63,20 @@ public class AssessmentDecisionResultController {
         return ResponseEntity.ok().header("Cache-Control", "no-store").body(results.summary(workspaceId, assessmentId,
                 new AssessmentDecisionResultRequest.Reference(resultId, version, resultSha256), actor(request)));
     }
+    @GetMapping("/catalogs")
+    ResponseEntity<?> catalogs(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId,
+            @RequestParam(required = false) UUID beforeSnapshotId,
+            @RequestParam(required = false) @Pattern(regexp = "[a-z0-9][a-z0-9.-]{0,99}") String beforeCatalogVersion,
+            @RequestParam(required = false) @Pattern(regexp = "[a-f0-9]{64}") String beforeSnapshotSha256, HttpServletRequest request) {
+        int status = credentials.personalWorkspaceStatus(request, workspaceId);
+        if (status != 200) return ResponseEntity.status(status).header("Cache-Control", "no-store").build();
+        query(request, java.util.Set.of("beforeSnapshotId", "beforeCatalogVersion", "beforeSnapshotSha256"));
+        boolean any = beforeSnapshotId != null || beforeCatalogVersion != null || beforeSnapshotSha256 != null;
+        if (any && (beforeSnapshotId == null || beforeCatalogVersion == null || beforeSnapshotSha256 == null)) invalid();
+        var before = any ? new io.authweave.core.catalog.publication.PublishedCatalogSnapshot.Reference(
+                beforeSnapshotId, beforeCatalogVersion, beforeSnapshotSha256) : null;
+        return ResponseEntity.ok().header("Cache-Control", "no-store").body(results.catalogChoices(workspaceId, assessmentId, before, actor(request)));
+    }
     @GetMapping("/{resultId}/advice")
     ResponseEntity<?> advice(@PathVariable UUID workspaceId, @PathVariable UUID assessmentId, @PathVariable UUID resultId,
             @RequestParam @Min(1) @Max(9007199254740991L) long version,

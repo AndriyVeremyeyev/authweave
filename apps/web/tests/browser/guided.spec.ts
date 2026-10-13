@@ -94,9 +94,7 @@ for (const key of ["b2b", "citizen", "workforce"]) test(`decision matrix ${key}:
   async function record(catalog: typeof fixture.catalog, initial: boolean) {
     await page.goto(`${assessment}/results/new`);
     await expect(page.getByRole("checkbox")).not.toBeChecked();
-    await page.getByLabel("Catalog snapshot ID", { exact: true }).fill(catalog.snapshotId);
-    await page.getByLabel("Catalog version", { exact: true }).fill(catalog.catalogVersion);
-    await page.getByLabel("Catalog snapshot SHA-256", { exact: true }).fill(catalog.snapshotSha256);
+    await page.getByLabel("Catalog version", { exact: true }).selectOption(catalog.snapshotId);
     if (weighted) {
       await page.getByLabel("SAML weight", { exact: true }).fill("70");
       await page.getByLabel("MFA weight", { exact: true }).fill("30");
@@ -230,6 +228,8 @@ test("owned saved result history opens exact original-clock advice without write
   await expect(page.getByText("Version 1 · Schema 6", { exact: true })).toBeVisible();
   await expect(page.getByText(/No decision is approved/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "Why this saved result?", exact: true })).toBeVisible();
+  await expect(page.getByText(/That historical review is complete/)).toBeVisible();
+  await expect(page.getByText(/Obtain authenticated source review for each exact option claim/)).toHaveCount(0);
   const explain = page.locator("summary").filter({ hasText: /^Explain option / }).first();
   await explain.focus(); await page.keyboard.press("Enter");
   await expect(page.getByText("Fictional test evidence — not a real provider source", { exact: true }).first()).toBeVisible();
@@ -331,19 +331,33 @@ test("explicit recording, stale-head refusal and lost-reply identical retry pres
   await expect(page.getByRole("heading", { name: "No saved decision calculations yet", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Prepare an explicit calculation", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Record a decision calculation", exact: true })).toBeVisible();
-  await expect(page.getByLabel("Catalog snapshot ID", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("Catalog version", { exact: true })).toHaveValue("");
+  await expect(page.getByRole("button", { name: "Record initial calculation", exact: true })).toBeDisabled();
   await expect(page.getByRole("checkbox")).not.toBeChecked();
   async function fill(target: Page) {
-    await target.getByLabel("Catalog snapshot ID", { exact: true }).fill(fixture.catalog.snapshotId);
-    await target.getByLabel("Catalog version", { exact: true }).fill(fixture.catalog.catalogVersion);
-    await target.getByLabel("Catalog snapshot SHA-256", { exact: true }).fill(fixture.catalog.snapshotSha256);
+    await target.getByLabel("Catalog version", { exact: true }).selectOption(fixture.catalog.snapshotId);
     await target.getByLabel("SAML weight", { exact: true }).fill("100");
     await target.getByRole("checkbox").check();
   }
   async function body(target: Page) {
     return target.locator("form").evaluate(form => new URLSearchParams([...new FormData(form as HTMLFormElement)].map(([k, v]) => [k, String(v)])).toString());
   }
-  await fill(page); const initialBody = await body(page);
+  await fill(page);
+  await page.getByLabel("Catalog version", { exact: true }).selectOption("");
+  await expect(page.getByRole("checkbox")).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "Record initial calculation", exact: true })).toBeDisabled();
+  await fill(page);
+  await page.getByText("Exact version details", { exact: true }).click();
+  await expect(page.getByText(fixture.catalog.snapshotSha256, { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await page.screenshot({ path: `../../.internal/catalog-selection-${info.project.name}.png` });
+  const initialBody = await body(page);
+  const selectedReference = new URLSearchParams(initialBody);
+  expect(selectedReference.get("snapshotId")).toBe(fixture.catalog.snapshotId);
+  expect(selectedReference.get("catalogVersion")).toBe(fixture.catalog.catalogVersion);
+  expect(selectedReference.get("snapshotSha256")).toBe(fixture.catalog.snapshotSha256);
+  const forgedCatalog = new URLSearchParams(initialBody); forgedCatalog.set("snapshotSha256", "0".repeat(64));
+  expect((await page.request.post(endpoint, { headers, data: forgedCatalog.toString() })).status()).toBe(409);
   for (const [payload, requestHeaders, status] of [[initialBody, { ...headers, Origin: "https://outside.example.invalid" }, 403],
     [initialBody + "&workspaceId=forged", headers, 400], [initialBody + "&expectedAssessmentVersion=1", headers, 400],
     [initialBody, { ...headers, "Content-Type": "application/json" }, 415], ["x".repeat(16385), headers, 400]] as const) {

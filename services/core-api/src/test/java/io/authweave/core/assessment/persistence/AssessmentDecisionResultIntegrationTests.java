@@ -445,6 +445,72 @@ class AssessmentDecisionResultIntegrationTests {
         sql("SET session_replication_role=replica; UPDATE core.assessment_decision_results SET result=jsonb_set(result,'{decision,shortlist}','[\"forged\"]'::jsonb)");
         mvc.perform(auth(compare(ref, weights), "ok")).andExpect(status().isConflict()); counts(1);
     }
+    @Test void catalogChoicesExposeOnlyPublicationMetadataAndKeepExplicitOlderPins() throws Exception {
+        var first = catalogChoices(null);
+        assertEquals(1, first.path("items").size());
+        assertEquals(mapper.valueToTree(root.snapshot()), first.at("/items/0/reference"));
+        assertFalse(first.path("historicalPublicationWorkflowVerified").asBoolean());
+        var child = successor(); var next = catalogChoices(null);
+        assertEquals(2, next.path("items").size());
+        assertEquals(mapper.valueToTree(child), next.at("/items/0/reference"));
+        assertEquals(first.path("items"), catalogChoices(child).path("items"));
+        assertEquals(0, catalogChoices(root.snapshot()).path("items").size());
+        assertEquals(Set.of("reference", "publishedAt"), new HashSet<>(next.at("/items/0").propertyNames()));
+        for (String privateField : List.of("proof", "source", "actor", "issuer", "subject", "review", "manifest"))
+            assertFalse(next.toString().contains("\"" + privateField + "\""));
+        var bad = new PublishedCatalogSnapshot.Reference(child.snapshotId(), child.catalogVersion(), "0".repeat(64));
+        assertEquals(CONFLICT, assertThrows(AssessmentDecisionResultException.class,
+                () -> results.catalogChoices(workspace, assessment, bad, actor())).reason());
+        assertEquals(NOT_FOUND, assertThrows(AssessmentDecisionResultException.class,
+                () -> results.catalogChoices(workspace, UUID.randomUUID(), null, actor())).reason());
+        // Discovery cannot upgrade a corrupt stored proof; the unchanged recording verifier must still refuse it.
+        sql("ALTER TABLE core.catalog_bootstrap_publications DISABLE TRIGGER USER");
+        try {
+            sql("UPDATE core.catalog_bootstrap_publications SET proof_sha256='" + "0".repeat(64) + "'");
+            assertEquals(next, catalogChoices(null));
+            assertEquals(READ_UNAVAILABLE, assertThrows(AssessmentDecisionResultException.class,
+                    () -> results.save(workspace, assessment, request(root.snapshot(), null), actor())).reason());
+        } finally { sql("ALTER TABLE core.catalog_bootstrap_publications ENABLE TRIGGER USER"); }
+        counts(0);
+    }
+    @Test void catalogChoicesAreBoundedAndDoNotLoadProofOrResultBodies() throws Exception {
+        var rows = new ArrayList<AssessmentCatalogChoices.Item>();
+        for (int n = 0; n < 21; n++) rows.add(new AssessmentCatalogChoices.Item(
+                new PublishedCatalogSnapshot.Reference(UUID.randomUUID(), "fictional-choice-" + n, "a".repeat(64)), Instant.parse("2026-01-01T00:00:00Z")));
+        doReturn(rows).when(repository).catalogChoices(null);
+        try {
+            var page = catalogChoices(null);
+            assertEquals(20, page.path("items").size());
+            assertEquals(mapper.valueToTree(rows.get(19).reference()), page.get("nextBefore"));
+        } finally { doCallRealMethod().when(repository).catalogChoices(null); }
+        counts(0);
+    }
+    @Test void catalogChoicesNeverSubstituteUnpublishedReviewsOrProoflessSnapshotsForPublications() throws Exception {
+        sql("TRUNCATE core.catalog_bootstrap_publications");
+        var page = catalogChoices(null);
+        assertEquals(0, page.path("items").size()); assertTrue(page.path("nextBefore").isNull());
+        assertEquals(1, dsl.fetchOne("SELECT count(*) FROM core.catalog_bootstrap_reviews").get(0, Integer.class));
+        assertEquals(1, dsl.fetchOne("SELECT count(*) FROM core.catalog_published_snapshots").get(0, Integer.class)); counts(0);
+    }
+    @ParameterizedTest @ValueSource(strings = {"no-token", "bad-token", "duplicate-token", "no-subject", "duplicate-subject", "other-owner", "other-issuer"})
+    void catalogChoicesRequireTheOwnedAssessmentButNoCuratorGrant(String issue) throws Exception {
+        mvc.perform(auth(get(url() + "/catalogs"), issue)).andExpect(status().is(issue.startsWith("other-") ? 403 : 401)); counts(0);
+    }
+    @Test void catalogChoicesRejectUnknownDuplicatePartialAndMalformedCursors() throws Exception {
+        for (var call : List.of(get(url() + "/catalogs").param("latest", "true"),
+                get(url() + "/catalogs").param("beforeSnapshotId", root.snapshot().snapshotId().toString()),
+                get(url() + "/catalogs").param("beforeSnapshotId", "bad"),
+                get(url() + "/catalogs").param("beforeSnapshotId", root.snapshot().snapshotId().toString(), root.snapshot().snapshotId().toString())))
+            mvc.perform(auth(call, "ok")).andExpect(status().isBadRequest());
+        counts(0);
+    }
+    private JsonNode catalogChoices(PublishedCatalogSnapshot.Reference before) throws Exception {
+        var call = get(url() + "/catalogs");
+        if (before != null) call.param("beforeSnapshotId", before.snapshotId().toString()).param("beforeCatalogVersion", before.catalogVersion())
+                .param("beforeSnapshotSha256", before.snapshotSha256());
+        var response = mvc.perform(auth(call, "ok")).andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
+        var json = mapper.readTree(response.getContentAsString()); sample("catalog-choices-" + samples.size(), "assessment-catalog-choices", true, json); return json;
+    }
     @Test void adviceProjectsOnlyOriginalVerifiedExplanationsAndDefensivelyCopiesEveryJsonField() throws Exception {
         var receipt = results.save(workspace, assessment, request(root.snapshot(), null), actor()).receipt();
         var view = results.advice(workspace, assessment, receipt.reference(), actor());

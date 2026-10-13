@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://authweave.dev/contracts/assessment-catalog-choices.v1.schema.json",
+  "title": "Owned assessment published catalog discovery v1",
+  "description": "Bounded metadata only, newest publication time then UUID descending. Proof presence is not proof verification. Exact recording still verifies the selected publication and evidence; no draft, source, reviewer or audit bodies are returned.",
+  "type": "object", "additionalProperties": false,
+  "required": ["scope", "workspaceId", "assessmentId", "items", "nextBefore", "historicalPublicationWorkflowVerified"],
+  "properties": {
+    "scope": { "const": "OWNED_ASSESSMENT_CATALOG_CHOICES" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "assessmentId": { "type": "string", "format": "uuid" },
+    "items": { "type": "array", "maxItems": 20, "items": {
+      "type": "object", "additionalProperties": false, "required": ["reference", "publishedAt"],
+      "properties": {
+        "reference": { "$ref": "#/$defs/reference" },
+        "publishedAt": { "type": "string", "format": "date-time" }
+      }
+    } },
+    "nextBefore": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/reference" }] },
+    "historicalPublicationWorkflowVerified": { "const": false }
+  },
+  "$defs": {
+    "reference": {
+      "type": "object", "additionalProperties": false, "required": ["snapshotId", "catalogVersion", "snapshotSha256"],
+      "properties": {
+        "snapshotId": { "type": "string", "format": "uuid" },
+        "catalogVersion": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{0,99}$" },
+        "snapshotSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    }
+  }
+}

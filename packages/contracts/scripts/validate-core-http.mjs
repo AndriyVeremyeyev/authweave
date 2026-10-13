@@ -26,6 +26,7 @@ import { assurancePlanningValues, assurancePlanningFromCore } from "../../../app
 import { publicationReviewFromCore } from "../../../apps/web/src/lib/catalog/publication-preflight.ts";
 import { validateProfileSaveAcknowledgements } from "../tests/helpers/profile-save-acknowledgement-spec.mjs";
 import { resultAdviceFromCore } from "../../../apps/web/src/lib/assessment/decision-advice.ts";
+import { catalogChoicesFromCore } from "../../../apps/web/src/lib/assessment/catalog-choices.ts";
 import { sensitivityFromCore } from "../../../apps/web/src/lib/assessment/decision-sensitivity.ts";
 
 const samplePaths = process.argv.slice(2);
@@ -366,6 +367,9 @@ function validateAuditabilityCoverage(payload, name) {
     digest(structural), impact.analysisSha256, payload.dimensions, payload.structuralOnlyDimensions]));
 }
 for (const { name, schema, valid, payload } of samples) {
+  if (valid && schema === "assessment-catalog-choices") {
+    assert.deepEqual(catalogChoicesFromCore(payload, payload.workspaceId, payload.assessmentId, null), payload);
+  }
   if (schema === "assessment-decision-result-advice" && valid) {
     const s = payload.summary;
     assert.deepEqual(resultAdviceFromCore(payload, s.workspaceId, s.assessmentId, s.item.reference), payload,
@@ -698,7 +702,7 @@ for (const required of ["comparison-evidence-preview:true", "comparison-evidence
   "update-assessment-profile-request.v6:true", "update-assessment-profile-request.v6:false",
   "assessment-list-page:true",
   "assessment-decision-result:true", "assessment-decision-result-request:true", "assessment-decision-result-request:false",
-  "assessment-decision-result-page:true", "assessment-decision-result-summary:true", "assessment-decision-result-advice:true",
+  "assessment-decision-result-page:true", "assessment-decision-result-summary:true", "assessment-decision-result-advice:true", "assessment-catalog-choices:true",
   "assessment-decision-sensitivity-request:true", "assessment-decision-sensitivity:true",
   "assessment-context-list-page:true", "assessment-context-list-page:false",
   "hard-constraint-preflight:true",
