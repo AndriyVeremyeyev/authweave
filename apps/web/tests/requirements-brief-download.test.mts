@@ -60,7 +60,13 @@ for (const kind of ["requirements", "decision"] as const) test(`${kind} brief do
       Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: (url: string) => revoked.push(url) });
       const render = () => { memory.cursor = 0; return Export({ assessmentId: id, version: 7, reference }); };
       const button = (tree: unknown) => nodes(tree).find(node => node.type === "button")!;
-      const handler = button(render()).props.onClick as () => Promise<void>;
+      const initial = render();
+      if (kind === "decision") {
+        const html = renderToStaticMarkup(initial);
+        assert.ok(html.includes('aria-labelledby="result-export-heading"')); assert.ok(html.includes('id="result-export-heading"'));
+        assert.ok(html.includes("Take this saved calculation with you"));
+      }
+      const handler = button(initial).props.onClick as () => Promise<void>;
       const request = handler(); await handler();
       assert.equal(calls, 1); assert.equal(signals[0].aborted, false);
       const pending = renderToStaticMarkup(render()); assert.ok(pending.includes('disabled=""')); assert.ok(pending.includes(kind === "requirements" ? "Preparing saved brief" : "Preparing calculation brief"));

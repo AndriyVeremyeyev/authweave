@@ -294,7 +294,8 @@ test("owned saved result history opens exact original-clock advice without write
   }
   await page.route(`**${briefEndpoint}`, route => route.fulfill({ status: 503, body: "private upstream failure", headers: { "Cache-Control": "no-store" } }));
   await page.getByRole("button", { name: "Download calculation brief (.md)", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("No newer result was substituted");
+  await expect(page.getByRole("region", { name: "Take this saved calculation with you", exact: true }).getByRole("alert"))
+    .toContainText("No newer result was substituted");
   await expect(page.getByText("private upstream failure", { exact: true })).toHaveCount(0);
   await page.unroute(`**${briefEndpoint}`);
   await expect(page.getByRole("button", { name: /recalculate|approve|record/i })).toHaveCount(0);
