@@ -486,6 +486,29 @@ desktop/mobile browser checks cover evidence, keyboard disclosure and ownership 
 These automated checks do not grant publication authorization or complete the owner's
 final Phase 3 acceptance.
 
+### Private saved calculation brief
+
+The exact historical result page offers an explicit **Download calculation brief (.md)**
+control. Its protected same-origin BFF POST accepts only that result's version and
+SHA-256, then performs the existing owned Core advice GET and full original-clock
+replay. It never selects the current profile, catalog or latest calculation. Unavailable,
+foreign or mismatched references produce a body-free refusal, not a substitute download.
+
+The deterministic English brief pins the original result/profile/catalog/policy/clock,
+weights, scoped verdicts and ties, the same blocker groups as the UI, conditional
+architecture/provisioning trade-offs, prerequisites, limitations and next actions.
+It retains UNKNOWN, all 22 verification gaps and false source/configuration/compliance/
+approval flags. It is compact: detailed per-check evidence and compatibility checks
+remain on the exact saved page and are explicitly excluded, not implied by grouped counts.
+
+Raw profiles, planning text, actor identities and review/audit records are excluded.
+Dynamic prose is escaped as literal Markdown. Attachments are bound to exact identifiers,
+use `no-store`/`nosniff`, and are bounded to 128 KiB without silent truncation. Cancelling
+navigation aborts the pending client request; duplicate clicks cannot start overlapping
+downloads. Downloading stores no result/catalog version and does not publish anything.
+The separate requirements-only brief remains unchanged. Neither brief is a full backup,
+final ADR or approval; inspect private identifiers and advice before sharing.
+
 ### Weight sensitivity on pinned historical inputs
 
 The result page offers a separate, explicit weight comparison when the saved profile

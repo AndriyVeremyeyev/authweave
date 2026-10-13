@@ -10,6 +10,7 @@ import { touchSession, type BrowserSession } from "@/lib/auth/store";
 import { ResultSummaryView, ResultUnavailable } from "../result-history";
 import { ResultAdviceView } from "../result-advice";
 import { ResultSensitivityView } from "../result-sensitivity";
+import { SavedResultExport } from "../result-export";
 
 export const runtime = "nodejs";
 export default async function SavedResultPage({ params, searchParams }: PageProps<"/assessments/[id]/results/[resultId]">) {
@@ -32,6 +33,7 @@ export default async function SavedResultPage({ params, searchParams }: PageProp
     <Link prefetch={false} href={`/assessments/${id}/results`} className="text-sm text-cyan-200 hover:underline">← Saved calculation history</Link>
     <h1 className="mt-6 text-3xl font-semibold">Historical decision advice</h1>
     <ResultSummaryView summary={advice.summary} />
+    <SavedResultExport key={reference!.resultId} assessmentId={id} reference={reference!} />
     <ResultAdviceView advice={advice} />
     <ResultSensitivityView baseline={{ summary: advice.summary, candidates: advice.candidates, rankGroups: advice.rankGroups }} />
   </main>;

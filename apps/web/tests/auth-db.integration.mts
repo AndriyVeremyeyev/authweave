@@ -25,6 +25,10 @@ import { POST as operationalPreferencesRoute } from "../src/app/api/assessments/
 import { POST as auditabilityRoute } from "../src/app/api/assessments/[id]/auditability/route.ts";
 import { POST as requirementsBriefRoute } from "../src/app/api/assessments/[id]/requirements-brief/route.ts";
 import { requirementsBriefFilename } from "../src/lib/assessment/requirements-brief.ts";
+import { POST as decisionBriefRoute } from "../src/app/api/assessments/[id]/decision-results/[resultId]/brief/route.ts";
+import { decisionBriefFilename } from "../src/lib/assessment/decision-brief.ts";
+import { resultAdvice } from "./fixtures/decision-advice.mts";
+import { firstResult, resultAssessment, resultWorkspace } from "./fixtures/decision-results.mts";
 import { readPersonalAssessment, readPersonalAuditability, readPersonalOperationsPlanning, readPersonalAssurancePlanning } from "../src/lib/auth/core-client.ts";
 import { assuranceFixture, assuranceValues, assuranceWorkspaceId, assuranceAssessmentId } from "./fixtures/assurance-compliance-planning.mts";
 import { operationsFixture, operationsValues, operationsProfile, operationsWorkspaceId, operationsAssessmentId } from "./fixtures/operations-planning.mts";
@@ -419,6 +423,60 @@ test("saved-brief download requires a real live session, same origin and exact v
     await expect(await requirementsBriefRoute(request(), context), 401); assert.equal(calls, beforeRevoked);
   } finally {
     await revokeSession(sessionId); globalThis.fetch = previousFetch;
+    for (const name of names) if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name];
+  }
+});
+
+test("saved calculation download uses a live session and one exact owned replay GET, never a latest lookup or result write", async () => {
+  const names = ["AUTHWEAVE_OIDC_ISSUER", "AUTHWEAVE_OIDC_CLIENT_ID", "AUTHWEAVE_PUBLIC_ORIGIN", "AUTHWEAVE_CORE_SERVICE_TOKEN"];
+  const previous = Object.fromEntries(names.map(name => [name, process.env[name]])), oldFetch = globalThis.fetch;
+  Object.assign(process.env, { AUTHWEAVE_OIDC_ISSUER: "http://localhost:8081", AUTHWEAVE_OIDC_CLIENT_ID: "synthetic-client",
+    AUTHWEAVE_PUBLIC_ORIGIN: "http://localhost:3000", AUTHWEAVE_CORE_SERVICE_TOKEN: "synthetic-decision-brief-token-0000000000000000" });
+  const identity = { workspaceId: resultWorkspace, issuer: "http://localhost:8081", subject: "synthetic-decision-download-owner",
+    email: null, displayName: null, authenticatedAt: new Date() };
+  const sessionId = await createSession(identity, undefined), context = { params: Promise.resolve({ id: resultAssessment, resultId: firstResult.resultId }) };
+  let calls = 0, status = 200, payload = resultAdvice();
+  const body = `version=1&resultSha256=${firstResult.resultSha256}`;
+  const request = (data = body, overrides: { origin?: string; cookie?: string; type?: string; query?: string } = {}) => new NextRequest(
+    `http://localhost:3000/api/assessments/${resultAssessment}/decision-results/${firstResult.resultId}/brief${overrides.query ?? ""}`, {
+      method: "POST", headers: { Origin: overrides.origin ?? "http://localhost:3000", "Content-Type": overrides.type ?? "application/x-www-form-urlencoded",
+        Cookie: overrides.cookie ?? `${sessionCookieName(false)}=${sessionId}`, "X-AuthWeave-Oidc-Subject": "browser-spoof" }, body: data });
+  const denied = async (response: Response, code: number) => {
+    assert.equal(response.status, code); assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.get("content-disposition"), null); assert.equal(await response.text(), "");
+  };
+  globalThis.fetch = async (url, init) => {
+    calls++; assert.equal(String(url), `http://127.0.0.1:8080/api/v6/workspaces/${resultWorkspace}/assessments/${resultAssessment}/decision-results/${firstResult.resultId}/advice?${body}`);
+    assert.equal(init?.method, "GET"); assert.equal(init?.body, undefined); assert.equal(init?.cache, "no-store"); assert.equal(init?.redirect, "error");
+    assert.equal((init?.headers as Record<string, string>)["X-AuthWeave-Oidc-Subject"], identity.subject);
+    return status === 200 ? Response.json(payload) : new Response("private Core credential", { status });
+  };
+  try {
+    await denied(await decisionBriefRoute(request(body, { origin: "https://attacker.invalid" }), context), 403);
+    await denied(await decisionBriefRoute(request(body, { origin: "" }), context), 403);
+    await denied(await decisionBriefRoute(request(body, { cookie: "" }), context), 401);
+    await denied(await decisionBriefRoute(request(body, { query: "?latest=true" }), context), 400);
+    await denied(await decisionBriefRoute(request("{}", { type: "application/json" }), context), 415);
+    for (const data of ["", `${body}&version=1`, `${body}&workspaceId=other`, `${body}&profile=private`, body.replace("version=1", "version=01"), body.replace(firstResult.resultSha256, "bad")])
+      await denied(await decisionBriefRoute(request(data), context), 400);
+    await denied(await decisionBriefRoute(request("x".repeat(257)), context), 413);
+    assert.equal(calls, 0);
+    const before = structuredClone(payload), response = await decisionBriefRoute(request(), context), text = await response.text();
+    assert.equal(response.status, 200); assert.equal(response.headers.get("x-content-type-options"), "nosniff");
+    assert.equal(response.headers.get("content-disposition"), `attachment; filename="${decisionBriefFilename(resultAssessment, firstResult)}"`);
+    for (const value of [resultWorkspace, identity.subject, "browser-spoof", process.env.AUTHWEAVE_CORE_SERVICE_TOKEN!]) assert.equal(text.includes(value), false);
+    assert.deepEqual(payload, before); assert.equal(calls, 1);
+    for (const code of [404, 403, 409, 500]) { status = code; await denied(await decisionBriefRoute(request(), context), code === 404 ? 404 : 503); }
+    status = 200;
+    for (const mutate of [a => a.summary.workspaceId = "foreign", a => a.summary.item.reference.resultSha256 = "f".repeat(64),
+      a => Object.assign(a, { profile: { private: "raw" } }), a => Object.assign(a.summary, { decisionApproved: true })] as ((a: ReturnType<typeof resultAdvice>) => void)[]) {
+      payload = structuredClone(before); mutate(payload); await denied(await decisionBriefRoute(request(), context), 503);
+    }
+    payload = before;
+    await revokeSession(sessionId); const beforeRevoked = calls;
+    await denied(await decisionBriefRoute(request(), context), 401); assert.equal(calls, beforeRevoked);
+  } finally {
+    await revokeSession(sessionId); globalThis.fetch = oldFetch;
     for (const name of names) if (previous[name] === undefined) delete process.env[name]; else process.env[name] = previous[name];
   }
 });

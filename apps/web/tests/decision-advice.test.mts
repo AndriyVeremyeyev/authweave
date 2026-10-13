@@ -14,7 +14,8 @@ const session = { workspaceId: resultWorkspace, issuer: "https://identity.exampl
 async function adviceUi() {
   const source = await readFile(new URL("../src/app/assessments/[id]/results/result-advice.tsx", import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  return import(`data:text/javascript;base64,${Buffer.from(compiled.replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))).toString("base64")}`);
+  return import(`data:text/javascript;base64,${Buffer.from(compiled.replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))
+    .replaceAll('"../../../../lib/assessment/result-blockers.ts"', JSON.stringify(new URL("../src/lib/assessment/result-blockers.ts", import.meta.url).href))).toString("base64")}`);
 }
 
 test("owned historical advice preserves exact fields, unknowns and source dates without mutation", () => {

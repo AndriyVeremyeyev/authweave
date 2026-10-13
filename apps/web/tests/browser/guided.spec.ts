@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { decisionBriefFilename, decisionBriefFormat, decisionBriefByteLimit } from "../../src/lib/assessment/decision-brief.ts";
 import { guidedScenarios, guidedScenarioForms } from "../fixtures/guided-scenarios.mts";
 import { createGuidedAssessment as create, guidedStep as step, saveGuidedForm as save, runGuidedScenario } from "../guided-browser-flow.mts";
 import { resultReferenceQuery, type ResultSummary, type ResultReference } from "../../src/lib/assessment/decision-results.ts";
@@ -33,6 +35,25 @@ async function logout(page: Page) {
   await page.goto("/account"); await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL("http://localhost:3000/");
   expect((await page.context().cookies()).some(cookie => cookie.name === "authweave-session-local")).toBe(false);
+}
+
+async function downloadCalculation(page: Page, id: string, reference: ResultReference): Promise<string> {
+  const button = page.getByRole("button", { name: "Download calculation brief (.md)", exact: true });
+  await expect(button).toBeEnabled(); await button.focus();
+  const downloaded = page.waitForEvent("download"); await page.keyboard.press("Enter");
+  const file = await downloaded;
+  try {
+    expect(file.suggestedFilename()).toBe(decisionBriefFilename(id, reference));
+    const text = await readFile((await file.path())!, "utf8");
+    expect(Buffer.byteLength(text)).toBeLessThanOrEqual(decisionBriefByteLimit);
+    for (const line of [`- Export format: \`${decisionBriefFormat}\``, `- Assessment ID: \`${id}\``,
+      `- Result ID: \`${reference.resultId}\``, `- Result version: \`${reference.version}\``, `- Result SHA-256: \`${reference.resultSha256}\``]) expect(text.split("\n")).toContain(line);
+    for (const line of ["Decision approved: false", "Configuration verified: false", "Compliance verified: false", "verification gaps: 22", "omits per-check evidence"])
+      expect(text).toContain(line);
+    expect(text).not.toContain("declaredValue"); expect(text).not.toContain("workspaceId"); expect(text).not.toContain("synthetic-browser-");
+    await expect(page.getByText(`Download requested for calculation version ${reference.version}. Check your browser's downloads.`, { exact: true })).toBeVisible();
+    return text.replace(/\\([!-~])/g, "$1");
+  } finally { await file.delete(); }
 }
 
 async function delayedHydration(page: Page, assessment: string) {
@@ -144,6 +165,9 @@ for (const key of ["b2b", "citizen", "workforce"]) test(`decision matrix ${key}:
     await expect(page.getByRole("button", { name: "Compare weights without saving", exact: true })).toHaveCount(0);
   }
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  const positiveBrief = await downloadCalculation(page, entry.assessmentId, positive.reference);
+  expect(positiveBrief).toContain(positiveSummary.status);
+  expect(positiveBrief).toContain(weighted ? "SAML weight: 70 of 100" : "Original weight mode: NONE");
   const negative = await record(fixture.successor, false);
   const negativeSummary = await readPinnedSummary(negative.reference);
   expect(negative.reference.version).toBe(2); expect(negativeSummary.status).toBe("NO_ELIGIBLE_OPTIONS");
@@ -163,6 +187,9 @@ for (const key of ["b2b", "citizen", "workforce"]) test(`decision matrix ${key}:
   await target.focus(); await page.keyboard.press("Enter");
   const failure = page.locator("summary").filter({ hasText: `Explain option ${beta} — Excluded` });
   await failure.focus(); await page.keyboard.press("Enter");
+  const negativeBrief = await downloadCalculation(page, entry.assessmentId, negative.reference);
+  expect(negativeBrief).toContain("NO_ELIGIBLE_OPTIONS"); expect(negativeBrief).toContain("Saved hard verdict: EXCLUDED");
+  expect(negativeBrief).toContain(entry.failurePath); expect(negativeBrief).toContain("2 scoped options");
   await expect(failure.locator("..").getByRole("heading", { name: `${entry.failurePath} · REQUIRED · Fail`, exact: true }).first()).toBeVisible();
   await expect(failure.locator("..").getByText("No preference score was calculated for this option.", { exact: true })).toBeVisible();
   await failure.focus(); await page.keyboard.press("Enter");
@@ -244,6 +271,32 @@ test("owned saved result history opens exact original-clock advice without write
   await expect(page.getByRole("status").filter({ hasText: "Comparison unavailable." })).toContainText("Nothing was saved");
   await expect(page.getByText(/Unchanged hard verdict:/)).toHaveCount(0);
   await page.unroute(`**${sensitivityEndpoint}`);
+  const brief = await downloadCalculation(page, fixture.assessmentId, fixture.first);
+  expect(brief).toContain("SAML weight: 70 of 100"); expect(brief).toContain("MFA weight: 30 of 100");
+  expect(brief).not.toContain("SAML weight: 20");
+  const briefEndpoint = `/api/assessments/${fixture.assessmentId}/decision-results/${fixture.first.resultId}/brief`;
+  const briefBody = new URLSearchParams({ version: "1", resultSha256: fixture.first.resultSha256 }).toString();
+  const briefHeaders = { Origin: "http://localhost:3000", "Content-Type": "application/x-www-form-urlencoded" };
+  const briefChecks: [string, string, Record<string, string>, number][] = [
+    [briefEndpoint, briefBody, { ...briefHeaders, Origin: "https://attacker.invalid" }, 403],
+    [briefEndpoint, briefBody, { ...briefHeaders, Origin: "" }, 403],
+    [`${briefEndpoint}?latest=true`, briefBody, briefHeaders, 400],
+    [briefEndpoint, `${briefBody}&version=1`, briefHeaders, 400],
+    [briefEndpoint, `${briefBody}&profile=raw`, briefHeaders, 400],
+    [briefEndpoint, briefBody.replace(fixture.first.resultSha256, "f".repeat(64)), briefHeaders, 503],
+    [briefEndpoint, briefBody.replace("version=1", "version=2"), briefHeaders, 503],
+    [briefEndpoint, "x".repeat(257), briefHeaders, 413],
+    [briefEndpoint, "{}", { ...briefHeaders, "Content-Type": "application/json" }, 415],
+  ];
+  for (const [url, data, headers, status] of briefChecks) {
+    const response = await page.request.post(url, { headers, data }); expect(response.status()).toBe(status);
+    expect(response.headers()["content-disposition"]).toBeUndefined(); expect(await response.text()).toBe("");
+  }
+  await page.route(`**${briefEndpoint}`, route => route.fulfill({ status: 503, body: "private upstream failure", headers: { "Cache-Control": "no-store" } }));
+  await page.getByRole("button", { name: "Download calculation brief (.md)", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("No newer result was substituted");
+  await expect(page.getByText("private upstream failure", { exact: true })).toHaveCount(0);
+  await page.unroute(`**${briefEndpoint}`);
   await expect(page.getByRole("button", { name: /recalculate|approve|record/i })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
   await page.screenshot({ path: `../../.internal/result-history-${info.project.name}.png`, fullPage: true });
@@ -259,10 +312,12 @@ test("owned saved result history opens exact original-clock advice without write
     const deniedHistory = await outsider.goto(`${assessment}/results`); expect(deniedHistory!.status()).toBe(404);
     const deniedResult = await outsider.goto(`${assessment}/results/${fixture.first.resultId}?${resultReferenceQuery(fixture.first)}`); expect(deniedResult!.status()).toBe(404);
     expect((await outsider.request.post(sensitivityEndpoint, { headers: sensitivityHeaders, data: sensitivityBody })).status()).toBe(404);
+    expect((await outsider.request.post(briefEndpoint, { headers: briefHeaders, data: briefBody })).status()).toBe(404);
     await logout(outsider);
   } finally { await outsiderContext.close(); }
   await logout(page); await page.goto(`${assessment}/results`); await expect(page).toHaveURL("http://localhost:3000/account");
   expect((await page.request.post(sensitivityEndpoint, { headers: sensitivityHeaders, data: sensitivityBody })).status()).toBe(401);
+  expect((await page.request.post(briefEndpoint, { headers: briefHeaders, data: briefBody })).status()).toBe(401);
 });
 
 test("explicit recording, stale-head refusal and lost-reply identical retry preserve immutable history", async ({ page, browser }, info) => {

@@ -1,4 +1,6 @@
 import type { AdviceChoice, AdviceEvidence, AdviceOptionCheck, ResultAdvice } from "@/lib/assessment/decision-advice";
+import { savedBlockerGroups } from "../../../../lib/assessment/result-blockers.ts";
+export { savedBlockerGroups } from "../../../../lib/assessment/result-blockers.ts";
 
 const label = (value: string) => value.toLowerCase().replaceAll("_", " ").replace(/^./, c => c.toUpperCase());
 const date = (value: string) => value.replace("T", " ").replace("Z", " UTC");
@@ -67,33 +69,6 @@ const fieldLabels: Record<string, string> = {
   "security.authenticationControls.stepUpAuthentication": "Stronger authentication for sensitive actions",
   "security.complianceScopeStatus": "Compliance target scope", "security.complianceTargets": "Compliance targets",
 };
-type BlockerGroup = { profilePath: string; criticality: string; outcome: "FAIL" | "UNKNOWN"; reasonCode: string;
-  checks: number; options: { index: number; checks: number }[] };
-
-/** Presentation of already verified findings only. Never derives eligibility, scores or source authority. */
-export function savedBlockerGroups(advice: Pick<ResultAdvice, "candidates">): BlockerGroup[] {
-  const groups = new Map<string, BlockerGroup>();
-  advice.candidates.forEach((candidate, index) => {
-    const outcome = candidate.hardChecks.hardVerdict === "EXCLUDED" ? "FAIL" :
-      candidate.hardChecks.hardVerdict === "UNRESOLVED" ? "UNKNOWN" : null;
-    if (outcome === null) return;
-    for (const finding of candidate.hardChecks.findings) {
-      if (finding.outcome !== outcome) continue;
-      const key = JSON.stringify([finding.profilePath, finding.criticality, outcome, finding.reasonCode]);
-      let group = groups.get(key);
-      if (!group) {
-        group = { profilePath: finding.profilePath, criticality: finding.criticality, outcome, reasonCode: finding.reasonCode, checks: 0, options: [] };
-        groups.set(key, group);
-      }
-      group.checks++;
-      const option = group.options.find(option => option.index === index);
-      if (option) option.checks++; else group.options.push({ index, checks: 1 });
-    }
-  });
-  return [...groups.values()].sort((a, b) => (a.outcome === b.outcome ? 0 : a.outcome === "FAIL" ? -1 : 1) ||
-    a.profilePath.localeCompare(b.profilePath) || a.criticality.localeCompare(b.criticality) || a.reasonCode.localeCompare(b.reasonCode));
-}
-
 function BlockingRequirements({ advice }: { advice: ResultAdvice }) {
   const groups = savedBlockerGroups(advice);
   return <section aria-labelledby="blocking-requirements-heading" className="rounded-xl border border-amber-300/20 p-5">

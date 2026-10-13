@@ -33,7 +33,7 @@ export function parseRequirementsBriefForm(params: URLSearchParams): number {
 }
 
 // Planning text remains literal in Markdown, including links, HTML and new lines.
-function literal(value: string): string {
+export function literalBriefText(value: string): string {
   const visible = value.replace(/\r\n?/g, "\n")
     .replace(/[\u0000-\u0008\u000b-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g,
       character => `[U+${character.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}]`);
@@ -61,7 +61,7 @@ export function savedRequirementsMarkdown(assessment: PersonalAssessment): strin
   for (const group of groups) {
     lines.push(`## ${group.title}`, "", group.note, "");
     if (group.rows) {
-      lines.push(...group.rows.map(row => `- **${row.label}:** ${literal(row.value)} — ${states[row.state]}.`));
+      lines.push(...group.rows.map(row => `- **${row.label}:** ${literalBriefText(row.value)} — ${states[row.state]}.`));
     } else {
       lines.push("This saved section could not be read safely. No answers have been inferred; other sections remain available.");
     }
