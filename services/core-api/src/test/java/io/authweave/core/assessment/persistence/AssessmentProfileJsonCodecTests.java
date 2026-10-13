@@ -16,6 +16,48 @@ class AssessmentProfileJsonCodecTests {
     private final AssessmentProfileJsonCodec codec = new AssessmentProfileJsonCodec(mapper);
 
     @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(ints = {1, 2, 3, 4, 5, 6})
+    void evaluationProjectionPreservesEveryExistingWireArrayAndOnlyAddsMissingLegacyFields(int version) throws Exception {
+        tools.jackson.databind.JsonNode fixture;
+        try (var input = new org.springframework.core.io.ClassPathResource("catalog/scoped-impact-scenarios.v1.json").getInputStream()) { fixture = mapper.readTree(input); }
+        var original = (ObjectNode) fixture.get(0).get("profile").deepCopy();
+        ((ObjectNode) original.at("/security/dataResidencyDetails")).set("allowedCountries", mapper.readTree("[\"FR\",\"DE\"]"));
+        ((ObjectNode) original.get("security")).set("complianceTargets", mapper.readTree("[\"GDPR\",\"SOC_2\"]"));
+        ((ObjectNode) original.get("security")).put("complianceScopeStatus", "TARGETS_IDENTIFIED");
+        ((ObjectNode) original.get("security")).set("auditabilityRequirements", mapper.readTree(
+                "{\"selectedCriteria\":[\"AUDIT_LOG_RETENTION\",\"AUTHENTICATION_FAILURE_EVENTS\"],\"minimumRetentionDays\":30}"));
+        // Domain inputs are sets, but exact wire/profile hashes retain their original array order.
+        // Both opposing orders must survive; the old Set round-trip cannot satisfy both in any JVM.
+        for (int permutation = 0; permutation < 2; permutation++) {
+            var input = original.deepCopy();
+            if (permutation == 1) for (String path : new String[] {"/application/clients", "/audience/populations",
+                    "/security/dataResidencyDetails/dataCategories", "/security/dataResidencyDetails/allowedCountries",
+                    "/security/complianceTargets", "/security/auditabilityRequirements/selectedCriteria"}) {
+                var array = (tools.jackson.databind.node.ArrayNode) input.at(path); var values = new java.util.ArrayList<tools.jackson.databind.JsonNode>();
+                array.forEach(values::add); java.util.Collections.reverse(values); array.removeAll(); values.forEach(array::add);
+            }
+            var security = (ObjectNode) input.get("security");
+            if (version < 2) security.remove("dataResidencyDetails");
+            if (version < 3) security.remove("authenticationControls");
+            if (version < 4) security.remove("complianceScopeStatus");
+            if (version < 5) ((ObjectNode) input.get("operations")).remove("usagePlanning");
+            if (version < 6) security.remove("auditabilityRequirements");
+            var stored = JSONB.valueOf(mapper.writeValueAsString(input)); var before = stored.data();
+            var decoded = codec.decode(stored, (short) version); var expected = input.deepCopy();
+            var expectedSecurity = (ObjectNode) expected.get("security");
+            if (version < 2) expectedSecurity.set("dataResidencyDetails", mapper.valueToTree(DataResidencyDetails.unknown()));
+            if (version < 3) expectedSecurity.set("authenticationControls", mapper.valueToTree(AuthenticationControls.unknown()));
+            if (version < 4) expectedSecurity.put("complianceScopeStatus", "UNKNOWN");
+            if (version < 5) ((ObjectNode) expected.get("operations")).set("usagePlanning", mapper.valueToTree(UsagePlanning.unknown()));
+            if (version < 6) expectedSecurity.set("auditabilityRequirements", mapper.valueToTree(AuditabilityRequirements.unspecified()));
+            var projected = codec.evaluationSnapshot(stored, (short) version);
+            assertEquals(expected, projected); assertEquals(before, stored.data()); assertEquals(input, codec.snapshot(stored, (short) version));
+            assertEquals(decoded, mapper.treeToValue(projected, ApplicationIdentityProfile.class));
+            assertEquals(projected, codec.evaluationSnapshot(stored, (short) version));
+        }
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
     @org.junit.jupiter.params.provider.EnumSource(AuditabilityRequirements.Criterion.class)
     void everyExplicitAuditCriterionUsesV6AndCannotBeMislabeledAsAnOlderSnapshot(AuditabilityRequirements.Criterion criterion) {
         var base = ApplicationIdentityProfile.unknown(); var s = base.security();

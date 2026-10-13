@@ -150,6 +150,17 @@ for (const key of ["b2b", "citizen", "workforce"]) test(`decision matrix ${key}:
   expect(negativeSummary.shortlist).toEqual([]);
   expect(negativeSummary.candidates.map(c => [c.hardVerdict, c.score])).toEqual([["EXCLUDED", null], ["EXCLUDED", null]]);
   await expect(page.getByText("No eligible options in this calculation", { exact: true })).toBeVisible();
+  const blockers = page.getByRole("region", { name: "Blocking requirements", exact: true });
+  await expect(blockers).toBeVisible();
+  const field = key === "b2b" ? "SCIM provisioning" : key === "citizen" ? "Phishing-resistant authentication" : "Group synchronization";
+  const group = blockers.locator("details").filter({ has: page.locator("summary").filter({ hasText: new RegExp(`^${field} · Required · Hard failure`) }) }).first();
+  await group.locator("summary").focus(); await page.keyboard.press("Enter");
+  await expect(group.getByText(/2 scoped options/)).toBeVisible();
+  const jump = group.getByRole("link").last(); await jump.focus(); await page.keyboard.press("Enter");
+  const target = page.locator("#result-option-1"); await expect(target).toBeInViewport();
+  await target.focus(); await page.keyboard.press("Enter");
+  await expect(target.locator("..").getByRole("heading", { name: `${entry.failurePath} · REQUIRED · Fail`, exact: true }).first()).toBeVisible();
+  await target.focus(); await page.keyboard.press("Enter");
   const failure = page.locator("summary").filter({ hasText: `Explain option ${beta} — Excluded` });
   await failure.focus(); await page.keyboard.press("Enter");
   await expect(failure.locator("..").getByRole("heading", { name: `${entry.failurePath} · REQUIRED · Fail`, exact: true }).first()).toBeVisible();

@@ -53,6 +53,70 @@ const titles: Record<string, string> = { SERVER_SIDE_SESSION: "Server-side sessi
   SPA_CODE_PKCE: "SPA with Authorization Code + PKCE", NATIVE_CODE_PKCE: "Native client with Authorization Code + PKCE",
   M2M_CLIENT_CREDENTIALS: "Machine-to-machine Client Credentials", SCIM_PUSH: "SCIM provisioning", JIT_LOGIN: "JIT at login", SCIM_AND_JIT: "SCIM + JIT" };
 const dispositions = { RECOMMENDED: "Conditionally recommended", ALTERNATIVE: "Conditional alternative", UNRESOLVED: "More information needed", NOT_APPLICABLE: "Not applicable to the saved requirements" };
+const fieldLabels: Record<string, string> = {
+  "application.type": "Application type", "application.clients": "Client types", "audience.populations": "User populations",
+  "audience.tenancy": "Organization tenancy", "audience.membership": "User membership",
+  "protocols.federation.OIDC": "OpenID Connect (OIDC)", "protocols.federation.SAML": "SAML federation",
+  "protocols.oauth2ProtectedApis": "OAuth 2.0 protected APIs", "protocols.socialLogin": "Social login",
+  "protocols.enterpriseSingleSignOn": "Enterprise single sign-on", "provisioning.scim": "SCIM provisioning",
+  "provisioning.justInTimeProvisioning": "Just-in-time provisioning", "provisioning.groupSynchronization": "Group synchronization",
+  "security.multiFactorAuthentication": "Multi-factor authentication", "security.auditability": "Identity audit requirements",
+  "security.dataResidency": "At-rest data residency", "security.assurance": "Assurance expectation",
+  "security.authenticationControls.phishingResistance": "Phishing-resistant authentication",
+  "security.authenticationControls.nonExportableKeys": "Non-exportable authentication keys",
+  "security.authenticationControls.stepUpAuthentication": "Stronger authentication for sensitive actions",
+  "security.complianceScopeStatus": "Compliance target scope", "security.complianceTargets": "Compliance targets",
+};
+type BlockerGroup = { profilePath: string; criticality: string; outcome: "FAIL" | "UNKNOWN"; reasonCode: string;
+  checks: number; options: { index: number; checks: number }[] };
+
+/** Presentation of already verified findings only. Never derives eligibility, scores or source authority. */
+export function savedBlockerGroups(advice: Pick<ResultAdvice, "candidates">): BlockerGroup[] {
+  const groups = new Map<string, BlockerGroup>();
+  advice.candidates.forEach((candidate, index) => {
+    const outcome = candidate.hardChecks.hardVerdict === "EXCLUDED" ? "FAIL" :
+      candidate.hardChecks.hardVerdict === "UNRESOLVED" ? "UNKNOWN" : null;
+    if (outcome === null) return;
+    for (const finding of candidate.hardChecks.findings) {
+      if (finding.outcome !== outcome) continue;
+      const key = JSON.stringify([finding.profilePath, finding.criticality, outcome, finding.reasonCode]);
+      let group = groups.get(key);
+      if (!group) {
+        group = { profilePath: finding.profilePath, criticality: finding.criticality, outcome, reasonCode: finding.reasonCode, checks: 0, options: [] };
+        groups.set(key, group);
+      }
+      group.checks++;
+      const option = group.options.find(option => option.index === index);
+      if (option) option.checks++; else group.options.push({ index, checks: 1 });
+    }
+  });
+  return [...groups.values()].sort((a, b) => (a.outcome === b.outcome ? 0 : a.outcome === "FAIL" ? -1 : 1) ||
+    a.profilePath.localeCompare(b.profilePath) || a.criticality.localeCompare(b.criticality) || a.reasonCode.localeCompare(b.reasonCode));
+}
+
+function BlockingRequirements({ advice }: { advice: ResultAdvice }) {
+  const groups = savedBlockerGroups(advice);
+  return <section aria-labelledby="blocking-requirements-heading" className="rounded-xl border border-amber-300/20 p-5">
+    <h3 id="blocking-requirements-heading" className="text-xl font-medium">Blocking requirements</h3>
+    <p className="mt-3 text-sm leading-6 text-slate-300">Saved exclusions first, then gaps for unresolved options, grouped by field and reason — not priority or ranking.
+      An option can appear in several groups. Counts refer to scoped options, not providers; grouped checks do not share evidence or configuration.</p>
+    {!groups.length ? <p className="mt-4 text-sm text-slate-300">No hard-check blockers were recorded. Architecture prerequisites and deployment verification may still be unresolved below.</p> :
+      <div className="mt-4 space-y-3">{groups.map(group => <details key={JSON.stringify([group.profilePath, group.criticality, group.outcome, group.reasonCode])} className="rounded-lg border border-white/10 p-3">
+        <summary className="cursor-pointer break-words text-sm font-medium">{fieldLabels[group.profilePath] ?? group.profilePath} · {label(group.criticality)} ·
+          {group.outcome === "FAIL" ? " Hard failure" : " Information gap"} · {label(group.reasonCode)}
+          <span className="mt-1 block text-xs font-normal text-slate-400">{group.options.length} scoped {group.options.length === 1 ? "option" : "options"} · {group.checks} {group.checks === 1 ? "check" : "checks"}</span>
+        </summary>
+        <Reason value={group.reasonCode} />
+        <p className="mt-3 text-sm text-slate-300">{group.outcome === "FAIL" ? "These options are already excluded by Core. Preference points or resolving other unknowns cannot override this failure." :
+          "These options remain unresolved. Confirm missing answers or obtain and review evidence for each exact scope; unknown is not support."}</p>
+        <ul className="mt-3 space-y-2 text-sm">{group.options.map(option => {
+          const candidate = advice.candidates[option.index].hardChecks;
+          return <li key={option.index}><a href={`#result-option-${option.index}`} className="break-words text-cyan-200 underline underline-offset-4">Jump to {candidate.product} · {candidate.plan} checks</a>
+            <p className="mt-1 break-words text-xs text-slate-400">{candidate.optionId} · {option.checks} scoped {option.checks === 1 ? "check" : "checks"}; inspect the exact client, population, data category, source and conditions below.</p></li>;
+        })}</ul>
+      </details>)}</div>}
+  </section>;
+}
 function Choice({ choice }: { choice: AdviceChoice }) {
   return <>
     <h4 className="text-lg font-medium">{titles[choice.id] ?? choice.id}</h4>
@@ -71,14 +135,15 @@ export function ResultAdviceView({ advice }: { advice: ResultAdvice }) {
       <p className="mt-3 text-sm leading-6 text-slate-300">Every finding below belongs to the exact historical version above. Source dates and verdicts are preserved, not refreshed. Fictional .invalid claims are test data, never real provider evidence. Links open only when you choose them; this page fetches no external source.</p>
       <p className="mt-3 text-sm leading-6 text-slate-300">Hard failures exclude an option. Unknown hard requirements keep it unresolved. Preference points apply only to eligible options and cannot repair a hard failure. Read option IDs together with product, plan, region, deployment and configuration scope.</p>
     </div>
+    <BlockingRequirements advice={advice} />
     <div><h3 className="text-xl font-medium">Shortlist and ties</h3>
       {advice.rankGroups.length ? <ol className="mt-3 space-y-3 text-sm text-slate-300">{advice.rankGroups.map(group => <li key={group.rank} className="break-words">Rank {group.rank}: {group.optionIds.join(", ")}{group.optionIds.length > 1 ? " — tied; no automatic winner" : ""}</li>)}</ol>
         : <p className="mt-3 text-sm text-slate-300">No ranks are assigned: {advice.summary.shortlist.length ? "the saved shortlist is unranked; weights are absent or preference evidence is incomplete." : "there is no eligible shortlist. Review failed and unknown checks below before selecting an option."}</p>}
       <p className="mt-3 text-sm text-slate-400">These are the original weights and points. The separate weight comparison below keeps this saved result unchanged.</p>
     </div>
     <div><h3 className="text-xl font-medium">Requirement findings and preference contributions</h3>
-      <div className="mt-4 space-y-4">{advice.candidates.map(candidate => <details key={candidate.hardChecks.optionId} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.025] p-5">
-        <summary className="cursor-pointer break-words font-medium">Explain option {candidate.hardChecks.optionId} — {label(candidate.hardChecks.hardVerdict)}</summary>
+      <div className="mt-4 space-y-4">{advice.candidates.map((candidate, index) => <details key={candidate.hardChecks.optionId} className="min-w-0 rounded-xl border border-white/10 bg-white/[0.025] p-5">
+        <summary id={`result-option-${index}`} className="cursor-pointer break-words font-medium">Explain option {candidate.hardChecks.optionId} — {label(candidate.hardChecks.hardVerdict)}</summary>
         <p className="mt-3 break-words text-sm text-slate-400">Configuration scope: {candidate.hardChecks.configuration}</p>
         <ul className="mt-4 space-y-5">{candidate.hardChecks.findings.map(finding => <li key={finding.checkId} className="min-w-0 border-t border-white/10 pt-4">
           <h4 className="break-words text-sm font-medium">{finding.profilePath} · {finding.criticality} · {label(finding.outcome)}</h4>

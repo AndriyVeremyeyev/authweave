@@ -83,13 +83,16 @@ final class AssessmentProfileJsonCodec {
     /** Same explicit UNKNOWN projection as the v6 assessment API. Never migrates a stored revision. */
     JsonNode evaluationSnapshot(JSONB stored, short version) {
         var profile = decode(stored, version);
-        ObjectNode tree = objectMapper.valueToTree(profile);
+        // Existing values are exact historical wire inputs. Re-serializing their domain Sets
+        // changes array order between JVMs and breaks ordered profile/result bindings.
+        ObjectNode tree = (ObjectNode) snapshot(stored, version).deepCopy();
         var security = (ObjectNode) tree.get("security");
-        security.set("dataResidencyDetails", objectMapper.valueToTree(profile.security().dataResidencyDetails()));
-        security.set("authenticationControls", objectMapper.valueToTree(profile.security().authenticationControls()));
-        security.set("complianceScopeStatus", objectMapper.valueToTree(profile.security().complianceScopeStatus()));
-        security.set("auditabilityRequirements", objectMapper.valueToTree(profile.security().auditabilityRequirements()));
-        ((ObjectNode) tree.get("operations")).set("usagePlanning", objectMapper.valueToTree(profile.operations().usagePlanning()));
+        if (!security.has("dataResidencyDetails")) security.set("dataResidencyDetails", objectMapper.valueToTree(profile.security().dataResidencyDetails()));
+        if (!security.has("authenticationControls")) security.set("authenticationControls", objectMapper.valueToTree(profile.security().authenticationControls()));
+        if (!security.has("complianceScopeStatus")) security.set("complianceScopeStatus", objectMapper.valueToTree(profile.security().complianceScopeStatus()));
+        if (!security.has("auditabilityRequirements")) security.set("auditabilityRequirements", objectMapper.valueToTree(profile.security().auditabilityRequirements()));
+        var operations = (ObjectNode) tree.get("operations");
+        if (!operations.has("usagePlanning")) operations.set("usagePlanning", objectMapper.valueToTree(profile.operations().usagePlanning()));
         return tree;
     }
 }

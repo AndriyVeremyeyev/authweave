@@ -90,6 +90,53 @@ class AssessmentDecisionResultIntegrationTests {
         Files.writeString(Path.of("target/assessment-result-http-contract-samples.json"), mapper.writeValueAsString(samples));
         Files.writeString(Path.of("target/assessment-result-proof-samples.json"), mapper.writeValueAsString(bundles));
     }
+    @Test void aSeparateJvmReplaysTheExactStoredProfileOrderWithoutUpdatingTheResultOrAudit() throws Exception {
+        var first = submit(request(root.snapshot(), null), 201); var pin = reference(first);
+        var input = Files.createTempFile(Path.of("target"), "fresh-jvm-result-replay-", ".json");
+        try {
+            Files.writeString(input, mapper.writeValueAsString(Map.of("receipt", first, "actor", actor())));
+            var log = Path.of("target", "fresh-jvm-result-replay.log").toAbsolutePath();
+            var processBuilder = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                    "-classpath", System.getProperty("surefire.test.class.path", System.getProperty("java.class.path")),
+                    FreshJvmReplay.class.getName(), input.toAbsolutePath().toString(),
+                    "--spring.datasource.url=" + postgres.getJdbcUrl(), "--spring.datasource.username=authweave_core_runtime",
+                    "--spring.datasource.password=core-test-password", "--AUTHWEAVE_CORE_SERVICE_TOKEN=synthetic-assessment-result-token-000000000000000",
+                    "--AUTHWEAVE_OIDC_PROJECT_ID=123", "--AUTHWEAVE_OIDC_ORG_ID=456")
+                    .redirectErrorStream(true).redirectOutput(log.toFile());
+            processBuilder.environment().keySet().removeIf(key -> key.startsWith("AUTHWEAVE_") || key.startsWith("SPRING_") ||
+                    List.of("NODE_OPTIONS", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS").contains(key));
+            var child = processBuilder.start();
+            try {
+                assertTrue(child.waitFor(60, TimeUnit.SECONDS), "Fresh JVM replay timed out");
+                assertEquals(0, child.exitValue(), Files.readString(log));
+                assertTrue(Files.readString(log).contains("Fresh JVM verified the exact immutable result"));
+            } finally { if (child.isAlive()) { child.destroyForcibly(); child.waitFor(5, TimeUnit.SECONDS); } }
+            assertEquals(first, getResult(pin, 200)); counts(1);
+        } finally { Files.deleteIfExists(input); }
+    }
+
+    /** Test-only launcher: disposable database and fictional actor, no HTTP, migration, writer or project data. */
+    public static class FreshJvmReplay {
+        public static void main(String[] args) throws Exception {
+            var app = new org.springframework.boot.SpringApplication(io.authweave.core.CoreApiApplication.class);
+            app.setWebApplicationType(org.springframework.boot.WebApplicationType.NONE);
+            var properties = new java.util.ArrayList<>(List.of(java.util.Arrays.copyOfRange(args, 1, args.length)));
+            properties.addAll(List.of("--spring.flyway.enabled=false", "--spring.main.banner-mode=off", "--logging.level.root=ERROR",
+                    "--spring.datasource.hikari.read-only=true", "--spring.datasource.hikari.maximum-pool-size=1"));
+            try (var context = app.run(properties.toArray(String[]::new))) {
+                if (context.getEnvironment().getActiveProfiles().length != 0 || !context.getBeansOfType(CatalogBootstrapPublisher.class).isEmpty())
+                    throw new IllegalStateException("Use default read-only loading without a publisher");
+                var mapper = context.getBean(ObjectMapper.class); var sample = mapper.readTree(Files.readString(Path.of(args[0])));
+                var expected = sample.get("receipt"); var body = expected.get("result");
+                var pin = mapper.treeToValue(expected.get("reference"), AssessmentDecisionResultRequest.Reference.class);
+                var owner = mapper.treeToValue(sample.get("actor"), AssessmentDecisionResultService.Actor.class);
+                var actual = context.getBean(AssessmentDecisionResultService.class).get(UUID.fromString(body.path("workspaceId").asText()),
+                        UUID.fromString(body.path("assessmentId").asText()), pin, owner);
+                if (!expected.equals(mapper.readTree(mapper.writeValueAsString(actual)))) throw new IllegalStateException("Historical result drifted");
+                System.out.println("Fresh JVM verified the exact immutable result with original profile/catalog/policy/clock pins and read-only loading.");
+            }
+        }
+    }
     @Test void explicitCalculationPinAndReevaluationKeepTheOriginalResultAfterProfileAndCatalogChanges() throws Exception {
         var request = request(root.snapshot(), null);
         sample("create", "assessment-decision-result-request", true, mapper.valueToTree(request));

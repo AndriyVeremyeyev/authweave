@@ -438,7 +438,8 @@ The Review entry preserves existing unsaved-input navigation guards. Isolated br
 tests exercise desktop/mobile history, reload, older-profile advice, malformed links,
 cross-owner denial and logout using real Core and fictional published test data only.
 The separate explicit recording form below does not change read-only history/detail semantics.
-The real human publication workflow and final acceptance are still pending.
+Local publication authorization and the owner's final acceptance are separate from
+these isolated checks.
 
 ### Historical decision explanations in the UI
 
@@ -458,6 +459,23 @@ test evidence. Links never auto-fetch sources and use no-referrer/isolated new t
 non-HTTP(S) and credential-bearing URLs are refused. Historical replay is not external
 source truth, current freshness, deployment verification, compliance or decision approval.
 
+A read-only blocking-requirements overview groups Core's saved failures for excluded
+options and unknown checks for unresolved options by field, criticality and reason.
+It counts distinct scoped options separately from checks; one option can appear in
+several groups. Exclusions appear first, then field order, not priority or ranking.
+Links jump to the original option disclosure with its exact evidence and conditions.
+Grouping does not combine provider plans or reuse evidence across scopes, recalculate
+eligibility, award points, approve a decision or change the stored result. A result
+with no hard-check blockers can still have unresolved architecture/deployment boundaries.
+
+Historical evaluation projection preserves the original stored JSON array order,
+including client types, populations, residency categories and compliance targets.
+Although these inputs are domain sets, their ordered wire hashes must survive a JVM
+restart; re-serializing Java sets cannot replace the recorded inputs. Missing legacy
+fields receive only the existing explicit UNKNOWN projection. The stored revision,
+result, hashes and owner audit are not rewritten. Regression checks cover profile
+formats v1–v6 and exact read-only result replay in a separate JVM.
+
 Architecture advice explains conditional fits and alternatives, pros/cons, unverified
 prerequisites and separate API/lifecycle conditions. Required SCIM cannot be replaced
 by JIT. Managed/self-hosted responsibility and cost uncertainty remain explicit: no
@@ -465,7 +483,8 @@ free-tier or price guarantee. This read creates no new version or configuration 
 does not offer a full ADR export. Independent checks
 compare every projected field to actual stored replayed receipts; isolated real-Core
 desktop/mobile browser checks cover evidence, keyboard disclosure and ownership denial.
-Real human source review/publication and final Phase 3 acceptance are still pending.
+These automated checks do not grant publication authorization or complete the owner's
+final Phase 3 acceptance.
 
 ### Weight sensitivity on pinned historical inputs
 

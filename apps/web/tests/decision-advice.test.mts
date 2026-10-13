@@ -11,6 +11,12 @@ import { firstResult, resultAssessment, resultWorkspace } from "./fixtures/decis
 const read = (v: unknown) => resultAdviceFromCore(v, resultWorkspace, resultAssessment, firstResult);
 const session = { workspaceId: resultWorkspace, issuer: "https://identity.example.invalid", subject: "fictional-owner" };
 
+async function adviceUi() {
+  const source = await readFile(new URL("../src/app/assessments/[id]/results/result-advice.tsx", import.meta.url), "utf8");
+  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  return import(`data:text/javascript;base64,${Buffer.from(compiled.replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))).toString("base64")}`);
+}
+
 test("owned historical advice preserves exact fields, unknowns and source dates without mutation", () => {
   for (const r of [resultAdvice(), rankedAdvice()]) { const before = structuredClone(r); assert.deepEqual(read(r), r); assert.deepEqual(r, before); }
 });
@@ -96,9 +102,7 @@ test("BFF uses one bounded fixed no-store read with session-only assertions and 
   } finally { globalThis.fetch = oldFetch; if (token === undefined) delete process.env.AUTHWEAVE_CORE_SERVICE_TOKEN; else process.env.AUTHWEAVE_CORE_SERVICE_TOKEN = token; }
 });
 test("actual advice component explains evidence and conditions, escapes prose and never presents write/approval controls", async () => {
-  const source = await readFile(new URL("../src/app/assessments/[id]/results/result-advice.tsx", import.meta.url), "utf8");
-  const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  const { ResultAdviceView } = await import(`data:text/javascript;base64,${Buffer.from(compiled.replaceAll('"react/jsx-runtime"', JSON.stringify(import.meta.resolve("react/jsx-runtime")))).toString("base64")}`);
+  const { ResultAdviceView } = await adviceUi();
   const r = resultAdvice(); r.followUps.push("<script>private-value</script>"); const before = structuredClone(r);
   const html = renderToStaticMarkup(createElement(ResultAdviceView, { advice: r }));
   for (const text of ["Why this saved result?", "Fictional test evidence", "2026-10-01", "not a fresh check", "SCIM is required", "Unverified design prerequisites", "cost uncertainty", "No ranks are assigned"]) assert.ok(html.includes(text), text);
@@ -118,4 +122,62 @@ test("actual advice component explains evidence and conditions, escapes prose an
   for (const c of ranked.summary.candidates) { c.score!.lowerBound = 0; c.score!.unknownWeight = 100; }
   assert.deepEqual(read(ranked), ranked);
   assert.ok(renderToStaticMarkup(createElement(ResultAdviceView, { advice: ranked })).includes("100 unknown points, not confidence"));
+});
+
+test("blocker groups count scoped options separately from repeated checks without merging provider plans", async () => {
+  const { savedBlockerGroups } = await adviceUi(), advice = resultAdvice();
+  const first = advice.candidates[0]; first.hardChecks.findings[0].profilePath = "provisioning.scim";
+  first.hardChecks.findings.push({ ...structuredClone(first.hardChecks.findings[0]), checkId: "SCIM_SECOND_CLIENT", factPath: "another.scoped.fact" });
+  const second = structuredClone(first); second.hardChecks.optionId = "fictional-same-provider-other-plan"; second.hardChecks.plan = "Another fictional plan";
+  advice.candidates.push(second); const before = structuredClone(advice);
+  assert.deepEqual(savedBlockerGroups(advice), [{ profilePath: "provisioning.scim", criticality: "REQUIRED", outcome: "UNKNOWN", reasonCode: "REQUIRED_UNKNOWN",
+    checks: 4, options: [{ index: 0, checks: 2 }, { index: 1, checks: 2 }] }]);
+  assert.deepEqual(advice, before);
+});
+
+test("blocker presentation takes Core verdicts as given and separates exclusions from unresolved/context/answer gaps", async () => {
+  const { savedBlockerGroups } = await adviceUi(), advice = resultAdvice();
+  const excluded = structuredClone(advice.candidates[0]); excluded.hardChecks.optionId = "fictional-excluded"; excluded.hardChecks.hardVerdict = "EXCLUDED";
+  excluded.hardChecks.findings[0] = { ...excluded.hardChecks.findings[0], profilePath: "provisioning.groupSynchronization", outcome: "FAIL", reasonCode: "UNSUPPORTED" };
+  excluded.hardChecks.findings.push({ ...advice.candidates[0].hardChecks.findings[0], checkId: "EXCLUDED_UNKNOWN" });
+  advice.candidates.push(excluded, rankedAdvice().candidates[0]);
+  advice.candidates[0].hardChecks.findings.push({ ...advice.candidates[0].hardChecks.findings[0], checkId: "CLIENT_CONTEXT", profilePath: "application.clients", criticality: "CONTEXT", reasonCode: "EVIDENCE_MISSING" },
+    { ...advice.candidates[0].hardChecks.findings[0], checkId: "ANSWER_UNKNOWN", profilePath: "protocols.federation.SAML", criticality: "UNKNOWN", reasonCode: "PROFILE_REQUIREMENT_UNKNOWN" },
+    { ...advice.candidates[0].hardChecks.findings[0], checkId: "PREFERENCE", criticality: "PREFERRED", outcome: "NOT_APPLIED" });
+  const groups = savedBlockerGroups(advice);
+  assert.equal(groups.length, 4); assert.equal(groups[0].outcome, "FAIL"); assert.equal(groups[0].profilePath, "provisioning.groupSynchronization");
+  assert.deepEqual(groups[0].options, [{ index: 1, checks: 1 }]);
+  assert.ok(groups.some((g: { criticality: string }) => g.criticality === "CONTEXT"));
+  assert.ok(groups.some((g: { criticality: string }) => g.criticality === "UNKNOWN"));
+  assert.ok(groups.slice(1).every((g: { options: { index: number }[] }) => g.options.every(option => option.index === 0)));
+});
+
+test("blocker groups keep distinct reasons and criticalities and deterministic field order", async () => {
+  const { savedBlockerGroups } = await adviceUi(), advice = resultAdvice(), findings = advice.candidates[0].hardChecks.findings;
+  const base = structuredClone(findings[0]); findings.length = 0;
+  for (const [checkId, criticality, reasonCode] of [["C", "REQUIRED", "REQUIRED_UNKNOWN"], ["B", "FORBIDDEN", "EVIDENCE_MISSING"], ["A", "REQUIRED", "EVIDENCE_MISSING"]])
+    findings.push({ ...base, checkId, criticality, reasonCode });
+  const before = structuredClone(advice), groups = savedBlockerGroups(advice);
+  assert.equal(groups.length, 3); assert.deepEqual(groups.map((g: { criticality: string; reasonCode: string }) => [g.criticality, g.reasonCode]),
+    [["FORBIDDEN", "EVIDENCE_MISSING"], ["REQUIRED", "EVIDENCE_MISSING"], ["REQUIRED", "REQUIRED_UNKNOWN"]]);
+  findings.reverse(); assert.deepEqual(savedBlockerGroups(advice), groups); findings.reverse(); assert.deepEqual(advice, before);
+});
+
+test("blocking UI uses friendly labels, bounded local jump targets and escaped unknown fields without controls or mutations", async () => {
+  const { ResultAdviceView } = await adviceUi(), advice = resultAdvice();
+  advice.candidates[0].hardChecks.findings[0].profilePath = "provisioning.scim";
+  advice.candidates[0].hardChecks.findings.push({ ...advice.candidates[0].hardChecks.findings[0], checkId: "UNFAMILIAR_FIELD", profilePath: "<script>untrusted-field</script>" });
+  const before = structuredClone(advice), html = renderToStaticMarkup(createElement(ResultAdviceView, { advice }));
+  for (const text of ["Blocking requirements", "SCIM provisioning", "Information gap", "1 scoped option", 'href="#result-option-0"', 'id="result-option-0"',
+    "not priority or ranking", "grouped checks do not share evidence", "unknown is not support", "&lt;script&gt;untrusted-field&lt;/script&gt;"]) assert.ok(html.includes(text), text);
+  for (const text of ["<form", "<input", "<script>", "Bearer", session.subject]) assert.equal(html.includes(text), false, text);
+  assert.deepEqual(advice, before);
+});
+
+test("a result with no hard-check blockers still disclaims architecture and deployment readiness", async () => {
+  const { ResultAdviceView, savedBlockerGroups } = await adviceUi(), advice = rankedAdvice(), before = structuredClone(advice);
+  assert.deepEqual(savedBlockerGroups(advice), []);
+  const html = renderToStaticMarkup(createElement(ResultAdviceView, { advice }));
+  assert.ok(html.includes("No hard-check blockers were recorded")); assert.ok(html.includes("Architecture prerequisites and deployment verification may still be unresolved"));
+  assert.deepEqual(advice, before);
 });
