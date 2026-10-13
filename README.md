@@ -325,10 +325,18 @@ incomplete reports are not relabelled, and the legacy publication preflight rema
 blocked. Stored-review provenance is not current curator authority, independent source
 verification, approval or publication readiness. This policy does not replace the 18
 final golden acceptance cases, publish a catalog or pin an assessment result. The next
-P3-4 workflow uses fresh checks, not this output as a reusable approval token. The real
-candidate still awaits human source review.
+P3-4 workflow uses fresh checks, not this output as a reusable approval token. Recording
+source review and authorizing a catalog database version remain separate actions.
 
 ### Guarded first catalog publication
+
+Here, *publication* means freezing a reviewed, versioned advisory snapshot in the
+configured PostgreSQL registry. In a local run this remains in local PostgreSQL; it
+does not deploy a website, expose an Internet endpoint or export review/audit records
+to GitHub. Permission to record that database version is separate from permission to
+share operational data. `REVIEWED` identifies the recorded source assessment, not
+verified vendor operation: every original `UNKNOWN` value and evidence date remains
+unchanged. A required unknown still prevents a positive capability finding.
 
 The `catalog-bootstrap-publication` server profile explicitly enables the Core-only
 `POST /internal/v1/catalog-curator/bootstrap-publications` route. It is absent by default.
