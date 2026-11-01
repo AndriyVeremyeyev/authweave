@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==84.0.0"]
+requires = ["setuptools==84.2.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,16 +8,16 @@ version = "0.1.0"
 description = "Typed AI operation boundary for AuthWeave"
 requires-python = ">=3.13,<3.14"
 dependencies = [
-    "fastapi==0.139.2",
-    "pydantic==2.13.4",
-    "uvicorn[standard]==0.51.0",
+    "fastapi==0.162.0",
+    "pydantic==2.14.2",
+    "uvicorn[standard]==0.54.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "httpx==0.28.1",
-    "pytest==9.1.1",
-    "ruff==0.16.0",
+    "pytest==9.2.0",
+    "ruff==0.17.3",
 ]
 
 [tool.pytest.ini_options]
