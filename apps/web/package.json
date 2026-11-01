@@ -15,21 +15,21 @@
     "test:auth-db": "node --test tests/auth-db.integration.mts"
   },
   "dependencies": {
-    "next": "16.3.8",
+    "next": "16.4.3",
     "openid-client": "^6.8.8",
-    "pg": "^8.23.0",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "pg": "^8.23.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.0",
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^24",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.3.8",
+    "eslint-config-next": "16.4.3",
     "fast-glob": "file:tooling/eslint-root-glob",
     "tailwindcss": "^4",
     "typescript": "^5"
